@@ -1,0 +1,949 @@
+\chapter{Generating Functions}
+
+In the last chapter you learned what happens when you add independent random
+variables: their distributions \emph{convolve}. Convolution is honest and
+exact, but it is also a chore. To find the distribution of $X+Y$ you slide one
+pmf across another and sum, term by term; to find the distribution of
+$X_1+\cdots+X_n$ you do this $n-1$ times, each pass smearing the answer a little
+further out. By the time you reach a sum of fifty dice the bookkeeping has
+buried the idea.
+
+This chapter is about a change of language that makes the chore disappear.
+Instead of carrying a distribution around as a list of probabilities or as a
+density curve, we will encode the \emph{entire} distribution inside a single
+function --- a \emph{generating function}. The encoding is chosen so cleverly
+that the operations we care about become easy: \textbf{convolution turns into
+ordinary multiplication}, \textbf{moments fall out by differentiation}, and
+\textbf{two distributions are equal exactly when their generating functions
+agree}. A hard problem about sums of random variables becomes an easy problem
+about products of functions, and at the end you translate back.
+
+There are three such encodings, and they are really the same idea wearing three
+costumes. The \emph{probability generating function} (PGF) is built for
+nonnegative integers and is the gentlest to meet first. The \emph{moment
+generating function} (MGF) works for any random variable and is the workhorse of
+applied probability --- it is how we will identify distributions and, in a later
+chapter, prove the Central Limit Theorem. The \emph{characteristic function}
+(CF) is the MGF's bulletproof cousin: it exists for \emph{every} random
+variable without exception, which is exactly why the deepest theorems are proved
+with it. We will build all three from the ground up, see why each one does what
+it does, and end with the punchline that makes the whole machine trustworthy:
+\emph{a distribution is determined by its transform}.
+
+\chapterline
+
+\section{The Idea: Hang Probabilities on a Function}
+\label{ch18:idea}
+
+Let us start with a single die and a deliberately small question, so the trick
+is visible before it is useful.
+
+A fair die produces a value in $\set{1,2,3,4,5,6}$, each with probability
+$1/6$. Here is an unusual way to write that distribution down. Introduce a
+bookkeeping symbol $s$ and form the polynomial
+\[
+  G(s) \;=\; \tfrac16 s^1 + \tfrac16 s^2 + \tfrac16 s^3
+            + \tfrac16 s^4 + \tfrac16 s^5 + \tfrac16 s^6 .
+\]
+Read it like a coat rack. The coefficient hanging on the hook labelled $s^k$ is
+the probability that the die shows $k$. Nothing has been added or lost --- the
+six numbers $1/6$ are all still there --- but now they ride on a single
+function of $s$. The exponent records the \emph{value}, the coefficient records
+the \emph{probability}.
+
+\begin{intuitionbox}
+A distribution on $\set{0,1,2,\dots}$ is just a sequence of numbers
+$p_0,p_1,p_2,\dots$. A generating function is the trick of bundling a whole
+sequence into one object by using powers of a dummy variable as labelled
+shelves: $G(s)=p_0 + p_1 s + p_2 s^2 + \cdots$. The shelf $s^k$ holds $p_k$.
+The magic is that natural operations on \emph{sequences} (like convolution)
+become natural operations on \emph{functions} (like multiplication).
+\end{intuitionbox}
+
+Why would you ever want this? Watch what happens when you roll \emph{two}
+independent dice and ask for the distribution of the total. The total is $k$
+when the first die shows $i$ and the second shows $k-i$, for every way that can
+happen, so the probability of total $k$ is the convolution
+\[
+  \P(\text{sum}=k) \;=\; \sum_{i} \P(\text{first}=i)\,\P(\text{second}=k-i).
+\]
+Now look at the product of the two coat racks. Multiplying $G(s)\cdot G(s)$ and
+collecting the coefficient of $s^k$, you pick up exactly
+$\sum_i (\text{coeff of }s^i)(\text{coeff of }s^{k-i})$ --- because $s^i \cdot
+s^{k-i}=s^k$. \emph{That is the convolution sum, performed for free by the
+exponent arithmetic.} The exponents add precisely because random variables add.
+Convolution of probabilities and multiplication of polynomials are the same
+operation seen from two sides.
+
+\begin{happeningbox}
+The whole subject lives in one observation: $s^i\cdot s^j = s^{i+j}$. When you
+multiply two generating functions, every cross term $s^i$-from-the-first times
+$s^j$-from-the-second lands on the shelf $s^{i+j}$, carrying the product of its
+two probabilities. Summing all the ways to land on shelf $k$ \emph{is} the
+convolution that gives $\P(X+Y=k)$. So ``add independent random variables''
+$\longleftrightarrow$ ``multiply their generating functions.'' Everything else
+in this chapter is a consequence and a refinement of that single line.
+\end{happeningbox}
+
+\section{The Probability Generating Function}
+\label{ch18:pgf}
+
+Let us make the coat rack official, for random variables that take values in
+$\set{0,1,2,\dots}$.
+
+\begin{definition}[Probability generating function]
+\label{ch18:def-pgf}
+Let $X$ be a random variable taking values in the nonnegative integers, with
+pmf $p_k=\P(X=k)$. Its \emph{probability generating function} is
+\[
+  G_X(s) \;=\; \E\!\left[s^X\right] \;=\; \sum_{k=0}^{\infty} p_k\, s^k ,
+  \qquad \abs{s}\le 1 .
+\]
+\end{definition}
+
+The two faces of the definition --- ``$\E[s^X]$'' and ``$\sum p_k s^k$'' --- are
+worth holding side by side. The first is compact and is how you will usually
+\emph{compute} it; the second is the coat rack and is how you will usually
+\emph{read} it. They agree because $\E[s^X]=\sum_k s^k\,\P(X=k)$ is just the
+definition of expectation of the function $s\mapsto s^X$ (this is LOTUS, the law
+of the unconscious statistician, from the expectation chapter).
+
+The series converges at least for $\abs{s}\le 1$, because there the terms are
+dominated by the probabilities: $\sum_k p_k \abs{s}^k \le \sum_k p_k = 1$.
+In particular $G_X(1)=\sum_k p_k = 1$ always, which is a handy sanity check ---
+a correct PGF must pass through the point $(1,1)$.
+
+\begin{example}[The usual suspects]
+\label{ch18:ex-pgfs}
+A few PGFs you should be able to write on sight.
+\begin{itemize}
+  \item \textbf{Bernoulli}$(p)$: $X$ is $1$ w.p.\ $p$ and $0$ w.p.\ $q=1-p$, so
+        \[
+          G_X(s) = q\,s^0 + p\,s^1 = q + p s .
+        \]
+  \item \textbf{Binomial}$(n,p)$: think of $X=\sum_{i=1}^n X_i$ as a sum of $n$
+        independent Bernoulli$(p)$'s. We will see in a moment that PGFs of
+        independent sums multiply, so
+        \[
+          G_X(s) = (q+ps)^n .
+        \]
+        (Notice the binomial theorem expands this into
+        $\sum_k \binom{n}{k}p^k q^{n-k}s^k$ --- the pmf, recovered as
+        coefficients.)
+  \item \textbf{Geometric}$(p)$ (number of failures before the first success,
+        $k=0,1,2,\dots$): $p_k = q^k p$, so
+        \[
+          G_X(s) = \sum_{k=0}^\infty q^k p\, s^k
+                 = p\sum_{k=0}^\infty (qs)^k = \frac{p}{1-qs},
+          \qquad \abs{s}<1/q .
+        \]
+  \item \textbf{Poisson}$(\lambda)$: $p_k = e^{-\lambda}\lambda^k/k!$, so
+        \[
+          G_X(s) = \sum_{k=0}^\infty e^{-\lambda}\frac{\lambda^k}{k!}s^k
+                 = e^{-\lambda}\sum_{k=0}^\infty \frac{(\lambda s)^k}{k!}
+                 = e^{-\lambda}e^{\lambda s} = e^{\lambda(s-1)} .
+        \]
+        The Taylor series of $e^x$ does the summing for you --- a recurring
+        pleasure with the Poisson.
+\end{itemize}
+\end{example}
+
+\subsection{The multiplication theorem}
+
+Now the property the whole construction was built to have.
+
+\begin{theorem}[PGF of an independent sum]
+\label{ch18:thm-pgf-product}
+If $X$ and $Y$ are independent nonnegative-integer random variables, then
+\[
+  G_{X+Y}(s) \;=\; G_X(s)\,G_Y(s).
+\]
+More generally, if $X_1,\dots,X_n$ are independent, then $G_{X_1+\cdots+X_n}(s)
+= \prod_{i=1}^n G_{X_i}(s)$.
+\end{theorem}
+
+\begin{whybox}
+The proof is one line, and it is the most important line in the chapter:
+\[
+  G_{X+Y}(s) = \E\!\left[s^{X+Y}\right]
+             = \E\!\left[s^{X}s^{Y}\right]
+             \stackrel{\indep}{=} \E\!\left[s^{X}\right]\E\!\left[s^{Y}\right]
+             = G_X(s)\,G_Y(s).
+\]
+The single starred step uses independence: the expectation of a product of
+independent quantities is the product of their expectations. Everything else is
+exponent arithmetic, $s^{X+Y}=s^X s^Y$. This is the convolution-becomes-product
+fact from \S\ref{ch18:idea}, now stated cleanly in the language of expectation.
+The $n$-fold version follows by induction.
+\end{whybox}
+
+\begin{example}[Sum of independent Poissons, in one breath]
+\label{ch18:ex-pois-sum}
+Let $X\sim\Pois(\lambda)$ and $Y\sim\Pois(\mu)$ be independent. By
+Theorem~\ref{ch18:thm-pgf-product},
+\[
+  G_{X+Y}(s) = e^{\lambda(s-1)}\,e^{\mu(s-1)} = e^{(\lambda+\mu)(s-1)} .
+\]
+But that last expression is exactly the PGF of a $\Pois(\lambda+\mu)$ variable.
+Once we know (next section) that the PGF determines the distribution, we may
+conclude $X+Y\sim\Pois(\lambda+\mu)$ --- no convolution sum, no
+$\sum_{j}\binom{k}{j}\lambda^j\mu^{k-j}/k!$ to wrestle with. The exponents just
+added. This is the payoff promised in the chapter opening, delivered in two
+lines.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=5.6cm,
+  ybar, bar width=4pt,
+  ymin=0, ymax=0.20,
+  xmin=-0.5, xmax=20.5,
+  xlabel={value $k$}, ylabel={probability},
+  title={Adding independent Poissons just adds the rate},
+  xtick={0,4,8,12,16,20},
+  ytick={0,0.05,0.10,0.15},
+  enlarge x limits=0.02,
+  legend style={font=\small},
+]
+% Poisson(3)
+\addplot[draw=sourceblue, fill=sourceblue!55] coordinates {
+(0,0.0498)(1,0.1494)(2,0.2240)(3,0.2240)(4,0.1680)(5,0.1008)(6,0.0504)(7,0.0216)(8,0.0081)(9,0.0027)(10,0.0008)};
+% Poisson(5)
+\addplot[draw=quotientorange, fill=quotientorange!45] coordinates {
+(0,0.0067)(1,0.0337)(2,0.0842)(3,0.1404)(4,0.1755)(5,0.1755)(6,0.1462)(7,0.1044)(8,0.0653)(9,0.0363)(10,0.0181)(11,0.0082)(12,0.0034)(13,0.0013)};
+% Poisson(8) = sum
+\addplot[draw=densityred, fill=densityred!40] coordinates {
+(0,0.0003)(1,0.0027)(2,0.0107)(3,0.0286)(4,0.0573)(5,0.0916)(6,0.1221)(7,0.1396)(8,0.1396)(9,0.1241)(10,0.0993)(11,0.0722)(12,0.0481)(13,0.0296)(14,0.0169)(15,0.0090)(16,0.0045)(17,0.0021)(18,0.0009)};
+\legend{$\Pois(3)$, $\Pois(5)$, sum $=\Pois(8)$}
+\end{axis}
+\end{tikzpicture}
+\caption{The red bars are the distribution of $X+Y$ where $X\sim\Pois(3)$ and
+$Y\sim\Pois(5)$ independently. It is exactly $\Pois(8)$. The PGF proof
+(\ref{ch18:ex-pois-sum}) says this with no arithmetic: the exponents
+$\lambda(s-1)$ and $\mu(s-1)$ add.}
+\label{ch18:fig-pois-sum}
+\end{figure}
+
+\subsection{Reading moments off the PGF}
+
+The PGF does double duty: it not only multiplies sums together, it also coughs
+up moments when you differentiate it. Differentiate the series term by term:
+\[
+  G_X'(s) = \sum_{k\ge 1} k\,p_k\, s^{k-1},
+  \qquad
+  G_X''(s) = \sum_{k\ge 2} k(k-1)\,p_k\, s^{k-2}.
+\]
+Now evaluate at $s=1$. The first gives $G_X'(1)=\sum_k k\,p_k = \E[X]$. The
+second gives $G_X''(1)=\sum_k k(k-1)p_k = \E[X(X-1)] = \E[X^2]-\E[X]$. These
+$\E[X(X-1)\cdots]$ quantities are called \emph{factorial moments}, and the PGF
+is their natural home.
+
+\begin{proposition}[Mean and variance from the PGF]
+\label{ch18:prop-pgf-moments}
+If $X$ has PGF $G_X$, then
+\[
+  \E[X] = G_X'(1),
+  \qquad
+  \Var(X) = G_X''(1) + G_X'(1) - \big(G_X'(1)\big)^2 .
+\]
+\end{proposition}
+
+\begin{example}[Poisson moments, instantly]
+For $\Pois(\lambda)$ we have $G_X(s)=e^{\lambda(s-1)}$, so $G_X'(s)=\lambda
+e^{\lambda(s-1)}$ and $G_X''(s)=\lambda^2 e^{\lambda(s-1)}$. At $s=1$ the
+exponential is $1$, giving $G_X'(1)=\lambda$ and $G_X''(1)=\lambda^2$. Hence
+$\E[X]=\lambda$ and
+\[
+  \Var(X) = \lambda^2 + \lambda - \lambda^2 = \lambda .
+\]
+The famous fact that a Poisson's mean and variance coincide drops out of one
+exponential and two derivatives.
+\end{example}
+
+\begin{walkbox}
+Use the PGF $G(s)=p/(1-qs)$ of the Geometric$(p)$ (failures before first
+success) to show $\E[X]=q/p$.
+\emph{Hint:} differentiate $p(1-qs)^{-1}$ to get $G'(s)=pq(1-qs)^{-2}$, then set
+$s=1$ and remember $1-q=p$. You should find $G'(1)=pq/p^2 = q/p$. For practice,
+push on to $G''(1)=2pq^2/p^3 = 2q^2/p^2$ and assemble
+$\Var(X)=q/p^2$.
+\end{walkbox}
+
+\begin{applicationbox}[Branching processes and extinction]
+PGFs are the native language of \emph{branching processes}, the model behind
+nuclear chain reactions, surname survival, and epidemic spread. Suppose each
+individual independently produces a random number of offspring with PGF $G$.
+Then the size of generation $n$ has PGF obtained by \emph{composing} $G$ with
+itself $n$ times: $G_n(s) = G(G(\cdots G(s)\cdots))$. The probability of
+eventual extinction turns out to be the smallest fixed point of $G$, i.e.\ the
+smallest solution of $G(s)=s$ in $[0,1]$. A whole theory --- including the
+clean threshold ``extinction is certain iff the mean offspring count is
+$\le 1$'' --- falls out of iterating one function. Composition of PGFs encodes
+generations the way multiplication encodes independent sums.
+\end{applicationbox}
+
+\section{The Moment Generating Function}
+\label{ch18:mgf}
+
+The PGF is lovely but provincial: it only speaks to nonnegative integers,
+because $s^X$ needs an integer exponent to make plain sense. Real life is full
+of continuous quantities --- waiting times, measurement errors, asset returns
+--- and for those we need a transform that does not care whether $X$ is integer,
+continuous, positive, or negative. The fix is to replace the base $s$ by $e^t$.
+Then $s^X = (e^t)^X = e^{tX}$ makes sense for \emph{any} real $X$, because the
+exponential eats any real exponent.
+
+\begin{definition}[Moment generating function]
+\label{ch18:def-mgf}
+The \emph{moment generating function} of a random variable $X$ is
+\[
+  M_X(t) \;=\; \E\!\left[e^{tX}\right],
+\]
+defined for those real $t$ where the expectation is finite. We say the MGF
+\emph{exists} if $M_X(t)<\infty$ for all $t$ in some open interval
+$(-\delta,\delta)$ around $0$.
+\end{definition}
+
+You can think of the MGF as the PGF with $s=e^t$ substituted in: where they both
+exist, $M_X(t)=G_X(e^t)$. Everything good about the PGF carries over, and the
+domain widens to all of $\R$.
+
+\begin{theorem}[MGF of an independent sum]
+\label{ch18:thm-mgf-product}
+If $X$ and $Y$ are independent, then $M_{X+Y}(t)=M_X(t)\,M_Y(t)$, wherever both
+sides are finite.
+\end{theorem}
+
+The proof is the same one line as before:
+$M_{X+Y}(t)=\E[e^{t(X+Y)}]=\E[e^{tX}e^{tY}]=\E[e^{tX}]\E[e^{tY}]$, the middle
+step by independence. Sums of independent variables become products of MGFs,
+now for continuous variables too.
+
+\subsection{Why it is called \emph{moment} generating}
+
+Here is where the name is earned. Expand $e^{tX}$ in its Taylor series and take
+the expectation term by term:
+\[
+  M_X(t) = \E\!\left[e^{tX}\right]
+         = \E\!\left[\sum_{n=0}^\infty \frac{(tX)^n}{n!}\right]
+         = \sum_{n=0}^\infty \frac{t^n}{n!}\,\E[X^n].
+\]
+Look at what this says. The MGF, expanded as a power series in $t$, has the
+$n$th moment $\E[X^n]$ sitting on the coefficient of $t^n/n!$. The whole
+sequence of moments is packed into one function, exactly the way the whole pmf
+was packed into the PGF. To pull out the $n$th moment, differentiate $n$ times
+and set $t=0$:
+
+\begin{proposition}[Moments by differentiation]
+\label{ch18:prop-mgf-moments}
+If $M_X$ exists in a neighborhood of $0$, then for every $n\ge 1$,
+\[
+  \E[X^n] \;=\; M_X^{(n)}(0),
+\]
+the $n$th derivative of the MGF evaluated at $t=0$. In particular
+$\E[X]=M_X'(0)$ and $\Var(X)=M_X''(0)-\big(M_X'(0)\big)^2$.
+\end{proposition}
+
+\begin{whybox}
+Differentiating $\sum_n \E[X^n]\,t^n/n!$ once knocks the series down to
+$\sum_{n\ge 1}\E[X^n]\,t^{n-1}/(n-1)!$, whose value at $t=0$ is the $n=1$ term,
+$\E[X]$. Differentiating $n$ times and setting $t=0$ similarly isolates the
+$\E[X^n]$ term --- every lower term has been differentiated to zero, every
+higher term still carries a factor of $t$. The factorials in the series are
+placed exactly so the $n$th derivative cleanly recovers $\E[X^n]$ with no stray
+constants. The MGF is a moment dispenser, and $t=0$ is the lever.
+\end{whybox}
+
+\begin{example}[The exponential distribution]
+\label{ch18:ex-expo-mgf}
+Let $X\sim\Expo(\lambda)$ with density $f(x)=\lambda e^{-\lambda x}$ for
+$x\ge 0$. Then
+\[
+  M_X(t) = \int_0^\infty e^{tx}\,\lambda e^{-\lambda x}\,\dd x
+         = \lambda\int_0^\infty e^{-(\lambda-t)x}\,\dd x
+         = \frac{\lambda}{\lambda - t},
+  \qquad t<\lambda .
+\]
+The integral converges only when $\lambda - t>0$, which is why the MGF lives on
+the half-line $t<\lambda$ and not all of $\R$ --- a first hint that MGFs can be
+fragile. To read off moments, expand as a geometric series:
+\[
+  M_X(t) = \frac{1}{1 - t/\lambda} = \sum_{n=0}^\infty \frac{t^n}{\lambda^n}
+         = \sum_{n=0}^\infty \frac{n!}{\lambda^n}\cdot\frac{t^n}{n!}.
+\]
+Matching against $\sum_n \E[X^n]\,t^n/n!$ gives $\E[X^n]=n!/\lambda^n$ for all
+$n$ at once. In particular $\E[X]=1/\lambda$ and $\E[X^2]=2/\lambda^2$, so
+$\Var(X)=2/\lambda^2 - 1/\lambda^2 = 1/\lambda^2$. One series, all the moments.
+\end{example}
+
+\begin{example}[The normal distribution]
+\label{ch18:ex-normal-mgf}
+The MGF of the standard normal $Z\sim\Normal(0,1)$ is the keystone of the CLT
+proof, so it is worth doing carefully. With density
+$\varphi(z)=\frac{1}{\sqrt{2\pi}}e^{-z^2/2}$,
+\[
+  M_Z(t) = \frac{1}{\sqrt{2\pi}}\int_{-\infty}^\infty e^{tz}\,e^{-z^2/2}\,\dd z .
+\]
+Complete the square in the exponent: $tz - \tfrac12 z^2 = -\tfrac12(z-t)^2 +
+\tfrac12 t^2$. Pull the $t$-only piece out of the integral:
+\[
+  M_Z(t) = e^{t^2/2}\cdot
+           \frac{1}{\sqrt{2\pi}}\int_{-\infty}^\infty e^{-(z-t)^2/2}\,\dd z
+         = e^{t^2/2}\cdot 1 = e^{t^2/2},
+\]
+since the remaining integral is just a normal density (centered at $t$)
+integrating to $1$. So $M_Z(t)=e^{t^2/2}$, finite for \emph{all} real $t$ ---
+the normal's tails are so thin that $e^{tZ}$ has finite expectation no matter
+how large $t$ is. For a general $X\sim\Normal(\mu,\sigma^2)$, write
+$X=\mu+\sigma Z$ and use the scaling rule below to get
+\[
+  M_X(t) = e^{\mu t + \frac12 \sigma^2 t^2}.
+\]
+\end{example}
+
+\subsection{How the MGF responds to shifting and scaling}
+
+Two small rules make the MGF a pleasure to manipulate.
+
+\begin{proposition}[Affine transformations]
+\label{ch18:prop-affine}
+For constants $a,b$, $\;M_{aX+b}(t) = e^{bt}\,M_X(at).$
+\end{proposition}
+
+\begin{whybox}
+$M_{aX+b}(t)=\E[e^{t(aX+b)}]=\E[e^{(at)X}\,e^{bt}] = e^{bt}\,\E[e^{(at)X}] =
+e^{bt}M_X(at)$. The constant $b$ slides outside as the factor $e^{bt}$; the
+multiplier $a$ reaches inside and rescales the argument. This is exactly how you
+turn the standard normal's MGF into the general normal's: with $a=\sigma$,
+$b=\mu$, $\;M_{\mu+\sigma Z}(t)=e^{\mu t}M_Z(\sigma t)=e^{\mu t}e^{\sigma^2
+t^2/2}$, recovering Example~\ref{ch18:ex-normal-mgf}.
+\end{whybox}
+
+\begin{example}[Sum of independent normals, by transform]
+\label{ch18:ex-normal-sum}
+Let $X\sim\Normal(\mu_1,\sigma_1^2)$ and $Y\sim\Normal(\mu_2,\sigma_2^2)$ be
+independent. Multiply their MGFs:
+\[
+  M_{X+Y}(t)=e^{\mu_1 t+\frac12\sigma_1^2 t^2}\,
+             e^{\mu_2 t+\frac12\sigma_2^2 t^2}
+            =e^{(\mu_1+\mu_2)t+\frac12(\sigma_1^2+\sigma_2^2)t^2}.
+\]
+That is the MGF of a $\Normal(\mu_1+\mu_2,\ \sigma_1^2+\sigma_2^2)$. So the sum
+of independent normals is normal, with means and variances adding --- a fact
+that costs a serious convolution integral to prove directly, but here is just
+``add the exponents.'' The normal family is \emph{closed under addition}, and
+the MGF makes that visible at a glance.
+\end{example}
+
+\begin{trapbox}
+The product rule needs \textbf{independence}. If $X$ and $Y$ are dependent,
+$M_{X+Y}(t)$ is generally \emph{not} $M_X(t)M_Y(t)$ --- the step
+$\E[e^{tX}e^{tY}]=\E[e^{tX}]\E[e^{tY}]$ fails. A common slip is to ``add
+variances'' or ``multiply MGFs'' for correlated variables. Both are independence
+facts. For dependent sums you must keep the joint distribution (or use the
+\emph{joint} MGF $\E[e^{t_1 X + t_2 Y}]$ and its mixed partials).
+\end{trapbox}
+
+\begin{applicationbox}[Chernoff bounds, the workhorse of modern ML theory]
+The MGF is not only for identifying distributions; it is the engine behind the
+sharpest elementary tail bounds in all of probability. For any $t>0$, Markov's
+inequality applied to $e^{tX}$ gives
+\[
+  \P(X\ge a) = \P\!\left(e^{tX}\ge e^{ta}\right)
+             \le \frac{\E[e^{tX}]}{e^{ta}}
+             = e^{-ta}\,M_X(t).
+\]
+Because this holds for \emph{every} $t>0$, you may optimize: the
+\emph{Chernoff bound} $\P(X\ge a)\le \min_{t>0} e^{-ta}M_X(t)$. For a sum of
+independent variables the MGF factorizes, so the bound on the sum is a product
+of one-variable MGFs --- which is exactly why Chernoff bounds give
+\emph{exponentially small} failure probabilities for averages. This is the
+backbone of generalization bounds in statistical learning, the analysis of
+randomized algorithms and hashing, and concentration inequalities like
+Hoeffding's. Whenever a machine-learning paper writes ``with probability at least
+$1-\delta$,'' a Chernoff/MGF argument is usually doing the work underneath.
+\end{applicationbox}
+
+\section{Uniqueness: Why the Transform Is Trustworthy}
+\label{ch18:uniqueness}
+
+Every trick in this chapter ends with the phrase ``\dots and therefore $X+Y$ is
+Poisson'' or ``\dots and therefore $X+Y$ is normal.'' Each such conclusion
+secretly relies on one deep fact: that the MGF \emph{determines} the
+distribution. If two random variables have the same MGF, they have the same
+distribution --- so recognizing the MGF lets you name the distribution. Without
+this, computing $M_{X+Y}$ would be a dead end; with it, recognition is proof.
+
+\begin{theorem}[Uniqueness of the MGF]
+\label{ch18:thm-uniqueness}
+Suppose $X$ and $Y$ have MGFs that are finite and equal on some open interval
+$(-\delta,\delta)$ around $0$: $M_X(t)=M_Y(t)$ for all $\abs{t}<\delta$. Then
+$X$ and $Y$ have the same distribution.
+\end{theorem}
+
+We will not prove this in full --- the honest proof routes through the
+characteristic function and Fourier inversion, which we meet next. But the
+\emph{reason} it is plausible is worth stating, because it demystifies what
+would otherwise look like a magic trick.
+
+\begin{whybox}
+A finite MGF on an interval around $0$ is real-analytic there, and its Taylor
+coefficients are the moments $\E[X^n]/n!$. So equal MGFs near $0$ means
+\emph{all moments agree}. The remaining content of the theorem is that, when the
+MGF exists in a neighborhood of $0$, the moments pin the distribution down
+uniquely. Intuitively, knowing every moment is knowing the average of every
+power $X,X^2,X^3,\dots$, hence the average of every polynomial, hence
+(by approximating indicators with polynomials) the probability of every event.
+The existence of the MGF is what guarantees the tails are thin enough for this
+program to close --- which is also exactly the fine print, addressed in the
+trap below.
+\end{whybox}
+
+\begin{trapbox}[Moments alone are \emph{not} always enough]
+\label{ch18:trap-moments}
+It is tempting to believe ``same moments $\Rightarrow$ same distribution''
+unconditionally. It is false. There exist genuinely \emph{different}
+distributions with \emph{identical} moments of every order. The classic example
+is the lognormal distribution: if $\log X\sim\Normal(0,1)$, one can perturb its
+density by a wiggle that leaves every moment $\E[X^n]$ unchanged, producing a
+different distribution with exactly the same moment sequence. The catch is that
+the lognormal's moments grow so fast (its MGF is infinite for every $t>0$) that
+they fail to determine the distribution. The escape hatch is precisely the
+hypothesis of Theorem~\ref{ch18:thm-uniqueness}: if the \emph{MGF} is finite in
+an open interval around $0$, the tails are controlled, the moment series
+converges, and uniqueness holds. This is why we are careful to say ``the MGF
+exists,'' not merely ``the moments exist.''
+\end{trapbox}
+
+\begin{historybox}
+The moment problem --- when does a sequence of moments determine a unique
+distribution? --- occupied Chebyshev, Markov, and Stieltjes in the late
+nineteenth century, and it is where modern probability cut its teeth on
+analysis. Stieltjes (1894) gave the first careful treatment, inventing along the
+way the Stieltjes integral. Hamburger and Hausdorff later pinned down exact
+conditions. The upshot, in the language we use: a distribution is determined by
+its moments when those moments do not grow too fast (Carleman's condition is the
+sharp form), and finiteness of the MGF near $0$ is a clean sufficient condition.
+The lognormal counterexample, that two different curves can share every moment,
+was a genuine shock --- a reminder that infinitely many numbers can still leave
+something undetermined.
+\end{historybox}
+
+\begin{example}[Recognition in practice]
+Suppose you compute, for some $X$ built out of a complicated experiment, that
+$M_X(t)=(1-2t)^{-3}$ for $t<1/2$. You do not need to know how $X$ was built. You
+recall that a $\Gam(\alpha,\beta)$ with rate $\beta$ has MGF
+$(1-t/\beta)^{-\alpha}$. Matching, $\beta=1/2$ and $\alpha=3$. By uniqueness, $X
+\sim \Gam(3, 1/2)$ --- equivalently a chi-squared with $6$ degrees of freedom.
+The MGF acted as a fingerprint: identify the fingerprint, identify the
+distribution.
+\end{example}
+
+\section{Characteristic Functions: The Transform That Always Exists}
+\label{ch18:cf}
+
+The MGF has one flaw, and it is fatal often enough to matter:
+\emph{it may not exist.} We saw the exponential's MGF die for $t\ge\lambda$, and
+the lognormal's die for every $t>0$. Heavy-tailed distributions --- the Cauchy
+distribution being the headline case --- have $\E[e^{tX}]=\infty$ for every
+$t\ne 0$, so their MGF is useless. Since the MGF is built from $e^{tX}$, which
+explodes when $X$ is large and $t>0$, any distribution with fat enough tails
+breaks it.
+
+The repair is one of the most elegant moves in analysis: put an imaginary unit
+in the exponent. Replace $e^{tX}$ by $e^{itX}$, where $i=\sqrt{-1}$.
+
+\begin{definition}[Characteristic function]
+\label{ch18:def-cf}
+The \emph{characteristic function} of a random variable $X$ is
+\[
+  \varphi_X(t) \;=\; \E\!\left[e^{itX}\right]
+              \;=\; \E[\cos(tX)] + i\,\E[\sin(tX)],
+  \qquad t\in\R .
+\]
+\end{definition}
+
+\begin{happeningbox}
+Why does the $i$ rescue everything? Because $e^{itX}$ does not grow. By Euler's
+formula, $e^{itX}=\cos(tX)+i\sin(tX)$, a point on the unit circle in the complex
+plane. Its magnitude is $\abs{e^{itX}}=1$ for every value of $X$, no matter how
+huge. Where the real exponential $e^{tX}$ shoots off to infinity for large $X$,
+the complex exponential just \emph{spins} around the circle. So
+$\abs{\varphi_X(t)}=\abs{\E[e^{itX}]}\le \E\abs{e^{itX}} = \E[1] = 1 < \infty$
+\emph{always}. The integral defining $\varphi_X$ converges for every
+distribution on Earth, because we are averaging bounded quantities. The CF is
+the MGF with its dangerous growth tamed into harmless rotation.
+\end{happeningbox}
+
+\begin{theorem}[Properties of the characteristic function]
+\label{ch18:thm-cf-props}
+For every random variable $X$:
+\begin{enumerate}
+  \item \emph{(Always exists, bounded.)} $\varphi_X(t)$ is defined for all
+        $t\in\R$ and $\abs{\varphi_X(t)}\le 1$, with $\varphi_X(0)=1$.
+  \item \emph{(Sums.)} If $X\indep Y$, then
+        $\varphi_{X+Y}(t)=\varphi_X(t)\,\varphi_Y(t)$.
+  \item \emph{(Affine.)} $\varphi_{aX+b}(t)=e^{ibt}\varphi_X(at)$.
+  \item \emph{(Moments, when they exist.)} If $\E\abs{X}^n<\infty$, then
+        $\varphi_X$ is $n$ times differentiable and
+        $\varphi_X^{(n)}(0)=i^n\,\E[X^n]$.
+  \item \emph{(Uniqueness.)} If $\varphi_X=\varphi_Y$ as functions on $\R$, then
+        $X$ and $Y$ have the same distribution.
+\end{enumerate}
+\end{theorem}
+
+Properties (2) and (3) have the identical one-line proofs as for the MGF ---
+nothing changed but a letter $i$. Property (4) is the same Taylor expansion,
+producing factors of $i$. Property (5), uniqueness, is the deep one, and unlike
+the MGF version it comes with \emph{no fine print}: because the CF always
+exists, it \emph{always} determines the distribution. There is even an explicit
+recipe to get the distribution back.
+
+\begin{theorem}[Fourier inversion]
+\label{ch18:thm-inversion}
+If $X$ has a density $f$ and $\varphi_X$ is integrable, then
+\[
+  f(x) \;=\; \frac{1}{2\pi}\int_{-\infty}^\infty e^{-itx}\,\varphi_X(t)\,\dd t .
+\]
+\end{theorem}
+
+This is the punchline of the whole chapter, stated as a formula: the
+characteristic function is the \emph{Fourier transform of the density}, and the
+density is the \emph{inverse Fourier transform of the characteristic function}.
+Nothing is lost in the round trip. The transform is not a lossy summary like the
+mean or the variance; it is a faithful re-encoding of the entire distribution,
+and the inversion integral is the proof.
+
+\begin{connectionbox}[This is Fourier analysis]
+If you have met Fourier series or transforms (in the companion calculus book, or
+in any signal-processing course), the characteristic function is an old friend
+in disguise. Writing $\varphi_X(t)=\int e^{itx}f(x)\,\dd x$, it is literally the
+Fourier transform of the density $f$ (with a sign and $2\pi$ convention chosen
+by probabilists). The convolution theorem of Fourier analysis --- ``the
+transform of a convolution is the product of the transforms'' --- is exactly our
+Theorem~\ref{ch18:thm-cf-props}(2): the density of $X+Y$ is the convolution
+$f_X * f_Y$, and its transform is the product $\varphi_X\varphi_Y$. The whole
+machinery of this chapter is probability borrowing the deepest tool of
+harmonic analysis. The reason transforms turn convolution into multiplication
+is the same reason here as there: $e^{it(x+y)}=e^{itx}e^{ity}$.
+\end{connectionbox}
+
+\begin{paradoxbox}[Averaging Cauchys gets you nowhere]
+\label{ch18:ex-cauchy}
+The standard Cauchy density is $f(x)=\frac{1}{\pi(1+x^2)}$. Its tails are so
+heavy that $\E\abs{X}=\infty$: the mean does not even exist, let alone the MGF.
+Yet its characteristic function is perfectly well behaved:
+\[
+  \varphi_X(t) = e^{-\abs{t}} .
+\]
+(The derivation is a contour integral; take the result on faith for now.) Watch
+what the product rule does. If $X_1,\dots,X_n$ are independent standard Cauchys,
+then $\overline{X}_n=\frac1n\sum X_i$ has CF
+\[
+  \varphi_{\overline X_n}(t)
+   = \prod_{k=1}^n \varphi_{X_k}(t/n)
+   = \big(e^{-\abs{t}/n}\big)^n
+   = e^{-\abs{t}} = \varphi_X(t).
+\]
+By uniqueness, $\overline{X}_n$ has the \emph{same} distribution as a single
+$X$. Averaging a thousand independent Cauchy observations gives you something
+distributed exactly like one observation --- the sample mean does not
+concentrate, and the Law of Large Numbers fails. This famous failure is
+invisible to the MGF (which does not exist here) but laid bare by the CF in
+three lines. It is also a vivid demonstration of why the CF is the tool of
+choice: it works where everything else has given up. The resolution of the
+``paradox'' is that the LLN secretly requires a finite mean, which the Cauchy
+lacks; the heavy tails mean any average is dominated by its largest term.
+\end{paradoxbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.5cm, height=5.6cm,
+  domain=-4:4, samples=160,
+  xlabel={$t$}, ylabel={$\varphi_X(t)$},
+  title={Characteristic functions are bounded by $1$ and peak at $t=0$},
+  ymin=-0.25, ymax=1.08,
+  legend style={font=\small, at={(0.98,0.97)}, anchor=north east},
+  axis lines=left,
+]
+\addplot[sourceblue, very thick] {exp(-x*x/2)};
+\addplot[densityred, very thick] {exp(-abs(x))};
+\addplot[quotientorange, very thick, dashed] {sin(deg(x))/x};
+\legend{{$\Normal(0,1)$: $e^{-t^2/2}$}, {Cauchy: $e^{-|t|}$}, {$\Unif(-1,1)$: $\tfrac{\sin t}{t}$}}
+\end{axis}
+\end{tikzpicture}
+\caption{Three characteristic functions. All start at $\varphi(0)=1$ and stay
+within $\pm 1$ --- a guarantee that holds for every distribution. The normal's
+CF is again a Gaussian bell; the Cauchy's is a sharp tent $e^{-\abs t}$; the
+uniform's is the oscillating $\sin(t)/t$, dipping below zero, which a real MGF
+could never do.}
+\label{ch18:fig-cf}
+\end{figure}
+
+\begin{aestheticbox}
+Step back and admire the ladder we climbed. The PGF handles counts and turns
+convolution into polynomial multiplication. The MGF widens the door to all real
+random variables and dispenses moments by differentiation --- but it can crash
+on heavy tails. The CF puts an $i$ in the exponent, trading explosive growth for
+harmless rotation on the unit circle, and thereby \emph{always} exists, always
+determines the distribution, and comes with an exact inversion formula. Three
+transforms, one idea, increasing robustness. Each is the right tool for a
+different job, and together they convert hard questions about adding randomness
+into easy questions about multiplying functions.
+\end{aestheticbox}
+
+\section{A Preview of the Central Limit Theorem}
+\label{ch18:clt-preview}
+
+We close with the result that makes this entire chapter feel inevitable. The
+Central Limit Theorem says that the sum (suitably standardized) of many
+independent, identically distributed pieces is approximately normal, almost
+regardless of what the pieces look like. The proof, which we give in full in the
+CLT chapter, is essentially a one-page computation \emph{with characteristic
+functions} --- and now you can see its skeleton.
+
+\begin{focusbox}
+\textbf{The CLT in transform language.} Let $X_1,X_2,\dots$ be i.i.d.\ with mean
+$0$ and variance $1$ (subtract the mean and divide by the SD to arrange this),
+and let $\varphi$ be their common characteristic function. Form the standardized
+sum
+\[
+  S_n = \frac{X_1+\cdots+X_n}{\sqrt n}.
+\]
+By the sum rule (\ref{ch18:thm-cf-props}, part 2) and the affine rule (part 3),
+\[
+  \varphi_{S_n}(t)
+   = \prod_{k=1}^n \varphi\!\left(\frac{t}{\sqrt n}\right)
+   = \left[\varphi\!\left(\frac{t}{\sqrt n}\right)\right]^n .
+\]
+Now Taylor-expand $\varphi$ near $0$ using the moment property: since $\E[X]=0$
+and $\E[X^2]=1$,
+\[
+  \varphi(u) = 1 + i\,\E[X]\,u - \tfrac12 \E[X^2]\,u^2 + o(u^2)
+             = 1 - \tfrac12 u^2 + o(u^2).
+\]
+Substitute $u=t/\sqrt n$:
+\[
+  \varphi_{S_n}(t)
+   = \left[1 - \frac{t^2}{2n} + o\!\left(\frac{1}{n}\right)\right]^n
+   \xrightarrow[n\to\infty]{} e^{-t^2/2},
+\]
+using the limit $(1+a_n/n)^n\to e^a$ when $a_n\to a$. But $e^{-t^2/2}$ is
+exactly the characteristic function of the standard normal
+(Example~\ref{ch18:ex-normal-mgf}, with the same calculation under the $i$). By
+uniqueness and a continuity theorem, $S_n$ converges in distribution to
+$\Normal(0,1)$. \emph{That is the Central Limit Theorem.}
+\end{focusbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.5cm, height=5.6cm,
+  domain=-3:3, samples=160,
+  xlabel={$t$}, ylabel={$\varphi_{S_n}(t)$},
+  title={The CF of a standardized sum climbs toward the Gaussian $e^{-t^2/2}$},
+  ymin=-0.35, ymax=1.08,
+  legend style={font=\small, at={(0.98,0.97)}, anchor=north east},
+  axis lines=left,
+]
+% Underlying X: symmetric Bernoulli +-1, CF cos(t). S_n CF = [cos(t/sqrt n)]^n.
+\addplot[quotientorange, very thick] {cos(deg(x))};
+\addplot[structurepurple, very thick, dashed] {(cos(deg(x/1.7320508)))^3};
+\addplot[targetgreen, very thick, dotted] {(cos(deg(x/3.1622777)))^10};
+\addplot[densityred, very thick] {exp(-x*x/2)};
+\legend{{$n=1$: $\cos t$}, {$n=3$}, {$n=10$}, {limit $e^{-t^2/2}$}}
+\end{axis}
+\end{tikzpicture}
+\caption{Take the $X_i$ to be $\pm1$ fair coin flips (CF $\cos t$). As $n$ grows,
+the CF of the standardized sum $S_n=(X_1+\cdots+X_n)/\sqrt n$, namely
+$[\cos(t/\sqrt n)]^n$, presses down onto the standard-normal CF $e^{-t^2/2}$
+(solid red). This is the Central Limit Theorem watched in transform space:
+multiplication of CFs, then a limit.}
+\label{ch18:fig-clt}
+\end{figure}
+
+Pause on how much heavy lifting the transform just did. The distribution of a
+sum of $n$ convolved-together pieces would be a nightmare to track directly. In
+transform space it is a single power $[\varphi(t/\sqrt n)]^n$ (watch it converge
+in Figure~\ref{ch18:fig-clt}), the limit is a one-line Taylor expansion, and the
+answer $e^{-t^2/2}$ recognizes itself as the normal. \emph{Why is the bell curve universal?} Because near zero every
+characteristic function looks like $1-\frac12(\text{variance})u^2$, and that
+quadratic --- the only surviving term after the mean is killed and the scale is
+fixed --- exponentiates into the Gaussian. The normal is universal because
+$-\frac12 t^2$ is what is left when you keep only the first two moments. The
+generating function is what let us see it.
+
+\begin{historybox}
+Laplace, around 1810, found the bell-curve limit using what were essentially
+characteristic-function calculations (he worked with the Fourier-style integral
+transforms of the day). The modern proof was perfected by Lyapunov and then by
+Paul L\'evy in the 1920s, who turned the characteristic function into a precise
+instrument and proved the \emph{continuity theorem} --- the missing link above:
+if characteristic functions converge pointwise to a function continuous at $0$,
+then the distributions converge. L\'evy's theorem is what licenses the leap from
+``$\varphi_{S_n}(t)\to e^{-t^2/2}$'' to ``$S_n\dto\Normal(0,1)$.'' It is no
+exaggeration to say the characteristic function \emph{is} the modern theory of
+the CLT.
+\end{historybox}
+
+\section{Summary}
+\label{ch18:summary}
+
+Three transforms, one principle. Each encodes a whole distribution in a single
+function so that adding independent random variables becomes multiplying their
+transforms, and moments become derivatives.
+
+\begin{center}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+ & \textbf{PGF} & \textbf{MGF} & \textbf{CF} \\
+\midrule
+Definition       & $\E[s^X]$ & $\E[e^{tX}]$ & $\E[e^{itX}]$ \\
+For which $X$    & $\N$-valued & needs thin tails & \emph{any} $X$ \\
+Always exists?   & on $\abs s\le1$ & not always & \textbf{yes} \\
+Independent sum  & multiply & multiply & multiply \\
+Moments          & $G^{(n)}(1)$ (factorial) & $M^{(n)}(0)=\E[X^n]$
+                 & $\varphi^{(n)}(0)=i^n\E[X^n]$ \\
+Determines dist.? & yes & yes (if exists) & \textbf{always} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+  \item The \textbf{PGF} $G_X(s)=\E[s^X]$ hangs the pmf on powers of $s$.
+        Convolution becomes polynomial multiplication; factorial moments come
+        from derivatives at $s=1$.
+  \item The \textbf{MGF} $M_X(t)=\E[e^{tX}]=G_X(e^t)$ extends the idea to all
+        real $X$. Its Taylor coefficients are the moments
+        ($\E[X^n]=M^{(n)}(0)$); it determines the distribution \emph{when it
+        exists in an interval around $0$}.
+  \item The \textbf{CF} $\varphi_X(t)=\E[e^{itX}]$ puts an $i$ in the exponent,
+        bounding $\abs{e^{itX}}=1$ so the transform always exists. It is the
+        Fourier transform of the density, always determines the distribution,
+        and is the engine of the CLT proof.
+\end{itemize}
+
+The single fact under all of it: $\;e^{(\cdot)(X+Y)}=e^{(\cdot)X}e^{(\cdot)Y}$,
+so independence turns ``sum of variables'' into ``product of transforms.'' That
+one identity is why generating functions exist, why convolutions simplify, and
+why the normal distribution is universal.
+
+\section{Exercises}
+\label{ch18:exercises}
+
+\begin{exercise}[Warm-up PGFs]
+\label{ch18:ex-warmup}
+Write the probability generating function of each, and check that it equals $1$
+at $s=1$.
+\begin{enumerate}[label=(\alph*)]
+  \item A single fair four-sided die, values $\set{1,2,3,4}$.
+  \item $X\sim\Bin(3,1/2)$, by direct summation, and confirm it matches
+        $(\tfrac12+\tfrac12 s)^3$.
+  \item The constant random variable $X=7$.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Sum of dice via PGF]
+\label{ch18:ex-twodice}
+Let $G(s)=\frac16(s+s^2+s^3+s^4+s^5+s^6)$ be the PGF of one fair die. The sum of
+two independent dice has PGF $G(s)^2$. Expand $G(s)^2$ and read off
+$\P(\text{sum}=7)$ as the coefficient of $s^7$. Confirm it equals $6/36$.
+\end{exercise}
+
+\begin{exercise}[Negative binomial closure]
+\label{ch18:ex-negbin}
+The Geometric$(p)$ (failures before first success) has PGF $p/(1-qs)$. Using the
+product rule, find the PGF of a sum of $r$ independent Geometric$(p)$ variables.
+Identify the resulting distribution (it is Negative Binomial). What is its mean,
+via $G'(1)$?
+\end{exercise}
+
+\begin{exercise}[MGF moment extraction]
+\label{ch18:ex-mgf-moments}
+Let $X\sim\Expo(\lambda)$ with $M_X(t)=\lambda/(\lambda-t)$ for $t<\lambda$.
+\begin{enumerate}[label=(\alph*)]
+  \item Compute $M_X'(t)$ and $M_X''(t)$ and evaluate at $t=0$ to recover
+        $\E[X]=1/\lambda$ and $\E[X^2]=2/\lambda^2$.
+  \item Use these to confirm $\Var(X)=1/\lambda^2$.
+  \item From the series $\sum_n (n!/\lambda^n)\,t^n/n!$, write down $\E[X^5]$
+        with no further calculus.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Identify by MGF]
+\label{ch18:ex-identify}
+A random variable $Y$ is found to have $M_Y(t)=e^{3(e^t-1)}$ for all $t$. By
+recognizing this MGF (substitute $s=e^t$ into a PGF you know), name the
+distribution of $Y$ and state its mean and variance. Then explain in one
+sentence which theorem of this chapter licenses the conclusion.
+\end{exercise}
+
+\begin{exercise}[Sum of independent normals]
+\label{ch18:ex-normal-sum-prob}
+Let $X\sim\Normal(1,4)$ and $Y\sim\Normal(-2,9)$ be independent. Using
+$M_{\Normal(\mu,\sigma^2)}(t)=e^{\mu t+\frac12\sigma^2 t^2}$ and the product
+rule, find the MGF of $2X - Y + 5$, and hence its distribution. (Use the affine
+rule on each piece first.)
+\end{exercise}
+
+\begin{exercise}[Why the $i$ matters]
+\label{ch18:ex-cauchy-mgf}
+For the standard Cauchy density $f(x)=1/[\pi(1+x^2)]$:
+\begin{enumerate}[label=(\alph*)]
+  \item Show that $\E[e^{tX}]=\infty$ for every $t\ne 0$, so the MGF does not
+        exist. (Compare the integrand's tail $e^{tx}/x^2$ to a divergent
+        integral for $t>0$; handle $t<0$ by symmetry.)
+  \item Given $\varphi_X(t)=e^{-\abs t}$, use the product and affine rules to
+        find the characteristic function of $\overline X_n=\frac1n\sum_{i=1}^n
+        X_i$ for i.i.d.\ standard Cauchys, and conclude that $\overline X_n$ has
+        the same distribution as a single $X_i$.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[CF basics]
+\label{ch18:ex-cf-basics}
+\begin{enumerate}[label=(\alph*)]
+  \item Show directly from the definition that $\abs{\varphi_X(t)}\le 1$ and
+        $\varphi_X(0)=1$ for every random variable.
+  \item Show that $\varphi_X(-t)=\overline{\varphi_X(t)}$ (complex conjugate),
+        and deduce that if $X$ is symmetric about $0$ (i.e.\ $X$ and $-X$ have
+        the same distribution) then $\varphi_X(t)$ is real-valued.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Uniqueness, carefully]
+\label{ch18:ex-uniqueness}
+Two students argue. Student A says: ``If $X$ and $Y$ have all the same moments,
+they have the same distribution.'' Student B says: ``Not necessarily.'' Who is
+right, and under exactly what extra hypothesis does Student A's claim become
+true? Name the standard counterexample and explain in one or two sentences why
+its moments fail to determine it.
+\end{exercise}
+
+\begin{exercise}[CLT skeleton, filled in]
+\label{ch18:ex-clt}
+Let $X_1,\dots,X_n$ be i.i.d.\ with mean $0$, variance $1$, and characteristic
+function $\varphi$. Starting from $\varphi(u)=1-\tfrac12 u^2 + o(u^2)$, fill in
+every step showing that the CF of $S_n=(X_1+\cdots+X_n)/\sqrt n$ converges to
+$e^{-t^2/2}$ as $n\to\infty$. State precisely where you use (i) independence,
+(ii) the affine rule, (iii) the second-moment Taylor expansion, and (iv) the
+limit $(1+a_n/n)^n\to e^a$.
+\end{exercise}
+
+\begin{exercise}[Branching extinction]
+\label{ch18:ex-branching}
+In a branching process each individual independently has $0$, $1$, or $2$
+offspring with probabilities $\tfrac14,\tfrac14,\tfrac12$.
+\begin{enumerate}[label=(\alph*)]
+  \item Write the offspring PGF $G(s)$ and compute the mean offspring count
+        $G'(1)$. Is it above or below $1$?
+  \item The extinction probability is the smallest root in $[0,1]$ of
+        $G(s)=s$. Solve the resulting quadratic and report the extinction
+        probability. Does it match your expectation from part (a)?
+\end{enumerate}
+\end{exercise}

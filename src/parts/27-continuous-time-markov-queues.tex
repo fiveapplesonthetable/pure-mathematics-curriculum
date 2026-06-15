@@ -1,0 +1,849 @@
+\chapter{Continuous-Time Markov Chains and Queues}
+
+So far our Markov chains have ticked like a clock. At each integer time $n = 0, 1, 2, \dots$ the
+system looks around, rolls some dice, and jumps to a new state. That discrete metronome is a fiction
+of convenience. Real systems do not wait for a bell. A customer walks into a coffee shop at
+$10\!:\!04\!:\!17$, not at ``step $7$.'' A radioactive nucleus decays at some real-valued instant. A
+router receives a packet, a phone call connects, a machine breaks down --- all at messy, continuous
+times that no integer clock can pin down.
+
+This chapter rebuilds the Markov idea in \emph{continuous time}. The payoff is enormous: a single,
+beautiful object called the \emph{generator matrix} captures all the dynamics, and from it we will
+derive the steady-state behavior of \emph{queues} --- waiting lines --- which are the mathematical
+heartbeat of every service system, computer network, hospital, and call center on Earth. We will
+meet the famous M/M/1 queue, watch a line of waiting customers settle into a geometric equilibrium,
+and discover Little's law, a relationship so simple and so general that it feels like a magic trick
+until you see why it cannot be otherwise.
+
+We lean on two earlier ideas. From the chapters on Markov chains, keep the picture of states and
+transition probabilities, and the notion of a stationary distribution $\pi$ that the chain settles
+into. From the chapter on Poisson processes, keep the \emph{exponential distribution} and its
+defining magic: \emph{memorylessness}. Continuous-time Markov chains are, in a precise sense, what
+you get when you glue an ordinary Markov chain together with exponential waiting times. That gluing
+is the whole story, and we tell it now from the ground up.
+
+\chapterline
+
+\section{From Discrete Ticks to Continuous Flow}
+\label{ch27:intro}
+
+\begin{intuitionbox}
+Picture a tiny machine that is either \textbf{working} or \textbf{broken}. In discrete time we would
+say: each minute, if it is working it breaks with probability $0.01$; if it is broken it gets fixed
+with probability $0.05$. That is a fine model, but it has an arbitrary unit baked in --- the minute.
+Why not the second? The half-minute? If we shrink the time step, we must shrink the probabilities to
+match, and in the limit the natural object is not a \emph{probability per step} but a \emph{rate per
+unit time}. ``This machine breaks at rate $0.01$ per minute'' makes sense at every time scale at
+once. Rates, not per-step probabilities, are the native language of continuous time.
+\end{intuitionbox}
+
+Let us make the limit explicit, because it shows exactly where the exponential distribution comes
+from. Suppose a working machine breaks, in each tiny interval of length $h$, with probability
+approximately $\lambda h$ (proportional to the length of the interval --- twice the time, twice the
+chance, for small $h$). Cut the first $t$ units of time into $n = t/h$ slices. The probability of
+\emph{surviving} all of them, if breakdowns in disjoint slices are independent, is
+\[
+  \P(\text{still working at time } t)
+  \;\approx\; (1 - \lambda h)^{n}
+  \;=\; \left(1 - \frac{\lambda t}{n}\right)^{n}
+  \;\xrightarrow[n \to \infty]{}\; e^{-\lambda t}.
+\]
+That is the survival function of an $\Expo(\lambda)$ random variable. The lifetime of the machine
+before its first breakdown is exponential, and the parameter $\lambda$ is exactly the \emph{rate} we
+started with. This is no coincidence we will tolerate and move past --- it is the engine of the
+entire chapter.
+
+\begin{whybox}
+Why must the holding time be exponential, and nothing else? Because we insisted on the
+\textbf{Markov property in continuous time}: the future depends on the present state alone, not on
+how long we have already been sitting in it. If the time spent in a state had any other distribution
+--- say, ``a machine that has run a long time is more likely to break soon'' --- then knowing the
+\emph{age} of the current sojourn would tell you something about the future, violating
+memorylessness. The exponential distribution is the \emph{unique} continuous distribution with no
+memory:
+\[
+  \P(T > s + t \given T > s) = \P(T > t)
+  \quad\text{for all } s, t \ge 0.
+\]
+So ``continuous-time Markov'' forces ``exponential holding times.'' The two are the same demand
+spoken in two languages.
+\end{whybox}
+
+\subsection{The two-part recipe}
+
+Here is the cleanest way to picture a continuous-time Markov chain (CTMC), and we will return to it
+constantly. The process sits in some state $i$. Two things happen:
+
+\begin{enumerate}
+  \item \textbf{It waits.} The time it spends in state $i$ (the \emph{holding time} or
+  \emph{sojourn time}) is exponential with some rate $q_i$ that depends only on $i$. On average it
+  waits $1/q_i$.
+  \item \textbf{It jumps.} When the holding time expires, it jumps to a new state $j \ne i$ chosen
+  by a probability $P_{ij}$ (an ordinary discrete transition, with $\sum_{j \ne i} P_{ij} = 1$).
+\end{enumerate}
+
+Then it does the same thing from $j$, and so on. The embedded sequence of states it visits ---
+ignoring how long it stayed --- is just an ordinary discrete-time Markov chain, called the
+\emph{jump chain} or \emph{embedded chain}. The continuous-time part lives entirely in the
+exponential waiting times glued onto each visit.
+
+\begin{happeningbox}
+A CTMC is a discrete Markov chain wearing exponential clothing. Strip away the random sojourn times
+and you have a familiar jump chain on the same states. Add them back and you have a process that
+lives in real time. Everything subtle about CTMCs --- the generator, the forward equations, the
+balance conditions --- is bookkeeping that keeps these two layers (where it jumps, how long it
+stays) consistent with one another.
+\end{happeningbox}
+
+\section{Rates and the Generator Matrix}
+\label{ch27:generator}
+
+The two-part recipe (a rate $q_i$ to leave each state, plus jump probabilities $P_{ij}$) is intuitive
+but clumsy to compute with. There is a single object that packages both and makes the algebra sing:
+the \emph{generator matrix} $Q$, also called the \emph{rate matrix} or \emph{infinitesimal
+generator}.
+
+\begin{intuitionbox}
+The transition matrix of a discrete chain answers ``where will I be \emph{next step}?'' But in
+continuous time there is no ``next step'' --- time flows. So instead the generator answers a
+derivative question: ``\emph{how fast} is probability flowing out of where I am, and into each other
+state, \emph{right now}?'' It is the time-derivative of transition probability at $t = 0$. Rates,
+not probabilities. That single shift of viewpoint is the whole definition.
+\end{intuitionbox}
+
+\begin{definition}[Transition rates and generator]
+\label{ch27:def-generator}
+For a CTMC, define the \emph{off-diagonal rate} from state $i$ to state $j \ne i$ as
+\[
+  q_{ij} \;=\; \lim_{h \to 0^+} \frac{\P(X_{t+h} = j \given X_t = i)}{h},
+\]
+the instantaneous rate of jumping $i \to j$. Define the \emph{total exit rate} from $i$ as
+$q_i = \sum_{j \ne i} q_{ij}$, and set the diagonal entry $q_{ii} = -q_i$. The matrix
+$Q = (q_{ij})$ is the \emph{generator}. Its defining properties are
+\[
+  q_{ij} \ge 0 \ (i \ne j), \qquad q_{ii} = -\sum_{j \ne i} q_{ij},
+  \qquad\text{so every row of } Q \text{ sums to } 0.
+\]
+\end{definition}
+
+The two viewpoints connect cleanly. The holding-time rate in state $i$ is the total exit rate
+$q_i = \sum_{j \ne i} q_{ij}$, so the sojourn time is $\Expo(q_i)$. And when the chain does leave,
+it goes to $j$ with probability
+\[
+  P_{ij} \;=\; \frac{q_{ij}}{q_i},
+\]
+the fraction of the total outflow rate that heads toward $j$. So $Q$ contains \emph{both} parts of
+the recipe: the row sums of off-diagonals give the holding rates, and their proportions give the
+jump probabilities.
+
+\begin{walkbox}
+Suppose state $1$ has $q_{12} = 3$ and $q_{13} = 1$ (rates per hour). How long, on average, does the
+chain stay in state $1$, and where does it go when it leaves?
+
+The total exit rate is $q_1 = 3 + 1 = 4$ per hour, so the mean holding time is $1/4$ hour $= 15$
+minutes. When it leaves, it goes to state $2$ with probability $3/4$ and to state $3$ with
+probability $1/4$. The faster a particular exit ``ticks,'' the more likely it is to be the one that
+fires --- a race between exponential alarm clocks, won most often by the fastest.
+\end{walkbox}
+
+\begin{connectionbox}
+The race-of-exponentials picture is worth keeping. Imagine that from state $i$, every possible
+target $j$ has its own independent exponential alarm clock with rate $q_{ij}$. The chain jumps when
+the \emph{first} clock rings. Two facts from the Poisson/exponential chapter make this work: (i) the
+minimum of independent exponentials with rates $q_{ij}$ is itself exponential with rate
+$\sum_j q_{ij} = q_i$; and (ii) the probability that clock $j$ is the winner is
+$q_{ij}/q_i$, independent of \emph{when} the winner rings. So ``waiting $\Expo(q_i)$ then jumping by
+$P_{ij}$'' and ``racing independent clocks'' are the same process. The generator is just the table of
+all the clock rates.
+\end{connectionbox}
+
+\subsection{From the generator to transition probabilities}
+
+Let $P_{ij}(t) = \P(X_{t+s} = j \given X_s = i)$ be the probability of being in $j$ a time $t$ later,
+and gather these into a matrix $P(t)$. For small $h$, the generator definition says
+\[
+  P(h) \;\approx\; I + Q h,
+\]
+since the diagonal loses probability at rate $q_i$ and each off-diagonal gains it at rate $q_{ij}$.
+Chaining two short intervals, $P(t+h) = P(t)P(h) \approx P(t)(I + Qh)$, gives
+\[
+  \frac{P(t+h) - P(t)}{h} \approx P(t)Q
+  \quad\Longrightarrow\quad
+  P'(t) = P(t)\,Q.
+\]
+This is the \emph{Kolmogorov forward equation} (the mirror image $P'(t) = QP(t)$ is the
+\emph{backward equation}). Its solution is the matrix exponential
+\[
+  \boxed{\,P(t) = e^{Qt} = \sum_{k=0}^{\infty} \frac{(Qt)^k}{k!}\,.}
+\]
+
+\begin{connectionbox}
+Compare with the scalar story. The ordinary differential equation $p'(t) = -\lambda p(t)$ has
+solution $p(t) = p(0)e^{-\lambda t}$ --- exponential decay, the survival curve from
+Section~\ref{ch27:intro}. The CTMC obeys exactly the same law, only now $\lambda$ is replaced by the
+matrix $-Q$ and the scalar exponential becomes the \emph{matrix exponential}. If you have met
+matrix exponentials in a linear algebra course (eigenvalues, diagonalization, $e^{Qt}$ acting
+through eigenvectors), this is precisely where they earn their keep in probability. The generator's
+eigenvalues control how fast the chain forgets its start and relaxes to equilibrium.
+\end{connectionbox}
+
+\begin{example}[A two-state machine]
+\label{ch27:ex-twostate}
+Let state $0$ = ``broken,'' state $1$ = ``working.'' A broken machine is repaired at rate $\mu$, a
+working machine breaks at rate $\lambda$. The generator is
+\[
+  Q = \begin{pmatrix} -\mu & \mu \\ \lambda & -\lambda \end{pmatrix}.
+\]
+Each row sums to zero, as it must. The holding time when broken is $\Expo(\mu)$ (mean repair time
+$1/\mu$); when working it is $\Expo(\lambda)$ (mean uptime $1/\lambda$). Solving $\pi Q = 0$ with
+$\pi_0 + \pi_1 = 1$ (we justify this stationarity equation in Section~\ref{ch27:steady}) gives the
+long-run fraction of time working,
+\[
+  \pi_1 = \frac{\mu}{\lambda + \mu},
+  \qquad \pi_0 = \frac{\lambda}{\lambda + \mu}.
+\]
+If repairs are fast ($\mu$ large) relative to failures ($\lambda$ small), the machine is up almost
+all the time --- the ratio $\mu/(\lambda+\mu)$ is exactly the \emph{availability} an engineer would
+quote. Notice it depends only on the rates, not on the precise distribution shapes beyond their
+means; that robustness is a recurring theme.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[->,>=Stealth,node distance=3.6cm,on grid,auto]
+  \node[draw,circle,minimum size=1.1cm,fill=densityred!12] (b) {broken};
+  \node[draw,circle,minimum size=1.1cm,fill=targetgreen!15,right=of b] (w) {working};
+  \draw[sourceblue,bend left=28] (b) to node[above] {repair rate $\mu$} (w);
+  \draw[densityred,bend left=28] (w) to node[below] {failure rate $\lambda$} (b);
+\end{tikzpicture}
+\caption{The two-state machine of Example~\ref{ch27:ex-twostate}. The chain hops between broken and
+working; the long-run fraction of time working is $\mu/(\lambda+\mu)$, larger when repairs (rate
+$\mu$) outpace failures (rate $\lambda$). This is the smallest interesting CTMC and the building block
+of reliability models.}
+\label{ch27:fig-twostate}
+\end{figure}
+
+\section{Birth-Death Processes: Counting Up and Down}
+\label{ch27:birthdeath}
+
+A vast and useful family of CTMCs lives on the states $\{0, 1, 2, \dots\}$ --- think of them as a
+\emph{population size}, a \emph{number of customers}, or a \emph{queue length} --- and can only move
+to a neighbor: up by one (a \emph{birth}, or an arrival) or down by one (a \emph{death}, or a
+departure). These are \emph{birth-death processes}, and they are the workhorses of queueing theory.
+
+\begin{definition}[Birth-death process]
+\label{ch27:def-bd}
+A birth-death process on $\{0,1,2,\dots\}$ has \emph{birth rates} $\lambda_n \ge 0$ (rate of going
+$n \to n+1$) and \emph{death rates} $\mu_n \ge 0$ (rate of going $n \to n-1$, with $\mu_0 = 0$ since
+the population cannot go negative). All other rates are zero. The generator is tridiagonal:
+\[
+  q_{n,n+1} = \lambda_n, \qquad q_{n,n-1} = \mu_n,
+  \qquad q_{n,n} = -(\lambda_n + \mu_n).
+\]
+\end{definition}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[->,>=Stealth,node distance=2.2cm,on grid,auto]
+  \node[draw,circle,minimum size=0.9cm] (0) {$0$};
+  \node[draw,circle,minimum size=0.9cm,right=of 0] (1) {$1$};
+  \node[draw,circle,minimum size=0.9cm,right=of 1] (2) {$2$};
+  \node[draw,circle,minimum size=0.9cm,right=of 2] (3) {$3$};
+  \node[right=1.6cm of 3] (4) {$\cdots$};
+  \draw[sourceblue,bend left=35] (0) to node[above] {$\lambda_0$} (1);
+  \draw[sourceblue,bend left=35] (1) to node[above] {$\lambda_1$} (2);
+  \draw[sourceblue,bend left=35] (2) to node[above] {$\lambda_2$} (3);
+  \draw[sourceblue,bend left=35] (3) to node[above] {$\lambda_3$} (4);
+  \draw[densityred,bend left=35] (1) to node[below] {$\mu_1$} (0);
+  \draw[densityred,bend left=35] (2) to node[below] {$\mu_2$} (1);
+  \draw[densityred,bend left=35] (3) to node[below] {$\mu_3$} (2);
+  \draw[densityred,bend left=35] (4) to node[below] {$\mu_4$} (3);
+\end{tikzpicture}
+\caption{A birth-death process. Blue arrows are births (arrivals) at rates $\lambda_n$; red arrows
+are deaths (departures) at rates $\mu_n$. The chain steps only to neighbors, which is what makes its
+equilibrium so clean.}
+\label{ch27:fig-bd}
+\end{figure}
+
+\subsection{Detailed balance and the product formula}
+
+What is the long-run distribution $\pi_n$ over states? Here the neighbor-only structure pays off
+spectacularly. In equilibrium, consider the ``cut'' between states $\{0, \dots, n\}$ and
+$\{n+1, n+2, \dots\}$. The only way to cross it upward is the birth $n \to n+1$; the only way to
+cross it downward is the death $n+1 \to n$. In steady state the flow across any such cut must
+balance --- whatever goes up must come back down, or probability would pile up on one side forever.
+This gives the \emph{detailed balance} equations:
+\[
+  \pi_n \lambda_n \;=\; \pi_{n+1}\,\mu_{n+1}
+  \qquad\text{for all } n \ge 0.
+\]
+
+\begin{whybox}
+Why does flow have to balance across every cut? Imagine a wall between ``$\le n$'' and ``$\ge n+1$.''
+Probability mass leaks across it rightward at rate $\pi_n \lambda_n$ (you must be in state $n$, and
+births fire at rate $\lambda_n$) and leftward at rate $\pi_{n+1}\mu_{n+1}$. If these were unequal,
+the total probability on one side would be steadily growing --- but in a \emph{stationary}
+distribution nothing changes with time, by definition. So the net flow across the wall is zero. For
+birth-death chains this cut argument gives the equilibrium directly, no matrix algebra required. (The
+same trick works for any chain whose graph is a tree, because every edge is a cut.)
+\end{whybox}
+
+Solving the recursion $\pi_{n+1} = \pi_n \cdot (\lambda_n / \mu_{n+1})$ telescopes into a clean
+product:
+\[
+  \boxed{\,\pi_n = \pi_0 \prod_{k=0}^{n-1} \frac{\lambda_k}{\mu_{k+1}}\,,}
+  \qquad
+  \pi_0 = \left(1 + \sum_{n=1}^{\infty} \prod_{k=0}^{n-1}\frac{\lambda_k}{\mu_{k+1}}\right)^{-1}.
+\]
+The normalizing constant $\pi_0$ just makes the $\pi_n$ sum to $1$; it exists (the chain has a steady
+state) precisely when that infinite sum converges. Hold onto this product formula --- the M/M/1
+queue is the simplest case, where all the birth rates are equal and all the death rates are equal,
+and the product collapses into a geometric distribution.
+
+\section{The M/M/1 Queue}
+\label{ch27:mm1}
+
+Now the centerpiece. A single server --- one barista, one CPU, one checkout lane --- handles
+customers one at a time. We make the cleanest possible assumptions, encoded in the cryptic name
+\textbf{M/M/1}:
+
+\begin{itemize}
+  \item \textbf{First M} (\emph{Markovian arrivals}): customers arrive according to a Poisson process
+  with rate $\lambda$. Equivalently, the gaps between arrivals are i.i.d.\ $\Expo(\lambda)$.
+  \item \textbf{Second M} (\emph{Markovian service}): each customer's service time is $\Expo(\mu)$,
+  independent of everything else.
+  \item \textbf{1}: a single server.
+\end{itemize}
+
+The ``M'' stands for \emph{memoryless} (sometimes said to honor Markov), and that memorylessness is
+exactly what makes the queue length a Markov chain. Let $X_t$ be the number of customers in the
+system at time $t$ (those waiting plus the one in service). Because arrivals come at constant rate
+$\lambda$ and service completes at constant rate $\mu$ whenever someone is being served, $X_t$ is a
+birth-death process with
+\[
+  \lambda_n = \lambda \ (\text{for all } n \ge 0),
+  \qquad \mu_n = \mu \ (\text{for all } n \ge 1).
+\]
+Figure~\ref{ch27:fig-samplepath} shows a typical realization of $X_t$: a staircase that jumps up at
+arrivals and down at service completions.
+
+\begin{historybox}
+This model is the founding object of queueing theory, born of a very practical worry: how many
+telephone lines does a town need? Around 1909 the Danish engineer \textbf{Agner Krarup Erlang},
+working for the Copenhagen Telephone Company, modeled incoming calls as a Poisson process and
+call durations as random, and computed how often callers would find every line busy. His formulas
+are still called \emph{Erlang B} and \emph{Erlang C}, and the unit of telephone traffic, the
+\emph{erlang}, bears his name. Queueing theory thus began not in a mathematics department but in a
+phone exchange, trying to keep the citizens of Copenhagen from hearing a busy signal. The whole
+modern apparatus of network and server provisioning descends from Erlang's wish to size a switchboard
+correctly.
+\end{historybox}
+
+\subsection{The traffic intensity and steady state}
+
+Define the \emph{traffic intensity} (or utilization)
+\[
+  \rho \;=\; \frac{\lambda}{\mu},
+\]
+the ratio of how fast work arrives to how fast it can be done. This single dimensionless number
+controls everything. Plug the constant rates into the birth-death product formula:
+\[
+  \pi_n = \pi_0 \prod_{k=0}^{n-1}\frac{\lambda}{\mu} = \pi_0\, \rho^{\,n}.
+\]
+For the $\pi_n$ to sum to one we need $\sum_n \rho^n < \infty$, i.e.\ $\rho < 1$: \emph{the server
+must be faster than the arrivals.} When $\rho < 1$ the geometric series sums to $1/(1-\rho)$, so
+$\pi_0 = 1 - \rho$ and
+\[
+  \boxed{\,\pi_n = (1-\rho)\,\rho^{\,n}, \quad n = 0, 1, 2, \dots\,}
+\]
+The number in the system has a \emph{geometric distribution}. The probability the server is idle is
+$\pi_0 = 1-\rho$; the long-run fraction of time it is busy is $\rho$ --- which is why $\rho$ is also
+called the utilization.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6.2cm,
+  ybar, bar width=7pt,
+  xlabel={number in system $n$}, ylabel={steady-state probability $\pi_n$},
+  xtick={0,1,2,...,12}, ymin=0, ymax=0.62,
+  legend style={at={(0.97,0.97)},anchor=north east,font=\small},
+  enlarge x limits=0.04, tick label style={font=\small},
+]
+\addplot[draw=sourceblue,fill=sourceblue!55] coordinates {
+  (0,0.5)(1,0.25)(2,0.125)(3,0.0625)(4,0.03125)(5,0.015625)(6,0.0078125)
+  (7,0.00390625)(8,0.001953)(9,0.000977)(10,0.000488)(11,0.000244)(12,0.000122)};
+\addlegendentry{$\rho = 0.5$}
+\addplot[draw=densityred,fill=densityred!45] coordinates {
+  (0,0.2)(1,0.16)(2,0.128)(3,0.1024)(4,0.08192)(5,0.065536)(6,0.052429)
+  (7,0.041943)(8,0.033554)(9,0.026844)(10,0.021475)(11,0.01718)(12,0.013744)};
+\addlegendentry{$\rho = 0.8$}
+\end{axis}
+\end{tikzpicture}
+\caption{The steady-state queue length of an M/M/1 system is geometric, $\pi_n = (1-\rho)\rho^n$. At
+low load ($\rho = 0.5$, blue) the system is usually nearly empty. At high load ($\rho = 0.8$, red)
+the distribution has a long tail --- long lines become common. As $\rho \to 1$ the tail stretches
+without bound.}
+\label{ch27:fig-mm1}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.5cm, height=5.4cm,
+  xlabel={time $t$}, ylabel={number in system $X_t$},
+  ymin=0, ymax=5, xmin=0, xmax=20,
+  ytick={0,1,2,3,4}, xtick={0,4,8,12,16,20},
+  tick label style={font=\small}, const plot,
+]
+\addplot[sourceblue,very thick,const plot] coordinates {
+  (0,0)(1.2,1)(2.0,2)(3.1,1)(4.4,2)(5.0,3)(6.3,2)(7.1,1)(8.0,0)
+  (9.5,1)(10.2,2)(11.0,1)(12.4,2)(13.1,3)(13.9,4)(15.0,3)(16.2,2)
+  (17.0,1)(18.3,2)(19.1,1)(20,1)};
+\end{axis}
+\end{tikzpicture}
+\caption{A sample path of the M/M/1 queue length $X_t$: a right-continuous staircase that steps up by
+one at each arrival and down by one at each service completion. Holding times in each level are
+$\Expo$ (rate $\lambda$ up, rate $\mu$ down once busy); the steady-state histogram of the heights is
+the geometric law of Figure~\ref{ch27:fig-mm1}.}
+\label{ch27:fig-samplepath}
+\end{figure}
+
+\subsection{Performance measures}
+
+From the geometric distribution we read off how the system performs. The mean number in the system
+is the mean of a geometric:
+\[
+  L \;=\; \E[X] \;=\; \sum_{n=0}^{\infty} n(1-\rho)\rho^n \;=\; \frac{\rho}{1-\rho}.
+\]
+This is the formula that should keep every system designer awake at night. Watch what happens as the
+server gets busy:
+\[
+  \rho = 0.5 \Rightarrow L = 1, \qquad
+  \rho = 0.9 \Rightarrow L = 9, \qquad
+  \rho = 0.99 \Rightarrow L = 99.
+\]
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xlabel={utilization $\rho = \lambda/\mu$}, ylabel={mean number in system $L$},
+  domain=0:0.97, samples=120, xmin=0, xmax=1, ymin=0, ymax=35,
+  thick, tick label style={font=\small},
+]
+\addplot[densityred,very thick] {x/(1-x)};
+\draw[gray,dashed] (axis cs:0.9,0) -- (axis cs:0.9,9) -- (axis cs:0,9);
+\node[anchor=west,font=\small] at (axis cs:0.55,28) {$L = \dfrac{\rho}{1-\rho}$};
+\end{axis}
+\end{tikzpicture}
+\caption{The mean number in an M/M/1 queue explodes as utilization approaches $1$. The dashed lines
+mark $\rho = 0.9$, where $L = 9$. The blow-up is hyperbolic: pushing utilization from $90\%$ to
+$99\%$ multiplies the average backlog tenfold. This nonlinearity is the central practical lesson of
+queueing theory.}
+\label{ch27:fig-L}
+\end{figure}
+
+\begin{trapbox}
+The deadly intuition is that a server running at $99\%$ utilization is ``almost the same'' as one at
+$90\%$ --- after all, it is only $9$ percentage points busier, and you are squeezing nearly all the
+work out of your expensive hardware. The mathematics says otherwise: the queue is ten times longer.
+The reason is \emph{variability}. Even though work arrives at rate $\lambda$ and is served at rate
+$\mu > \lambda$ \emph{on average}, the randomness in arrivals and service means temporary pile-ups
+happen, and the fuller the system, the longer it takes to drain them. Near $\rho = 1$ there is almost
+no idle capacity to absorb a burst, so backlogs linger. \textbf{Provision for the variance, not just
+the mean.} A system sized so that average load equals average capacity ($\rho = 1$) is not balanced
+--- it is unstable, with an infinitely long expected queue.
+\end{trapbox}
+
+\begin{paradoxbox}
+Two engineers report on a server farm. One says ``utilization is $50\%$ --- we are wasting half our
+capacity, buy fewer machines.'' The other says ``utilization is $99\%$ --- we are perfectly
+efficient, our machines are never idle.'' Which farm would you rather be a customer of? The
+high-utilization farm has, on average, $99$ jobs backed up versus the relaxed farm's $1$. The
+``efficient'' system is the miserable one to wait in. The paradox dissolves once you separate two
+goals that pull in opposite directions: \emph{keeping the server busy} (good for the owner's
+wallet) and \emph{keeping the wait short} (good for the customer). High utilization optimizes the
+first and destroys the second. There is no setting that does both, because $L = \rho/(1-\rho)$ ties
+them together. Real capacity planning is choosing where on this curve to sit --- and the right answer
+is almost never near the top.
+\end{paradoxbox}
+
+The other quantities follow once we have one of them, via Little's law, which we develop next; but
+let us name them now. Let $W$ be the mean time a customer spends in the system (waiting plus being
+served), and $L_q, W_q$ the corresponding queue-only versions (excluding the one in service). For
+M/M/1:
+\[
+  W = \frac{1}{\mu - \lambda}, \qquad
+  L_q = \frac{\rho^2}{1-\rho}, \qquad
+  W_q = \frac{\rho}{\mu - \lambda}.
+\]
+
+\begin{example}[Sizing a help desk]
+\label{ch27:ex-helpdesk}
+A help desk receives $\lambda = 18$ tickets per hour. A single agent resolves tickets at
+$\mu = 20$ per hour. Then $\rho = 18/20 = 0.9$. The mean number of tickets in the system is
+$L = 0.9/0.1 = 9$, and the mean time from submission to resolution is
+$W = 1/(20 - 18) = 0.5$ hours $= 30$ minutes. Management wants to halve the wait. Doubling staff is
+the obvious move, but notice the leverage in $\mu$: if a better tool lets the agent resolve
+$\mu = 24$ per hour, then $\rho = 0.75$, $L = 3$, and $W = 1/6$ hour $= 10$ minutes --- a $20\%$
+speedup in service time cut the wait by two-thirds, because it pushed $\rho$ away from the cliff edge
+near $1$. Small improvements in service rate buy outsized improvements in delay when you are highly
+loaded.
+\end{example}
+
+\begin{labbox}
+Before reading on, predict the shape of the answer to this: in the M/M/1 system, what fraction of
+\emph{arriving customers} find the server idle (and so are served immediately)? Then check: by a
+property of Poisson arrivals (``PASTA'' --- Poisson Arrivals See Time Averages), an arriving customer
+sees the system in its steady-state distribution, so the answer is $\pi_0 = 1 - \rho$. With
+$\rho = 0.9$, only $10\%$ of customers walk straight up to a free agent; the other $90\%$ wait. This
+is why a system that ``feels slow'' can still be only modestly utilized in the mean --- most
+customers experience the crowded states, not the empty ones.
+\end{labbox}
+
+\section{Little's Law}
+\label{ch27:little}
+
+We keep relating $L$ (how many are in the system) to $W$ (how long each one stays). The bridge is one
+of the most general and beautiful results in all of applied probability, and it requires almost no
+assumptions at all.
+
+\begin{theorem}[Little's law]
+\label{ch27:thm-little}
+For any stable queueing system in steady state, with $\lambda$ the long-run average arrival rate,
+$L$ the long-run average number of customers in the system, and $W$ the long-run average time a
+customer spends in the system,
+\[
+  \boxed{\,L = \lambda\, W.\,}
+\]
+\end{theorem}
+
+\begin{intuitionbox}
+Little's law is just a statement about \emph{accounting}, and the cleanest way to see it is to
+imagine each customer pays \$1 per minute for every minute they sit in the system. There are two ways
+to add up the total money collected per unit time. \textbf{Way one (look at the room):} at any
+instant there are on average $L$ customers present, each paying \$1/minute, so money pours in at rate
+$L$ dollars per minute. \textbf{Way two (look at the door):} customers arrive at rate $\lambda$ per
+minute, and each one eventually pays $W$ dollars total (\$1/minute for their $W$ minutes inside), so
+money is committed at rate $\lambda W$ dollars per minute. Both count the same dollars. Therefore
+$L = \lambda W$. No distributions, no independence, no Markov property --- just two honest ways of
+tallying the same revenue.
+\end{intuitionbox}
+
+\begin{whybox}
+Let us make the accounting argument precise. Over a long horizon $[0, T]$, let $A(T)$ be the number
+of arrivals and let customer $i$ spend time $W_i$ in the system. The \emph{area under the
+occupancy curve} --- the total customer-minutes accumulated --- can be computed two ways. Summing
+over time, it is $\int_0^T X_t\,\dd t$, which over a long horizon averages to $L \cdot T$. Summing
+over customers, it is $\sum_{i=1}^{A(T)} W_i$ (each customer contributes a horizontal sliver of
+width $W_i$), which equals $A(T) \cdot \overline{W}$ where $\overline{W}$ is the average sojourn.
+Equate and divide by $T$:
+\[
+  L \;=\; \frac{1}{T}\int_0^T X_t\,\dd t
+       \;=\; \frac{A(T)}{T}\cdot \overline{W}
+       \;\xrightarrow[T \to \infty]{}\; \lambda \cdot W,
+\]
+since $A(T)/T \to \lambda$. The only thing we needed was that the system is stable (everybody
+eventually leaves, so the area is finite per unit time) and that the long-run averages exist. That is
+why Little's law holds for the M/M/1 queue, the M/M/$c$ queue, a grocery store, a hospital ward, or
+the number of half-finished features in a software team's pipeline.
+\end{whybox}
+
+\begin{happeningbox}
+Little's law is really a theorem about \emph{areas}. Draw the occupancy $X_t$ as a staircase over
+time. Its area can be sliced \emph{vertically} (height $X_t$ at each instant, giving
+$\int X_t\,\dd t = L \cdot T$) or \emph{horizontally} (each customer is a bar of length $W_i$, giving
+$\sum W_i = \lambda T \cdot W$). Two ways to compute one area --- that is the entire content. This is
+the same Fubini-style ``count the same thing two ways'' move that powers so much of combinatorics and
+the tail-sum formula for expectation. Once you see it as an area, the law's universality stops being
+mysterious.
+\end{happeningbox}
+
+\begin{example}[Little's law as a sanity check on M/M/1]
+\label{ch27:ex-little-check}
+We claimed $L = \rho/(1-\rho)$ and $W = 1/(\mu-\lambda)$. Do they obey $L = \lambda W$? Compute
+\[
+  \lambda W = \frac{\lambda}{\mu - \lambda}
+            = \frac{\lambda/\mu}{1 - \lambda/\mu}
+            = \frac{\rho}{1-\rho} = L. \checkmark
+\]
+Indeed Little's law is \emph{how} one usually derives $W$: find $L$ from the steady-state
+distribution (easy, it is a geometric mean), then divide by $\lambda$. The same trick applied to the
+queue-only quantities gives $L_q = \lambda W_q$.
+\end{example}
+
+\begin{applicationbox}[Little's law in the wild]
+Because it needs so few assumptions, Little's law is a Swiss army knife far beyond telephones.
+\begin{itemize}
+  \item \textbf{Software / Kanban.} If a team finishes $\lambda = 5$ features per week and on average
+  $L = 20$ features are ``in progress,'' then each feature takes $W = L/\lambda = 4$ weeks to ship.
+  To ship faster, either finish faster or \emph{limit work in progress} --- capping $L$ directly caps
+  $W$. This is the quantitative core of lean and agile flow management.
+  \item \textbf{Hospitals.} With an average of $L = 60$ patients in a ward and admissions at
+  $\lambda = 12$ per day, the average length of stay is $W = 5$ days. Planners invert it: target a
+  stay $W$, multiply by admission rate, get the beds needed.
+  \item \textbf{Inventory and supply chains.} ``Average inventory equals throughput times flow
+  time.'' A warehouse holding $L$ units that move at $\lambda$ units/day implies each unit sits
+  $W = L/\lambda$ days --- the basis of just-in-time analysis.
+  \item \textbf{Web services.} If a service handles $\lambda = 2000$ requests/second and each spends
+  $W = 50$ ms $= 0.05$ s in flight, then on average $L = 100$ requests are being processed at once
+  --- exactly the concurrency a thread pool or connection limit must support.
+\end{itemize}
+\end{applicationbox}
+
+\section{Beyond One Server: Networks and Variations}
+\label{ch27:networks}
+
+The single server is a starting point, not the destination. The same machinery scales up, and the
+generalizations are where queueing theory meets the modern world.
+
+\subsection{The M/M/$c$ queue: many servers}
+
+With $c$ identical servers (think $c$ checkout lanes or $c$ CPU cores), the death rate depends on how
+many are busy: with $n \le c$ customers, all $n$ are in service and departures fire at rate $n\mu$;
+with $n > c$, all servers are busy and the rate saturates at $c\mu$. This is still a birth-death
+process,
+\[
+  \lambda_n = \lambda, \qquad
+  \mu_n = \begin{cases} n\mu, & n \le c, \\ c\mu, & n > c, \end{cases}
+\]
+so the product formula applies verbatim --- you just plug in the state-dependent death rates. The
+result is the celebrated \emph{Erlang C} formula for the probability an arriving customer has to
+wait. It is what call centers use to decide how many agents to staff, and it reveals a comforting
+\emph{economy of scale}.
+
+\begin{aestheticbox}
+Here is a genuinely surprising fact, sometimes called the resource-pooling or economy-of-scale
+principle. One fast server of rate $c\mu$ and $c$ slow servers each of rate $\mu$ have the same total
+capacity. But \emph{a single shared line feeding many servers beats many separate lines.} Picture a
+bank with one snaking queue feeding five tellers versus five separate queues. The single queue is
+better, because no teller ever sits idle while someone waits in another line --- the dreaded
+``I always pick the slow lane'' problem vanishes. Quantitatively, pooling $c$ servers behind one
+queue lets you run each at higher utilization for the same delay, so larger systems are
+\emph{relatively} more efficient. This is why cloud providers, with millions of pooled cores, can
+offer low latency at high utilization that no small data center can match. The mathematics of $Q$ and
+the product formula is what turns this intuition into a staffing number.
+\end{aestheticbox}
+
+\subsection{Jackson networks}
+
+Real systems are not one queue but a web of them: a packet visits a router, then a link, then another
+router; a manufactured part visits station after station. A \emph{Jackson network} is a collection of
+M/M/$c$-style queues where, on finishing service at one node, a customer is routed to another node
+(or leaves) by fixed probabilities. The astonishing \emph{product-form} theorem of Jackson (1957)
+says that in steady state the nodes behave \emph{as if independent}: the joint distribution of all
+the queue lengths factors,
+\[
+  \P(N_1 = n_1, \dots, N_k = n_k) = \prod_{i=1}^{k}\,(1-\rho_i)\rho_i^{\,n_i},
+\]
+each node a geometric in its own effective utilization $\rho_i$, even though the nodes clearly
+interact through the routing. This near-miraculous factorization is what makes large networks
+analytically tractable at all, and it underlies performance models of the Internet, of computer
+architectures, and of factory floors.
+
+\begin{applicationbox}[Where these chains run today]
+\begin{itemize}
+  \item \textbf{Computer networks.} Packet buffers in routers are queues; the M/M/1 and its kin
+  predict latency and loss, and inform buffer sizing and congestion control.
+  \item \textbf{Cloud and data centers.} Autoscalers watch utilization $\rho$ and the queue-length
+  tail to add servers \emph{before} the $\rho/(1-\rho)$ cliff is reached. Load balancers are, quite
+  literally, trying to implement single-queue pooling across many machines.
+  \item \textbf{Reliability engineering.} The two-state up/down machine of
+  Example~\ref{ch27:ex-twostate} generalizes to CTMC models of complex systems, computing
+  availability and mean-time-to-failure for everything from aircraft to power grids.
+  \item \textbf{Biology and chemistry.} Population sizes, gene expression bursts, and chemical
+  reaction networks are CTMCs; the generator $Q$ is the \emph{chemical master equation} of
+  stochastic kinetics.
+  \item \textbf{Epidemiology.} The number of infected individuals in an outbreak is a birth-death
+  process (infections are births, recoveries are deaths); the condition $\rho < 1$ becomes the
+  epidemic threshold $R_0 < 1$ that separates fizzle from outbreak.
+\end{itemize}
+\end{applicationbox}
+
+\section{Steady State, Stationarity, and the Balance Equations}
+\label{ch27:steady}
+
+We used the stationary distribution freely above; let us tie it down. In a discrete chain the
+stationary distribution solves $\pi = \pi P$. The continuous-time analogue replaces the
+one-step matrix $P$ with the generator $Q$, and the fixed-point equation becomes a flow-balance
+equation.
+
+\begin{definition}[Stationary distribution of a CTMC]
+\label{ch27:def-stationary}
+A probability vector $\pi$ (with $\pi_i \ge 0$, $\sum_i \pi_i = 1$) is \emph{stationary} for a CTMC
+with generator $Q$ if
+\[
+  \boxed{\,\pi Q = 0.\,}
+\]
+Component-wise, for each state $j$, $\sum_{i} \pi_i q_{ij} = 0$, which rearranges to the
+\emph{global balance} equation
+\[
+  \underbrace{\pi_j \sum_{i \ne j} q_{ji}}_{\text{rate of probability leaving } j}
+  \;=\;
+  \underbrace{\sum_{i \ne j} \pi_i\, q_{ij}}_{\text{rate of probability entering } j}.
+\]
+\end{definition}
+
+\begin{whybox}
+Why is $\pi Q = 0$ the right equation? Recall $P(t) = e^{Qt}$ and that the distribution at time $t$
+starting from $\pi$ is $\pi P(t)$. ``Stationary'' means this does not change with $t$: $\pi P(t) =
+\pi$ for all $t$. Differentiate at $t = 0$: $\frac{\dd}{\dd t}\big|_{0}\,\pi P(t) = \pi P'(0) = \pi
+Q$, and since the left side is the derivative of a constant, it is zero. Hence $\pi Q = 0$. The
+balance reading is even more intuitive: in equilibrium, the probability fluid filling each state
+must drain out exactly as fast as it pours in, or the state's probability would drift. $\pi Q = 0$ is
+the conservation law that says ``nothing is accumulating anywhere.''
+\end{whybox}
+
+\begin{focusbox}
+Two equation levels, two strengths.
+\begin{itemize}
+  \item \textbf{Global balance} ($\pi Q = 0$): \emph{always} characterizes the stationary
+  distribution. Total flow into each state equals total flow out. Solve this system and you have
+  $\pi$.
+  \item \textbf{Detailed balance} ($\pi_i q_{ij} = \pi_j q_{ji}$ for every pair): a \emph{stronger}
+  condition --- flow balances across each individual edge, not just each state. When it holds the
+  chain is called \emph{reversible}, and $\pi$ is far easier to find (telescoping products, as in the
+  birth-death case). Detailed balance implies global balance, but not conversely.
+\end{itemize}
+All birth-death processes are reversible, which is exactly why the M/M/1 steady state fell out so
+cleanly. When you can use detailed balance, do --- it turns a linear system into a simple recursion.
+\end{focusbox}
+
+\begin{example}[Solving a three-state CTMC by global balance]
+\label{ch27:ex-threestate}
+Consider states $\{A, B, C\}$ with generator
+\[
+  Q = \begin{pmatrix} -3 & 2 & 1 \\ 1 & -2 & 1 \\ 1 & 1 & -2 \end{pmatrix}
+  \qquad(\text{rows sum to } 0).
+\]
+The balance equations $\pi Q = 0$ read, column by column:
+\[
+  -3\pi_A + \pi_B + \pi_C = 0, \qquad
+  2\pi_A - 2\pi_B + \pi_C = 0, \qquad
+  \pi_A + \pi_B - 2\pi_C = 0.
+\]
+From the first, $\pi_B + \pi_C = 3\pi_A$. Combined with $\pi_A + \pi_B + \pi_C = 1$ this gives
+$4\pi_A = 1$, so $\pi_A = 1/4$. Now use $\pi_B + \pi_C = 3/4$ in the second equation,
+$2\pi_A - 2\pi_B + \pi_C = 0$, i.e.\ $\tfrac12 - 2\pi_B + \pi_C = 0$. Substituting
+$\pi_C = \tfrac34 - \pi_B$ gives $\tfrac12 - 2\pi_B + \tfrac34 - \pi_B = 0$, so $3\pi_B = \tfrac54$ and
+$\pi_B = 5/12$, leaving $\pi_C = 3/4 - 5/12 = 1/3$. (Check: $\pi_A + \pi_B + \pi_C = \tfrac14 +
+\tfrac{5}{12} + \tfrac13 = \tfrac{3}{12}+\tfrac{5}{12}+\tfrac{4}{12} = 1$, and the third equation
+$\pi_A + \pi_B - 2\pi_C = \tfrac14 + \tfrac{5}{12} - \tfrac23 = 0$ holds.) The chain spends only a
+quarter of its time in $A$ --- the state with the fastest exit rate ($q_A = 3$, versus $q_B = q_C =
+2$) --- and more of its time in the slower-to-leave states $B$ and $C$. Fast-to-leave states shed
+probability; slow-to-leave states accumulate it. (Among $B$ and $C$, which exit at the same rate, the
+tie is broken by where the inflow comes from --- here $B$ edges out $C$.)
+\end{example}
+
+\begin{recoverybox}
+Let us collect the through-line before the exercises. (1) A CTMC is an ordinary jump chain glued to
+exponential holding times --- ``wait $\Expo(q_i)$, then jump by $P_{ij} = q_{ij}/q_i$.'' (2) The
+generator $Q$ packs every rate into one matrix with zero row sums; transition probabilities are
+$P(t) = e^{Qt}$, and the stationary law solves $\pi Q = 0$. (3) Birth-death processes move only to
+neighbors, so detailed balance gives the product formula for $\pi$. (4) The M/M/1 queue is the
+constant-rate birth-death process; its steady state is geometric, $\pi_n = (1-\rho)\rho^n$, and its
+mean occupancy $L = \rho/(1-\rho)$ explodes as $\rho \to 1$. (5) Little's law $L = \lambda W$ ties
+occupancy to delay by pure accounting, needing essentially no assumptions. Everything else in
+queueing --- many servers, networks, priorities --- is built on these five beams.
+\end{recoverybox}
+
+\section{Exercises}
+\label{ch27:exercises}
+
+\begin{exercise}[Reading a generator]
+\label{ch27:exr-readgen}
+A CTMC on states $\{1,2,3\}$ has $q_{12}=2,\ q_{13}=1,\ q_{21}=4,\ q_{23}=0,\ q_{31}=1,\ q_{32}=3$
+(rates per hour). (a) Write the generator matrix $Q$, filling in the diagonal. (b) What is the mean
+holding time in each state? (c) Starting in state $1$, when it leaves, what is the probability it
+goes to state $3$?
+\end{exercise}
+
+\begin{exercise}[Two-state availability]
+\label{ch27:exr-availability}
+A server fails at rate $\lambda = 1$ per week and is repaired at rate $\mu = 6$ per week. (a) Using
+Example~\ref{ch27:ex-twostate}, find the long-run fraction of time the server is up. (b) What is the
+mean uptime between failures, and the mean repair time? (c) If a second, independent identical server
+is added and the service is ``up'' whenever \emph{at least one} server works, set up (do not fully
+solve) the CTMC for the number of working servers and identify it as a birth-death process.
+\end{exercise}
+
+\begin{exercise}[M/M/1 numbers]
+\label{ch27:exr-mm1numbers}
+Customers arrive at a single-teller bank as a Poisson process at $\lambda = 30$ per hour; service is
+exponential at $\mu = 40$ per hour. Compute (a) the utilization $\rho$; (b) the probability the
+teller is idle; (c) the mean number in the system $L$; (d) the mean time in the system $W$ in
+minutes; (e) the probability that there are at least $3$ customers in the system.
+\end{exercise}
+
+\begin{exercise}[The cliff]
+\label{ch27:exr-cliff}
+For an M/M/1 queue, the mean number in system is $L(\rho) = \rho/(1-\rho)$. (a) Show that $L$ doubles
+when you go from $\rho = 2/3$ to some $\rho^*$; find $\rho^*$. (b) Compute the derivative
+$\dd L/\dd\rho$ and explain in one sentence why it is so large near $\rho = 1$. (c) An operator runs
+at $\rho = 0.95$ and wants to cut $L$ in half. By what factor must service rate $\mu$ increase if
+$\lambda$ is fixed?
+\end{exercise}
+
+\begin{exercise}[Little's law everywhere]
+\label{ch27:exr-little}
+(a) A coffee shop serves $\lambda = 120$ customers per hour, and a customer spends on average
+$W = 6$ minutes inside. How many customers, on average, are inside at once? (b) A development team
+keeps $L = 15$ tickets in progress and closes $\lambda = 3$ per day. What is the average cycle time
+$W$? (c) The team wants to cut cycle time to $3$ days without working faster (same $\lambda$). What
+must $L$ become, and what policy achieves it?
+\end{exercise}
+
+\begin{exercise}[Derive the geometric steady state]
+\label{ch27:exr-derive-geom}
+Starting from the detailed-balance equations $\pi_n \lambda = \pi_{n+1}\mu$ for the M/M/1 queue,
+(a) show by induction that $\pi_n = \rho^n \pi_0$ with $\rho = \lambda/\mu$; (b) use
+$\sum_{n\ge0}\pi_n = 1$ to show $\pi_0 = 1 - \rho$, stating clearly where you need $\rho < 1$;
+(c) explain in words what goes wrong physically when $\rho \ge 1$.
+\end{exercise}
+
+\begin{exercise}[Global balance by hand]
+\label{ch27:exr-global}
+For the three-state generator in Example~\ref{ch27:ex-threestate}, verify the claimed stationary
+distribution $\pi = (1/4,\,5/12,\,1/3)$ by checking that $\pi Q = 0$ directly (compute each of the
+three components and confirm they are zero).
+\end{exercise}
+
+\begin{exercise}[Mean hitting time, finite chain]
+\label{ch27:exr-hitting}
+A particle moves on states $\{0,1,2\}$ as a birth-death chain with birth rate $\lambda = 1$ and death
+rate $\mu = 2$ (so $q_{01}=1$, $q_{10}=2$, $q_{12}=1$, $q_{21}=2$). Let $h_i$ be the expected time to
+first reach state $0$ starting from state $i$. Using the first-step idea ``mean holding time in $i$
+plus the expected remaining time from where you jump,'' set up equations for $h_1$ and $h_2$ and
+solve them. (Hint: $h_0 = 0$; from state $i$ you wait $1/q_i$ then move.)
+\end{exercise}
+
+\begin{exercise}[Proof: detailed balance implies global balance]
+\label{ch27:exr-proof-balance}
+Suppose $\pi$ satisfies detailed balance for a CTMC: $\pi_i q_{ij} = \pi_j q_{ji}$ for all
+$i \ne j$. Prove that $\pi$ then satisfies global balance, i.e.\ $\pi Q = 0$. (Hint: fix a state $j$,
+sum the detailed-balance equations over all $i \ne j$, and recall that $q_{jj} = -\sum_{i\ne j}
+q_{ji}$.) Then give a one-line argument for why the converse can fail, citing a chain that is not
+reversible.
+\end{exercise}
+
+\begin{exercise}[Conceptual: why exponential?]
+\label{ch27:exr-why-exp}
+Explain, in a short paragraph, why a continuous-time \emph{Markov} chain is forced to have
+exponentially distributed holding times. Your answer should connect the memorylessness of the
+exponential distribution to the defining property that the future depends only on the present state,
+not on how long the chain has already occupied it.
+\end{exercise}
+
+\begin{exercise}[Economy of scale, numerically]
+\label{ch27:exr-pooling}
+A service must handle $\lambda = 8$ jobs per second. Option A: one fast server at $\mu = 10$/s.
+Option B: split the arrivals randomly into two streams of $4$/s each, served by two \emph{separate}
+M/M/1 servers at $\mu = 5$/s each. (a) Compute $\rho$, $L$, and $W$ for Option A. (b) Compute $L$ and
+$W$ \emph{per stream} for Option B and the total expected number in the whole system. (c) Which
+option gives shorter average wait, and which idea from Section~\ref{ch27:networks} does this
+illustrate?
+\end{exercise}

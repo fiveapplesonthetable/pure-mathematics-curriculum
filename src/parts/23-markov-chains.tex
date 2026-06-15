@@ -1,0 +1,798 @@
+\chapter{Markov Chains}
+
+So far almost every random sequence in this book has been built out of \emph{independent}
+pieces. Coin flips, dice rolls, the increments of a simple random walk -- in each case the
+next thing that happens knows nothing about the past. Independence is clean, but it is also
+a strong assumption, and the world rarely obliges. Tomorrow's weather depends on today's.
+Your next word depends on the word you just typed. Whether a gambler is up or down at the
+next bet depends on whether they are up or down right now. The genome you inherit at one
+site is correlated with the site next door.
+
+We need a model of randomness \emph{with memory} -- but not too much memory, or there is
+nothing we can compute. The Markov chain is the sweet spot. It is the simplest interesting
+way for the future to depend on the past, and it turns out to be one of the most useful
+objects in all of applied probability. Page rankings on the web, the autocomplete in your
+phone, models of ion channels in neurons, queueing theory, Monte Carlo samplers that power
+modern Bayesian statistics, the spread of epidemics -- all of these are Markov chains
+wearing different clothes.
+
+The whole subject rests on a single, almost philosophical idea: \emph{the present screens
+off the past}. Once you know where you are right now, the road that brought you here tells
+you nothing more about where you are going. This chapter is about taking that one sentence
+seriously and seeing how far it carries us.
+
+\chapterline
+
+\section{The Markov property: the present is enough}
+\label{ch23:markov-property}
+
+Picture a frog hopping among a few lily pads. At each tick of a clock the frog jumps to a
+(possibly different) pad according to some probabilities that depend only on the pad it is
+sitting on \emph{right now}. The frog has no diary. It does not remember the long scenic
+route it took to reach its current pad; it just looks around from where it is and jumps.
+
+\begin{intuitionbox}
+A Markov chain is a random walk on a set of \emph{states} where the only thing that matters
+for the next step is the current state. The history is not erased -- you can still write it
+down -- but it is \emph{irrelevant} to the future once the present is known. ``Given the
+present, the future and the past are independent.''
+\end{intuitionbox}
+
+Let us make this precise. We have a sequence of random variables $X_0, X_1, X_2, \dots$,
+each taking values in a finite or countable set $S$ called the \emph{state space}. We think
+of $X_n$ as the state at time $n$.
+
+\begin{definition}[Markov property]
+\label{ch23:def-markov}
+The sequence $(X_n)_{n \ge 0}$ is a (discrete-time) \emph{Markov chain} on state space $S$
+if for every $n \ge 0$ and all states $i_0, i_1, \dots, i_{n-1}, i, j \in S$ with positive
+probability of the conditioning event,
+\[
+  \P(X_{n+1} = j \given X_n = i,\, X_{n-1} = i_{n-1}, \dots, X_0 = i_0)
+   = \P(X_{n+1} = j \given X_n = i).
+\]
+The chain is \emph{time-homogeneous} if this last quantity does not depend on $n$; we then
+write $p_{ij} = \P(X_{n+1} = j \given X_n = i)$ for the \emph{transition probability} from
+$i$ to $j$. Unless we say otherwise, all our chains are time-homogeneous.
+\end{definition}
+
+Read the equation slowly. On the left you condition on the \emph{entire} history. On the
+right you keep only the most recent value $X_n = i$. The Markov property says these two are
+equal: the extra history $i_{n-1}, \dots, i_0$ adds nothing once you know $i$. That is the
+``memoryless given the present'' slogan made into mathematics.
+
+\begin{trapbox}
+``Memoryless'' does \emph{not} mean the steps are independent, and it does \emph{not} mean
+the chain forgets everything. The frog's current pad is highly informative about its next
+pad. What the Markov property says is narrower: \emph{additional} past beyond the present
+contributes no \emph{further} information. Also beware the symmetric trap -- the past and
+future are conditionally independent \emph{given the present}, but they are usually very much
+dependent if you do not condition. Knowing $X_0$ tells you plenty about $X_5$.
+\end{trapbox}
+
+\begin{whybox}
+Why is this the ``right'' weakening of independence? Independence says
+$\P(X_{n+1}=j \given \text{past}) = \P(X_{n+1}=j)$ -- the past is irrelevant, full stop.
+That is too strong for memory. The opposite extreme, letting $X_{n+1}$ depend on the whole
+history, is too rich: to specify the model you would need a conditional probability for every
+possible history, and histories grow without bound. The Markov property is the unique
+middle ground where (a) the future genuinely depends on the past, yet (b) the dependence is
+funneled entirely through a single current state, so the model is described by a finite
+table. It is the most memory you can have while staying finitely specifiable.
+\end{whybox}
+
+\begin{historybox}
+The chains are named for \textbf{Andrey Andreyevich Markov} (1856--1922), a student of
+Chebyshev in St.\ Petersburg. In 1906 Markov was partly motivated by a quarrel. Pavel
+Nekrasov had argued that the law of large numbers \emph{required} independence, and used
+this to make theological claims about free will. Markov wanted to show that the law of large
+numbers, and limit theorems generally, hold for \emph{dependent} sequences too -- provided
+the dependence is of his restricted kind. To demonstrate it on real data he did something
+strikingly modern: he took the text of Pushkin's verse novel \emph{Eugene Onegin}, stripped
+out the first 20{,}000 letters, and counted how often a vowel was followed by a vowel, a
+vowel by a consonant, and so on. That two-state chain (vowel/consonant) was, in effect, the
+first statistical language model -- a direct ancestor of the autocomplete on your phone,
+written a century before the phone.
+\end{historybox}
+
+\subsection{From the present to the whole future}
+
+The Markov property looks like a statement about one step, but it quietly controls the entire
+trajectory. The probability of any specific path factors into a product of one-step pieces.
+
+\begin{proposition}[Path probabilities multiply]
+\label{ch23:path-factorization}
+For a Markov chain with initial distribution $\P(X_0 = i_0) = \mu_{i_0}$,
+\[
+  \P(X_0 = i_0,\, X_1 = i_1,\, \dots,\, X_n = i_n)
+   = \mu_{i_0}\, p_{i_0 i_1}\, p_{i_1 i_2}\, \cdots\, p_{i_{n-1} i_n}.
+\]
+\end{proposition}
+
+\begin{whybox}
+Use the chain rule of probability, which always holds:
+\[
+  \P(X_0=i_0,\dots,X_n=i_n) = \P(X_0=i_0)\prod_{k=1}^{n}\P(X_k=i_k \given X_0=i_0,\dots,X_{k-1}=i_{k-1}).
+\]
+Now apply the Markov property to each factor: the conditioning collapses to the immediately
+preceding state, $\P(X_k=i_k \given X_{k-1}=i_{k-1}) = p_{i_{k-1}i_k}$. The general chain
+rule is unconditional truth; the Markov property is what lets us throw away all but the last
+condition. The trajectory's probability is just a walk along a sequence of edges, each
+contributing its own factor -- start weight times a product of transition weights.
+\end{whybox}
+
+This is the computational heart of the subject. A path is a product. Sums over paths are
+what matrix multiplication computes, and that is the bridge we build next.
+
+\section{Transition matrices and state diagrams}
+\label{ch23:transition-matrix}
+
+Collect all the one-step probabilities into a square array. If $S = \{1, 2, \dots, m\}$, the
+\emph{transition matrix} is
+\[
+  P = \big(p_{ij}\big)_{i,j \in S},
+  \qquad p_{ij} = \P(X_{n+1} = j \given X_n = i).
+\]
+Row $i$ of $P$ is the probability distribution of where you go \emph{from} state $i$. Because
+from $i$ you must land \emph{somewhere}, every row sums to $1$:
+\[
+  \sum_{j \in S} p_{ij} = 1 \quad \text{for every } i, \qquad p_{ij} \ge 0.
+\]
+A nonnegative square matrix whose rows each sum to $1$ is called a \emph{stochastic matrix}.
+Stochastic matrices and (time-homogeneous, finite) Markov chains are the same thing seen two
+ways.
+
+\begin{trapbox}
+\emph{Rows} sum to $1$, not columns. Mixing this up is the single most common Markov-chain
+bug. The convention ``state-as-row, distribution-as-row'' also forces us to put probability
+vectors on the \emph{left}: a row vector $\pi$ updates by $\pi \mapsto \pi P$, not $P\pi$.
+Some books transpose everything and multiply on the right. Pick one convention and hold it.
+We use rows throughout.
+\end{trapbox}
+
+A picture says it faster than a matrix. Draw one node per state and an arrow $i \to j$
+labeled $p_{ij}$ for each positive transition probability. This is the \emph{state diagram}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[->,>=Stealth,node distance=3.2cm,auto,
+  mystate/.style={circle,draw=sourceblue,thick,minimum size=1.1cm}]
+  \node[mystate] (S) {Sun};
+  \node[mystate,right=of S] (R) {Rain};
+  \path
+    (S) edge[loop left]  node {$0.8$} (S)
+    (S) edge[bend left=18] node[above] {$0.2$} (R)
+    (R) edge[bend left=18] node[below] {$0.4$} (S)
+    (R) edge[loop right] node {$0.6$} (R);
+\end{tikzpicture}
+\caption{A two-state weather chain. From a sunny day, tomorrow is sunny with probability
+$0.8$ and rainy with probability $0.2$; from a rainy day, sunny with probability $0.4$ and
+rainy with probability $0.6$. Every arrow leaving a node corresponds to one entry of that
+node's row, and those arrows' labels sum to $1$.}
+\label{ch23:fig-weather-diagram}
+\end{figure}
+
+In matrix form, with the order (Sun, Rain),
+\[
+  P = \begin{pmatrix} 0.8 & 0.2 \\ 0.4 & 0.6 \end{pmatrix}.
+\]
+Check the rows: $0.8 + 0.2 = 1$ and $0.4 + 0.6 = 1$. Good.
+
+\begin{example}[A reader who skims]
+\label{ch23:ex-skim}
+Model your reading mood with three states: Focused ($F$), Skimming ($K$), Distracted ($D$).
+Each paragraph you transition according to
+\[
+  P = \begin{pmatrix}
+   0.7 & 0.2 & 0.1 \\
+   0.3 & 0.5 & 0.2 \\
+   0.2 & 0.3 & 0.5
+  \end{pmatrix}
+  \quad
+  \begin{array}{l} F \\ K \\ D \end{array}
+\]
+where rows and columns are ordered $F, K, D$. Reading off row $F$: if you are focused now,
+next paragraph you stay focused with probability $0.7$, start skimming with $0.2$, drift off
+with $0.1$. The state diagram would have nine arrows (every $p_{ij} > 0$), three of them
+self-loops. We will return to this chain to compute long-run behavior.
+\end{example}
+
+\begin{walkbox}
+A particle does a random walk on the corners of a triangle, at each step moving to one of the
+two \emph{other} corners with equal probability $1/2$, never staying put. Write its
+transition matrix. (Answer: label the corners $1,2,3$; then $p_{ii}=0$ and
+$p_{ij}=1/2$ for $i \ne j$. Each row is $(0,\tfrac12,\tfrac12)$ in some order, summing to
+$1$.) Notice the zero diagonal -- the walk \emph{cannot} stay. We will see this forces a kind
+of rhythm called periodicity.
+\end{walkbox}
+
+\section{$n$-step transitions are matrix powers}
+\label{ch23:matrix-powers}
+
+Here is the question that makes the whole machine hum. You know the one-step probabilities.
+What is the probability of going from $i$ to $j$ in \emph{exactly $n$ steps}? Write this
+$n$-step transition probability as
+\[
+  p_{ij}^{(n)} = \P(X_n = j \given X_0 = i).
+\]
+
+Start with two steps. To get from $i$ to $j$ in two steps you must pass through \emph{some}
+intermediate state $k$ at time $1$. The events ``go through $k$'' are mutually exclusive and
+exhaustive, so we add them up:
+\[
+  p_{ij}^{(2)} = \sum_{k \in S} \P(X_1 = k \given X_0 = i)\,\P(X_2 = j \given X_1 = k)
+              = \sum_{k \in S} p_{ik}\, p_{kj}.
+\]
+The middle step used the Markov property: once we are at $k$ at time $1$, the second jump
+ignores that we came from $i$. But $\sum_k p_{ik}\,p_{kj}$ is exactly the $(i,j)$ entry of
+the matrix product $P \cdot P = P^2$. The two-step probabilities \emph{are} the entries of
+$P^2$.
+
+\begin{intuitionbox}
+Matrix multiplication and ``sum over all intermediate states'' are literally the same
+operation. The row-times-column rule $\sum_k p_{ik} p_{kj}$ enumerates every two-step path
+$i \to k \to j$, multiplies the probabilities along each path (paths are products), and adds
+across paths (alternatives add). Probability bookkeeping \emph{is} linear algebra.
+\end{intuitionbox}
+
+The same argument with $n$ split as $r + s$ gives the general law.
+
+\begin{theorem}[Chapman--Kolmogorov]
+\label{ch23:chapman-kolmogorov}
+For all $r, s \ge 0$,
+\[
+  p_{ij}^{(r+s)} = \sum_{k \in S} p_{ik}^{(r)}\, p_{kj}^{(s)},
+  \qquad\text{equivalently}\qquad
+  P^{(r+s)} = P^{(r)} P^{(s)}.
+\]
+Consequently $p_{ij}^{(n)} = (P^n)_{ij}$: the $n$-step transition matrix is the $n$-th power
+of $P$.
+\end{theorem}
+
+\begin{whybox}
+Condition on where the chain is at the intermediate time $r$. To travel from $i$ to $j$ in
+$r+s$ steps, it sits at some state $k$ at time $r$; the first leg ($i \to k$ in $r$ steps) and
+the second leg ($k \to j$ in $s$ steps) are governed by $P^{(r)}$ and $P^{(s)}$, and the
+Markov property makes the second leg independent of how the first was traveled. Summing over
+$k$ is the law of total probability. Writing it as matrices, ``sum over the middle index'' is
+the definition of the product, so $P^{(r+s)} = P^{(r)}P^{(s)}$. Setting $r=s=1$ gives
+$P^{(2)} = P^2$, and induction gives $P^{(n)} = P^n$.
+\end{whybox}
+
+\begin{connectionbox}
+This is where the linear algebra book pays off. The $n$-step behavior of a chain is the $n$-th
+power of a matrix, and powers of matrices are understood through \emph{eigenvalues}. If $P$ is
+diagonalizable as $P = V \Lambda V^{-1}$ with eigenvalues $\lambda_1, \dots, \lambda_m$ on the
+diagonal of $\Lambda$, then $P^n = V \Lambda^n V^{-1}$, and $\Lambda^n$ just raises each
+eigenvalue to the $n$. A stochastic matrix always has $\lambda_1 = 1$ as an eigenvalue (the
+all-ones vector $\mathbf{1}$ satisfies $P\mathbf{1} = \mathbf{1}$, since rows sum to $1$), and
+all eigenvalues satisfy $\abs{\lambda} \le 1$. As $n \to \infty$, every $\abs{\lambda} < 1$
+term decays like $\lambda^n \to 0$, and only the $\lambda = 1$ part survives. \emph{That
+surviving piece is the long-run equilibrium of the chain.} The whole theory of convergence we
+meet in the next chapter is, underneath, the statement ``the second-largest eigenvalue
+controls the rate.''
+\end{connectionbox}
+
+\subsection{Pushing a distribution forward}
+
+If you are uncertain about the starting state, encode that uncertainty as a row vector
+$\mu^{(0)} = (\mu^{(0)}_1, \dots, \mu^{(0)}_m)$ with $\mu^{(0)}_i = \P(X_0 = i)$. The
+distribution after one step is obtained by the law of total probability,
+\[
+  \mu^{(1)}_j = \P(X_1 = j) = \sum_i \P(X_0 = i)\,p_{ij} = \big(\mu^{(0)} P\big)_j,
+\]
+so $\mu^{(1)} = \mu^{(0)} P$, and by induction $\mu^{(n)} = \mu^{(0)} P^n$. A distribution is a
+row vector; time advances by right-multiplication by $P$.
+
+\begin{example}[Two steps of the weather chain]
+\label{ch23:ex-weather-twostep}
+Take $P = \left(\begin{smallmatrix} 0.8 & 0.2 \\ 0.4 & 0.6 \end{smallmatrix}\right)$. Then
+\[
+  P^2 = \begin{pmatrix} 0.8 & 0.2 \\ 0.4 & 0.6 \end{pmatrix}
+        \begin{pmatrix} 0.8 & 0.2 \\ 0.4 & 0.6 \end{pmatrix}
+      = \begin{pmatrix} 0.72 & 0.28 \\ 0.56 & 0.44 \end{pmatrix}.
+\]
+So if today is sunny, the probability it is sunny the day \emph{after} tomorrow is
+$p_{SS}^{(2)} = 0.72$. Check the arithmetic of the top-left entry the path way: $S \to S \to
+S$ contributes $0.8 \times 0.8 = 0.64$, and $S \to R \to S$ contributes $0.2 \times 0.4 =
+0.08$; together $0.64 + 0.08 = 0.72$. Two-step probability, two paths, products added.
+Suppose instead today's weather is itself uncertain, $\mu^{(0)} = (0.5, 0.5)$. Then
+$\mu^{(1)} = (0.5,0.5)P = (0.6, 0.4)$ and $\mu^{(2)} = (0.6,0.4)P = (0.64, 0.36)$.
+\end{example}
+
+Let us watch a chain forget where it started. Iterating $\mu^{(n)} = \mu^{(0)}P^n$ for the
+weather chain from two very different starting beliefs, the probability of ``Sun'' converges
+to the same value no matter where we began.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6.2cm,
+  xlabel={day $n$}, ylabel={$\P(X_n = \text{Sun})$},
+  xmin=0, xmax=10, ymin=0, ymax=1.05,
+  xtick={0,2,4,6,8,10}, ytick={0,0.25,0.5,0.667,0.75,1},
+  yticklabels={$0$,$0.25$,$0.5$,$\tfrac23$,$0.75$,$1$},
+  legend pos=south east, grid=both, grid style={gray!18},
+  every axis plot/.append style={thick}]
+  % start sunny: P(Sun)=1; recursion s_{n+1}=0.8 s + 0.4(1-s)=0.4+0.4 s
+  \addplot[sourceblue,mark=*,mark size=1.4pt] coordinates {
+    (0,1)(1,0.8)(2,0.72)(3,0.688)(4,0.6752)(5,0.67008)(6,0.668032)(7,0.6672128)(8,0.66688512)(9,0.666754048)(10,0.6667016192)};
+  \addlegendentry{start Sun}
+  % start rainy: P(Sun)=0
+  \addplot[densityred,mark=square*,mark size=1.3pt] coordinates {
+    (0,0)(1,0.4)(2,0.56)(3,0.624)(4,0.6496)(5,0.65984)(6,0.663936)(7,0.6655744)(8,0.66622976)(9,0.666491904)(10,0.6665967616)};
+  \addlegendentry{start Rain}
+  \addplot[gray,dashed,domain=0:10,samples=2] {0.6667};
+  \addlegendentry{$\pi_{\text{Sun}} = 2/3$}
+\end{axis}
+\end{tikzpicture}
+\caption{The weather chain forgets its start. Whether day $0$ is certainly sunny (blue) or
+certainly rainy (red), the probability of sun on day $n$ rushes to the same limit
+$2/3$. The gap between the two curves shrinks geometrically -- it is multiplied by the
+second eigenvalue $\lambda_2 = 0.4$ each day. This convergence to a unique equilibrium is the
+subject of the next chapter; here it is a teaser for what matrix powers do.}
+\label{ch23:fig-weather-converge}
+\end{figure}
+
+\begin{happeningbox}
+Why do both curves land on $2/3$? The eigenvalues of the weather $P$ are $\lambda_1 = 1$ and
+$\lambda_2 = 0.8 + 0.6 - 1 = 0.4$ (for a $2\times2$ stochastic matrix the second eigenvalue is
+always $\operatorname{tr}P - 1$). Writing $\mu^{(0)} = c_1 v_1 + c_2 v_2$ in the eigenbasis,
+$\mu^{(n)} = c_1 v_1 + c_2 (0.4)^n v_2$. The $\lambda=1$ part $c_1 v_1$ is fixed; the $0.4$
+part decays to nothing. What is left is the equilibrium row vector, the left eigenvector for
+$\lambda = 1$, which works out to $(2/3, 1/3)$. The starting distribution only enters through
+the dying term, so it is forgotten. The ``memory'' of the initial condition has a half-life of
+about $\log(1/2)/\log(0.4) \approx 0.76$ days.
+\end{happeningbox}
+
+\section{Classifying states: where can the chain go, and does it return?}
+\label{ch23:classification}
+
+Not all states are alike. Some you can leave and never come back to; some trap you; some you
+visit forever. To organize this we ask two questions about every state: \emph{what is
+reachable from it}, and \emph{if you start there, do you come back}?
+
+\subsection{Communication and irreducibility}
+
+\begin{definition}[Accessibility and communication]
+\label{ch23:def-communicate}
+State $j$ is \emph{accessible} from $i$, written $i \to j$, if $p_{ij}^{(n)} > 0$ for some
+$n \ge 0$ -- you can get from $i$ to $j$ in some number of steps. States $i$ and $j$
+\emph{communicate}, written $i \leftrightarrow j$, if $i \to j$ and $j \to i$.
+\end{definition}
+
+Communication is an equivalence relation (it is reflexive since $p_{ii}^{(0)}=1$, symmetric by
+definition, and transitive by Chapman--Kolmogorov: if $i \to k$ in $r$ steps and $k \to j$ in
+$s$ steps then $p_{ij}^{(r+s)} \ge p_{ik}^{(r)}p_{kj}^{(s)} > 0$). It therefore partitions the
+state space into \emph{communicating classes}.
+
+\begin{definition}[Irreducible]
+\label{ch23:def-irreducible}
+A chain is \emph{irreducible} if all states communicate -- there is a single communicating
+class, and you can get from anywhere to anywhere.
+\end{definition}
+
+On the state diagram, communicating classes are exactly the ``strongly connected components'':
+the maximal blobs in which directed arrows let you travel both ways between any two members.
+
+\subsection{Recurrent and transient states}
+
+Now the return question. Start the chain at state $i$ and watch. Will it ever come back to
+$i$? Let
+\[
+  f_i = \P(\text{chain returns to } i \text{ at some time} \ge 1 \given X_0 = i).
+\]
+
+\begin{definition}[Recurrent, transient]
+\label{ch23:def-recurrent}
+State $i$ is \emph{recurrent} if $f_i = 1$ (return is certain) and \emph{transient} if
+$f_i < 1$ (there is positive probability you never return).
+\end{definition}
+
+\begin{intuitionbox}
+A recurrent state is a home you always come back to; a transient state is a place you pass
+through and, with positive probability, leave for good. The deep fact is that this is
+all-or-nothing over infinite time. If return is certain ($f_i=1$), then \emph{each} return is
+certain, so you return again and again, infinitely often. If return is only probable
+($f_i<1$), then the number of returns is a geometric race the chain eventually loses, so you
+visit $i$ only finitely many times and then abandon it forever.
+\end{intuitionbox}
+
+Let us turn that intuition into a clean criterion. Let $N_i$ be the total number of visits to
+$i$ (counting time $0$). Each time you are at $i$, the chance you ever return is $f_i$, and
+returns are independent attempts because of the Markov property. So the number of returns is
+geometric and
+\[
+  \E[N_i \given X_0 = i] = \sum_{n=0}^{\infty} p_{ii}^{(n)} = \frac{1}{1 - f_i},
+\]
+with the convention that the sum is $+\infty$ when $f_i = 1$. This gives a test you can run
+straight from the matrix powers.
+
+\begin{theorem}[Recurrence via the Green's function]
+\label{ch23:recurrence-test}
+State $i$ is recurrent if and only if $\displaystyle\sum_{n=0}^{\infty} p_{ii}^{(n)} = \infty$,
+and transient if and only if $\displaystyle\sum_{n=0}^{\infty} p_{ii}^{(n)} < \infty$.
+Recurrence and transience are \emph{class properties}: if $i \leftrightarrow j$, then $i$ and
+$j$ are either both recurrent or both transient.
+\end{theorem}
+
+\begin{whybox}
+The expected number of visits is $\E[N_i] = \E\big[\sum_n \ind(X_n=i)\big] = \sum_n
+\P(X_n=i \given X_0=i) = \sum_n p_{ii}^{(n)}$ by linearity (swap sum and expectation, allowed
+for nonnegative terms). Separately, each visit independently leads to ``at least one more
+visit'' with probability $f_i$, so $N_i$ is a geometric count with mean $1/(1-f_i)$. Setting
+the two expressions equal: the sum is infinite exactly when $f_i = 1$. The class-property
+claim follows because if $i \leftrightarrow j$ you can route visits to $i$ through $j$ and
+back, so the two return sums are infinite together. The slogan: recurrence means you visit
+infinitely often, and infinitely many visits means an infinite expected count.
+\end{whybox}
+
+For a \emph{finite} chain there is a satisfying shortcut: you cannot wander off to infinity,
+because there is no infinity to wander to. With finitely many states and infinitely many time
+steps, some state is visited infinitely often -- and a little argument shows every state in
+its communicating class must be too.
+
+\begin{proposition}[Finite chains: recurrence is about being trapped]
+\label{ch23:finite-recurrence}
+In a finite Markov chain, a communicating class is recurrent if and only if it is
+\emph{closed} (no arrows lead out of it). At least one class is closed, so a finite chain
+always has at least one recurrent state. Every finite irreducible chain is recurrent.
+\end{proposition}
+
+\begin{intuitionbox}
+Picture the communicating classes as rooms connected by one-way doors. A class with a door
+leading out is transient: eventually you take that door and, lacking a way back (or you'd be
+in the same class), you never return. A class with no exit door is a trap -- once inside you
+bounce around its states forever, so they are recurrent. In finite chains the entire story of
+recurrence is just: \emph{which rooms are sealed}.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[->,>=Stealth,node distance=2.6cm,
+  mystate/.style={circle,draw,thick,minimum size=0.95cm}]
+  \node[mystate,draw=quotientorange] (1) {$1$};
+  \node[mystate,draw=quotientorange,right=of 1] (2) {$2$};
+  \node[mystate,draw=targetgreen,below=2.1cm of 1] (3) {$3$};
+  \node[mystate,draw=targetgreen,below=2.1cm of 2] (4) {$4$};
+  \path
+    (1) edge[bend left=15] node[above]{} (2)
+    (2) edge[bend left=15] node[below]{} (1)
+    (1) edge node[left]{} (3)
+    (2) edge node[right]{} (4)
+    (3) edge[bend left=15] node[above]{} (4)
+    (4) edge[bend left=15] node[below]{} (3);
+  \node[quotientorange] at (1.2,0.95) {transient class $\{1,2\}$};
+  \node[targetgreen] at (1.2,-3.05) {recurrent class $\{3,4\}$};
+\end{tikzpicture}
+\caption{A four-state chain with two communicating classes. From $\{1,2\}$ (orange) there are
+doors down into $\{3,4\}$ (green) but none coming back up, so $\{1,2\}$ is transient -- the
+chain eventually falls through and never returns. The class $\{3,4\}$ is closed: no arrow
+leaves it, so it is recurrent and the chain stays there forever after.}
+\label{ch23:fig-classes}
+\end{figure}
+
+\begin{example}[Gambler's ruin is mostly transient]
+\label{ch23:ex-gamblers-ruin}
+A gambler bets \$1 per round, winning with probability $p$ and losing with probability
+$q = 1-p$, starting with $k$ and quitting at $0$ (broke) or $N$ (target). The state is the
+current fortune, $S = \{0, 1, \dots, N\}$. The endpoints $0$ and $N$ are \emph{absorbing}:
+$p_{00} = p_{NN} = 1$, each its own closed recurrent class. Every interior state
+$1, \dots, N-1$ communicates with the others but has a door out (to $0$ or to $N$), so the
+whole interior is \emph{transient}. The chain visits each fortune level only finitely often
+before being absorbed. This is the structural reason the game must end: with probability $1$
+the gambler is eventually ruined or hits the target. Computing \emph{which} is a beautiful
+exercise in itself, left to the end of the chapter.
+\end{example}
+
+\begin{paradoxbox}[Polya's drunkard: recurrent in 2D, transient in 3D]
+Consider a symmetric random walk that starts at the origin and at each step moves to a uniformly
+random neighbor on the integer lattice. On the line ($\Z^1$) and in the plane ($\Z^2$) the
+walk is \emph{recurrent}: with probability $1$ it returns to the origin (indeed to every point)
+infinitely often. But in three dimensions ($\Z^3$) it is \emph{transient}: there is a positive
+probability -- about $0.66$ -- that it \emph{never} comes home, and over time it drifts off to
+infinity. George Polya proved this in 1921. Shizuo Kakutani summarized it perfectly: ``A drunk
+man will find his way home, but a drunk bird may get lost forever.''
+
+\textbf{Why the dimension matters.} Use the recurrence test
+$\sum_n p_{00}^{(n)}$. The return probability at time $2n$ behaves like the chance a
+spreading cloud of probability is back at its center. By the local central limit theorem the
+walk after $2n$ steps is spread over a region of ``radius'' $\sqrt{n}$ in each dimension, so the
+probability density at the origin scales like $n^{-d/2}$ in $d$ dimensions:
+\[
+  p_{00}^{(2n)} \;\asymp\; n^{-d/2}.
+\]
+Now sum: $\sum_n n^{-d/2}$ \emph{diverges} for $d = 1, 2$ (the exponents $1/2$ and $1$ are not
+big enough) but \emph{converges} for $d \ge 3$ (exponent $3/2 > 1$). The whole dichotomy is the
+convergence of a $p$-series. Two dimensions is exactly the borderline where the harmonic series
+$\sum 1/n$ still diverges; one more dimension tips the sum into finiteness and lets the bird
+escape. Probability and the integral test, hand in hand.
+\end{paradoxbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.5cm, height=5.6cm,
+  xlabel={step $n$}, ylabel={position $X_n$},
+  xmin=0, xmax=40, ymin=-6, ymax=7,
+  xtick={0,10,20,30,40}, ytick={-6,-4,-2,0,2,4,6},
+  grid=both, grid style={gray!18},
+  every axis plot/.append style={thick}]
+  \addplot[sourceblue] coordinates {
+    (0,0)(1,-1)(2,-2)(3,-1)(4,0)(5,-1)(6,-2)(7,-3)(8,-2)(9,-1)(10,0)(11,-1)(12,0)(13,1)(14,2)(15,1)(16,2)(17,3)(18,2)(19,1)(20,0)(21,-1)(22,0)(23,1)(24,0)(25,-1)(26,-2)(27,-1)(28,-2)(29,-3)(30,-4)(31,-5)(32,-4)(33,-5)(34,-4)(35,-3)(36,-4)(37,-3)(38,-4)(39,-5)(40,-4)};
+  \addplot[densityred] coordinates {
+    (0,0)(1,1)(2,2)(3,1)(4,2)(5,3)(6,4)(7,5)(8,4)(9,5)(10,6)(11,5)(12,4)(13,5)(14,4)(15,3)(16,4)(17,3)(18,4)(19,3)(20,4)(21,3)(22,2)(23,1)(24,2)(25,1)(26,2)(27,3)(28,4)(29,3)(30,4)(31,5)(32,4)(33,3)(34,4)(35,5)(36,4)(37,5)(38,4)(39,3)(40,2)};
+  \addplot[black,dashed,domain=0:40,samples=2]{0};
+\end{axis}
+\end{tikzpicture}
+\caption{Two sample paths of the symmetric random walk on the line ($\Z^1$), each crossing
+the origin (dashed line) repeatedly. In one and two dimensions every such path returns to its
+start infinitely often with probability $1$ -- the recurrence of Polya's theorem made visible.
+The vertical spread grows like $\sqrt{n}$, which is exactly the scaling behind the
+$p_{00}^{(2n)} \asymp n^{-d/2}$ estimate in the box above.}
+\label{ch23:fig-rw-paths}
+\end{figure}
+
+\subsection{Periodicity}
+
+The last piece of structure is rhythm. Some states can only be revisited at multiples of a
+fixed beat.
+
+\begin{definition}[Period]
+\label{ch23:def-period}
+The \emph{period} of state $i$ is
+\[
+  d(i) = \gcd\set{ n \ge 1 : p_{ii}^{(n)} > 0 },
+\]
+the greatest common divisor of the times at which return is possible. If $d(i) = 1$ the state
+is \emph{aperiodic}; if $d(i) > 1$ it is \emph{periodic} with period $d(i)$. Period is a class
+property: communicating states share a period.
+\end{definition}
+
+\begin{example}[The triangle walk has period... 2? No, 1]
+\label{ch23:ex-triangle-period}
+Recall the walk on a triangle that must move to a different corner each step (the Walking
+question above). Return to corner $1$ is possible in $2$ steps ($1\to2\to1$) and in $3$ steps
+($1\to2\to3\to1$). So the return-time set contains $2$ and $3$, and $\gcd(2,3) = 1$: the walk
+is \emph{aperiodic}. Contrast a walk on a \emph{square} (a $4$-cycle) where you can only move
+to an adjacent corner: returns to a corner happen only at even times, $\gcd = 2$, period $2$.
+The triangle's odd loop breaks the rhythm; the square's bipartite structure enforces it.
+\end{example}
+
+\begin{happeningbox}
+Period is really a statement about the eigenvalues lying \emph{on} the unit circle. An
+aperiodic irreducible chain has $\lambda = 1$ as its only eigenvalue of modulus $1$, so
+$P^n$ settles down to a single limiting matrix. A chain with period $d$ has $d$ eigenvalues
+spread evenly around the unit circle (the $d$-th roots of unity), and $P^n$ never settles --
+it cycles through $d$ phases forever. The bipartite square chain has eigenvalues $\pm 1$; the
+$+1$ gives the equilibrium and the $-1$ gives the eternal odd/even flicker. Aperiodicity is
+exactly the condition that kills every undying oscillation and lets the chain converge, which
+is why the next chapter's convergence theorem assumes it.
+\end{happeningbox}
+
+\begin{aestheticbox}
+We now have a complete vocabulary for the ``shape'' of a chain, all read off the diagram:
+\begin{itemize}
+  \item \textbf{Communicating classes}: the strongly connected blobs. \emph{Irreducible} = one
+    blob.
+  \item \textbf{Closed vs.\ open}: a class is recurrent iff no arrow leaves it (finite case);
+    open classes are transient.
+  \item \textbf{Period}: the gcd of possible return times; \emph{aperiodic} = period $1$.
+\end{itemize}
+A finite, irreducible, aperiodic chain -- one blob, sealed (it must be, being everything),
+with no rhythm -- is called \emph{ergodic}, and these are the chains that forget their start
+and settle to a unique equilibrium. Every condition in that mouthful is a structural property
+you can verify by staring at the picture. The classification is not bureaucracy; it is exactly
+the set of hypotheses the limit theorems need.
+\end{aestheticbox}
+
+\section{A larger worked example}
+\label{ch23:worked-example}
+
+Let us exercise everything on the reader-mood chain of Example~\ref{ch23:ex-skim},
+\[
+  P = \begin{pmatrix}
+   0.7 & 0.2 & 0.1 \\
+   0.3 & 0.5 & 0.2 \\
+   0.2 & 0.3 & 0.5
+  \end{pmatrix},
+  \qquad \text{states } F, K, D.
+\]
+
+\textbf{Step 1: classify.} Every entry of $P$ is positive, so $i \to j$ in one step for all
+$i,j$: the chain is irreducible (one class) and, since $p_{ii}>0$ gives return in one step,
+aperiodic (period $\gcd$ includes $1$). It is finite and irreducible, hence recurrent. This is
+an ergodic chain -- it will settle to a unique equilibrium.
+
+\textbf{Step 2: two- and three-step behavior.} Suppose you start Focused, $\mu^{(0)} =
+(1,0,0)$. Then
+\[
+  \mu^{(1)} = (0.7,\,0.2,\,0.1), \qquad
+  \mu^{(2)} = \mu^{(1)}P = (0.57,\,0.27,\,0.16),
+\]
+\[
+  \mu^{(3)} = \mu^{(2)}P = (0.512,\,0.297,\,0.191).
+\]
+(For instance $\mu^{(2)}_F = 0.7\cdot0.7 + 0.2\cdot0.3 + 0.1\cdot0.2 = 0.49+0.06+0.02 =
+0.57$.) The probability of being focused is sliding down from $1$ toward its long-run value.
+
+\textbf{Step 3: the equilibrium.} The long-run distribution $\pi = (\pi_F, \pi_K, \pi_D)$ is
+the one that does not change under a step: $\pi P = \pi$ with $\pi_F + \pi_K + \pi_D = 1$.
+Writing out $\pi P = \pi$:
+\[
+  0.7\pi_F + 0.3\pi_K + 0.2\pi_D = \pi_F, \quad
+  0.2\pi_F + 0.5\pi_K + 0.3\pi_D = \pi_K, \quad
+  0.1\pi_F + 0.2\pi_K + 0.5\pi_D = \pi_D.
+\]
+Solving (any two equations plus normalization) gives the exact answer
+\[
+  \pi = \Big(\tfrac{19}{41},\, \tfrac{13}{41},\, \tfrac{9}{41}\Big)
+      \approx (0.463,\, 0.317,\, 0.220).
+\]
+In the long run you spend about $46.3\%$ of paragraphs focused, $31.7\%$ skimming, $22.0\%$
+distracted -- regardless of how you began. Compare with $\mu^{(3)} = (0.512, 0.297, 0.191)$:
+after just three paragraphs the distribution is already in the right neighborhood. The figure
+shows the full approach.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.5cm, height=6.4cm,
+  xlabel={paragraph $n$}, ylabel={probability of each mood},
+  xmin=0, xmax=12, ymin=0, ymax=1.05,
+  xtick={0,2,4,6,8,10,12},
+  legend pos=north east, grid=both, grid style={gray!18},
+  every axis plot/.append style={thick,mark size=1.3pt}]
+  \addplot[sourceblue,mark=*] coordinates {
+    (0,1.0000)(1,0.7000)(2,0.5700)(3,0.5120)(4,0.4857)(5,0.4737)(6,0.4681)(7,0.4656)(8,0.4644)(9,0.4639)(10,0.4636)(11,0.4635)(12,0.4635)};
+  \addlegendentry{Focused}
+  \addplot[quotientorange,mark=square*] coordinates {
+    (0,0.0000)(1,0.2000)(2,0.2700)(3,0.2970)(4,0.3082)(5,0.3131)(6,0.3152)(7,0.3162)(8,0.3167)(9,0.3169)(10,0.3170)(11,0.3170)(12,0.3171)};
+  \addlegendentry{Skimming}
+  \addplot[densityred,mark=triangle*] coordinates {
+    (0,0.0000)(1,0.1000)(2,0.1600)(3,0.1910)(4,0.2061)(5,0.2133)(6,0.2166)(7,0.2182)(8,0.2189)(9,0.2192)(10,0.2194)(11,0.2195)(12,0.2195)};
+  \addlegendentry{Distracted}
+  \addplot[sourceblue,dashed,domain=0:12,samples=2]{0.4634};
+  \addplot[quotientorange,dashed,domain=0:12,samples=2]{0.3171};
+  \addplot[densityred,dashed,domain=0:12,samples=2]{0.2195};
+\end{axis}
+\end{tikzpicture}
+\caption{Starting Focused (the blue curve begins at probability $1$), the distribution
+$\mu^{(n)} = \mu^{(0)}P^n$ relaxes to the equilibrium $\pi = (19/41, 13/41, 9/41) \approx
+(0.463, 0.317, 0.220)$ (dashed lines). Because the chain is ergodic, the same three dashed limits are reached from
+\emph{any} starting mood; only the transient first few paragraphs differ.}
+\label{ch23:fig-reader-converge}
+\end{figure}
+
+\begin{applicationbox}[PageRank: a Markov chain that ranks the web]
+Google's original PageRank algorithm is one giant Markov chain. The states are web pages; the
+transitions model a ``random surfer'' who, from a page, clicks a uniformly random outgoing
+link. The transition matrix $P$ has $p_{ij} = 1/(\text{number of links out of } i)$ for each
+link $i \to j$. With billions of pages this matrix is astronomically large, but it is sparse
+(most entries zero) and we never form $P^n$ explicitly -- we just iterate $\mu^{(n+1)} =
+\mu^{(n)}P$, which is one sparse matrix-vector multiply, the operation of
+Section~\ref{ch23:matrix-powers}.
+
+Two problems arise, and both are fixed with the classification language of this chapter. Pages
+with no outgoing links are absorbing dead-ends (a closed class of size one) that would soak up
+all the probability; and the link graph is not irreducible, so a naive surfer can get trapped in
+a corner of the web. Both are cured by \emph{teleportation}: with probability $1 - \alpha$
+(typically $1-\alpha = 0.15$) the surfer jumps to a uniformly random page instead of following a
+link. The modified matrix
+\[
+  G = \alpha P + (1-\alpha)\tfrac{1}{m}\mathbf{1}\mathbf{1}^{\!\top}
+\]
+is strictly positive, hence irreducible and aperiodic -- ergodic. Its unique equilibrium $\pi$
+exists, is unique, and is reached fast (the teleportation makes the second eigenvalue at most
+$\alpha = 0.85$, so the iteration converges geometrically). \emph{That equilibrium vector
+$\pi$ is the PageRank}: $\pi_i$ is the long-run fraction of time the random surfer spends on
+page $i$, and pages where the surfer lingers are ranked higher. A multibillion-dollar idea is,
+at bottom, the stationary distribution of an ergodic Markov chain.
+\end{applicationbox}
+
+\begin{connectionbox}
+Stationary distributions and equilibrium -- finding the $\pi$ with $\pi P = \pi$, proving it
+exists and is unique, and bounding how fast $\mu^{(n)} \to \pi$ -- are the whole subject of the
+next chapter. Everything there is built on three pillars from \emph{this} chapter: path
+probabilities multiply (Proposition~\ref{ch23:path-factorization}), $n$-step transitions are
+matrix powers (Theorem~\ref{ch23:chapman-kolmogorov}), and the structural classification
+(irreducible, recurrent, aperiodic) tells you exactly when a unique equilibrium exists. Keep
+the state diagram in your mind's eye; it is the map for all of it.
+\end{connectionbox}
+
+\section{Exercises}
+\label{ch23:exercises}
+
+\begin{exercise}[Read a matrix]
+\label{ch23:ex-read-matrix}
+A mouse moves among three rooms $A, B, C$ with
+$P = \left(\begin{smallmatrix} 0 & 1 & 0 \\ 1/2 & 0 & 1/2 \\ 0 & 1 & 0 \end{smallmatrix}\right)$.
+(a) Draw the state diagram. (b) Verify $P$ is stochastic. (c) Is the chain irreducible?
+(d) Compute the period of state $A$ and explain why this chain never settles to a single
+distribution.
+\end{exercise}
+
+\begin{exercise}[Two-step probabilities by hand]
+\label{ch23:ex-twostep}
+For the weather chain $P = \left(\begin{smallmatrix} 0.8 & 0.2 \\ 0.4 & 0.6 \end{smallmatrix}\right)$,
+compute $P^3$ and find $\P(X_3 = \text{Rain} \given X_0 = \text{Sun})$. Then verify your
+answer for $p_{SS}^{(3)}$ by listing every length-$3$ path $S \to \cdot \to \cdot \to S$ and
+summing their probabilities.
+\end{exercise}
+
+\begin{exercise}[Push a distribution]
+\label{ch23:ex-push}
+Using the reader-mood matrix $P$ of Section~\ref{ch23:worked-example} and the starting
+distribution $\mu^{(0)} = (0,0,1)$ (you begin Distracted), compute $\mu^{(1)}$ and
+$\mu^{(2)}$. Does your $\mu^{(2)}$ look like it is heading to the same $\pi = (19/41,
+13/41, 9/41) \approx (0.463, 0.317, 0.220)$ as the Focused start? Explain why it must, in one sentence.
+\end{exercise}
+
+\begin{exercise}[Memoryless, carefully]
+\label{ch23:ex-memoryless}
+Let $(X_n)$ be a Markov chain. (a) Argue from Definition~\ref{ch23:def-markov} that
+$\P(X_2 = k \given X_0 = i, X_1 = j) = \P(X_2 = k \given X_1 = j)$. (b) Give a concrete chain
+and states for which $\P(X_2 = k \given X_0 = i) \ne \P(X_2 = k)$, demonstrating that the
+past and future are \emph{not} independent without conditioning on the present.
+\end{exercise}
+
+\begin{exercise}[Classify a chain]
+\label{ch23:ex-classify}
+A chain on $\{1,2,3,4,5\}$ has transitions: $1 \to 2$ (prob $1$); $2 \to 1$ or $2 \to 3$
+(each $1/2$); $3 \to 3$ (prob $1$); $4 \to 5$ and $5 \to 4$ (each prob $1$). (a) Find all
+communicating classes. (b) Which are closed? (c) Which states are recurrent and which
+transient? (d) Find the period of each recurrent class.
+\end{exercise}
+
+\begin{exercise}[Gambler's ruin]
+\label{ch23:ex-ruin}
+In the gambler's ruin chain of Example~\ref{ch23:ex-gamblers-ruin} with fair bets
+($p = q = 1/2$), let $h_k$ be the probability of reaching the target $N$ before going broke,
+starting from fortune $k$. (a) Argue by conditioning on the first bet that
+$h_k = \tfrac12 h_{k-1} + \tfrac12 h_{k+1}$ for $1 \le k \le N-1$, with $h_0 = 0$ and
+$h_N = 1$. (b) Solve this recurrence to get $h_k = k/N$. (c) Interpret: why is the chance of
+success just your fortune as a fraction of the target?
+\end{exercise}
+
+\begin{exercise}[Recurrence sum]
+\label{ch23:ex-recurrence-sum}
+A chain on $\{1, 2, 3, \dots\}$ has $p_{i,i+1} = 1$ for all $i$ (always step right, never
+return). (a) Compute $\sum_{n=0}^\infty p_{11}^{(n)}$. (b) Using
+Theorem~\ref{ch23:recurrence-test}, conclude whether state $1$ is recurrent or transient.
+(c) Reconcile this with Proposition~\ref{ch23:finite-recurrence} -- why does the ``finite
+chains always have a recurrent state'' guarantee not apply here?
+\end{exercise}
+
+\begin{exercise}[Eigenvalues and forgetting]
+\label{ch23:ex-eigen}
+For a general two-state chain $P = \left(\begin{smallmatrix} 1-a & a \\ b & 1-b
+\end{smallmatrix}\right)$ with $0 < a, b < 1$: (a) Verify that $\mathbf{1} = (1,1)^\top$ is a
+right eigenvector with eigenvalue $1$. (b) Show the other eigenvalue is $\lambda_2 = 1 - a -
+b$ and note $\abs{\lambda_2} < 1$. (c) Explain, using
+$P^n = V \Lambda^n V^{-1}$, why the chain forgets its start at rate $\abs{1-a-b}^n$, and what
+happens in the special case $a + b = 1$.
+\end{exercise}
+
+\begin{exercise}[Period by gcd]
+\label{ch23:ex-period-gcd}
+A chain has $p_{11}^{(n)} > 0$ exactly when $n \in \{4, 6, 8, 10, \dots\}$ (every even number
+$\ge 4$). (a) What is the period of state $1$? (b) Now suppose instead returns are possible at
+$\{6, 10, 15\}$ and their sums; what is the period? (c) Conceptually, why does adding a single
+odd return time of any length force aperiodicity once it shares no common factor with the
+rest?
+\end{exercise}
+
+\begin{exercise}[Build a model, prove a property]
+\label{ch23:ex-build}
+The Ehrenfest model of diffusion: $N$ molecules are split between two chambers; each second,
+one molecule chosen uniformly at random switches chambers. Let $X_n$ be the number in the
+left chamber, a chain on $\{0, 1, \dots, N\}$. (a) Write the transition probabilities
+$p_{i,i-1}$ and $p_{i,i+1}$. (b) Show the chain is irreducible. (c) Show it has period $2$, and
+explain physically what the period means. (d) \emph{(Proof.)} Show that the binomial
+distribution $\pi_i = \binom{N}{i} 2^{-N}$ satisfies the \emph{detailed balance} equations
+$\pi_i p_{i,i+1} = \pi_{i+1} p_{i+1,i}$, and explain why this makes $\pi$ stationary
+($\pi P = \pi$).
+\end{exercise}

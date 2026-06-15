@@ -1,0 +1,1133 @@
+\chapter{Variance, Moments, and Spread}
+
+In the last chapter you learned to find the \emph{center} of a random
+variable: its expectation, the long-run average value, the balance point of
+its distribution. The expectation answers the question ``where does this
+quantity sit, on average?'' But two random quantities can share the same
+center and still behave in wildly different ways. A casino that wins a dollar
+on every bet is, on average, exactly as profitable as one that wins a million
+dollars half the time and loses a million the other half. The average is the
+same. The \emph{experience} is not.
+
+This chapter is about that difference. It is about \emph{spread}: how far a
+random variable typically wanders from its center. Spread is what separates a
+calm process from a wild one, a reliable estimate from a noisy guess, a safe
+investment from a gamble. Once you have a number for the center and a number
+for the spread, you have captured the two most important facts about almost
+any random quantity you will ever meet. The number for the spread is called
+the \emph{variance}, and its square root, the \emph{standard deviation}, is
+quite literally the unit in which uncertainty is measured throughout
+statistics, science, and machine learning.
+
+We will build variance from the ground up: first the intuition of average
+squared distance, then the algebra that makes it computable, then the single
+most useful fact in all of applied probability --- that variances of
+\emph{independent} things add. From there we climb to higher moments
+(skewness and kurtosis), meet a beautiful inequality due to Jensen, and end by
+seeing why variance is, without exaggeration, everywhere.
+
+\chapterline
+
+\section{The Problem: Two Distributions, One Center}
+\label{ch09:problem}
+
+Let us make the opening story concrete. Consider two games, each costing
+nothing to play, each with expected payoff zero.
+
+\begin{itemize}
+  \item \textbf{Game A (mild).} You win \$1 or lose \$1, each with
+        probability $1/2$.
+  \item \textbf{Game B (wild).} You win \$100 or lose \$100, each with
+        probability $1/2$.
+\end{itemize}
+
+Call the payoffs $X$ and $Y$. Both have expectation zero:
+\[
+  \E[X] = \tfrac12(1) + \tfrac12(-1) = 0,
+  \qquad
+  \E[Y] = \tfrac12(100) + \tfrac12(-100) = 0.
+\]
+A summary that only reports the mean would call these games identical. Your
+stomach knows better. Game B is a hundred times more nerve-wracking, and any
+honest description of it must say so. We need a number that grows when the
+outcomes are flung far from the center and stays small when they huddle
+close.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.4cm,
+  ybar, bar width=10pt,
+  ymin=0, ymax=0.62,
+  xmin=-120, xmax=120,
+  xlabel={payoff}, ylabel={probability},
+  title={Same center, different spread},
+  ytick={0,0.25,0.5},
+  enlarge x limits=0.08,
+]
+\addplot[draw=sourceblue, fill=sourceblue!55] coordinates {(-1,0.5) (1,0.5)};
+\addplot[draw=densityred, fill=densityred!45] coordinates {(-100,0.5) (100,0.5)};
+\legend{Game A, Game B}
+\end{axis}
+\end{tikzpicture}
+\caption{Two distributions with identical mean (zero) but very different
+spread. Game A (blue) places its mass right next to the center; Game B (red)
+flings the same probability far away. Variance is the number that
+distinguishes them.}
+\label{ch09:fig-twogames}
+\end{figure}
+
+\begin{intuitionbox}
+Think of a distribution as a pile of sand sitting on a seesaw. The
+expectation is the point where the seesaw balances. The \emph{spread} is how
+spread out the sand is around that balance point. You could pile it all in a
+narrow heap at the center, or smear it thin out to the edges --- the balance
+point can be identical in both cases. We want a single number that measures
+``how smeared out.''
+\end{intuitionbox}
+
+\subsection{Why not just average the distance?}
+
+The natural first idea is: measure each outcome's distance from the mean, and
+average those distances. If $\mu = \E[X]$, look at $\abs{X - \mu}$ and take
+its expectation. This quantity, $\E\,\abs{X-\mu}$, is called the \emph{mean
+absolute deviation}, and it is a perfectly sensible measure of spread. For
+Game A it equals $1$; for Game B it equals $100$. So far so good.
+
+But the absolute value has a sharp corner at zero, and corners are the enemy
+of calculus. The function $\abs{x}$ is not differentiable at the origin,
+which makes the mean absolute deviation awkward to optimize, awkward to
+combine across several random variables, and awkward to push through the
+machinery of sums and limits we will build in later chapters. Mathematicians
+and statisticians, faced with this corner, made a fateful and enormously
+productive choice: instead of penalizing distance by $\abs{x-\mu}$, penalize
+it by $(x-\mu)^2$. Squaring kills the corner --- it is smooth everywhere ---
+and, as we will see, it interacts beautifully with sums, with independence,
+and with the geometry of the normal distribution. The price is that squaring
+exaggerates large deviations and gives answers in squared units. We pay that
+price gladly, and then take a square root at the end to get back to honest
+units.
+
+\section{Variance and Standard Deviation}
+\label{ch09:defn}
+
+\begin{definition}[Variance]
+\label{ch09:def-var}
+Let $X$ be a random variable with finite mean $\mu = \E[X]$. The
+\emph{variance} of $X$ is the expected squared deviation from the mean,
+\[
+  \Var(X) \;=\; \E\!\big[(X-\mu)^2\big].
+\]
+Its non-negative square root is the \emph{standard deviation},
+\[
+  \SD(X) \;=\; \sqrt{\Var(X)},
+\]
+often written $\sigma$, with $\sigma^2$ for the variance.
+\end{definition}
+
+Three things are worth saying immediately.
+
+First, \textbf{variance is never negative.} It is the average of squares, and
+squares are never negative, so $\Var(X) \ge 0$ always. It equals zero
+exactly when $(X-\mu)^2 = 0$ with probability one --- that is, when $X$ is a
+constant. A constant has no spread, and variance correctly reports zero. This
+is your first sanity check on any variance calculation: a negative answer is
+always an arithmetic mistake.
+
+Second, \textbf{variance lives in squared units.} If $X$ is measured in
+dollars, $\Var(X)$ is in dollars-squared, which is meaningless to a human. The
+standard deviation $\SD(X)$ undoes the squaring and returns to dollars. That
+is why, when reporting results to people, we almost always quote the standard
+deviation, not the variance --- ``the returns have a standard deviation of
+\$3'' is something you can feel, while ``a variance of 9 dollars-squared'' is
+not.
+
+Third, \textbf{the standard deviation is a genuine yardstick.} It tells you
+the typical scale of fluctuation. A standard deviation of $\$3$ means that
+draws of $X$ routinely land a few dollars away from the mean; landing
+$\$30$ away would be extraordinary. We will sharpen ``routinely'' and
+``extraordinary'' into a precise statement in Section~\ref{ch09:chebyshev}
+(Chebyshev's inequality) but the slogan to carry is: \emph{the standard
+deviation is the natural unit of surprise.}
+
+\begin{example}[The two games, measured]
+\label{ch09:ex-twogames}
+Return to Games A and B from Section~\ref{ch09:problem}, both with mean
+$\mu=0$.
+For Game A,
+\[
+  \Var(X) = \tfrac12(1-0)^2 + \tfrac12(-1-0)^2 = \tfrac12 + \tfrac12 = 1,
+  \qquad \SD(X) = 1.
+\]
+For Game B,
+\[
+  \Var(Y) = \tfrac12(100)^2 + \tfrac12(-100)^2 = 10{,}000,
+  \qquad \SD(Y) = 100.
+\]
+The standard deviations are $1$ and $100$: Game B is exactly a hundred times
+wilder, which is precisely what your stomach said. Notice that the
+\emph{variances} differ by a factor of $10{,}000$, the square of the scale
+factor. Squaring magnifies; the square root in the standard deviation tames
+it back to a linear, human scale.
+\end{example}
+
+\begin{example}[A single fair die]
+\label{ch09:ex-die}
+Let $X$ be the result of one roll of a fair six-sided die. Its mean is
+$\mu = (1+2+3+4+5+6)/6 = 3.5$. The variance is the average of the squared
+deviations:
+\[
+  \Var(X) = \frac{1}{6}\sum_{k=1}^{6}(k-3.5)^2
+  = \frac{1}{6}\big(6.25+2.25+0.25+0.25+2.25+6.25\big)
+  = \frac{17.5}{6} \approx 2.92.
+\]
+So $\SD(X) = \sqrt{2.9167} \approx 1.71$. A typical roll lands about $1.7$
+away from $3.5$, which matches the feel of the numbers $1$ through $6$ spread
+evenly around $3.5$.
+\end{example}
+
+\section{The Computational Formula}
+\label{ch09:compformula}
+
+Computing variance straight from the definition means first finding $\mu$,
+then forming $(X-\mu)^2$ for every outcome, then averaging. That is two passes
+over the distribution. There is a slicker route that needs only the first two
+\emph{moments} --- $\E[X]$ and $\E[X^2]$ --- and it is the formula you will
+use ninety percent of the time.
+
+\begin{theorem}[Computational formula for variance]
+\label{ch09:thm-comp}
+For any random variable $X$ with finite second moment,
+\[
+  \Var(X) \;=\; \E[X^2] - \big(\E[X]\big)^2.
+\]
+\end{theorem}
+
+\begin{proof}
+Expand the square inside the definition and use linearity of expectation
+(Chapter ``Expectation''). Writing $\mu = \E[X]$, which is a constant,
+\[
+  \Var(X) = \E\big[(X-\mu)^2\big]
+  = \E\big[X^2 - 2\mu X + \mu^2\big].
+\]
+Linearity lets us split the expectation over the sum, and pull the constants
+$2\mu$ and $\mu^2$ outside:
+\[
+  = \E[X^2] - 2\mu\,\E[X] + \mu^2
+  = \E[X^2] - 2\mu\cdot\mu + \mu^2
+  = \E[X^2] - \mu^2.
+\]
+That is exactly $\E[X^2] - (\E[X])^2$. \qedhere
+\end{proof}
+
+\begin{whybox}
+Why does ``mean of the square minus square of the mean'' measure spread? Read
+it as a competition between two ways of averaging. $\E[X^2]$ is the average of
+the squares; $(\E[X])^2$ is the square of the average. These two are equal
+only when $X$ never varies. The moment $X$ spreads out, the big values get
+\emph{extra} weight under squaring (because squaring is convex --- more on
+this when we meet Jensen's inequality), so $\E[X^2]$ pulls ahead of
+$(\E[X])^2$. The gap between them is exactly the spread. Variance is the toll
+that randomness charges for the privilege of squaring.
+\end{whybox}
+
+\begin{trapbox}
+A perennial error is to compute $(\E[X])^2$ and call it $\E[X^2]$. These are
+almost never equal! For the fair die, $\E[X]=3.5$ so $(\E[X])^2 = 12.25$,
+while $\E[X^2] = \tfrac16(1+4+9+16+25+36) = \tfrac{91}{6} \approx 15.17$. The
+difference $15.17 - 12.25 = 2.92$ is the variance --- matching
+Example~\ref{ch09:ex-die}. If you ever find $\E[X^2] < (\E[X])^2$, you have
+made an arithmetic slip, because variance cannot be negative.
+\end{trapbox}
+
+\begin{example}[Bernoulli variance]
+\label{ch09:ex-bern}
+Let $X \sim \Bern(p)$, so $X=1$ with probability $p$ and $X=0$ with
+probability $1-p$. Then $\E[X] = p$. Because $X$ only takes the values $0$ and
+$1$, we have $X^2 = X$, so $\E[X^2] = \E[X] = p$ as well. The computational
+formula gives
+\[
+  \Var(X) = \E[X^2] - (\E[X])^2 = p - p^2 = p(1-p).
+\]
+This little formula $p(1-p)$ is one of the most important in all of
+statistics. Plotted against $p$ it is a downward parabola, zero at $p=0$ and
+$p=1$ (a coin that always lands the same way has no spread) and largest at
+$p=1/2$, where uncertainty is maximal.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5.2cm,
+  domain=0:1, samples=120,
+  xlabel={$p$}, ylabel={$\Var(X)=p(1-p)$},
+  title={Variance of a Bernoulli trial is largest at maximum uncertainty},
+  ymin=0, ymax=0.3,
+  xtick={0,0.25,0.5,0.75,1},
+  ytick={0,0.125,0.25},
+  grid=both, grid style={gray!18},
+]
+\addplot[densityred, very thick] {x*(1-x)};
+\addplot[only marks, mark=*, sourceblue] coordinates {(0.5,0.25)};
+\node[anchor=south] at (axis cs:0.5,0.25) {\small $\left(\tfrac12,\tfrac14\right)$};
+\end{axis}
+\end{tikzpicture}
+\caption{The Bernoulli variance $p(1-p)$. A fair coin ($p=1/2$) is the most
+unpredictable and carries the most variance; a coin guaranteed to land one
+way ($p=0$ or $1$) carries none.}
+\label{ch09:fig-bern}
+\end{figure}
+
+\section{How Variance Behaves Under Shifts and Scalings}
+\label{ch09:affine}
+
+To work fluently with variance you need to know what happens when you slide a
+random variable along the number line or stretch it. These two rules come up
+constantly and follow directly from the definition.
+
+\begin{proposition}[Affine transformation]
+\label{ch09:prop-affine}
+For any constants $a$ and $b$,
+\[
+  \Var(aX + b) = a^2 \Var(X),
+  \qquad\text{equivalently}\qquad
+  \SD(aX+b) = \abs{a}\,\SD(X).
+\]
+\end{proposition}
+
+\begin{proof}
+Let $\mu = \E[X]$, so $\E[aX+b] = a\mu + b$ by linearity. Then
+\[
+  \Var(aX+b) = \E\Big[\big((aX+b) - (a\mu+b)\big)^2\Big]
+  = \E\Big[\big(a(X-\mu)\big)^2\Big]
+  = a^2\,\E\big[(X-\mu)^2\big] = a^2\Var(X). \qedhere
+\]
+\end{proof}
+
+Two messages live in this one line.
+
+\textbf{Shifting does nothing.} The constant $b$ vanished. Adding a fixed
+amount to every outcome slides the whole distribution rigidly along the axis
+without changing how spread out it is. If everyone in a room gets a \$10
+raise, the inequality between their salaries is untouched. Variance, being a
+measure of spread, ignores the location entirely.
+
+\textbf{Scaling squares.} Multiplying by $a$ multiplies the standard
+deviation by $\abs{a}$ and the variance by $a^2$. Double every outcome and you
+double the spread (standard deviation $\times 2$) but quadruple the variance.
+This is the same factor-of-square we saw between Games A and B: stretching the
+axis by $100$ multiplied the variance by $10{,}000$.
+
+\begin{happeningbox}
+The appearance of $a^2$ (not $a$) is the clearest sign that variance is a
+\emph{quadratic} quantity --- it behaves like an area, not a length. Standard
+deviation is the corresponding length. This is exactly the relationship
+between a square's area and its side. When you later see variances adding like
+the squares of legs in the Pythagorean theorem
+(Section~\ref{ch09:sumindep}), remember that variance was a squared quantity
+from birth.
+\end{happeningbox}
+
+\section{Standardization and the z-Score}
+\label{ch09:zscore}
+
+Proposition~\ref{ch09:prop-affine} hands us a powerful trick. Given any
+random variable $X$ with mean $\mu$ and standard deviation $\sigma > 0$, we
+can manufacture a new variable that is centered at zero and has spread
+exactly one. Subtract the mean (to recenter) and divide by the standard
+deviation (to rescale):
+\[
+  Z \;=\; \frac{X - \mu}{\sigma}.
+\]
+This is the \emph{standardization} of $X$, and $Z$ is called the
+\emph{z-score}. Let us verify its two defining properties. By linearity,
+\[
+  \E[Z] = \frac{\E[X] - \mu}{\sigma} = \frac{\mu - \mu}{\sigma} = 0,
+\]
+and by the affine rule with $a = 1/\sigma$,
+\[
+  \Var(Z) = \frac{1}{\sigma^2}\Var(X) = \frac{\sigma^2}{\sigma^2} = 1.
+\]
+So every $X$, no matter its original units --- dollars, kilograms, exam
+points --- can be converted into a dimensionless number $Z$ whose value is
+``how many standard deviations above or below the mean am I?''
+
+\begin{intuitionbox}
+A z-score is a universal translator for surprise. A student who scores $650$
+on one exam and $34$ on another cannot be compared until you know the mean and
+spread of each test. But if both scores correspond to $z = +1.5$, you know
+instantly that the student did equally well on both relative to peers ---
+one-and-a-half standard deviations above average in each case. The z-score
+strips away the arbitrary units and leaves pure standing.
+\end{intuitionbox}
+
+\begin{example}[Two exams]
+\label{ch09:ex-exams}
+On a midterm with mean $70$ and standard deviation $8$, you score $82$. On a
+final with mean $65$ and standard deviation $20$, you score $90$. Which is the
+better performance relative to the class?
+\[
+  z_{\text{mid}} = \frac{82-70}{8} = 1.5,
+  \qquad
+  z_{\text{fin}} = \frac{90-65}{20} = 1.25.
+\]
+The raw final score ($90$) is higher, but the midterm z-score ($1.5$) is
+larger: you stood out more on the midterm, because that test had much less
+spread, so $12$ points above its mean was rarer than $25$ points above the
+final's mean.
+\end{example}
+
+Standardization is not a mere convenience; it is the gateway to the normal
+distribution and the central limit theorem in later chapters. There, the
+standardized version of a sum of many independent pieces converges to a fixed
+universal shape --- the standard normal --- regardless of the messy details
+of the originals. Z-scores are the coordinates in which that miracle becomes
+visible.
+
+\section{Chebyshev's Inequality: Making ``Surprise'' Precise}
+\label{ch09:chebyshev}
+
+We have twice promised to turn the slogan ``the standard deviation is the unit
+of surprise'' into a theorem. Here it is. The remarkable thing is that a single
+inequality, demanding \emph{nothing} about the shape of the distribution ---
+not symmetry, not unimodality, not even a name --- already forces most of the
+probability mass to live within a few standard deviations of the mean.
+
+\begin{theorem}[Chebyshev's inequality]
+\label{ch09:thm-cheby}
+Let $X$ have finite mean $\mu$ and finite variance $\sigma^2$. For any
+$k > 0$,
+\[
+  \P\big(\abs{X-\mu} \ge k\sigma\big) \;\le\; \frac{1}{k^2}.
+\]
+In words: the probability of landing $k$ or more standard deviations away from
+the mean is at most $1/k^2$.
+\end{theorem}
+
+\begin{proof}
+Let $D = (X-\mu)^2$, a non-negative random variable with $\E[D] = \sigma^2$.
+The event $\{\abs{X-\mu} \ge k\sigma\}$ is exactly the event
+$\{D \ge k^2\sigma^2\}$. Now use the elementary bound: whenever $D \ge 0$ and
+$t > 0$, the indicator $\ind\{D \ge t\}$ satisfies
+$\ind\{D \ge t\} \le D/t$, because if the indicator is $0$ the inequality is
+$0 \le D/t$ (true), and if it is $1$ then $D \ge t$ makes $D/t \ge 1$. Taking
+expectations of both sides with $t = k^2\sigma^2$,
+\[
+  \P\big(D \ge k^2\sigma^2\big) = \E\big[\ind\{D \ge k^2\sigma^2\}\big]
+  \;\le\; \frac{\E[D]}{k^2\sigma^2} = \frac{\sigma^2}{k^2\sigma^2}
+  = \frac{1}{k^2}. \qedhere
+\]
+\end{proof}
+
+Setting $k=2$ shows at least $1 - 1/4 = 75\%$ of any distribution's mass lies
+within two standard deviations of the mean; $k=3$ guarantees at least
+$1 - 1/9 \approx 89\%$ within three. These bounds are deliberately
+\emph{loose} --- they must hold for every distribution at once, including
+adversarial ones engineered to push mass outward --- so for any particular
+well-behaved distribution the truth is far tighter.
+
+\begin{example}[Chebyshev versus the normal rule]
+\label{ch09:ex-cheby-vs-normal}
+For the bell-shaped normal distribution the famous ``empirical rule'' says
+about $68\%$ of mass lies within one standard deviation, $95\%$ within two, and
+$99.7\%$ within three. Compare these to what Chebyshev guarantees for
+\emph{any} distribution:
+\[
+  \begin{array}{c|c|c}
+    k & \text{Chebyshev bound on } \P(\abs{X-\mu}<k\sigma)
+      & \text{normal (empirical rule)}\\\hline
+    2 & \ge 75\%   & \approx 95\%\\
+    3 & \ge 88.9\% & \approx 99.7\%
+  \end{array}
+\]
+The normal does far better than Chebyshev demands --- that is the reward for
+having thin, light tails. Chebyshev is the universal floor; the normal rule is
+what a particularly tame distribution actually achieves.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.5cm, height=5.4cm,
+  domain=-4:4, samples=160,
+  xlabel={standard deviations from the mean ($z$)},
+  ylabel={density},
+  title={The normal density with its tails beyond $\pm 2\sigma$ shaded},
+  ymin=0, ymax=0.45,
+  xtick={-3,-2,-1,0,1,2,3},
+  xticklabels={$-3\sigma$,$-2\sigma$,$-\sigma$,$\mu$,$\sigma$,$2\sigma$,$3\sigma$},
+  ytick=\empty,
+]
+\addplot[name path=curve, distblue, very thick, domain=-4:4]
+  {0.3989*exp(-x^2/2)};
+\path[name path=axis] (axis cs:-4,0) -- (axis cs:4,0);
+\addplot[densityred!35] fill between[of=curve and axis, soft clip={domain=-4:-2}];
+\addplot[densityred!35] fill between[of=curve and axis, soft clip={domain=2:4}];
+\node at (axis cs:2.75,0.05) {\small tail};
+\node at (axis cs:-2.75,0.05) {\small tail};
+\node at (axis cs:0,0.2) {\small $\approx 95\%$};
+\end{axis}
+\end{tikzpicture}
+\caption{The standard normal density. The shaded tails beyond $\pm 2\sigma$
+together hold only about $5\%$ of the mass, so roughly $95\%$ sits within two
+standard deviations. Chebyshev's inequality guarantees \emph{at least} $75\%$
+for any distribution whatsoever; the bell curve, with its light tails,
+comfortably beats that floor. The standard deviation is, quite literally, the
+ruler along the horizontal axis.}
+\label{ch09:fig-bell}
+\end{figure}
+
+\begin{aestheticbox}
+Chebyshev is the reason variance is more than bookkeeping. A small variance
+does not merely \emph{describe} a tidy distribution --- it \emph{forces} one.
+Once you know $\sigma$, you have a guaranteed, distribution-free leash on how
+far the variable can roam: the probability of straying $k$ standard deviations
+out can never exceed $1/k^2$, no matter how exotic the underlying randomness.
+This is what lets you attach honest error bars to estimates whose exact
+distribution you do not know, and it is the inequality that powers the first
+proof of the law of large numbers in a later chapter.
+\end{aestheticbox}
+
+\section{The Variance of a Sum: Where Independence Earns Its Keep}
+\label{ch09:sumindep}
+
+Expectation is gloriously simple under addition: $\E[X+Y] = \E[X] + \E[Y]$,
+\emph{always}, with no conditions whatsoever. You might hope variance is just
+as easy. It is not --- and the way it fails is one of the most illuminating
+facts in probability.
+
+\begin{theorem}[Variance of a sum of two variables]
+\label{ch09:thm-sum2}
+For any two random variables $X$ and $Y$ with finite variances,
+\[
+  \Var(X+Y) = \Var(X) + \Var(Y) + 2\,\Cov(X,Y),
+\]
+where the \emph{covariance} is
+$\Cov(X,Y) = \E\big[(X-\mu_X)(Y-\mu_Y)\big]
+= \E[XY] - \E[X]\E[Y]$.
+\end{theorem}
+
+\begin{proof}
+Let $\mu_X = \E[X]$, $\mu_Y = \E[Y]$, so $\E[X+Y] = \mu_X + \mu_Y$. Then,
+abbreviating the centered variables $\tilde X = X-\mu_X$ and
+$\tilde Y = Y-\mu_Y$,
+\[
+  \Var(X+Y) = \E\big[(\tilde X + \tilde Y)^2\big]
+  = \E\big[\tilde X^2 + 2\tilde X\tilde Y + \tilde Y^2\big].
+\]
+By linearity this splits into
+$\E[\tilde X^2] + 2\,\E[\tilde X \tilde Y] + \E[\tilde Y^2]
+= \Var(X) + 2\Cov(X,Y) + \Var(Y)$. \qedhere
+\end{proof}
+
+The cross term $2\Cov(X,Y)$ is the whole story. Covariance measures how $X$
+and $Y$ move \emph{together}: it is positive when they tend to be large at
+the same time, negative when one being large signals the other being small,
+and zero when their fluctuations are unrelated in the averaged sense. We
+devote a full later chapter to covariance and its normalized cousin
+correlation; here we need only one consequence.
+
+\begin{corollary}[Variances of independent variables add]
+\label{ch09:cor-indepadd}
+If $X$ and $Y$ are independent, then $\Cov(X,Y) = 0$, and therefore
+\[
+  \Var(X+Y) = \Var(X) + \Var(Y).
+\]
+More generally, if $X_1, \dots, X_n$ are pairwise independent (or merely
+pairwise uncorrelated), then
+\[
+  \Var\!\Big(\sum_{i=1}^n X_i\Big) = \sum_{i=1}^n \Var(X_i).
+\]
+\end{corollary}
+
+\begin{proof}
+If $X \indep Y$ then $\E[XY] = \E[X]\E[Y]$ (a fact proved in the chapter on
+expectation), so $\Cov(X,Y) = \E[XY] - \E[X]\E[Y] = 0$. The cross terms in
+the general expansion $\Var(\sum_i X_i) = \sum_i \Var(X_i)
++ \sum_{i\ne j}\Cov(X_i,X_j)$ all vanish under pairwise uncorrelatedness,
+leaving only the diagonal sum. \qedhere
+\end{proof}
+
+\begin{focusbox}
+\textbf{Independence is exactly the condition that lets variances add.} The
+mean adds for free, no strings attached. Variance adds \emph{only when the
+parts do not conspire}. This single asymmetry between mean and variance is the
+engine behind an enormous amount of statistics --- error bars, the
+$\sqrt{n}$ law, portfolio diversification, and the central limit theorem all
+run on it.
+\end{focusbox}
+
+\begin{connectionbox}
+Theorem~\ref{ch09:thm-sum2} is the Pythagorean theorem in disguise. Picture
+each centered random variable as a vector, with the ``length-squared'' of a
+vector being its variance and the ``dot product'' of two vectors being their
+covariance. Independent (uncorrelated) variables are then \emph{perpendicular}
+vectors, and for perpendicular vectors the squared length of the sum is the
+sum of squared lengths --- exactly $\Var(X+Y) = \Var(X) + \Var(Y)$. The
+companion linear-algebra reader develops this inner-product picture; here it
+is enough to know that the geometry is real, and that standard deviations
+combine like the legs of a right triangle: $\sigma_{X+Y} =
+\sqrt{\sigma_X^2 + \sigma_Y^2}$.
+\end{connectionbox}
+
+\subsection{The \texorpdfstring{$\sqrt{n}$}{sqrt(n)} law and why averaging works}
+
+Here is the payoff that justifies all the machinery. Let $X_1, \dots, X_n$ be
+independent draws from the same distribution, each with mean $\mu$ and
+variance $\sigma^2$ --- think of $n$ repetitions of the same noisy
+measurement. Consider their sum $S_n = \sum_i X_i$ and their average
+$\bar X_n = S_n / n$.
+
+For the \textbf{sum}, variances add (Corollary~\ref{ch09:cor-indepadd}):
+\[
+  \Var(S_n) = n\sigma^2,
+  \qquad
+  \SD(S_n) = \sqrt{n}\,\sigma.
+\]
+For the \textbf{average}, apply the scaling rule with $a = 1/n$:
+\[
+  \Var(\bar X_n) = \frac{1}{n^2}\Var(S_n) = \frac{n\sigma^2}{n^2}
+  = \frac{\sigma^2}{n},
+  \qquad
+  \SD(\bar X_n) = \frac{\sigma}{\sqrt{n}}.
+\]
+
+\begin{aestheticbox}
+This last line, $\SD(\bar X_n) = \sigma/\sqrt{n}$, is one of the most
+consequential formulas in all of science. It says that averaging $n$
+independent measurements shrinks the spread of your estimate by a factor of
+$\sqrt{n}$. Average $4$ readings and the noise halves; average $100$ and it
+drops by a factor of $10$. This is \emph{why repeated measurement works}, why
+larger samples give tighter conclusions, and why every poll and every clinical
+trial reports a margin of error that shrinks with the square root of the
+sample size. The mean of the average stays put at $\mu$ (no bias), while its
+spread melts away as $1/\sqrt{n}$ --- so the average homes in on the truth.
+\end{aestheticbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=5.4cm,
+  domain=1:100, samples=100,
+  xlabel={number of measurements $n$},
+  ylabel={$\SD(\bar X_n) = \sigma/\sqrt{n}$},
+  title={Diminishing returns: noise falls like $1/\sqrt{n}$},
+  ymin=0, ymax=1.05,
+  xtick={1,25,50,75,100},
+  grid=both, grid style={gray!18},
+]
+\addplot[sourceblue, very thick] {1/sqrt(x)};
+\addplot[only marks, mark=*, densityred] coordinates {(1,1) (4,0.5) (25,0.2) (100,0.1)};
+\node[anchor=west] at (axis cs:4,0.5) {\small $n=4\Rightarrow \tfrac12$};
+\node[anchor=west] at (axis cs:25,0.2) {\small $n=25\Rightarrow \tfrac15$};
+\end{axis}
+\end{tikzpicture}
+\caption{The standard deviation of a sample average decays as $\sigma/\sqrt
+n$. The curve is steep at first --- the first few extra measurements help a
+lot --- then flattens, so cutting the error in half always costs four times
+the data. This diminishing return is a permanent feature of estimation.}
+\label{ch09:fig-sqrtn}
+\end{figure}
+
+\begin{trapbox}
+The $\sqrt{n}$ scaling has a sober flip side. To halve your error you must
+\emph{quadruple} your sample, and to cut it to a tenth you need a hundred times
+the data. Precision is expensive, and it gets more expensive the more you
+already have. Beware anyone who promises that ``just collecting more data''
+will cheaply rescue a noisy study; past a point, the $1/\sqrt n$ curve in
+Figure~\ref{ch09:fig-sqrtn} is nearly flat.
+\end{trapbox}
+
+\begin{example}[Variance of the binomial]
+\label{ch09:ex-binom}
+A binomial random variable $X \sim \Bin(n,p)$ counts the successes in $n$
+independent Bernoulli$(p)$ trials, so $X = \sum_{i=1}^n B_i$ with each
+$B_i \sim \Bern(p)$ independent. Each $B_i$ has variance $p(1-p)$
+(Example~\ref{ch09:ex-bern}), and because the trials are independent the
+variances simply add:
+\[
+  \Var(X) = \sum_{i=1}^n \Var(B_i) = n\,p(1-p).
+\]
+Deriving this straight from the binomial pmf would mean wrestling with sums of
+$k^2\binom{n}{k}p^k(1-p)^{n-k}$. Decomposing into independent indicators makes
+it a one-liner. This ``break a complicated variable into a sum of simple
+independent pieces'' move is one of the most powerful tactics in the subject.
+\end{example}
+
+\begin{applicationbox}[Why diversification reduces risk]
+A portfolio's value is a weighted sum of its assets' returns, and a
+portfolio's \emph{risk} is the standard deviation of that sum. If you put all
+your money in one stock, your risk is that stock's full standard deviation. If
+instead you split it across many assets whose returns are roughly
+independent, the cross-covariances stay small and the variances add as in
+Corollary~\ref{ch09:cor-indepadd} --- but you have also \emph{divided} each
+position, so each scaled variance shrinks. The net effect is the $\sqrt n$
+law again: spreading a fixed sum across $n$ uncorrelated assets cuts the
+portfolio's standard deviation toward $\sigma/\sqrt n$. This is the
+mathematical core of Harry Markowitz's portfolio theory, and the reason ``do
+not put all your eggs in one basket'' is not folk wisdom but a theorem. The
+catch sits in the covariance term: in a crash, assets fall \emph{together},
+covariances turn sharply positive, and the diversification benefit
+evaporates exactly when you need it most.
+\end{applicationbox}
+
+\begin{paradoxbox}[The independence assumption that wasn't]
+The variance-adds rule is so convenient that people apply it reflexively ---
+and forget its one hypothesis. Suppose an insurer writes $10{,}000$ flood
+policies and reasons: each policy has small variance, variances add, so the
+total variance is $10{,}000$ times small, and the standard deviation of the
+payout is only $\sqrt{10{,}000} = 100$ times small --- a comfortably tiny
+\emph{relative} risk by the $\sqrt n$ argument. Then a single flood soaks
+every policyholder at once. The losses were never independent; they shared a
+common cause. With perfect positive correlation the standard deviations
+\emph{add} instead of the variances, so the spread grows like $n$, not
+$\sqrt n$, and the insurer is wiped out. The moral: before you let variances
+add, ask hard whether the parts can fail together. The $2\Cov$ term in
+Theorem~\ref{ch09:thm-sum2} is not a footnote --- it is sometimes the entire
+risk.
+\end{paradoxbox}
+
+\section{Moments: A Family of Summaries}
+\label{ch09:moments}
+
+The mean and variance are the first two members of an infinite family. The
+$k$-th \emph{moment} of $X$ is $\E[X^k]$, and the $k$-th \emph{central
+moment} is $\E[(X-\mu)^k]$, the moment taken about the mean.
+
+\begin{definition}[Moments]
+\label{ch09:def-moments}
+For a positive integer $k$, the \emph{$k$-th raw moment} of $X$ is
+$m_k = \E[X^k]$, and the \emph{$k$-th central moment} is
+$\mu_k = \E[(X-\mu)^k]$, where $\mu = \E[X]$.
+\end{definition}
+
+The pattern of what each moment captures is wonderfully systematic:
+
+\begin{itemize}
+  \item \textbf{First moment} $\E[X] = \mu$ --- the \emph{center}.
+  \item \textbf{Second central moment} $\E[(X-\mu)^2] = \Var(X)$ --- the
+        \emph{spread}.
+  \item \textbf{Third central moment} measures \emph{asymmetry} (skewness):
+        is the distribution lopsided?
+  \item \textbf{Fourth central moment} measures \emph{tail weight}
+        (kurtosis): how prone is it to extreme values?
+\end{itemize}
+
+Each higher moment refines the silhouette of the distribution. The first
+locates it, the second sizes it, the third tilts it, the fourth fattens or
+thins its tails. In principle, knowing all the moments often pins down the
+distribution completely --- a theme we return to with moment generating
+functions in a later chapter.
+
+\subsection{Skewness: the third moment, made scale-free}
+
+The raw third central moment $\E[(X-\mu)^3]$ has units of $X$ cubed, which
+makes it impossible to compare across different variables. We standardize it
+by dividing by $\sigma^3$, producing a pure number.
+
+\begin{definition}[Skewness]
+\label{ch09:def-skew}
+The \emph{skewness} of $X$ is
+\[
+  \operatorname{Skew}(X) = \E\!\left[\left(\frac{X-\mu}{\sigma}\right)^{3}\right]
+  = \frac{\E[(X-\mu)^3]}{\sigma^3}.
+\]
+\end{definition}
+
+The cube preserves sign, and that is the point. When $X$ exceeds its mean the
+cubed deviation is positive; when it falls short it is negative. Skewness asks
+which side wins on average. A symmetric distribution contributes equal
+positive and negative cubes that cancel, giving skewness zero. A distribution
+with a long \emph{right} tail --- a few very large values --- has its big
+positive cubes dominate, giving \emph{positive} skew. A long left tail gives
+negative skew.
+
+\begin{intuitionbox}
+The cleanest mental image: where is the long tail pointing? \emph{Right}-skewed
+means the tail stretches toward large values, dragging the mean to the right
+of the bulk. Incomes are the classic case --- most people earn modestly while
+a few earn enormously, so the average income sits well above the median.
+Whenever the mean noticeably exceeds the median, suspect a long right tail and
+positive skew.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.5cm, height=5cm,
+  domain=0:10, samples=160,
+  xlabel={$x$}, ylabel={density},
+  title={Right-skewed (long tail to the right) vs.\ symmetric},
+  ymin=0, ymax=0.65,
+  legend pos=north east,
+  grid=both, grid style={gray!15},
+]
+% a roughly symmetric bump centered near 5
+\addplot[sourceblue, very thick] {0.55*exp(-(x-5)^2/1.6)};
+\addlegendentry{symmetric}
+% a right-skewed bump: gamma-ish shape
+\addplot[densityred, very thick] {0.36*(x^2)*exp(-1.4*x)};
+\addlegendentry{right-skewed}
+\end{axis}
+\end{tikzpicture}
+\caption{A symmetric density (blue) has zero skewness: equal mass on each
+side of its peak. A right-skewed density (red) rises quickly then trails off
+in a long right tail, pulling its mean rightward and giving positive
+skewness.}
+\label{ch09:fig-skew}
+\end{figure}
+
+\subsection{Kurtosis: the fourth moment and the weight of the tails}
+
+The fourth standardized central moment measures how much of a distribution's
+variance comes from rare, extreme deviations rather than ordinary
+middle-sized ones.
+
+\begin{definition}[Kurtosis]
+\label{ch09:def-kurt}
+The \emph{kurtosis} of $X$ is
+\[
+  \operatorname{Kurt}(X) = \E\!\left[\left(\frac{X-\mu}{\sigma}\right)^{4}\right]
+  = \frac{\E[(X-\mu)^4]}{\sigma^4}.
+\]
+The \emph{excess kurtosis} is $\operatorname{Kurt}(X) - 3$, defined so that the
+normal distribution has excess kurtosis zero.
+\end{definition}
+
+Because the deviations are raised to the fourth power, an outlier four
+standard deviations out contributes $4^4 = 256$ times as much as a typical
+one-standard-deviation wobble. Kurtosis is therefore a tail-sensitivity meter.
+High kurtosis (``heavy tails'') means the distribution, while perhaps calm
+most of the time, produces occasional violent excursions. Low kurtosis means
+the outcomes stay obediently near a fixed band.
+
+\begin{trapbox}
+Kurtosis is \emph{not} a measure of ``peakedness,'' despite a stubborn old
+textbook tradition that says so. Two distributions can have nearly identical
+central peaks and vastly different kurtosis purely because of what happens far
+out in the tails. The fourth power is overwhelmingly dominated by extreme
+values, so read kurtosis as a statement about rare large events, not about
+the shape of the hump in the middle.
+\end{trapbox}
+
+\begin{applicationbox}[Heavy tails and the limits of the bell curve]
+The normal distribution has excess kurtosis exactly zero, and for decades
+financial models assumed asset returns were normal. Real markets disagree
+loudly: daily stock returns are sharply \emph{leptokurtic} (positive excess
+kurtosis), meaning crashes and spikes occur far more often than a normal model
+predicts. A ``six-sigma'' daily move should, under normality, happen roughly
+once in several million years; in real markets such moves arrive every few
+years. Underestimating kurtosis --- pretending the tails are thin when they
+are fat --- has bankrupted funds and helped fuel financial crises. The fourth
+moment is where the bell curve's optimism goes to die, and why modern risk
+management leans on heavy-tailed models instead.
+\end{applicationbox}
+
+\begin{historybox}
+The vocabulary of moments is borrowed wholesale from mechanics. In physics the
+``first moment'' of a mass distribution locates its center of gravity, and the
+``second moment'' --- the moment of inertia --- measures resistance to
+rotation, computed as mass times distance \emph{squared}. Probabilists in the
+nineteenth century, led by figures like Pafnuty Chebyshev and later Karl
+Pearson, saw that a probability distribution is just a unit mass smeared along
+the line, and lifted the terminology intact. Variance \emph{is} the moment of
+inertia of the probability mass about its center of gravity. The word
+``kurtosis'' (Greek for ``bulging'') and the systematic study of skewness
+are due to Pearson around 1900, as he tried to classify the zoo of
+non-normal distributions appearing in biology and economics. When you compute
+a variance, you are, quite literally, computing how hard the distribution
+would be to spin.
+\end{historybox}
+
+\section{A Preview of Jensen's Inequality}
+\label{ch09:jensen}
+
+We have leaned repeatedly on the fact that squaring is \emph{convex} --- that
+it bends upward. It is worth naming the general principle, because it explains
+in one stroke why $\E[X^2] \ge (\E[X])^2$, and far more besides. We will prove
+it carefully in the chapter on inequalities; here is the idea and the
+consequence.
+
+A function $g$ is \emph{convex} if its graph lies below every chord and above
+every tangent line --- it curves upward like a bowl, as $g(x) = x^2$ does.
+Convexity has a probabilistic shadow.
+
+\begin{theorem}[Jensen's inequality, preview]
+\label{ch09:thm-jensen}
+If $g$ is a convex function and $X$ a random variable with finite mean, then
+\[
+  g\big(\E[X]\big) \;\le\; \E\big[g(X)\big].
+\]
+If $g$ is concave, the inequality reverses. Equality holds (for strictly
+convex $g$) only when $X$ is a constant.
+\end{theorem}
+
+\begin{whybox}
+Why is the function of the average no larger than the average of the function,
+for a bowl-shaped $g$? Picture the points $(X, g(X))$ scattered along the
+upward-curving graph. Averaging the $X$-values lands you at
+$\big(\E[X], g(\E[X])\big)$ --- a point \emph{on} the curve. But averaging the
+\emph{heights} $g(X)$ lands you somewhere among the points, and because the
+curve bows downward away from any chord, the cloud of points sits \emph{above}
+the curve between them. So the averaged height $\E[g(X)]$ is pulled up, above
+the on-curve height $g(\E[X])$. Convexity systematically rewards spreading
+out: the more $X$ varies, the higher $\E[g(X)]$ climbs above $g(\E[X])$.
+\end{whybox}
+
+Take $g(x) = x^2$, which is convex. Jensen says
+$(\E[X])^2 \le \E[X^2]$, and the gap between the two sides is precisely
+$\Var(X) \ge 0$. So the non-negativity of variance is just Jensen's
+inequality for the squaring function, and variance \emph{measures the size of
+the Jensen gap}. That is a satisfying unification: the fact that spread is
+non-negative and the fact that bowls bend upward are the same fact.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=5.6cm,
+  domain=-0.4:3.4, samples=80,
+  xlabel={$x$}, ylabel={$g(x)=x^2$},
+  title={Jensen's inequality for $g(x)=x^2$},
+  ymin=-0.5, ymax=10,
+  grid=both, grid style={gray!15},
+  legend pos=north west,
+]
+\addplot[sourceblue, very thick] {x^2};
+\addlegendentry{$g(x)=x^2$}
+% chord between x=0 and x=3
+\addplot[densityred, thick, dashed] coordinates {(0,0) (3,9)};
+\addlegendentry{chord}
+% points: g(E[X]) on curve, E[g(X)] on chord, at midpoint 1.5
+\addplot[only marks, mark=*, black] coordinates {(1.5,2.25)};
+\node[anchor=north] at (axis cs:1.5,2.25) {\small $g(\E X)$};
+\addplot[only marks, mark=square*, densityred] coordinates {(1.5,4.5)};
+\node[anchor=south] at (axis cs:1.5,4.5) {\small $\E[g(X)]$};
+\draw[<->, thick, gray] (axis cs:1.7,2.25) -- (axis cs:1.7,4.5)
+  node[midway,right] {\small $\Var(X)$};
+\end{axis}
+\end{tikzpicture}
+\caption{For $X$ equal to $0$ or $3$ with equal probability, $\E[X]=1.5$. The
+on-curve height $g(\E[X])=2.25$ sits below the chord height
+$\E[g(X)]=4.5$. The gap, $2.25$, is exactly $\Var(X)=p(1-p)\cdot 3^2$ with
+$p=1/2$. Jensen's gap is the variance.}
+\label{ch09:fig-jensen}
+\end{figure}
+
+\section{Why Variance Is Everywhere}
+\label{ch09:everywhere}
+
+We close by stepping back to survey just how thoroughly variance saturates
+modern quantitative thinking. None of the following needs more than the ideas
+of this chapter, yet together they explain why ``minimize the variance'' is
+practically a mantra across the data sciences.
+
+\begin{itemize}
+  \item \textbf{Least squares.} The workhorse of regression fits a line by
+        minimizing the sum of \emph{squared} residuals --- that is, by
+        minimizing a variance. The choice of squares (rather than absolute
+        errors) traces directly back to the same smoothness and additivity
+        that made variance the canonical measure of spread.
+  \item \textbf{The bias--variance tradeoff.} A model's expected prediction
+        error decomposes into bias squared plus variance plus irreducible
+        noise. Underfitting means high bias; overfitting means high variance.
+        Every learning algorithm is, at heart, negotiating this tradeoff, and
+        the variance term is the one this chapter taught you to read.
+  \item \textbf{Error bars and confidence.} Every reported uncertainty ---
+        the $\pm$ on a measurement, the margin of error in a poll --- is a
+        standard deviation (or a multiple of one) in disguise, almost always
+        shrunk by the $\sigma/\sqrt n$ law of Section~\ref{ch09:sumindep}.
+  \item \textbf{Signal processing.} The ``power'' of a noise source is its
+        variance; the signal-to-noise ratio compares the variance of the
+        signal to the variance of the noise. Filtering is the art of removing
+        variance you do not want.
+  \item \textbf{Analysis of variance (ANOVA).} An entire branch of statistics
+        is built on partitioning the total variance of a dataset into
+        components attributable to different causes --- a direct application
+        of the variance-of-a-sum decomposition.
+\end{itemize}
+
+\begin{aestheticbox}
+If expectation answers ``what will happen on average,'' variance answers ``how
+much should I trust that average.'' The first number without the second is a
+forecast with no confidence attached --- a point with no error bar, a model
+with no honesty about its own uncertainty. Mature quantitative reasoning
+always carries both. That is why, having learned to find centers in the last
+chapter, you have just doubled your power by learning to measure spread:
+together they are the irreducible minimum for describing any uncertain
+quantity.
+\end{aestheticbox}
+
+\section*{Summary}
+\addcontentsline{toc}{section}{Summary}
+
+\begin{itemize}
+  \item \textbf{Variance} $\Var(X) = \E[(X-\mu)^2]$ is the average squared
+        distance from the mean; \textbf{standard deviation}
+        $\SD(X)=\sqrt{\Var(X)}$ returns it to the original units and is the
+        natural ``unit of surprise.''
+  \item \textbf{Computational formula:}
+        $\Var(X) = \E[X^2] - (\E[X])^2$. Variance is never negative; it is
+        zero only for a constant.
+  \item \textbf{Affine rule:} $\Var(aX+b) = a^2\Var(X)$. Shifting does not
+        change spread; scaling by $a$ scales the standard deviation by
+        $\abs a$.
+  \item \textbf{Standardization:} $Z = (X-\mu)/\sigma$ has mean $0$ and
+        variance $1$; z-scores compare across scales.
+  \item \textbf{Chebyshev:} for any distribution,
+        $\P(\abs{X-\mu}\ge k\sigma)\le 1/k^2$ --- variance alone forces most
+        mass to stay within a few standard deviations of the mean.
+  \item \textbf{Sums:} $\Var(X+Y) = \Var(X)+\Var(Y)+2\Cov(X,Y)$. For
+        independent (or uncorrelated) variables the covariance vanishes and
+        variances add, giving the $\sigma/\sqrt n$ law for averages.
+  \item \textbf{Higher moments:} skewness (third) measures asymmetry,
+        kurtosis (fourth) measures tail weight.
+  \item \textbf{Jensen:} $\E[X^2]\ge(\E[X])^2$ is the convexity of squaring,
+        and the gap is exactly the variance.
+\end{itemize}
+
+\section{Exercises}
+\label{ch09:exercises}
+
+\begin{exercise}[Warm-up computations]
+\label{ch09:exr-warmup}
+For each of the following, compute $\E[X]$, $\E[X^2]$, $\Var(X)$, and
+$\SD(X)$.
+\begin{enumerate}
+  \item $X$ takes values $2, 4, 6$ each with probability $1/3$.
+  \item $X \sim \Bern(0.2)$.
+  \item $X$ is the number of heads in two independent fair coin flips.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Shifting and scaling]
+\label{ch09:exr-affine}
+A temperature $C$ measured in Celsius has mean $20$ and standard deviation
+$5$. The Fahrenheit reading is $F = \tfrac{9}{5}C + 32$. Find $\E[F]$,
+$\Var(F)$, and $\SD(F)$. Explain in words why the $+32$ did not affect the
+spread.
+\end{exercise}
+
+\begin{exercise}[The computational formula in reverse]
+\label{ch09:exr-reverse}
+A random variable has mean $\E[X] = 3$ and variance $\Var(X) = 4$. Find
+$\E[X^2]$. Then find $\E[(2X-1)^2]$. (Hint: expand and reuse the first two
+moments.)
+\end{exercise}
+
+\begin{exercise}[z-scores in practice]
+\label{ch09:exr-zscore}
+A standardized test has mean $500$ and standard deviation $100$; a second test
+has mean $24$ and standard deviation $4$. Alice scores $640$ on the first;
+Bob scores $30$ on the second. Convert both to z-scores and say who performed
+better relative to peers. By how many points above the mean did each score,
+in units of their own test's standard deviation?
+\end{exercise}
+
+\begin{exercise}[Variance of a sum, with and without independence]
+\label{ch09:exr-sum}
+Let $X$ and $Y$ each have variance $9$.
+\begin{enumerate}
+  \item If $X$ and $Y$ are independent, find $\Var(X+Y)$ and $\SD(X+Y)$.
+  \item If instead $\Cov(X,Y) = 6$, find $\Var(X+Y)$.
+  \item If $Y = X$ (perfect dependence), find $\Var(X+Y)$ directly and
+        confirm it matches the formula with the appropriate covariance.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[The $\sqrt n$ law]
+\label{ch09:exr-sqrtn}
+A single measurement of a length has standard deviation $\sigma = 2$ mm.
+\begin{enumerate}
+  \item How many independent measurements must you average so that the
+        standard deviation of the average is at most $0.25$ mm?
+  \item Suppose you have reached an average error of $0.5$ mm with some number
+        of measurements. How many \emph{times} more measurements are needed to
+        reach $0.1$ mm?
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Chebyshev in action]
+\label{ch09:exr-cheby}
+A machine fills bags with a mean weight of $\mu = 500$ g and a standard
+deviation of $\sigma = 4$ g; the distribution of weights is unknown.
+\begin{enumerate}
+  \item Use Chebyshev's inequality to give a guaranteed lower bound on the
+        probability that a bag weighs between $492$ g and $508$ g.
+  \item What is the largest possible probability that a bag deviates from
+        $500$ g by $12$ g or more?
+  \item If the weights were known to be normal, roughly what fraction would
+        fall within $492$--$508$ g? Compare to your Chebyshev bound and explain
+        the gap.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Binomial variance two ways]
+\label{ch09:exr-binom}
+Let $X \sim \Bin(n,p)$.
+\begin{enumerate}
+  \item Using the decomposition $X = \sum_{i=1}^n B_i$ into independent
+        Bernoulli trials, state $\Var(X)$.
+  \item For $n = 100$, find the value of $p$ that maximizes $\Var(X)$, and
+        give the resulting standard deviation.
+  \item Interpret: for which $p$ is a binomial outcome hardest to predict?
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Skewness of a simple variable]
+\label{ch09:exr-skew}
+Let $X$ take the value $0$ with probability $0.9$ and the value $10$ with
+probability $0.1$.
+\begin{enumerate}
+  \item Compute $\mu = \E[X]$ and $\sigma = \SD(X)$.
+  \item Compute the third central moment $\E[(X-\mu)^3]$ and the skewness.
+  \item Is the distribution skewed left or right? Sketch why this matches the
+        sign you found.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Jensen and the variance gap]
+\label{ch09:exr-jensen}
+Let $X$ take values $1$ and $9$ with equal probability.
+\begin{enumerate}
+  \item Compute $g(\E[X])$ and $\E[g(X)]$ for $g(x) = x^2$, and verify that
+        their difference equals $\Var(X)$.
+  \item The square-root function $h(x) = \sqrt x$ is concave. Compute
+        $h(\E[X])$ and $\E[h(X)]$ and check that the inequality runs the
+        other way, as Jensen predicts for concave functions.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Proof: variance is translation invariant and quadratic in
+scale]
+\label{ch09:exr-proof}
+Starting from the definition $\Var(X) = \E[(X-\E[X])^2]$ and using only
+linearity of expectation, prove that $\Var(aX+b) = a^2\Var(X)$ for all
+constants $a,b$. Then prove the computational formula
+$\Var(X) = \E[X^2]-(\E[X])^2$ as a special consequence of your expansion.
+\end{exercise}
+
+\begin{exercise}[Proof: the variance of a sum]
+\label{ch09:exr-proofsum}
+Let $X_1,\dots,X_n$ be random variables with finite variances. Prove that
+\[
+  \Var\!\Big(\sum_{i=1}^n X_i\Big)
+  = \sum_{i=1}^n \Var(X_i) + \sum_{i\ne j}\Cov(X_i,X_j).
+\]
+Deduce the special case for pairwise uncorrelated variables. Where exactly in
+your proof did you use (or not use) independence?
+\end{exercise}
+
+\begin{exercise}[Conceptual: when does averaging \emph{not} help?]
+\label{ch09:exr-concept}
+The $\sigma/\sqrt n$ law assumed the measurements were independent. Describe a
+realistic scenario --- in measurement, polling, or finance --- where averaging
+many observations fails to reduce the error nearly as fast as $1/\sqrt n$.
+Identify which term in the variance-of-a-sum formula is responsible, and state
+what its sign must be for the failure to occur.
+\end{exercise}

@@ -1,0 +1,859 @@
+\chapter{Continuous Random Variables and Densities}
+
+So far our random variables have been \emph{discrete}: they take values in a list
+you can write down, like $\set{0,1,2,\dots}$ or $\set{1,2,3,4,5,6}$, and each value
+$x$ carries a clump of probability $\P(X=x)$. The whole theory of expectation and
+variance was built out of sums over those clumps.
+
+But the world is full of quantities that are not like that. How long until a
+radioactive atom decays? The exact height of a randomly chosen adult? The precise
+voltage on a noisy wire at the instant you measure it? The fraction of a website's
+visitors who click a button, in the limit of infinitely many visitors? None of
+these live on a tidy list. They live on a \emph{continuum} -- an interval of real
+numbers, with no gaps and no smallest step.
+
+This chapter is about how probability copes with the continuum. The headline is
+strange and worth staring at: for a genuinely continuous quantity, the probability
+of \emph{any single exact value} is zero. The chance that a dart lands at exactly
+$x = 0.5000000\dots$ on a ruler, infinitely many digits all correct, is $0$. And
+yet some regions are clearly more likely than others. The resolution is one of the
+most beautiful ideas in the subject: we stop measuring probability at points and
+start measuring it as \emph{area}. The tool that does this is the \emph{probability
+density function}. By the end of the chapter you will see exactly why $\P(X=x)=0$
+is not a contradiction but a feature, how densities encode all the probability, how
+the cumulative distribution function ties the discrete and continuous worlds
+together, and how expectation and variance become \emph{integrals} -- the calculus
+analogue of the sums you already know.
+
+\section{From bars to curves: the central picture}
+\label{ch10:bars-to-curves}
+
+Let us begin where your intuition already is. Suppose you measure the waiting time
+$X$ (in minutes) for a bus that is ``equally likely to come any time in the next
+$10$ minutes.'' You cannot list the outcomes -- $X$ could be $3$, or $3.5$, or
+$3.14159$, or anything in $[0,10]$. So let us approximate.
+
+First, round $X$ to the nearest whole minute. Now you have a discrete variable on
+$\set{0,1,\dots,10}$, and you can draw a familiar bar chart of probabilities. Each
+bar has height roughly $1/10$. Now refine: round to the nearest half-minute. You
+get twice as many bars, each half as tall, because each old minute splits into two
+sub-intervals sharing its probability. Refine again to tenths of a minute: ten
+times as many bars, each a tenth as tall. The bars are getting shorter and shorter
+-- the \emph{height} $\P(X \in \text{tiny bin})$ shrinks toward zero -- but the
+overall \emph{shape} is settling down to a flat plateau of constant height.
+
+\begin{intuitionbox}
+The probability in a single bin shrinks as the bins get finer, so heights are the
+wrong thing to track. The right thing is height \emph{per unit width} -- the bar's
+area divided by its width. That ratio does \emph{not} collapse to zero; it
+converges to a stable curve. That stable curve is the density. Density is to a
+continuous variable what the PMF was to a discrete one, but it lives on the
+vertical axis as \emph{probability-per-length}, not probability.
+\end{intuitionbox}
+
+Figure~\ref{ch10:fig-refine} shows the refinement in action for a bell-shaped
+example, where the limiting curve is more interesting than a flat line.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.92\textwidth, height=6.2cm,
+  xlabel={$x$}, ylabel={density (area per unit $x$)},
+  xmin=-3.6, xmax=3.6, ymin=0, ymax=0.5,
+  domain=-3.5:3.5, samples=120,
+  axis lines=left, ytick=\empty,
+  legend style={at={(0.02,0.98)},anchor=north west,draw=none,fill=none,font=\small},
+]
+% coarse histogram bars (width 1)
+\addplot+[ybar interval, mark=no, fill=histfill!45, draw=histfill!80!black, opacity=0.55,
+  forget plot]
+  coordinates {(-3.5,0.0060)(-2.5,0.0606)(-1.5,0.2417)(-0.5,0.3829)(0.5,0.2417)
+               (1.5,0.0606)(2.5,0.0060)(3.5,0)};
+% the limiting density: standard normal
+\addplot[densityred, very thick, smooth] {1/sqrt(2*pi)*exp(-x^2/2)};
+\addlegendentry{limiting density $f(x)$}
+\end{axis}
+\end{tikzpicture}
+\caption{Coarse probability bars (width $1$) with their heights equal to the
+probability in each bin. As bins shrink, the bars hug a smooth curve when you plot
+\emph{probability per unit length}. That curve is the probability density.}
+\label{ch10:fig-refine}
+\end{figure}
+
+The picture suggests the whole plan. A density $f$ is a curve such that the
+\emph{area} under it over an interval equals the probability of landing in that
+interval:
+\[
+  \P(a \le X \le b) \;=\; \text{area under } f \text{ from } a \text{ to } b
+  \;=\; \int_a^b f(x)\,\dd x .
+\]
+Probabilities are areas. This single sentence is the heart of continuous
+probability. Figure~\ref{ch10:fig-area} shows the idea directly: the probability of
+landing in $[a,b]$ is the shaded region under the curve.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.85\textwidth, height=5.4cm,
+  xlabel={$x$}, ylabel={$f(x)$},
+  xmin=-3.4, xmax=3.4, ymin=0, ymax=0.48,
+  domain=-3.3:3.3, samples=120,
+  axis lines=left, ytick=\empty,
+  xtick={-1,1.4}, xticklabels={$a$,$b$},
+]
+\addplot[name path=curve, densityred, very thick] {1/sqrt(2*pi)*exp(-x^2/2)};
+\path[name path=axis] (axis cs:-1,0) -- (axis cs:1.4,0);
+\addplot[densityred!18] fill between[of=curve and axis, soft clip={domain=-1:1.4}];
+\node at (axis cs:0.2,0.13) {\small $\P(a\le X\le b)$};
+\end{axis}
+\end{tikzpicture}
+\caption{Probability as area. For a continuous variable the chance of landing in
+$[a,b]$ is the shaded area under the density $f$ between $a$ and $b$, i.e.
+$\int_a^b f(x)\,\dd x$. Total area under the whole curve is $1$.}
+\label{ch10:fig-area}
+\end{figure}
+
+\section{Why \texorpdfstring{$\P(X=x)=0$}{P(X=x)=0}, and why that is fine}
+\label{ch10:point-mass-zero}
+
+Here is the fact that trips up everyone the first time. If $X$ is continuous, then
+for \emph{every} particular value $x$,
+\[
+  \P(X = x) = 0 .
+\]
+Not ``very small.'' Exactly zero. Yet $X$ does take \emph{some} value every time
+you sample it. How can every outcome have probability zero, while one of them
+always happens?
+
+\begin{happeningbox}
+The trap is importing intuition from the discrete world, where ``probability zero''
+means ``impossible.'' In the continuum the two notions come apart. Probability is
+\emph{area}, and a single point is a line segment of width zero, so it bounds zero
+area no matter how tall the density is there. Think of probability as a
+\emph{liquid} of total volume $1$ poured over the real line. Ask how much liquid
+sits exactly over the single point $x=0.5$. None -- a point has no width to hold any.
+But the liquid over the interval $[0.49,0.51]$ is a real, positive amount. In the
+continuum, \emph{probability lives in intervals, not in points.} ``Probability $0$''
+no longer means ``cannot happen''; it means ``occupies no length.''
+\end{happeningbox}
+
+We can prove $\P(X=x)=0$ directly from the area picture, and the proof is
+illuminating. Pin down a value $x$ and trap it in a shrinking interval. For any
+$\eps > 0$,
+\[
+  \P(X = x) \;\le\; \P\!\left(x - \tfrac{\eps}{2} \le X \le x + \tfrac{\eps}{2}\right)
+  \;=\; \int_{x-\eps/2}^{x+\eps/2} f(t)\,\dd t .
+\]
+If $f$ is bounded near $x$, say $f \le M$ there, this integral is at most $M\eps$,
+which we can drive to $0$ by shrinking $\eps$. A nonnegative number smaller than
+every positive number must be $0$. So $\P(X=x)=0$.
+
+\begin{trapbox}
+Because individual points carry no probability, the difference between $<$ and
+$\le$ \emph{vanishes} for continuous variables:
+\[
+  \P(a \le X \le b) = \P(a < X < b) = \P(a \le X < b) = \P(a < X \le b).
+\]
+Including or excluding an endpoint changes the answer by $\P(X=a)$ or $\P(X=b)$,
+which are both $0$. This is a genuine convenience -- but it is \emph{false} for
+discrete variables, where endpoints can carry real mass. Always know which world
+you are in.
+\end{trapbox}
+
+\section{The probability density function, precisely}
+\label{ch10:pdf-def}
+
+We can now state the definition the picture has been pointing at.
+
+\begin{definition}[Continuous random variable and density]
+\label{ch10:def-pdf}
+A random variable $X$ is \emph{continuous} if there is a function
+$f:\R \to [0,\infty)$, called its \emph{probability density function} (pdf), such
+that for every interval $[a,b]$,
+\[
+  \P(a \le X \le b) = \int_a^b f(x)\,\dd x .
+\]
+A pdf must satisfy two requirements, the continuous analogues of the PMF's rules:
+\begin{enumerate}
+\item \textbf{Nonnegativity:} $f(x) \ge 0$ for all $x$ (areas of probability cannot
+      be negative);
+\item \textbf{Normalization:} $\displaystyle \int_{-\infty}^{\infty} f(x)\,\dd x = 1$
+      (all the probability is somewhere).
+\end{enumerate}
+\end{definition}
+
+\begin{trapbox}
+A density is \emph{not} a probability, and it is not capped at $1$. The value
+$f(x)$ has units of probability \emph{per unit $x$}. It can be huge -- a density
+sharply concentrated on $[0,0.01]$ might reach a height of $100$ -- as long as the
+total area stays $1$. Never say ``$f(x)$ is the probability that $X=x$.'' The
+probability of any exact value is $0$. The right reading is local: $f(x)\,\dd x$ is
+approximately the probability that $X$ lands in a tiny window of width $\dd x$
+around $x$.
+\end{trapbox}
+
+That last sentence deserves to be made into a working tool, because it is how
+practitioners actually think.
+
+\begin{focusbox}
+\textbf{The infinitesimal reading of a density.} For a small width $\dd x$,
+\[
+  \P\!\left(x \le X \le x + \dd x\right) \;\approx\; f(x)\,\dd x .
+\]
+Read $f(x)$ as ``how densely probability is packed near $x$.'' Where $f$ is tall,
+outcomes cluster; where $f$ is short, they are rare; where $f=0$, they never occur.
+Ratios are meaningful even though absolute values are not: if $f(2) = 3 f(7)$, then
+a tiny window near $2$ is three times as likely as an equally tiny window near $7$.
+\end{focusbox}
+
+\begin{example}[Checking and using a density]
+\label{ch10:ex-quadratic}
+Suppose $X$ has the candidate density
+\[
+  f(x) = \begin{cases} c\,x^2, & 0 \le x \le 1,\\[2pt] 0, & \text{otherwise.}\end{cases}
+\]
+First find $c$ so that $f$ is a legitimate density, then compute
+$\P(X \le \tfrac12)$.
+
+\textbf{Normalize.} We need the total area to be $1$:
+\[
+  1 = \int_{-\infty}^{\infty} f(x)\,\dd x = \int_0^1 c\,x^2 \,\dd x
+    = c \cdot \frac{x^3}{3}\Big|_0^1 = \frac{c}{3}
+  \quad\Longrightarrow\quad c = 3 .
+\]
+So $f(x) = 3x^2$ on $[0,1]$. It is nonnegative there, so it is a valid density.
+
+\textbf{Compute the probability.} Probability is area:
+\[
+  \P\!\left(X \le \tfrac12\right) = \int_0^{1/2} 3x^2 \,\dd x
+    = x^3 \Big|_0^{1/2} = \left(\tfrac12\right)^3 = \tfrac18 .
+\]
+Notice the answer is much less than $1/2$, even though $1/2$ is the midpoint of the
+range. The density $3x^2$ grows toward $x=1$, so probability piles up on the right.
+\end{example}
+
+\section{The cumulative distribution function: the bridge}
+\label{ch10:cdf}
+
+There is one object that works for \emph{every} random variable -- discrete,
+continuous, or a mix -- and ties the whole subject together. It is the
+\emph{cumulative distribution function} (CDF).
+
+\begin{definition}[CDF]
+\label{ch10:def-cdf}
+The CDF of any random variable $X$ is
+\[
+  F(x) = \P(X \le x), \qquad x \in \R .
+\]
+It accumulates all the probability lying at or below $x$.
+\end{definition}
+
+For a continuous $X$, accumulating probability means accumulating area, so the CDF
+is the running integral of the density:
+\[
+  F(x) = \P(X \le x) = \int_{-\infty}^{x} f(t)\,\dd t .
+\]
+Every CDF, regardless of type, obeys three structural rules that come straight from
+the axioms of probability:
+\begin{enumerate}
+\item $F$ is \textbf{nondecreasing} (more territory, more accumulated probability);
+\item $\displaystyle \lim_{x \to -\infty} F(x) = 0$ and
+      $\displaystyle \lim_{x \to +\infty} F(x) = 1$ (eventually we have collected
+      none, then all, of the probability);
+\item $F$ is \textbf{right-continuous}.
+\end{enumerate}
+The defining contrast between the two worlds is visual. A discrete CDF is a
+\emph{staircase}: flat stretches punctuated by vertical jumps, and the height of
+the jump at $x$ is exactly $\P(X=x)$. A continuous CDF has \emph{no jumps} -- it is
+a smooth ramp -- precisely because every point mass is $0$. Figure~\ref{ch10:fig-cdf}
+puts the two side by side.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=disc, width=0.46\textwidth, height=5.2cm,
+  title={\small discrete CDF (staircase)},
+  xlabel={$x$}, ylabel={$F(x)$},
+  xmin=-0.5, xmax=4.5, ymin=0, ymax=1.08,
+  axis lines=left, ytick={0,0.25,0.5,0.75,1},
+]
+% staircase for X in {0,1,2,3} each prob 1/4
+\addplot[distblue, very thick] coordinates {(-0.5,0)(0,0)};
+\addplot[distblue, very thick] coordinates {(0,0.25)(1,0.25)};
+\addplot[distblue, very thick] coordinates {(1,0.5)(2,0.5)};
+\addplot[distblue, very thick] coordinates {(2,0.75)(3,0.75)};
+\addplot[distblue, very thick] coordinates {(3,1)(4.5,1)};
+\addplot[only marks, mark=*, distblue] coordinates {(0,0.25)(1,0.5)(2,0.75)(3,1)};
+\addplot[only marks, mark=o, distblue] coordinates {(0,0)(1,0.25)(2,0.5)(3,0.75)};
+\end{axis}
+\begin{axis}[
+  at={(disc.south east)}, anchor=south west, xshift=1.2cm,
+  width=0.46\textwidth, height=5.2cm,
+  title={\small continuous CDF (smooth ramp)},
+  xlabel={$x$}, ylabel={$F(x)$},
+  xmin=-0.2, xmax=1.2, ymin=0, ymax=1.08,
+  axis lines=left, ytick={0,0.25,0.5,0.75,1},
+  domain=0:1, samples=80,
+]
+% CDF of f=3x^2 on [0,1] is x^3
+\addplot[densityred, very thick] {x^3};
+\addplot[densityred, very thick] coordinates {(-0.2,0)(0,0)};
+\addplot[densityred, very thick] coordinates {(1,1)(1.2,1)};
+\end{axis}
+\end{tikzpicture}
+\caption{Left: a discrete CDF is a staircase, with jump heights equal to point
+masses. Right: a continuous CDF (here $F(x)=x^3$ for the density $f=3x^2$) is a
+jumpless ramp -- every point carries probability $0$, so there is nothing to jump.}
+\label{ch10:fig-cdf}
+\end{figure}
+
+\subsection{Getting the density back from the CDF}
+\label{ch10:density-from-cdf}
+
+The CDF integrates the density. The Fundamental Theorem of Calculus runs that
+machine in reverse: \emph{differentiate the CDF to recover the density.}
+
+\begin{theorem}[Density is the derivative of the CDF]
+\label{ch10:thm-fdash}
+If $X$ has CDF $F$ that is differentiable at $x$, then its density is
+\[
+  f(x) = F'(x) .
+\]
+\end{theorem}
+
+\begin{whybox}
+This is not a coincidence; it is the Fundamental Theorem of Calculus wearing a
+probabilistic costume. Start from the definition of the derivative of $F$ and read
+each piece probabilistically:
+\[
+  \begin{aligned}
+  F'(x) &= \lim_{h \to 0} \frac{F(x+h) - F(x)}{h}
+         = \lim_{h \to 0} \frac{\P(x < X \le x + h)}{h}\\[2pt]
+        &= \lim_{h \to 0} \frac{\text{probability in a window of width } h}{h}.
+  \end{aligned}
+\]
+That final ratio is exactly \emph{probability per unit length} near $x$ -- which is
+the very thing we have been calling density. So $F'(x)=f(x)$ says: the slope of the
+accumulated-probability curve at $x$ \emph{is} the local density. Steep ramp $=$
+probability arriving fast $=$ tall density. Flat ramp $=$ no probability here $=$
+density $0$. The CDF and pdf are two views of one object, related by the same
+integrate/differentiate duality you met for area and slope in calculus.
+\end{whybox}
+
+\begin{connectionbox}
+This is the cleanest place in all of probability to \emph{see} the Fundamental
+Theorem of Calculus at work. $F = \int f$ and $f = F'$ are an
+integrate--differentiate pair: the CDF is the antiderivative (the ``area-so-far''
+function) of the density, and the density is the slope of the CDF. Everything you
+know about antiderivatives -- that they are determined up to a constant, that
+definite integrals are computed by evaluating an antiderivative at the endpoints --
+transfers directly. In particular
+\[
+  \P(a \le X \le b) = \int_a^b f = F(b) - F(a),
+\]
+which is just ``evaluate the antiderivative at the endpoints.'' See the companion
+calculus volume for the FTC; here it is the engine that converts between the two
+faces of a distribution.
+\end{connectionbox}
+
+\begin{example}[Round trip: pdf $\to$ CDF $\to$ pdf]
+\label{ch10:ex-roundtrip}
+Take again $f(x) = 3x^2$ on $[0,1]$. Build the CDF by integrating:
+\[
+  F(x) = \int_0^x 3t^2 \,\dd t = x^3 \quad \text{for } 0 \le x \le 1,
+\]
+with $F(x)=0$ for $x<0$ and $F(x)=1$ for $x>1$. Check the endpoints: $F(0)=0$,
+$F(1)=1$, good. Now differentiate to return home: for $0<x<1$,
+$F'(x) = 3x^2 = f(x)$. The loop closes. As a bonus, the CDF makes
+Example~\ref{ch10:ex-quadratic} instant: $\P(X\le \tfrac12) = F(\tfrac12)
+= (\tfrac12)^3 = \tfrac18$, no integral required at the point of use.
+\end{example}
+
+\begin{walkbox}
+You are told $X$ has CDF $F(x) = 1 - e^{-2x}$ for $x \ge 0$ (and $0$ for $x<0$).
+What is the density? What is $\P(X > 1)$?
+
+\emph{Density:} differentiate. $f(x) = F'(x) = 2e^{-2x}$ for $x \ge 0$. (This is the
+$\Expo(2)$ density -- the exponential distribution of a later chapter.) \emph{Tail
+probability:} the CDF gives it directly, $\P(X>1) = 1 - F(1) = 1 - (1 - e^{-2})
+= e^{-2} \approx 0.135$. Carrying the CDF around is often faster than re-integrating
+the density.
+\end{walkbox}
+
+\section{Expectation and variance as integrals}
+\label{ch10:expectation}
+
+For a discrete variable you computed the mean by summing value $\times$
+probability:
+$\E[X] = \sum_x x\,\P(X=x)$. In the continuum the point masses $\P(X=x)$ are all
+$0$, so that sum is hopeless. But recall the infinitesimal reading: the probability
+in a sliver of width $\dd x$ near $x$ is $f(x)\,\dd x$. Replace the discrete mass
+$\P(X=x)$ by the sliver mass $f(x)\,\dd x$, and replace the sum by an integral. The
+recipe ``value times probability, then add up'' becomes:
+
+\begin{definition}[Expectation and variance of a continuous variable]
+\label{ch10:def-EV}
+For a continuous $X$ with density $f$,
+\[
+  \E[X] = \int_{-\infty}^{\infty} x\,f(x)\,\dd x,
+  \qquad
+  \E[g(X)] = \int_{-\infty}^{\infty} g(x)\,f(x)\,\dd x,
+\]
+the latter being the continuous Law of the Unconscious Statistician. The variance
+is the mean squared deviation, exactly as before:
+\[
+  \Var(X) = \E\!\big[(X-\mu)^2\big] = \int_{-\infty}^{\infty} (x-\mu)^2 f(x)\,\dd x
+          = \E[X^2] - \big(\E[X]\big)^2,
+\]
+where $\mu = \E[X]$, and $\SD(X) = \sqrt{\Var(X)}$.
+\end{definition}
+
+\begin{connectionbox}
+The transition $\sum \rightsquigarrow \int$ is not an analogy -- it is the literal
+definition of the integral. The Riemann integral $\int x f(x)\,\dd x$ \emph{is} the
+limit of sums $\sum_i x_i\, f(x_i)\,\Delta x$ over finer and finer partitions. Each
+term $x_i \cdot \big(f(x_i)\Delta x\big)$ is ``a value times the probability of a
+bin,'' precisely the discrete expectation of the binned-up variable. Letting the
+bins shrink turns the discrete mean into the integral. So continuous expectation is
+exactly discrete expectation in the limit of vanishing bin width. (The fully
+general definition, valid even when no density exists, uses the Lebesgue integral
+against the distribution; that is the subject of the measure-theory chapters.)
+\end{connectionbox}
+
+\begin{intuitionbox}
+The mean $\E[X]$ is the \emph{balance point} of the density, the place where a
+cardboard cutout of the region under $f$ would balance on a knife edge. The variance
+is its \emph{rotational inertia} (moment of inertia) about that balance point: mass
+far from center contributes as the square of its distance, so $\Var$ measures spread,
+heavily weighting the tails. These mechanical pictures hold identically in the
+discrete and continuous cases; only the bookkeeping (sum vs.\ integral) changes.
+\end{intuitionbox}
+
+\begin{example}[Mean and variance of $f=3x^2$]
+\label{ch10:ex-EV}
+With $f(x)=3x^2$ on $[0,1]$:
+\[
+  \E[X] = \int_0^1 x\cdot 3x^2 \,\dd x = \int_0^1 3x^3 \,\dd x
+        = \frac{3x^4}{4}\Big|_0^1 = \frac34 .
+\]
+This sits to the right of the midpoint $\tfrac12$, confirming that the rising
+density tips the balance point toward $1$. For the variance, get the second moment
+first:
+\[
+  \E[X^2] = \int_0^1 x^2 \cdot 3x^2 \,\dd x = \int_0^1 3x^4 \,\dd x
+          = \frac{3x^5}{5}\Big|_0^1 = \frac35 .
+\]
+Then
+\[
+  \Var(X) = \E[X^2] - \big(\E[X]\big)^2 = \frac35 - \left(\frac34\right)^2
+          = \frac35 - \frac{9}{16} = \frac{48 - 45}{80} = \frac{3}{80}
+          = 0.0375,
+\]
+so $\SD(X) = \sqrt{3/80} \approx 0.194$.
+\end{example}
+
+\begin{aestheticbox}
+Every theorem you proved about expectation in the discrete chapters -- linearity
+$\E[aX+b] = a\E[X]+b$, the variance scaling $\Var(aX+b) = a^2\Var(X)$, the identity
+$\Var(X)=\E[X^2]-\E[X]^2$ -- holds \emph{verbatim} for continuous variables. Their
+proofs used only the linearity of the operation that combines values with weights,
+and integration is linear exactly as summation is. This is the payoff of building a
+unified theory: you do not relearn expectation: you reuse it, swapping $\sum$ for
+$\int$.
+\end{aestheticbox}
+
+\section{The uniform distribution: the base case}
+\label{ch10:uniform}
+
+Every subject has a simplest nontrivial example that you should know cold. For
+continuous probability it is the \emph{uniform} distribution, the formal version of
+``a number chosen completely at random from an interval, with no part favored.''
+
+\begin{definition}[Uniform distribution]
+\label{ch10:def-unif}
+$X \sim \Unif(a,b)$ has constant density on $[a,b]$:
+\[
+  f(x) = \begin{cases} \dfrac{1}{b-a}, & a \le x \le b,\\[6pt] 0, & \text{otherwise.}\end{cases}
+\]
+The height $1/(b-a)$ is forced by normalization: a rectangle of width $b-a$ and area
+$1$ must have that height.
+\end{definition}
+
+Its CDF is a straight ramp -- probability accumulates at a constant rate:
+\[
+  F(x) = \begin{cases} 0, & x < a, \\[2pt] \dfrac{x-a}{b-a}, & a \le x \le b, \\[6pt] 1, & x > b. \end{cases}
+\]
+Figure~\ref{ch10:fig-unif} shows the flat density and its ramp CDF together.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=u1, width=0.46\textwidth, height=4.6cm,
+  title={\small $\Unif(0,1)$ density},
+  xlabel={$x$}, ylabel={$f(x)$},
+  xmin=-0.4, xmax=1.4, ymin=0, ymax=1.4,
+  axis lines=left,
+]
+\addplot[fill=densityred!18, draw=none] coordinates {(0,0)(0,1)(1,1)(1,0)(0,0)};
+\addplot[densityred, very thick] coordinates {(-0.4,0)(0,0)};
+\addplot[densityred, very thick] coordinates {(0,1)(1,1)};
+\addplot[densityred, very thick] coordinates {(1,0)(1.4,0)};
+\addplot[densityred, very thick, dashed] coordinates {(0,0)(0,1)};
+\addplot[densityred, very thick, dashed] coordinates {(1,0)(1,1)};
+\end{axis}
+\begin{axis}[
+  at={(u1.south east)}, anchor=south west, xshift=1.2cm,
+  width=0.46\textwidth, height=4.6cm,
+  title={\small $\Unif(0,1)$ CDF},
+  xlabel={$x$}, ylabel={$F(x)$},
+  xmin=-0.4, xmax=1.4, ymin=0, ymax=1.1,
+  axis lines=left,
+]
+\addplot[distblue, very thick] coordinates {(-0.4,0)(0,0)};
+\addplot[distblue, very thick] coordinates {(0,0)(1,1)};
+\addplot[distblue, very thick] coordinates {(1,1)(1.4,1)};
+\end{axis}
+\end{tikzpicture}
+\caption{The uniform $\Unif(0,1)$: a flat density (left) of constant height $1$, and
+its CDF (right), a straight ramp from $0$ to $1$. Constant density means probability
+accumulates at a constant rate.}
+\label{ch10:fig-unif}
+\end{figure}
+
+\begin{example}[Mean and variance of $\Unif(a,b)$]
+\label{ch10:ex-unif-EV}
+By symmetry the balance point is the midpoint, $\E[X] = (a+b)/2$, but let us see the
+integral confirm it:
+\[
+  \E[X] = \int_a^b x\,\frac{1}{b-a}\,\dd x
+        = \frac{1}{b-a}\cdot \frac{x^2}{2}\Big|_a^b
+        = \frac{b^2-a^2}{2(b-a)} = \frac{a+b}{2}.
+\]
+For the variance, first get the second moment,
+\[
+  \E[X^2] = \int_a^b x^2\,\frac{1}{b-a}\,\dd x
+          = \frac{1}{b-a}\cdot \frac{x^3}{3}\Big|_a^b
+          = \frac{b^3-a^3}{3(b-a)} = \frac{a^2+ab+b^2}{3},
+\]
+using $b^3-a^3 = (b-a)(a^2+ab+b^2)$. Then subtract the squared mean:
+\[
+  \Var(X) = \E[X^2] - \big(\E[X]\big)^2
+          = \frac{a^2+ab+b^2}{3} - \frac{(a+b)^2}{4}
+          = \frac{4(a^2+ab+b^2) - 3(a+b)^2}{12}
+          = \frac{(b-a)^2}{12}.
+\]
+The factor $1/12$ is worth remembering -- it is a recurring constant in noise
+modeling and in the analysis of rounding error.
+\end{example}
+
+\begin{applicationbox}
+\textbf{Quantization noise and the $1/12$ rule.} When an analog signal is rounded
+to the nearest digital level spaced $\Delta$ apart, the rounding error is, to good
+approximation, $\Unif(-\Delta/2,\,\Delta/2)$. By Example~\ref{ch10:ex-unif-EV} its
+mean is $0$ and its variance is $\Delta^2/12$. That single fact is the foundation of
+the signal-processing rule that each extra bit of resolution (halving $\Delta$)
+improves the signal-to-noise ratio by about $6$~dB: halving $\Delta$ divides the
+noise variance by $4$, i.e.\ the noise standard deviation by $2$, and
+$20\log_{10}2 \approx 6$. A toy model of rounding, made precise, drives real
+engineering decisions about how many bits a converter needs.
+\end{applicationbox}
+
+\begin{historybox}
+The idea that probability could be \emph{geometric} -- an area or a length rather
+than a count -- predates the formal theory of densities. In 1733 Georges-Louis
+Leclerc, Comte de Buffon, posed his famous \emph{needle problem}: drop a needle on a
+floor of parallel planks; what is the chance it crosses a crack? The answer involves
+$\pi$, and the underlying model is a pair of \emph{uniform} continuous variables (the
+needle's position and angle). Buffon's needle is arguably the first continuous
+probability problem ever solved, and it already contained the modern picture:
+probability as area in a continuous sample space. It would take until the twentieth
+century, and Kolmogorov's measure-theoretic axioms (1933), for ``area'' to be made
+fully rigorous as a measure -- but the geometric instinct was right from the start.
+\end{historybox}
+
+\section{Quantiles: inverting the CDF}
+\label{ch10:quantiles}
+
+The CDF answers ``given a value $x$, what fraction of probability lies below it?''
+Quantiles answer the reverse question, which is often the one you actually want:
+``given a fraction $p$, what value has that fraction of probability below it?'' The
+$90$th percentile of a test, the median income, the $0.975$ critical value behind a
+confidence interval -- all are quantiles.
+
+\begin{definition}[Quantile function]
+\label{ch10:def-quantile}
+For $0 < p < 1$, the $p$-th \emph{quantile} of $X$ is the value $x_p$ with
+$F(x_p) = p$, i.e.
+\[
+  x_p = F^{-1}(p),
+\]
+when $F$ is continuous and strictly increasing so the inverse exists. The $0.5$
+quantile is the \emph{median}; the quartiles are $p = 0.25, 0.5, 0.75$; percentiles
+use $p = k/100$.
+\end{definition}
+
+Geometrically, the median splits the area under the density into two equal halves of
+$0.5$ each. The quartiles cut it into four equal-area quarters. Quantiles are the
+``area coordinates'' of the distribution. Figure~\ref{ch10:fig-median} shows the
+median as the vertical line that balances area, not the line that balances width.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.85\textwidth, height=5.4cm,
+  xlabel={$x$}, ylabel={$f(x)=3x^2$},
+  xmin=-0.05, xmax=1.1, ymin=0, ymax=3.3,
+  domain=0:1, samples=100,
+  axis lines=left, ytick=\empty,
+  xtick={0.7937}, xticklabels={$m\approx0.794$},
+]
+\addplot[name path=curve, densityred, very thick] {3*x^2};
+\path[name path=axisL] (axis cs:0,0) -- (axis cs:0.7937,0);
+\addplot[densityred!22] fill between[of=curve and axisL, soft clip={domain=0:0.7937}];
+\addplot[black, dashed, thick] coordinates {(0.7937,0)(0.7937,1.8907)};
+\node at (axis cs:0.55,0.5) {\small area $=0.5$};
+\node at (axis cs:0.9,1.9) {\small area $=0.5$};
+\end{axis}
+\end{tikzpicture}
+\caption{The median $m$ of $f(x)=3x^2$ on $[0,1]$ splits the area into two equal
+halves of $0.5$. Because the density piles up on the right, the equal-area line sits
+well to the right of the midpoint $0.5$ of the interval.}
+\label{ch10:fig-median}
+\end{figure}
+
+\begin{example}[Quantiles of $f=3x^2$]
+\label{ch10:ex-quantile}
+We found $F(x) = x^3$ on $[0,1]$. Invert it: $F(x)=p$ means $x^3 = p$, so
+\[
+  x_p = p^{1/3}.
+\]
+The median is $x_{0.5} = 0.5^{1/3} \approx 0.794$ -- notably larger than the mean
+$\E[X]=0.75$ from Example~\ref{ch10:ex-EV}. \emph{Mean below median} is the signature
+of a left-skewed shape: here the density rises toward $1$ and has a long thin tail
+toward $0$, which drags the mean down more than the median. The lower and upper
+quartiles are $0.25^{1/3}\approx 0.630$ and $0.75^{1/3}\approx 0.909$.
+\end{example}
+
+\begin{trapbox}
+The mean and the median are different summaries and can disagree a lot. The mean is
+the balance point and is sensitive to far-away tail mass; the median is the
+equal-area split and shrugs off the tails. For symmetric densities they coincide.
+For skewed ones -- incomes, waiting times, file sizes -- they can be far apart, which
+is exactly why ``median household income'' is reported instead of the mean: a few
+billionaires move the mean but barely budge the median.
+\end{trapbox}
+
+The quantile function is not just a reporting convenience; it is a machine for
+\emph{making} random variables, which is how simulators conjure samples from any
+distribution out of plain uniform randomness.
+
+\begin{theorem}[Inverse-transform / probability integral transform]
+\label{ch10:thm-pit}
+Let $F$ be a continuous, strictly increasing CDF with inverse $F^{-1}$.
+\begin{enumerate}
+\item \textbf{(Generation.)} If $U \sim \Unif(0,1)$, then $X = F^{-1}(U)$ has CDF
+      $F$.
+\item \textbf{(Flattening.)} Conversely, if $X$ has CDF $F$, then $F(X) \sim
+      \Unif(0,1)$.
+\end{enumerate}
+\end{theorem}
+
+\begin{whybox}
+Both halves are one short computation. For generation, compute the CDF of
+$X = F^{-1}(U)$ directly, using that $F$ is increasing (so it preserves the
+inequality) and that $U$ is uniform (so $\P(U \le u) = u$):
+\[
+  \P(X \le x) = \P\!\big(F^{-1}(U) \le x\big) = \P\big(U \le F(x)\big) = F(x).
+\]
+That is exactly the CDF we wanted, so $X \sim F$. For flattening, run it backward:
+\[
+  \P\big(F(X) \le p\big) = \P\big(X \le F^{-1}(p)\big) = F\big(F^{-1}(p)\big) = p,
+\]
+which is the CDF of $\Unif(0,1)$. The deep content is that \emph{a CDF maps its own
+distribution to the flat uniform}: pushing $X$ through its accumulated-probability
+function evens out all the lumps, because $F(x)$ measures exactly how much
+probability sits below $x$. Generation simply reverses that flattening.
+\end{whybox}
+
+\begin{applicationbox}
+\textbf{Simulating any distribution from coin-flip randomness.} A computer's
+random-number generator hands you $\Unif(0,1)$ samples and nothing else. The
+inverse-transform theorem turns that single source into samples from \emph{any}
+distribution whose quantile function you can write down. Want an exponential waiting
+time with rate $\lambda$? Its CDF is $F(x)=1-e^{-\lambda x}$, so
+$F^{-1}(u) = -\tfrac{1}{\lambda}\ln(1-u)$. Draw $U\sim\Unif(0,1)$ and report
+$X = -\tfrac{1}{\lambda}\ln(1-U)$; the result is exactly $\Expo(\lambda)$. This is
+the workhorse behind Monte Carlo simulation, and we will lean on it heavily in the
+chapter on Monte Carlo methods.
+\end{applicationbox}
+
+\section{A paradox to keep you honest}
+\label{ch10:paradox}
+
+Continuous probability rewards careful thinking and punishes sloppy phrases like
+``choose a random chord.'' Here is the classic warning.
+
+\begin{paradoxbox}
+\textbf{Bertrand's chord paradox (1889).} Draw a circle and inscribe an equilateral
+triangle. Pick a chord ``at random.'' What is the probability the chord is longer
+than a side of the triangle?
+
+Three perfectly reasonable people give three different answers:
+\begin{itemize}
+\item \emph{Random endpoints.} Fix one endpoint, choose the other uniformly on the
+      circle. The chord beats the side when the second point lands on the far arc:
+      probability $\tfrac{1}{3}$.
+\item \emph{Random radius.} Choose a radius, then a point uniformly along it for the
+      chord's midpoint. The chord is long enough when the midpoint is within half a
+      radius of the center: probability $\tfrac{1}{2}$.
+\item \emph{Random midpoint.} Choose the chord's midpoint uniformly over the disk's
+      \emph{area}. The chord is long when the midpoint falls inside the inscribed
+      circle of half the radius, whose area is one-quarter of the disk: probability
+      $\tfrac{1}{4}$.
+\end{itemize}
+All three are correct -- for the procedure they describe. \emph{Resolution:} ``at
+random'' is meaningless on a continuum until you specify \emph{which density} you are
+sampling from. The three answers correspond to three genuinely different
+distributions on the space of chords. In the discrete world ``equally likely'' has
+one obvious meaning (count and divide); in the continuous world there is no single
+canonical uniform measure on a curved or higher-dimensional space, and you must name
+your density before any probability is even defined.
+\end{paradoxbox}
+
+\begin{happeningbox}
+The moral generalizes far beyond circles. A continuous probability question is
+\emph{not well posed} until the density (equivalently, the CDF) is on the table.
+``Pick a random point,'' ``a random line,'' ``a random triangle'' -- each hides a
+choice of measure. Whenever you meet ``at random'' in a continuous setting, your
+first job is to ask: \emph{random according to what density?} Naming $f$ is not a
+technicality; it is what makes the probability exist at all.
+\end{happeningbox}
+
+\section{Mixed and degenerate cases (a brief honesty note)}
+\label{ch10:mixed}
+
+Not every random variable is purely discrete or purely continuous. Consider an
+insurance payout that is $0$ with probability $0.7$ (no claim filed) and otherwise a
+continuous positive amount. Its CDF jumps at $0$ (a genuine point mass of $0.7$) and
+then rises smoothly -- it is a \emph{mixture}. Such variables have no ordinary
+density, because no integrable curve can produce a jump.
+
+\begin{marginnotebox}
+This is exactly why the CDF, not the pdf, is the truly universal object: \emph{every}
+random variable has a CDF, but only purely continuous ones have a density and only
+discrete ones have a PMF. The CDF handles staircases, ramps, and any blend of the two
+in one uniform language. When we build measure-theoretic probability later, the CDF
+(and the measure it induces) becomes the bedrock, with PMFs and pdfs as two special
+cases distinguished by whether the CDF is a sum of jumps or a smooth integral. For
+the rest of this book, ``continuous'' will mean ``has a density'' unless we say
+otherwise.
+\end{marginnotebox}
+
+\section{Chapter summary}
+\label{ch10:summary}
+
+\begin{focusbox}
+\textbf{The continuous toolkit.}
+\begin{itemize}
+\item A continuous $X$ has a \textbf{density} $f \ge 0$ with $\int_{-\infty}^\infty
+      f = 1$, and probability is \textbf{area}: $\P(a\le X\le b)=\int_a^b f$.
+\item \textbf{Points carry no probability:} $\P(X=x)=0$, so $<$ and $\le$ are
+      interchangeable; $f(x)$ is probability \emph{per unit length}, not a
+      probability, and may exceed $1$.
+\item The \textbf{CDF} $F(x)=\P(X\le x)=\int_{-\infty}^x f$ is universal; it is a
+      jumpless ramp for continuous $X$. Recover the density by differentiating:
+      $f = F'$ (the FTC in disguise).
+\item \textbf{Expectation and variance are integrals:} $\E[X]=\int x f$,
+      $\E[g(X)]=\int g\,f$, $\Var(X)=\int(x-\mu)^2 f = \E[X^2]-\mu^2$. All the old
+      identities survive, with $\sum \to \int$.
+\item The \textbf{uniform} $\Unif(a,b)$ is the base case: flat density
+      $1/(b-a)$, mean $(a+b)/2$, variance $(b-a)^2/12$.
+\item \textbf{Quantiles} invert the CDF, $x_p=F^{-1}(p)$; the median is the
+      equal-area split. The inverse-transform $X=F^{-1}(U)$ turns uniform noise into
+      any distribution.
+\item ``At random'' in the continuum is \textbf{undefined until you name the
+      density} (Bertrand's paradox).
+\end{itemize}
+\end{focusbox}
+
+\section{Exercises}
+\label{ch10:exercises}
+
+\begin{exercise}[Normalize and use a density]
+\label{ch10:exr-norm}
+Let $f(x) = c(1-x^2)$ for $-1 \le x \le 1$ and $0$ otherwise.
+(a) Find $c$. (b) Compute $\P(X > 1/2)$. (c) By symmetry, what is $\E[X]$? Verify
+with the integral.
+\end{exercise}
+
+\begin{exercise}[CDF to pdf and back]
+\label{ch10:exr-cdf}
+A variable has CDF $F(x) = \sqrt{x}$ for $0 \le x \le 1$ (with $0$ below, $1$ above).
+(a) Find the density $f$. (b) Sketch why $f$ blows up near $0$ even though it is a
+valid density. (c) Compute $\P(0.25 \le X \le 0.81)$ two ways: via $F$, and via
+$\int f$.
+\end{exercise}
+
+\begin{exercise}[Exponential basics]
+\label{ch10:exr-expo}
+Let $X$ have density $f(x) = \lambda e^{-\lambda x}$ for $x \ge 0$. (a) Find the CDF.
+(b) Show $\E[X] = 1/\lambda$ (integrate by parts). (c) Show $\Var(X)=1/\lambda^2$.
+(d) Find the median and explain why it is smaller than the mean.
+\end{exercise}
+
+\begin{exercise}[Why $\P(X=x)=0$ in your own words]
+\label{ch10:exr-pointmass}
+Using the area picture, explain to a skeptical friend how every outcome of a
+continuous variable can have probability $0$ while one of them certainly occurs.
+Then give the $\eps$-trapping argument from Section~\ref{ch10:point-mass-zero} in two
+or three lines.
+\end{exercise}
+
+\begin{exercise}[Uniform computations]
+\label{ch10:exr-unif}
+Let $X \sim \Unif(2,8)$. (a) Write $f$ and $F$. (b) Find $\P(3 \le X \le 5)$.
+(c) Find $\E[X]$ and $\Var(X)$ from the formulas, then re-derive $\Var$ by direct
+integration as a check. (d) Find the $0.9$ quantile.
+\end{exercise}
+
+\begin{exercise}[Mean versus median under skew]
+\label{ch10:exr-skew}
+For $f(x)=4x^3$ on $[0,1]$: (a) find the CDF; (b) find the mean and the median;
+(c) state which is larger and connect your answer to the direction of the skew, as
+in Example~\ref{ch10:ex-quantile}.
+\end{exercise}
+
+\begin{exercise}[Simulating by inverse transform]
+\label{ch10:exr-pit}
+You can only draw $U \sim \Unif(0,1)$. (a) Give an explicit formula $X=g(U)$ that
+produces $X \sim \Unif(2,8)$. (b) Give a formula that produces a variable with CDF
+$F(x)=x^4$ on $[0,1]$. (c) Verify (b) by computing the CDF of your $g(U)$ directly,
+using $\P(U\le u)=u$.
+\end{exercise}
+
+\begin{exercise}[Density can exceed one]
+\label{ch10:exr-bignum}
+Let $X \sim \Unif(0, 0.01)$. (a) What is the height of its density? (b) Reconcile a
+density value of $100$ with the rule that probabilities never exceed $1$.
+(c) Compute $\P(X \le 0.001)$ and confirm it is a legitimate probability.
+\end{exercise}
+
+\begin{exercise}[Proof: variance shortcut]
+\label{ch10:exr-varproof}
+Prove for a continuous $X$ with mean $\mu$ that
+$\int_{-\infty}^{\infty}(x-\mu)^2 f(x)\,\dd x = \int_{-\infty}^{\infty} x^2 f(x)\,\dd x
+- \mu^2$. State exactly which two properties of the integral you use, and where the
+fact $\int f = 1$ enters.
+\end{exercise}
+
+\begin{exercise}[Conceptual: Bertrand revisited]
+\label{ch10:exr-bertrand}
+In your own words, explain why Bertrand's chord paradox is \emph{not} a flaw in
+probability theory but a flaw in the problem statement. What single piece of
+information, if supplied, would make the question have exactly one correct answer?
+\end{exercise}

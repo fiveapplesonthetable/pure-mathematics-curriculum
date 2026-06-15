@@ -1,0 +1,819 @@
+\chapter{Transformations of Random Variables}
+
+You already own a small zoo of random variables -- uniforms, normals, exponentials,
+Poissons -- and you can compute their means, variances, and probabilities. But the
+random variables you actually \emph{care} about are almost never the ones handed to you.
+A physicist measures a voltage $X$ but wants the power $X^2$. A statistician simulates a
+uniform $U$ but needs a normal. A financier holds a log-return $R$ but quotes the price
+$e^{R}$. A geometer drops a random point and asks for its distance from the origin. In
+every case the same question arises: \emph{given the distribution of $X$, what is the
+distribution of $Y = g(X)$?}
+
+This is the central craft of this chapter. We will develop three complementary tools,
+each illuminating a different facet of the same truth:
+
+\begin{enumerate}
+  \item The \textbf{CDF method} -- the honest, always-correct workhorse: chase the
+        probability through the definition $F_Y(y) = \P(g(X) \le y)$.
+  \item The \textbf{change-of-variables (Jacobian) method} -- a shortcut for smooth,
+        invertible $g$ that reveals \emph{why} densities stretch and squeeze the way they
+        do, and which is nothing other than calculus' substitution rule wearing a
+        probabilistic hat.
+  \item \textbf{Order statistics} -- what happens to the minimum, the maximum, and the
+        sorted values of a sample, a transformation of \emph{many} variables at once.
+\end{enumerate}
+
+We close with the jewel that ties the whole chapter together: the \emph{probability
+integral transform}, which says that every random variable is secretly a uniform in
+disguise. That single fact is the engine inside almost every simulation you will ever
+run, and it leads us straight to the famous Box--Muller trick for manufacturing normals
+out of thin air.
+
+\chapterline
+
+\section{The Core Question, and Why It Is Subtle}
+\label{ch16:core}
+
+Let $X$ be a random variable with a known distribution, and let $g$ be a function. Then
+$Y = g(X)$ is a new random variable. Its randomness is entirely inherited from $X$ -- once
+the universe picks the value of $X$, the value of $Y$ is determined. So in some sense
+nothing new is happening. And yet the \emph{distribution} of $Y$ can look wildly different
+from that of $X$.
+
+\begin{intuitionbox}
+Picture the number line for $X$, and imagine its probability spread along it like a thin
+layer of paint -- thick where the density is high, thin where it is low. The function $g$
+\emph{relocates} every point: the paint at position $x$ gets moved to position $g(x)$.
+If $g$ stretches a region, the paint there gets spread thinner; if $g$ compresses a
+region, the paint piles up. The distribution of $Y$ is just the picture of where all the
+paint ended up. The whole subject is bookkeeping for \emph{conservation of paint}:
+probability is never created or destroyed, only moved.
+\end{intuitionbox}
+
+Here is the subtlety that trips everyone the first time. It is tempting to guess that the
+density of $Y$ at $y$ is simply the density of $X$ at $x = g^{-1}(y)$. That is wrong, and
+the reason it is wrong is the soul of this chapter.
+
+\begin{trapbox}
+\textbf{The most common mistake.} If $Y = g(X)$, then \emph{it is not true} that
+$f_Y(y) = f_X\!\big(g^{-1}(y)\big)$. Densities are not heights you can just relabel; they
+are \emph{amounts of probability per unit length}. When $g$ stretches the axis, the same
+chunk of probability is smeared over a longer interval, so the density must \emph{drop}.
+You must account for how much $g$ stretches or compresses -- that correction factor is the
+Jacobian. Forgetting it is the number-one error in transformation problems.
+\end{trapbox}
+
+A clean way to never make that mistake is to always reason in terms of the CDF, which
+deals in \emph{accumulated probability} (a dimensionless quantity that is immune to
+stretching) rather than density. So we start there.
+
+\section{The CDF Method}
+\label{ch16:cdf-method}
+
+The cumulative distribution function $F_Y(y) = \P(Y \le y)$ is the most robust handle on a
+distribution, because it is defined for \emph{every} random variable -- discrete,
+continuous, mixed, weird -- and because it is just a probability, so we can manipulate it
+with the laws of probability we already trust.
+
+\begin{focusbox}
+\textbf{The CDF recipe.} To find the distribution of $Y = g(X)$:
+\begin{enumerate}
+  \item Write $F_Y(y) = \P(Y \le y) = \P\big(g(X) \le y\big)$.
+  \item \emph{Solve the inequality} $g(X) \le y$ for $X$, turning it into a statement
+        about $X$ landing in some set.
+  \item Evaluate that probability using the known distribution of $X$ (i.e.\ using
+        $F_X$).
+  \item If $Y$ is continuous, differentiate: $f_Y(y) = F_Y'(y)$.
+\end{enumerate}
+The only step that takes thought is step 2 -- and that is just algebra plus care about the
+direction of inequalities.
+\end{focusbox}
+
+\subsection{First worked example: the square of a uniform}
+
+\begin{example}[$Y=X^2$ for a uniform]
+\label{ch16:unif-square}
+Let $X \sim \Unif(0,1)$, so $f_X(x) = 1$ for $0 < x < 1$, and let $Y = X^2$. Since $X$
+lives in $(0,1)$, so does $Y$. For $0 < y < 1$,
+\[
+  F_Y(y) = \P(X^2 \le y) = \P(X \le \sqrt{y}) = F_X(\sqrt{y}) = \sqrt{y},
+\]
+where we used that $X \ge 0$ so squaring is increasing on the relevant range.
+Differentiating,
+\[
+  f_Y(y) = \frac{\dd}{\dd y}\sqrt{y} = \frac{1}{2\sqrt{y}}, \qquad 0 < y < 1.
+\]
+\end{example}
+
+Stop and look at what just happened. We started with a perfectly flat density (the
+uniform) and ended with one that \emph{blows up} near $0$ (Figure~\ref{ch16:fig-square}).
+Squaring crushes the interval $(0,1)$ toward $0$ -- the values near $1$ stay near $1$, but
+the values near $\tfrac12$ get pulled down to $\tfrac14$, and values near $0.1$ get pulled
+all the way to $0.01$. So probability piles up near the origin, and the density spikes
+there. The CDF method delivered this automatically; we never had to ``think'' about
+paint piling up, because $F$ does that accounting for free.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6.2cm,
+  xlabel={value}, ylabel={density},
+  domain=0.02:1, samples=120,
+  ymin=0, ymax=4, xmin=0, xmax=1,
+  legend pos=north east, legend cell align=left,
+  axis lines=left, thick,
+]
+\addplot[densityred, very thick] {1/(2*sqrt(x))};
+\addlegendentry{$f_Y(y)=\tfrac{1}{2\sqrt{y}}$, \ $Y=X^2$}
+\addplot[distblue, very thick, dashed] coordinates {(0.02,1)(1,1)};
+\addlegendentry{$f_X(x)=1$, \ $X\sim\Unif(0,1)$}
+\end{axis}
+\end{tikzpicture}
+\caption{Squaring a uniform. The flat density of $X$ (dashed) becomes the spiking density
+of $Y=X^2$ (solid). Probability is conserved -- both curves enclose area $1$ -- but
+squaring compresses the small values together, piling density up near $0$.}
+\label{ch16:fig-square}
+\end{figure}
+
+\subsection{When $g$ is not monotone: fold the probability}
+
+If $g$ is not one-to-one, the inequality $g(X)\le y$ can correspond to \emph{several}
+intervals of $X$, and the CDF method handles this with no extra machinery -- you just add
+up all the pieces.
+
+\begin{example}[$Y = X^2$ for a standard normal -- the chi-squared]
+\label{ch16:normal-square}
+Let $Z \sim \Normal(0,1)$ and $Y = Z^2$. Now $Z$ ranges over all of $\R$, and the event
+$\{Z^2 \le y\}$ for $y > 0$ is the event $\{-\sqrt{y} \le Z \le \sqrt{y}\}$ -- a single
+interval, but a \emph{two-sided} one. Thus
+\[
+  F_Y(y) = \P(-\sqrt{y} \le Z \le \sqrt{y}) = \Phi(\sqrt{y}) - \Phi(-\sqrt{y})
+         = 2\Phi(\sqrt{y}) - 1,
+\]
+using the symmetry $\Phi(-a) = 1 - \Phi(a)$. Differentiate, recalling
+$\Phi'(z) = \varphi(z) = \tfrac{1}{\sqrt{2\pi}}e^{-z^2/2}$ and the chain rule
+$\tfrac{\dd}{\dd y}\sqrt{y} = \tfrac{1}{2\sqrt{y}}$:
+\[
+  f_Y(y) = 2\,\varphi(\sqrt{y})\cdot \frac{1}{2\sqrt{y}}
+         = \frac{1}{\sqrt{2\pi}}\, y^{-1/2} e^{-y/2}, \qquad y > 0.
+\]
+This is the \textbf{chi-squared distribution with one degree of freedom}, $\chi^2_1$
+(equivalently $\Gam(\tfrac12,\tfrac12)$). The factor of $2$ came from \emph{both} tails of
+the normal mapping onto the same positive $y$ -- the probability got \emph{folded}.
+\end{example}
+
+\begin{whybox}
+Why the factor of $2$? Because $g(z)=z^2$ maps two distinct inputs, $+\sqrt{y}$ and
+$-\sqrt{y}$, to the same output $y$. Each contributes its own sliver of probability to the
+density at $y$. The general lesson: when $g$ is many-to-one, the density of $Y$ at $y$ is a
+\emph{sum} over all the preimages $x$ with $g(x)=y$. The CDF method discovers this sum on
+its own, simply because solving $g(X)\le y$ naturally collects every relevant region of
+$X$.
+\end{whybox}
+
+\subsection{The general monotone formula, derived}
+
+Let us extract the pattern. Suppose $g$ is \emph{strictly increasing} and differentiable
+on the range of $X$, with inverse $g^{-1}$. Then $g(X)\le y \iff X \le g^{-1}(y)$, so
+\[
+  F_Y(y) = \P\big(X \le g^{-1}(y)\big) = F_X\big(g^{-1}(y)\big).
+\]
+Differentiating with the chain rule,
+\[
+  f_Y(y) = f_X\big(g^{-1}(y)\big)\cdot \frac{\dd}{\dd y} g^{-1}(y).
+\]
+If instead $g$ is \emph{strictly decreasing}, then $g(X)\le y \iff X \ge g^{-1}(y)$, so
+$F_Y(y) = 1 - F_X(g^{-1}(y))$, and now $\tfrac{\dd}{\dd y}g^{-1}(y)$ is negative;
+differentiating flips a sign and we land on the same formula with an absolute value. Both
+cases collapse into one clean statement, which is important enough to box.
+
+\begin{formalbox}
+\textbf{Change-of-variables formula (monotone case).} If $g$ is strictly monotone and
+differentiable with differentiable inverse, and $X$ has density $f_X$, then $Y=g(X)$ has
+density
+\[
+  \boxed{\;f_Y(y) = f_X\big(g^{-1}(y)\big)\,\abs[\Big]{\frac{\dd}{\dd y}\,g^{-1}(y)}\;}
+\]
+on the range of $g$, and $0$ elsewhere. Writing $x = g^{-1}(y)$ and using
+$\tfrac{\dd x}{\dd y} = 1/g'(x)$, this is the same as
+$f_Y(y) = f_X(x)\,/\,\abs{g'(x)}$.
+\end{formalbox}
+
+That absolute-value derivative term is the \textbf{Jacobian} (in one dimension). It is
+exactly the stretch factor of $g$: where $g$ stretches space ($\abs{g'}$ large), the
+density gets divided down; where $g$ compresses ($\abs{g'}$ small), the density gets
+multiplied up. This is the precise, quantitative form of ``conservation of paint.''
+
+\section{The Change-of-Variables (Jacobian) Method}
+\label{ch16:jacobian}
+
+\begin{connectionbox}
+\textbf{This is just $u$-substitution.} Recall from calculus that if you substitute
+$y = g(x)$ in an integral, then $\dd y = g'(x)\,\dd x$, and the limits and the integrand
+both transform. The transformation formula for densities is that same substitution rule
+applied to the statement $\int_A f_X(x)\,\dd x = \P(X \in A)$. We are literally
+re-expressing the probability integral in the new variable $y$. The absolute value on the
+Jacobian appears because probability is the \emph{unsigned} area under a density --
+swapping the orientation of the limits (which a decreasing $g$ does) must not flip the sign
+of a probability. See the companion calculus volume's chapter on substitution and the
+change-of-variables theorem for the multivariable Jacobian determinant we use below.
+\end{connectionbox}
+
+\begin{whybox}
+\textbf{The infinitesimal derivation.} Forget formulas for a moment and think in
+infinitesimals. A tiny interval $[x, x+\dd x]$ carries probability $f_X(x)\,\dd x$. Under
+a smooth $g$ it maps to the tiny interval $[y, y+\dd y]$ with $\dd y = \abs{g'(x)}\,\dd x$.
+\emph{All} of that probability must end up in the image interval -- paint is conserved --
+so
+\[
+  f_Y(y)\,\dd y = f_X(x)\,\dd x
+  \quad\Longrightarrow\quad
+  f_Y(y) = f_X(x)\,\frac{\dd x}{\dd y} = \frac{f_X(x)}{\abs{g'(x)}}.
+\]
+That is the whole theorem in two lines. Everything else is a careful version of this:
+``equal probability in corresponding little boxes.''
+\end{whybox}
+
+\subsection{Worked example: the lognormal}
+
+\begin{example}[Exponentiating a normal]
+\label{ch16:lognormal}
+Let $X \sim \Normal(\mu,\sigma^2)$ and $Y = e^{X}$. Here $g(x) = e^x$ is strictly
+increasing with inverse $g^{-1}(y) = \ln y$ for $y>0$, and $\tfrac{\dd}{\dd y}\ln y = 1/y$.
+Plugging into the boxed formula,
+\[
+  f_Y(y) = f_X(\ln y)\cdot \frac{1}{y}
+         = \frac{1}{y\,\sigma\sqrt{2\pi}}\,
+           \exp\!\left(-\frac{(\ln y - \mu)^2}{2\sigma^2}\right), \qquad y>0.
+\]
+This is the \textbf{lognormal distribution}: a random variable whose logarithm is normal.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6cm,
+  xlabel={$y$}, ylabel={density},
+  domain=0.02:6, samples=160,
+  ymin=0, ymax=0.75, xmin=0, xmax=6,
+  legend pos=north east, legend cell align=left,
+  axis lines=left, thick,
+]
+\addplot[densityred, very thick] {1/(x*0.5*sqrt(2*pi))*exp(-(ln(x))^2/(2*0.25))};
+\addlegendentry{$\sigma=0.5$}
+\addplot[distblue, very thick, dashed] {1/(x*1*sqrt(2*pi))*exp(-(ln(x))^2/(2*1))};
+\addlegendentry{$\sigma=1$}
+\end{axis}
+\end{tikzpicture}
+\caption{Lognormal densities ($\mu=0$). The variable lives on $(0,\infty)$, is skewed to
+the right, and has a long upper tail -- the signature of a quantity built from
+multiplicative shocks. The $1/y$ Jacobian factor pins the density to zero at the origin.}
+\label{ch16:fig-lognormal}
+\end{figure}
+
+\begin{applicationbox}
+\textbf{Why finance loves the lognormal.} Stock prices cannot go negative, and over a day
+they tend to move by \emph{percentages}, not by fixed dollar amounts -- a \$1000 stock and
+a \$10 stock both ``feel'' a $2\%$ move. If the log-return $\ln(S_{t+1}/S_t)$ is roughly
+normal (a sum of many small multiplicative shocks, blessed by the central limit theorem),
+then the price ratio is lognormal (Figure~\ref{ch16:fig-lognormal}), and the price stays positive automatically. The
+celebrated Black--Scholes option-pricing model is built on exactly this transformation:
+model the log-price as Brownian motion (normal increments), and the price itself is
+lognormal. The $1/y$ Jacobian factor is the mathematical fingerprint of ``returns are
+multiplicative.''
+\end{applicationbox}
+
+\subsection{The affine case, and why normals stay normal}
+
+\begin{example}[Linear transformation of a normal]
+\label{ch16:affine-normal}
+Let $X \sim \Normal(\mu,\sigma^2)$ and $Y = aX + b$ with $a \ne 0$. Then
+$g^{-1}(y) = (y-b)/a$ and $\abs{\tfrac{\dd}{\dd y}g^{-1}(y)} = 1/\abs{a}$, so
+\[
+  f_Y(y) = \frac{1}{\abs{a}}\,
+           \frac{1}{\sigma\sqrt{2\pi}}\exp\!\left(-\frac{((y-b)/a-\mu)^2}{2\sigma^2}\right)
+         = \frac{1}{\abs{a}\sigma\sqrt{2\pi}}
+           \exp\!\left(-\frac{(y-(a\mu+b))^2}{2(a\sigma)^2}\right).
+\]
+This is exactly the $\Normal(a\mu+b,\, a^2\sigma^2)$ density. So a linear function of a
+normal is normal, with the mean and variance transforming as $\E[Y]=a\mu+b$ and
+$\Var(Y)=a^2\sigma^2$ -- precisely the rules you learned for $\E$ and $\Var$, now confirmed
+at the level of the \emph{whole distribution}. Setting $a=1/\sigma$, $b=-\mu/\sigma$
+recovers the standardization $Z=(X-\mu)/\sigma \sim \Normal(0,1)$.
+\end{example}
+
+\subsection{Several variables at once: the Jacobian determinant}
+
+When $g$ maps a vector $(X_1,\dots,X_n)$ to a vector $(Y_1,\dots,Y_n)$, the one-dimensional
+stretch factor $\abs{g'}$ becomes the absolute value of the \emph{Jacobian determinant} of
+the inverse map. The logic is unchanged -- equal probability in corresponding little boxes
+-- but now the ``little box'' is an $n$-dimensional volume, and a linear map scales volume
+by the absolute value of its determinant.
+
+\begin{formalbox}
+\textbf{Multivariate change of variables.} Let $\mathbf{X}=(X_1,\dots,X_n)$ have joint
+density $f_{\mathbf X}$, and let $\mathbf Y = g(\mathbf X)$ for a smooth invertible $g$
+with inverse $\mathbf x = h(\mathbf y)$. Then
+\[
+  f_{\mathbf Y}(\mathbf y)
+  = f_{\mathbf X}\big(h(\mathbf y)\big)\,\abs[\big]{\det J_h(\mathbf y)},
+  \qquad
+  J_h(\mathbf y) = \left[\frac{\partial x_i}{\partial y_j}\right]_{i,j}.
+\]
+\end{formalbox}
+
+\begin{connectionbox}
+The determinant here is the \emph{signed volume scaling factor} of the linear map that best
+approximates $h$ near a point -- the same determinant from linear algebra. Its absolute
+value answers ``how much does this map blow up or shrink volumes?'' See the companion
+linear algebra volume's treatment of determinants as volume and the multivariable calculus
+chapter on the change-of-variables theorem; probability simply applies that theorem to a
+density.
+\end{connectionbox}
+
+We will put this two-dimensional version to spectacular use in the Box--Muller derivation
+of Section~\ref{ch16:box-muller}.
+
+\section{Order Statistics}
+\label{ch16:order-stats}
+
+So far $g$ has acted on a single variable. A different and enormously useful family of
+transformations acts on an entire i.i.d.\ sample by \emph{sorting} it. Suppose
+$X_1,\dots,X_n$ are i.i.d.\ with CDF $F$ and density $f$. Sort them from smallest to
+largest:
+\[
+  X_{(1)} \le X_{(2)} \le \dots \le X_{(n)}.
+\]
+The $k$-th value $X_{(k)}$ is the \textbf{$k$-th order statistic}. In particular
+$X_{(1)} = \min_i X_i$ and $X_{(n)} = \max_i X_i$. These are the random variables behind
+record-breaking, extreme weather, system reliability (a chain fails when its
+\emph{weakest} link fails -- the minimum), the sample median, and the range of a dataset.
+
+\subsection{Maximum and minimum: independence does the work}
+
+\begin{intuitionbox}
+The maximum is $\le y$ exactly when \emph{every single} observation is $\le y$. Because the
+observations are independent, that joint event factors into a product. That one
+observation -- ``all of them'' becomes ``each of them, multiplied'' -- is the entire idea
+behind the extreme order statistics.
+\end{intuitionbox}
+
+For the maximum $M = X_{(n)}$:
+\[
+  F_M(y) = \P(\max_i X_i \le y) = \P(X_1\le y,\dots,X_n\le y)
+         = \prod_{i=1}^n \P(X_i\le y) = [F(y)]^n.
+\]
+Differentiating, $f_M(y) = n\,[F(y)]^{n-1} f(y)$.
+
+For the minimum $L = X_{(1)}$, it is cleaner to use the survival function, since the
+minimum exceeds $y$ iff \emph{all} observations exceed $y$:
+\[
+  \P(L > y) = \P(X_1 > y,\dots,X_n > y) = [1-F(y)]^n,
+  \qquad F_L(y) = 1 - [1-F(y)]^n,
+\]
+and $f_L(y) = n\,[1-F(y)]^{n-1} f(y)$.
+
+\begin{example}[Minimum of exponentials -- the key to Poisson processes]
+\label{ch16:min-expo}
+Let $X_1,\dots,X_n$ be i.i.d.\ $\Expo(\lambda)$, so $1-F(y)=e^{-\lambda y}$. Then
+$\P(L>y) = (e^{-\lambda y})^n = e^{-n\lambda y}$, which is the survival function of an
+$\Expo(n\lambda)$. So the minimum of $n$ independent exponentials is again exponential,
+with the rates \emph{added}. This memorable fact -- ``the first of many independent alarm
+clocks rings at the combined rate'' -- is the algebraic heart of the Poisson process you
+will meet later.
+\end{example}
+
+\subsection{The general $k$-th order statistic}
+
+\begin{whybox}
+\textbf{A density by counting arrangements.} What is the density of $X_{(k)}$ at $y$? For
+$X_{(k)}$ to lie in the sliver $[y,y+\dd y]$, we need: exactly one observation in that
+sliver, exactly $k-1$ observations below $y$, and exactly $n-k$ above $y+\dd y$. Choosing
+\emph{which} observations play these roles is a multinomial count,
+$\tfrac{n!}{(k-1)!\,1!\,(n-k)!}$. Each ``below'' observation
+contributes probability $F(y)$, each ``above'' contributes $1-F(y)$, and the one in the
+sliver contributes $f(y)\,\dd y$. Multiply:
+\[
+  f_{X_{(k)}}(y) = \frac{n!}{(k-1)!\,(n-k)!}\,[F(y)]^{k-1}\,[1-F(y)]^{n-k}\,f(y).
+\]
+\end{whybox}
+
+\begin{formalbox}
+\textbf{Density of the $k$-th order statistic.} For an i.i.d.\ sample of size $n$ from a
+continuous distribution with CDF $F$ and density $f$,
+\[
+  f_{X_{(k)}}(y) = \frac{n!}{(k-1)!\,(n-k)!}\,[F(y)]^{k-1}\,[1-F(y)]^{n-k}\,f(y).
+\]
+Setting $k=1$ and $k=n$ recovers the minimum and maximum formulas above.
+\end{formalbox}
+
+\begin{example}[Order statistics of the uniform are Beta]
+\label{ch16:unif-order-beta}
+Let $X_1,\dots,X_n$ be i.i.d.\ $\Unif(0,1)$, so $F(y)=y$ and $f(y)=1$ on $(0,1)$. Then
+\[
+  f_{X_{(k)}}(y) = \frac{n!}{(k-1)!\,(n-k)!}\,y^{k-1}(1-y)^{n-k}, \qquad 0<y<1.
+\]
+This is exactly the $\Bet(k,\,n-k+1)$ density! So the $k$-th smallest of $n$ uniforms is
+Beta-distributed -- which is why the Beta family is the natural language for ``the
+distribution of a sorted uniform position,'' and why $\E[X_{(k)}] = k/(n+1)$: the order
+statistics divide $(0,1)$ into $n+1$ gaps of equal expected width. The sample maximum
+($k=n$) is $\Bet(n,1)$ with density $n y^{n-1}$, matching $n[F(y)]^{n-1}f(y)$ from before.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6.2cm,
+  xlabel={$y$}, ylabel={density of $X_{(k)}$},
+  domain=0:1, samples=120,
+  ymin=0, ymax=5, xmin=0, xmax=1,
+  legend pos=north west, legend cell align=left,
+  axis lines=left, thick,
+]
+% n=5, Beta(k, 6-k)
+\addplot[distblue, very thick] {5*(1-x)^4};            % k=1: 5(1-y)^4
+\addlegendentry{$k=1$ (min)}
+\addplot[targetgreen, very thick] {30*x^2*(1-x)^2};    % k=3: 30 y^2 (1-y)^2
+\addlegendentry{$k=3$ (median)}
+\addplot[densityred, very thick] {5*x^4};              % k=5: 5 y^4
+\addlegendentry{$k=5$ (max)}
+\end{axis}
+\end{tikzpicture}
+\caption{Order statistics of $n=5$ i.i.d.\ uniforms, each a Beta density. The minimum
+(left) clusters near $0$, the maximum (right) near $1$, and the median (middle) peaks at
+$\tfrac12$ -- the sorted positions spread out across $(0,1)$.}
+\label{ch16:fig-order}
+\end{figure}
+
+\begin{paradoxbox}
+\textbf{The German Tank Problem.} In World War II, the Allies wanted to estimate how many
+tanks Germany was producing. Captured tanks had sequential serial numbers
+$1,2,\dots,N$, and the Allies observed a sample of them; $N$ was unknown. The largest
+serial number seen, $X_{(n)}$, is an order statistic, and naively it \emph{underestimates}
+$N$ -- the true maximum is almost surely larger than any you have seen. But order-statistic
+reasoning fixes the bias: since the $n$ observed numbers carve $\{1,\dots,N\}$ into $n+1$
+expected-equal gaps, the gap above the maximum has expected size $N/(n+1)$, suggesting the
+unbiased estimate $\hat N = \tfrac{n+1}{n}X_{(n)} - 1$.
+Statisticians using this beat the intelligence agencies' guesses dramatically -- postwar
+records showed the formula was off by a few percent while espionage was off by factors of
+several. A transformation of a sample, understood correctly, outperformed spies.
+\end{paradoxbox}
+
+\section{The Probability Integral Transform}
+\label{ch16:pit}
+
+We now reach the most beautiful and useful transformation of all. It comes from applying a
+very special function $g$ -- a random variable's own CDF -- to that random variable.
+
+\begin{intuitionbox}
+The CDF $F$ measures \emph{how much probability lies to the left}. If you feed $X$ into its
+own $F$, you get $U = F(X)$ -- the percentile rank of $X$. And percentile ranks, by
+construction, are spread perfectly evenly: a quarter of the data has rank below $0.25$,
+half has rank below $0.5$, and so on. That ``perfectly even'' is the definition of the
+uniform distribution. So $F(X)$ is always $\Unif(0,1)$, no matter what $X$ was.
+\end{intuitionbox}
+
+\begin{theorem}[Probability Integral Transform]
+\label{ch16:pit-thm}
+Let $X$ be a continuous random variable with a strictly increasing CDF $F$. Then
+\[
+  U := F(X) \sim \Unif(0,1).
+\]
+Conversely, if $U \sim \Unif(0,1)$, then $X := F^{-1}(U)$ has CDF $F$.
+\end{theorem}
+
+\begin{proof}
+For the forward direction, take $u \in (0,1)$. Because $F$ is strictly increasing it has an
+inverse, and
+\[
+  \P(U \le u) = \P\big(F(X) \le u\big) = \P\big(X \le F^{-1}(u)\big)
+              = F\big(F^{-1}(u)\big) = u.
+\]
+A random variable whose CDF is $\P(U\le u) = u$ on $(0,1)$ is exactly $\Unif(0,1)$.
+
+For the converse, let $U \sim \Unif(0,1)$ and $X = F^{-1}(U)$. Then for any $x$,
+\[
+  \P(X \le x) = \P\big(F^{-1}(U) \le x\big) = \P\big(U \le F(x)\big) = F(x),
+\]
+using that $\P(U \le u) = u$. So $X$ has CDF $F$, as claimed.
+\end{proof}
+
+\begin{happeningbox}
+\textbf{Every distribution is a uniform in disguise.} The two halves of the theorem say
+the same thing from opposite ends. The forward half flattens \emph{any} continuous
+distribution into the uniform by viewing each value through its own percentile lens. The
+backward half rebuilds \emph{any} distribution from the uniform by running the percentile
+lens in reverse with $F^{-1}$ (the quantile function). The uniform on $(0,1)$ is thus a
+universal raw material: hand me uniform randomness and a quantile function, and I can
+conjure any distribution you like. This is not a curiosity -- it is the foundational
+algorithm of all stochastic simulation.
+\end{happeningbox}
+
+\begin{historybox}
+The idea that a CDF transforms its own variable into a uniform crystallized in the work of
+statisticians in the 1930s--40s -- it underlies R.~A.\ Fisher's use of $p$-values (a
+$p$-value is precisely $F$ applied to a test statistic under the null, hence uniform when
+the null holds) and the goodness-of-fit literature. When electronic computers arrived,
+John von Neumann, Stanislaw Ulam, and Nicholas Metropolis at Los Alamos turned it into an
+engine: the \emph{Monte Carlo method}, named for Ulam's gambling uncle, needed a way to
+manufacture samples from arbitrary distributions, and inverting the CDF was the first tool
+reached for. Von Neumann famously quipped that ``anyone who considers arithmetical methods
+of producing random digits is, of course, in a state of sin'' -- but the sin was
+productive: every simulation you run today descends from those Los Alamos nights.
+\end{historybox}
+
+\begin{applicationbox}
+\textbf{Inverse-transform sampling.} To generate a sample from a distribution with CDF $F$,
+when you can compute the quantile function $F^{-1}$:
+\begin{enumerate}
+  \item Draw $U \sim \Unif(0,1)$ (every language gives you this).
+  \item Return $X = F^{-1}(U)$.
+\end{enumerate}
+By Theorem~\ref{ch16:pit-thm}, $X$ has exactly the CDF $F$. For the exponential, $F(x) =
+1 - e^{-\lambda x}$ inverts to $F^{-1}(u) = -\tfrac{1}{\lambda}\ln(1-u)$, so
+$X = -\tfrac{1}{\lambda}\ln(1-U)$ -- or, since $1-U$ is also uniform,
+$X = -\tfrac{1}{\lambda}\ln U$ -- is an exponential sample. Two arithmetic operations turn
+a uniform into an exponential. This same trick generates Cauchy ($\tan(\pi(U-\tfrac12))$),
+logistic, Pareto, and any distribution whose quantile you can write down.
+\end{applicationbox}
+
+\begin{labbox}
+Before reading on, derive an inverse-transform generator for the standard \textbf{logistic}
+distribution, whose CDF is $F(x) = \dfrac{1}{1+e^{-x}}$ (the sigmoid you may know from
+logistic regression). Solve $u = 1/(1+e^{-x})$ for $x$. You should find
+$X = \ln\!\big(U/(1-U)\big)$ -- the \emph{log-odds} of a uniform. Notice that the sigmoid
+and the log-odds (logit) are inverse functions, and that the probability integral
+transform is what makes them a matched encoder/decoder pair.
+\end{labbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xlabel={$u$ (uniform input)}, ylabel={$x=F^{-1}(u)$ (output sample)},
+  domain=0.01:0.99, samples=120,
+  ymin=-0.2, ymax=4.6, xmin=0, xmax=1,
+  legend pos=north west, legend cell align=left,
+  axis lines=left, thick,
+]
+\addplot[densityred, very thick] {-ln(1-x)};
+\addlegendentry{$F^{-1}(u)=-\ln(1-u)$, \ $\Expo(1)$}
+\end{axis}
+\end{tikzpicture}
+\caption{Inverse-transform sampling for the $\Expo(1)$ distribution. Uniform inputs on the
+horizontal axis are pushed through the quantile function $F^{-1}$. Note how the steep right
+end stretches the rare large uniforms into the long exponential tail -- the curve's slope
+is doing the ``paint relocation'' of Section~\ref{ch16:core}.}
+\label{ch16:fig-pit}
+\end{figure}
+
+\begin{trapbox}
+The probability integral transform as stated needs $F$ \emph{continuous} (so that $F(X)$
+hits every value in $(0,1)$) and is cleanest when $F$ is strictly increasing (so $F^{-1}$
+is an honest function). For discrete or mixed distributions, $F$ has jumps and flat
+stretches; you then use the \emph{generalized inverse}
+$F^{-1}(u) = \inf\set{x : F(x) \ge u}$, and inverse-transform sampling still works -- it is
+how you simulate a Poisson or a Bernoulli. But $F(X)$ is no longer exactly uniform when $X$
+is discrete, so do not apply the forward half blindly to a discrete variable.
+\end{trapbox}
+
+\section{Box--Muller: Manufacturing Normals}
+\label{ch16:box-muller}
+
+Inverse-transform sampling has one villain: the normal distribution. Its CDF $\Phi$ has
+\emph{no elementary closed form}, and neither does $\Phi^{-1}$. So the slick
+``$F^{-1}(U)$'' recipe stalls exactly where we need it most -- the normal is the most
+sampled distribution on Earth. In 1958, George Box and Mervin Muller found a gorgeous way
+around this by transforming \emph{two} uniforms at once and exploiting the geometry of the
+plane.
+
+\begin{intuitionbox}
+The trick: a single normal is hard, but a \emph{pair} of independent normals is easy --
+because their joint density depends only on the distance from the origin. Picture a
+dartboard whose darts follow a 2D Gaussian: the cloud is perfectly circular. So instead of
+sampling the two Cartesian coordinates, sample in \emph{polar} coordinates -- pick a random
+angle (easy: uniform) and a random radius (also easy, via inverse transform on the radius's
+nice distribution). Then convert back to $(x,y)$ and read off two independent normals.
+\end{intuitionbox}
+
+\begin{whybox}
+\textbf{Why the radius is easy.} Let $X,Y \sim \Normal(0,1)$ independently. Their joint
+density is
+\[
+  f(x,y) = \frac{1}{2\pi}\,e^{-(x^2+y^2)/2}.
+\]
+It depends on $(x,y)$ only through $r^2 = x^2+y^2$ -- the circular symmetry made visible.
+Switch to polar coordinates $x = r\cos\theta$, $y=r\sin\theta$. The Jacobian of the polar
+map is $r$ (the standard area element $\dd x\,\dd y = r\,\dd r\,\dd\theta$), so the joint
+density of $(R,\Theta)$ is
+\[
+  f_{R,\Theta}(r,\theta) = \frac{1}{2\pi}\,e^{-r^2/2}\cdot r
+  = \underbrace{\frac{1}{2\pi}}_{\Theta}\;\cdot\;\underbrace{r\,e^{-r^2/2}}_{R},
+  \qquad 0<r,\ 0\le\theta<2\pi.
+\]
+This \emph{factors}: $\Theta \sim \Unif(0,2\pi)$ and, independently, $R$ has density
+$r\,e^{-r^2/2}$. The angle is uniform -- of course, by symmetry -- and the radius has a
+density we can integrate in closed form, unlike $\Phi$.
+\end{whybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0]
+% axes
+\draw[->,gray] (-2.6,0) -- (2.8,0) node[right]{$x=Z_1$};
+\draw[->,gray] (0,-2.6) -- (0,2.8) node[above]{$y=Z_2$};
+% circular gaussian cloud (faux scatter)
+\foreach \a/\rr in {20/1.1, 75/0.6, 130/1.5, 200/0.9, 250/1.7, 300/0.7, 340/1.3, 45/1.9, 160/0.4, 280/1.2, 110/2.0, 10/0.8, 220/1.4, 35/0.5, 190/1.6}{
+  \fill[sourceblue!55] (\a:\rr) circle (1.6pt);
+}
+% the sampled point
+\def\ang{35}\def\rad{2.1}
+\draw[targetgreen, very thick] (0,0) -- (\ang:\rad) node[midway,above,sloped]{$R=\sqrt{-2\ln U_1}$};
+\fill[densityred] (\ang:\rad) circle (2.4pt);
+\draw[densityred, thick] (0.7,0) arc (0:\ang:0.7);
+\node[densityred] at (16:1.05) {$\Theta=2\pi U_2$};
+\node[densityred,right] at (\ang:\rad) {$(Z_1,Z_2)$};
+\end{tikzpicture}
+\caption{Box--Muller geometry. A pair of independent standard normals is a rotationally
+symmetric cloud in the plane. Rather than sampling the Cartesian coordinates directly, draw
+a uniform angle $\Theta=2\pi U_2$ and a radius $R=\sqrt{-2\ln U_1}$, then read off
+$(Z_1,Z_2)=(R\cos\Theta,\,R\sin\Theta)$.}
+\label{ch16:fig-boxmuller}
+\end{figure}
+
+Now sample $R$ by inverse transform. Its CDF is
+\[
+  F_R(r) = \int_0^r s\,e^{-s^2/2}\,\dd s = 1 - e^{-r^2/2},
+\]
+so $S := R^2$ has $\P(R^2 \le s) = 1 - e^{-s/2}$ -- that is, $R^2 \sim \Expo(\tfrac12)$,
+which we already know how to sample. Setting $1 - e^{-r^2/2} = U_1$ and solving,
+$R = \sqrt{-2\ln(1-U_1)}$, or equivalently $R = \sqrt{-2\ln U_1}$. Convert back:
+
+\begin{formalbox}
+\textbf{Box--Muller transform} (Figure~\ref{ch16:fig-boxmuller})\textbf{.} Let $U_1, U_2$ be independent $\Unif(0,1)$. Define
+\[
+  R = \sqrt{-2\ln U_1}, \qquad \Theta = 2\pi U_2,
+\]
+and set
+\[
+  \boxed{\;Z_1 = R\cos\Theta = \sqrt{-2\ln U_1}\,\cos(2\pi U_2), \qquad
+          Z_2 = R\sin\Theta = \sqrt{-2\ln U_1}\,\sin(2\pi U_2).\;}
+\]
+Then $Z_1$ and $Z_2$ are \emph{independent} $\Normal(0,1)$ random variables. Two uniforms
+in, two independent normals out.
+\end{formalbox}
+
+\begin{happeningbox}
+What just happened is the multivariate change-of-variables theorem
+(Section~\ref{ch16:jacobian}) run \emph{in reverse} and read as an algorithm. We could not
+invert $\Phi$ in one dimension, so we lifted to two dimensions where the Gaussian's
+rotational symmetry hands us a factorization the one-dimensional problem hid. The Jacobian
+$r$ from polar coordinates was the secret ingredient -- it converted the stubborn
+$e^{-r^2/2}$ into the friendly $r\,e^{-r^2/2}$, whose integral is elementary. Symmetry plus
+a Jacobian defeated a non-elementary integral.
+\end{happeningbox}
+
+\begin{example}[Box--Muller by hand]
+\label{ch16:bm-example}
+Suppose your random-number generator hands you $U_1 = 0.135$ and $U_2 = 0.250$. Then
+\[
+  R = \sqrt{-2\ln 0.135} = \sqrt{-2(-2.002)} = \sqrt{4.005} \approx 2.001,
+  \qquad \Theta = 2\pi(0.250) = \tfrac{\pi}{2}.
+\]
+So $Z_1 = 2.001\cos(\pi/2) \approx 0$ and $Z_2 = 2.001\sin(\pi/2) \approx 2.001$. We have
+produced two standard-normal draws, $0.00$ and $2.00$, from two uniforms with nothing but a
+log, a square root, and a sine/cosine. (Here $U_2 = 0.25$ landed the angle exactly on the
+$y$-axis, which is why $Z_1$ came out essentially zero -- a coincidence of the chosen
+numbers, not a bias.)
+\end{example}
+
+\begin{applicationbox}
+\textbf{Where Box--Muller lives today.} Every time a deep-learning framework initializes a
+weight matrix with Gaussian noise, every time a Monte Carlo option pricer simulates a
+stock path, every time a physics engine adds thermal jitter, normal samples are being
+generated -- and for decades Box--Muller (or its rejection-based cousin, the
+\emph{polar/Marsaglia} method, which avoids the trig calls) did the job. Modern libraries
+often use the even faster Ziggurat algorithm, but Box--Muller remains the one everyone
+\emph{derives}, because it shows so cleanly how a clever transformation turns the cheap and
+universal uniform into the expensive and indispensable normal.
+\end{applicationbox}
+
+\section{A Unifying View}
+\label{ch16:unify}
+
+\begin{aestheticbox}
+Step back and notice that all three methods are one method seen from three angles.
+
+The \textbf{CDF method} tracks accumulated probability and is always valid because
+probabilities never lie. The \textbf{Jacobian method} is the CDF method differentiated --
+it trades global accounting for a local stretch factor, and it is fastest when $g$ is
+smooth and invertible. \textbf{Order statistics} are a multivariate transformation
+(sorting) handled by either method, plus a combinatorial count of arrangements. And the
+\textbf{probability integral transform} is the special, magical case where the
+transforming function is the CDF itself, collapsing every distribution onto the uniform and
+back.
+
+The single thread running through all of it is \emph{conservation of probability}:
+probability is a fixed total of one unit, and a transformation can only \emph{move} it,
+never make or destroy it. Master that one principle and you never need to memorize a
+transformation formula again -- you can re-derive any of them from ``where did the
+probability go?''
+\end{aestheticbox}
+
+\section*{Exercises}
+\addcontentsline{toc}{section}{Exercises}
+
+\begin{exercise}[CDF method, monotone]
+\label{ch16:ex-cube}
+Let $X \sim \Unif(0,1)$ and $Y = X^3$. Find $F_Y$ and $f_Y$ by the CDF method, then
+re-derive $f_Y$ using the Jacobian formula and check they agree. Where does the density
+blow up, and why?
+\end{exercise}
+
+\begin{exercise}[Folding a symmetric variable]
+\label{ch16:ex-abs}
+Let $X \sim \Normal(0,1)$ and $Y = \abs{X}$ (the ``half-normal''). Show that
+$f_Y(y) = \sqrt{2/\pi}\,e^{-y^2/2}$ for $y>0$, and explain the factor of $2$ in terms of
+preimages.
+\end{exercise}
+
+\begin{exercise}[Exponential to uniform and back]
+\label{ch16:ex-expo-pit}
+Let $X \sim \Expo(\lambda)$. Verify directly that $U = 1 - e^{-\lambda X}$ is $\Unif(0,1)$,
+illustrating the forward probability integral transform. Then start from
+$U \sim \Unif(0,1)$ and recover an exponential, confirming the converse.
+\end{exercise}
+
+\begin{exercise}[Inverse-transform design]
+\label{ch16:ex-pareto}
+The Pareto distribution has CDF $F(x) = 1 - (x_m/x)^{\alpha}$ for $x \ge x_m > 0$ and
+$\alpha>0$. Derive the inverse-transform sampler $X = F^{-1}(U)$, and write a one-line
+formula that turns a uniform draw into a Pareto draw.
+\end{exercise}
+
+\begin{exercise}[Order statistics computation]
+\label{ch16:ex-order}
+Five sensors have independent $\Unif(0,1)$ failure thresholds. (a) Find the density of the
+\emph{second-smallest} threshold $X_{(2)}$ and identify it as a Beta distribution. (b)
+Compute $\E[X_{(2)}]$. (c) Find the probability that the largest threshold exceeds $0.9$.
+\end{exercise}
+
+\begin{exercise}[Minimum of exponentials]
+\label{ch16:ex-min-expo}
+Let $X_1,\dots,X_n$ be independent with $X_i \sim \Expo(\lambda_i)$ (possibly different
+rates). Show that $\min_i X_i \sim \Expo\!\big(\sum_i \lambda_i\big)$, and that the
+probability that $X_j$ is the minimum equals $\lambda_j / \sum_i \lambda_i$. (Hint: use the
+survival function for the first part; condition on $X_j$ and integrate for the second.)
+\end{exercise}
+
+\begin{exercise}[A two-variable Jacobian]
+\label{ch16:ex-jacobian2}
+Let $X, Y$ be independent $\Expo(1)$. Define $S = X + Y$ and $T = X/(X+Y)$. Using the
+two-dimensional change-of-variables formula, show that $S \sim \Gam(2,1)$ and
+$T \sim \Unif(0,1)$, and that $S$ and $T$ are independent. (This is a famous and surprising
+decoupling of ``total'' from ``proportion.'')
+\end{exercise}
+
+\begin{exercise}[Box--Muller verification]
+\label{ch16:ex-bm}
+Carry out the Box--Muller change of variables in full: starting from the joint density of
+$(Z_1, Z_2)$ as the map of $(U_1, U_2)$, compute the $2\times2$ Jacobian determinant and
+confirm that the resulting joint density of $(Z_1,Z_2)$ is
+$\tfrac{1}{2\pi}e^{-(z_1^2+z_2^2)/2}$, hence two independent standard normals.
+\end{exercise}
+
+\begin{exercise}[Conceptual: why the absolute value?]
+\label{ch16:ex-absval}
+Explain, without computation, why the change-of-variables formula has $\abs{g'(x)}$ rather
+than $g'(x)$. What would go wrong for a strictly decreasing $g$ if the absolute value were
+omitted? Relate your answer to ``densities are nonnegative'' and ``probabilities are
+nonnegative.''
+\end{exercise}
+
+\begin{exercise}[Proof: PIT for general continuous $F$]
+\label{ch16:ex-pit-proof}
+Prove the forward probability integral transform without assuming $F$ is strictly
+increasing -- only continuous. (Hint: define the generalized inverse
+$F^{-1}(u) = \inf\set{x : F(x)\ge u}$ and show $\P(F(X)\le u) = u$ by relating the event
+$\set{F(X)\le u}$ to $\set{X \le F^{-1}(u)}$.)
+\end{exercise}
+
+\begin{exercise}[Median of an odd sample]
+\label{ch16:ex-median}
+For an i.i.d.\ sample of size $n = 2m+1$ from $\Unif(0,1)$, the sample median is
+$X_{(m+1)}$. Write its density, identify the Beta distribution, and argue from symmetry
+that its mean is exactly $\tfrac12$. How does its variance behave as $n \to \infty$, and
+what does that say about the sample median as an estimator?
+\end{exercise}
+
+\begin{exercise}[Simulating a triangular distribution]
+\label{ch16:ex-triangular}
+The symmetric triangular density on $(0,1)$ is $f(x) = 4x$ for $0<x\le\tfrac12$ and
+$f(x)=4(1-x)$ for $\tfrac12<x<1$. (a) Find its CDF. (b) Derive the piecewise
+inverse-transform sampler. (c) Show that the same distribution arises as the average
+$(U_1+U_2)/2$ of two independent uniforms, giving a second, slicker simulation recipe.
+\end{exercise}

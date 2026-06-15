@@ -1,0 +1,892 @@
+\chapter{Information Theory}
+
+There is a moment, early in learning probability, when you start to feel that a probability distribution
+is somehow \emph{carrying} something. A fair coin and a coin that lands heads 99.9\% of the time are both
+``random,'' yet they feel profoundly different. Watching the fair coin, you are genuinely in suspense
+every flip. Watching the lopsided coin, you can predict ``heads'' over and over and be right almost
+always; the outcomes barely tell you anything you did not already expect. One distribution is rich with
+uncertainty; the other is nearly empty of it.
+
+Information theory is the branch of probability that takes this feeling and turns it into arithmetic. It
+gives us a single number---the \emph{entropy}---that measures how much uncertainty a distribution holds,
+how surprised we should expect to be, and (astonishingly) how many bits we would need, on average, to
+record a draw from it. From that one idea grows a whole web of quantities: conditional entropy, mutual
+information, KL divergence, cross-entropy. These are not exotic curiosities. Cross-entropy is the loss
+function that trains essentially every modern classifier. KL divergence is the engine of variational
+inference. Mutual information is how we measure dependence when correlation is too crude. And, as we will
+see, maximizing likelihood---the workhorse of all of statistics---is secretly the very same thing as
+minimizing a cross-entropy.
+
+This chapter was born in 1948, in a single paper by Claude Shannon, and it has the rare quality of being
+both deep and \emph{usable on the first day}. Let us build it from the ground up, starting with a single
+question: how surprised should you be?
+
+\chapterline
+
+\section{Surprise: measuring how much an outcome tells you}
+\label{ch33:surprise}
+
+Imagine a friend texts you the result of an event. Some texts are boring; some are jolting. The text
+``the sun rose this morning'' carries essentially no information---you already knew it. The text ``it
+snowed in the Sahara today'' is electrifying precisely because it was so unlikely. The lesson is immediate
+and intuitive:
+
+\begin{intuitionbox}
+Information is the resolution of uncertainty. An outcome is \emph{informative} exactly to the degree that
+it was \emph{surprising}---that is, to the degree that it was \emph{improbable}. Certain events tell you
+nothing. Rare events tell you a lot.
+\end{intuitionbox}
+
+So we want a function $S(p)$, the ``surprise'' of an event of probability $p$, that is large when $p$ is
+small and small when $p$ is large. But there are infinitely many decreasing functions. What pins down the
+\emph{right} one? Shannon's move was to write down a few properties that any honest measure of surprise
+\emph{must} have, and then discover that those properties leave essentially no freedom.
+
+\begin{focusbox}
+We demand three things of surprise $S(p)$, where $p \in (0,1]$ is the probability of an event:
+\begin{enumerate}
+  \item \textbf{Certainty is unsurprising.} $S(1) = 0$. Being told something you already knew for sure
+        carries no information.
+  \item \textbf{Rarer is more surprising.} $S$ is decreasing in $p$: if $p < q$ then $S(p) > S(q)$.
+  \item \textbf{Independent surprises add.} If two \emph{independent} events have probabilities $p$ and
+        $q$, learning that both happened should surprise you by the sum of the individual surprises:
+        $S(pq) = S(p) + S(q)$.
+\end{enumerate}
+\end{focusbox}
+
+The third axiom is the heart of it, and it deserves a sentence of defense. If I tell you two
+\emph{unrelated} pieces of news---say, that a particular fair coin came up heads (probability $1/2$) and
+that a particular fair die came up six (probability $1/6$)---the total ``newness'' should be the
+information in the coin \emph{plus} the information in the die. There is no double-counting and no
+discount, because the events have nothing to do with each other. Their joint probability is $1/2 \cdot
+1/6 = 1/12$, so we are demanding $S(1/12) = S(1/2) + S(1/6)$. Additivity over multiplication of
+probabilities: that is a functional equation, and it has a famous solution.
+
+\begin{whybox}
+\textbf{Why surprise must be a logarithm.} We want $S(pq) = S(p) + S(q)$ for all $p,q \in (0,1]$. Turn
+products into sums and sums stay sums---that is the defining property of the logarithm. Let us prove it is
+forced, not just convenient.
+
+Substitute $p = e^{-x}$, $q = e^{-y}$ (so $x,y \ge 0$), and define $g(x) = S(e^{-x})$. The functional
+equation becomes
+\[
+  g(x + y) \;=\; S(e^{-(x+y)}) \;=\; S(e^{-x} e^{-y}) \;=\; S(e^{-x}) + S(e^{-y}) \;=\; g(x) + g(y).
+\]
+This is \emph{Cauchy's functional equation}, $g(x+y) = g(x) + g(y)$. Together with monotonicity (which we
+imposed in axiom 2), its only solutions are the linear ones, $g(x) = c\,x$ for a constant $c$. Unwinding,
+$S(p) = g(-\ln p) = -c\,\ln p$. Axiom 2 (decreasing) forces $c > 0$, and axiom 1 ($S(1)=0$) is then
+automatic since $\ln 1 = 0$. So
+\[
+  \boxed{\,S(p) = -c\,\ln p = c\,\ln\frac{1}{p}\,}
+\]
+is the \emph{unique} measure of surprise, up to the positive scale constant $c$.
+\end{whybox}
+
+The constant $c$ is just a choice of \emph{units}, exactly like choosing meters versus feet. Two choices
+dominate practice:
+
+\begin{itemize}
+  \item Take the logarithm in base $2$: $S(p) = \log_2(1/p)$. The unit is the \textbf{bit}. A fair coin
+        ($p = 1/2$) carries $\log_2 2 = 1$ bit of surprise---the canonical ``one yes/no question''
+        worth of information. This is the data-science default, and we use it throughout.
+  \item Take the natural logarithm: $S(p) = \ln(1/p)$. The unit is the \textbf{nat}. This is common in
+        statistics and machine learning, because $\ln$ plays nicely with calculus and with the
+        likelihoods we will meet later.
+\end{itemize}
+
+To convert, recall $\log_2 x = \ln x / \ln 2$, so one nat $= 1/\ln 2 \approx 1.4427$ bits. We write $\log$
+without a base when the base does not matter, and pin it down when it does.
+
+\begin{example}[How surprised is a die?]
+\label{ch33:die-surprise}
+Roll a fair six-sided die. Each face has probability $1/6$, so seeing any particular face carries
+\[
+  S(1/6) = \log_2 6 \approx 2.585 \text{ bits}.
+\]
+Seeing a ``$6$ then a $6$'' on two independent rolls carries $\log_2 36 = 2\log_2 6 \approx 5.17$ bits,
+exactly twice as much---additivity in action. Now load the die so that ``six'' has probability $1/2$.
+Seeing a six now carries only $\log_2 2 = 1$ bit (it is half-expected), while seeing the rare ``one,''
+say with probability $1/10$, carries $\log_2 10 \approx 3.32$ bits. Surprising outcomes shout; expected
+ones whisper.
+\end{example}
+
+\section{Entropy: the average surprise of a distribution}
+\label{ch33:entropy}
+
+Surprise is a property of a single \emph{outcome}. But we usually want to characterize the whole
+\emph{distribution}: how uncertain is this random variable, on average, before we see it? The natural
+answer is to average the surprise over all outcomes, weighting each by how often it occurs. That average
+is the \textbf{entropy}.
+
+\begin{definition}[Shannon entropy]
+\label{ch33:def-entropy}
+Let $X$ be a discrete random variable with pmf $p(x) = \P(X = x)$ over a finite or countable alphabet
+$\mathcal{X}$. The \emph{entropy} of $X$ is the expected surprise,
+\[
+  H(X) \;=\; \E\!\left[\,S(p(X))\,\right]
+        \;=\; \sum_{x \in \mathcal{X}} p(x)\,\log\frac{1}{p(x)}
+        \;=\; -\sum_{x \in \mathcal{X}} p(x)\,\log p(x).
+\]
+We adopt the convention $0\log 0 = 0$ (justified because $p\log p \to 0$ as $p \to 0^+$), so
+zero-probability outcomes contribute nothing. With $\log = \log_2$ the units are bits; with $\ln$, nats.
+\end{definition}
+
+A crucial point of language: entropy depends only on the \emph{probabilities}, not on the labels of the
+outcomes. The faces of a die could be marked with colors, animals, or prime numbers; relabeling does not
+change how uncertain the die is. Entropy is a functional of the probability vector $(p_1, \dots, p_n)$,
+and we sometimes write $H(p_1, \dots, p_n)$ to emphasize this.
+
+\begin{happeningbox}
+\textbf{Entropy is an expectation in disguise.} Notice the formula is literally
+$\E[\,\log(1/p(X))\,]$---the expectation of the random variable ``surprise of whatever I drew.'' Everything
+you know about expectations applies. This is why entropy behaves so much like a center of mass of
+surprise. When one outcome dominates, almost all the weight sits on a small surprise, and the average is
+tiny. When the weight is spread out, every outcome is moderately surprising, and the average is large. The
+whole subject is, at bottom, expectations of logarithms of probabilities.
+\end{happeningbox}
+
+\subsection{The binary entropy function}
+
+The simplest nontrivial case is a single biased coin: $X = 1$ with probability $p$, $X = 0$ with
+probability $1-p$. Its entropy is so important it gets its own name and symbol:
+\[
+  H_b(p) \;=\; -p\log_2 p - (1-p)\log_2(1-p).
+\]
+Look at the shape of this function (Figure~\ref{ch33:fig-binary-entropy}). It is zero at $p = 0$ and
+$p = 1$---a coin that always lands the same way has no uncertainty, and indeed carries zero information
+per flip. It rises to a single maximum of exactly $1$ bit at $p = 1/2$, the fair coin, which is the most
+uncertain a binary outcome can be. And it is symmetric: a coin biased $90/10$ is exactly as uncertain as
+one biased $10/90$, because uncertainty does not care which side we call ``heads.''
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=11.5cm, height=7cm,
+    xlabel={$p$ (probability of heads)},
+    ylabel={$H_b(p)$ (bits)},
+    domain=0.001:0.999, samples=160,
+    xmin=0, xmax=1, ymin=0, ymax=1.08,
+    grid=both, grid style={gray!18},
+    legend pos=south east, legend cell align=left,
+    title={The binary entropy function},
+]
+\addplot[distblue, very thick] {-x*log2(x) - (1-x)*log2(1-x)};
+\addlegendentry{$H_b(p)=-p\log_2 p-(1-p)\log_2(1-p)$}
+\addplot[densityred, dashed, thick] coordinates {(0.5,0) (0.5,1)};
+\addlegendentry{maximum at $p=\tfrac12$, $H_b=1$ bit}
+\end{axis}
+\end{tikzpicture}
+\caption{Binary entropy. A fair coin ($p=\tfrac12$) is maximally uncertain at $1$ bit; near-deterministic
+coins ($p\to 0$ or $p\to 1$) carry almost no uncertainty. The curve is steep near the ends---moving from
+$p=0.5$ to $p=0.6$ barely changes entropy, but moving from $p=0.99$ to $p=0.999$ matters a great deal.}
+\label{ch33:fig-binary-entropy}
+\end{figure}
+
+\begin{example}[Entropy of a fair vs.\ loaded die]
+\label{ch33:fair-loaded-die}
+A fair six-sided die has $p(x) = 1/6$ for each face, so
+\[
+  H = \sum_{x=1}^{6} \tfrac16 \log_2 6 = \log_2 6 \approx 2.585 \text{ bits}.
+\]
+Now load it: $p = (0.5,\,0.1,\,0.1,\,0.1,\,0.1,\,0.1)$. Then
+\[
+  H = -0.5\log_2 0.5 - 5\,(0.1\log_2 0.1)
+    = 0.5 + 5(0.1 \cdot 3.3219)
+    = 0.5 + 1.661 = 2.161 \text{ bits}.
+\]
+The loaded die is \emph{less} uncertain than the fair one, as it should be---you can guess ``six'' and be
+right half the time. Concentrating probability always lowers entropy.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=12cm, height=6cm,
+    ybar, bar width=10pt,
+    xlabel={face}, ylabel={probability $p(x)$},
+    xmin=0.5, xmax=6.5, ymin=0, ymax=0.58,
+    xtick={1,2,3,4,5,6},
+    ymajorgrids=true, grid style={gray!18},
+    legend pos=north east, legend cell align=left,
+    enlarge x limits=0.12,
+]
+\addplot[draw=distblue, fill=distblue!35] coordinates {(1,0.1667)(2,0.1667)(3,0.1667)(4,0.1667)(5,0.1667)(6,0.1667)};
+\addlegendentry{fair: $H=2.585$ bits}
+\addplot[draw=densityred, fill=densityred!30] coordinates {(1,0.1)(2,0.1)(3,0.1)(4,0.1)(5,0.1)(6,0.5)};
+\addlegendentry{loaded: $H=2.161$ bits}
+\end{axis}
+\end{tikzpicture}
+\caption{Probability mass functions of the fair die (flat, uniform) and the loaded die from
+Example~\ref{ch33:fair-loaded-die}, which dumps half its mass on the face ``$6$.'' Concentrating mass on
+one outcome makes the die more predictable and lowers its entropy from $2.585$ to $2.161$ bits.}
+\label{ch33:fig-die-pmf}
+\end{figure}
+
+\subsection{The bounds: why uniform is the most uncertain}
+
+Two facts about entropy are so basic that they anchor all intuition. First, entropy is never negative.
+Second, on an alphabet of $n$ symbols it never exceeds $\log n$, with equality exactly for the uniform
+distribution.
+
+\begin{theorem}[Bounds on entropy]
+\label{ch33:entropy-bounds}
+For a discrete random variable $X$ on an alphabet of size $n$,
+\[
+  0 \;\le\; H(X) \;\le\; \log n,
+\]
+where the lower bound holds with equality iff $X$ is deterministic (some outcome has probability $1$), and
+the upper bound holds with equality iff $X$ is uniform ($p(x) = 1/n$ for all $x$).
+\end{theorem}
+
+\begin{whybox}
+\textbf{Why uniform maximizes entropy.} The lower bound is easy: each term $p(x)\log(1/p(x)) \ge 0$ since
+$0 \le p(x) \le 1$, so the sum is nonnegative, and it vanishes exactly when every term does, i.e.\ when
+some $p(x) = 1$.
+
+For the upper bound, the slick proof uses \emph{Jensen's inequality} for the concave function $\log$.
+Write the entropy as an expectation and pull the $\log$ outside:
+\begin{align*}
+  H(X) = \sum_x p(x)\log\frac{1}{p(x)} = \E\!\left[\log\frac{1}{p(X)}\right]
+       &\;\le\; \log \E\!\left[\frac{1}{p(X)}\right]
+        = \log\!\left(\sum_x p(x)\cdot\frac{1}{p(x)}\right) \\
+       &= \log\!\left(\sum_{x:\,p(x)>0} 1\right) \le \log n.
+\end{align*}
+The single inequality is Jensen's, valid because $\log$ is concave; equality in Jensen requires
+$1/p(X)$ to be constant, i.e.\ all the $p(x)$ equal, i.e.\ uniform. The final $\le \log n$ counts the
+support. So entropy is maximized by spreading probability as evenly as possible---uncertainty is
+greatest when no outcome is favored.
+\end{whybox}
+
+\begin{aestheticbox}
+This is the ``maximum entropy principle'' in its purest form: among all distributions on $n$ symbols,
+the one that assumes the least---commits to nothing beyond ``these $n$ things can happen''---is the
+uniform one, and it has the most entropy. Maximizing entropy subject to constraints is a deep modeling
+principle: it produces the distribution that is maximally noncommittal given what you actually know. With
+a fixed mean it yields the exponential; with a fixed mean and variance it yields the Gaussian. The bell
+curve is, in this sense, the most honest distribution with a given spread.
+\end{aestheticbox}
+
+\begin{historybox}
+\textbf{Shannon, 1948.} Claude Shannon was a research mathematician at Bell Labs when he published
+\emph{A Mathematical Theory of Communication} in the \emph{Bell System Technical Journal}. In one stroke
+it created the field. The story goes that Shannon was unsure what to call his $-\sum p\log p$ quantity.
+John von Neumann reportedly advised him to call it \emph{entropy}---both because the identical formula
+appears in statistical mechanics (where Boltzmann and Gibbs had written $S = -k\sum p\log p$ decades
+earlier), and, von Neumann supposedly added with a wink, because ``nobody knows what entropy really is,
+so in a debate you will always have the advantage.'' The pun is real: thermodynamic entropy and Shannon
+entropy are the \emph{same} mathematical object, measuring missing information about microscopic states.
+\end{historybox}
+
+\section{Source coding: entropy is the cost of description}
+\label{ch33:source-coding}
+
+So far entropy is ``average surprise,'' which is poetic but abstract. Shannon's first great theorem makes
+it concrete and a little miraculous: \emph{entropy is the minimum average number of bits needed to
+encode draws from a distribution.} It is not a metaphor that entropy is measured in bits. It is the
+literal, unbeatable cost of writing the outcomes down.
+
+\begin{intuitionbox}
+Suppose you must transmit a long sequence of draws from $X$ over a channel that only speaks $0$s and $1$s,
+using as few symbols as possible. The trick is to give \emph{short codewords to frequent outcomes and
+long codewords to rare ones}---exactly what Morse code does (``E'' is a single dot; ``Q'' is dash-dash-dot-dash).
+The surprise $\log_2(1/p(x))$ turns out to be the ideal length, in bits, for the codeword of an outcome
+that occurs with probability $p(x)$. Averaging those ideal lengths gives the entropy.
+\end{intuitionbox}
+
+\begin{theorem}[Shannon's source coding theorem, informally]
+\label{ch33:source-coding-thm}
+To encode i.i.d.\ draws from $X$ with a uniquely decodable binary code, the average codeword length $L$
+must satisfy $L \ge H(X)$ (in bits). Conversely, you can always build a code with $L < H(X) + 1$, and by
+coding long blocks of draws together you can push the average bits-per-symbol arbitrarily close to
+$H(X)$. The entropy is the fundamental limit of lossless compression.
+\end{theorem}
+
+\begin{walkbox}
+Why can't a code beat the assignment ``length $\approx \log_2(1/p(x))$''? Because of a budget. In any
+prefix-free binary code (no codeword is the start of another, so decoding is unambiguous), the codeword
+lengths $\ell(x)$ must satisfy \emph{Kraft's inequality} $\sum_x 2^{-\ell(x)} \le 1$---there is only so
+much ``room'' in the tree of binary strings. Minimizing the average length $\sum_x p(x)\ell(x)$ subject to
+that budget (treat the $\ell$ as continuous and use Lagrange multipliers) gives the optimum $\ell(x) =
+\log_2(1/p(x))$, and the minimized average is exactly $\sum_x p(x)\log_2(1/p(x)) = H(X)$. The integer
+constraint on real codeword lengths costs at most $1$ extra bit, which is the ``$+1$'' in the theorem, and
+it washes out when you code blocks.
+\end{walkbox}
+
+\begin{example}[A code that hits the bound]
+\label{ch33:huffman-example}
+Let $X$ take four values with probabilities $\tfrac12, \tfrac14, \tfrac18, \tfrac18$. The entropy is
+\[
+  H(X) = \tfrac12\cdot 1 + \tfrac14\cdot 2 + \tfrac18\cdot 3 + \tfrac18\cdot 3
+       = 0.5 + 0.5 + 0.375 + 0.375 = 1.75 \text{ bits.}
+\]
+Now assign codewords by surprise: $a \mapsto \texttt{0}$ (length $1 = \log_2 2$), $b \mapsto \texttt{10}$
+(length $2$), $c \mapsto \texttt{110}$, $d \mapsto \texttt{111}$ (length $3$ each). This is prefix-free,
+and its average length is $\tfrac12(1) + \tfrac14(2) + \tfrac18(3) + \tfrac18(3) = 1.75$ bits---it
+\emph{exactly} matches the entropy, because every probability is a power of $1/2$ so the ideal lengths are
+integers. A naive fixed-length code would spend $2$ bits per symbol ($\log_2 4$). Matching code lengths to
+surprise saves $0.25$ bits per symbol, forever.
+\end{example}
+
+\begin{connectionbox}
+The Lagrange-multiplier optimization in the walking question is the same machinery you met in
+multivariable calculus: minimize $\sum_x p(x) \ell(x)$ on the constraint surface $\sum_x 2^{-\ell(x)} = 1$. The
+gradient condition $\nabla(\text{objective}) = \lambda\,\nabla(\text{constraint})$ delivers $\ell(x) \propto
+\log(1/p(x))$ immediately. See the companion calculus volume's chapter on constrained optimization; the
+``shadow price'' $\lambda$ here is literally the conversion between probability and bits.
+\end{connectionbox}
+
+\section{Joint and conditional entropy}
+\label{ch33:joint-conditional}
+
+Real problems involve several random variables at once, and the questions become relational: how much
+total uncertainty is in the pair $(X,Y)$? Once I learn $Y$, how much uncertainty about $X$ remains? These
+are answered by joint and conditional entropy, and they obey a beautifully simple bookkeeping.
+
+\begin{definition}[Joint and conditional entropy]
+\label{ch33:def-joint-cond}
+For discrete $X,Y$ with joint pmf $p(x,y)$, the \emph{joint entropy} is
+\[
+  H(X,Y) = -\sum_{x,y} p(x,y)\log p(x,y),
+\]
+simply the entropy of the pair viewed as one combined variable. The \emph{conditional entropy} of $X$
+given $Y$ is the average, over $y$, of the remaining uncertainty about $X$:
+\[
+  H(X \given Y) = \sum_y p(y)\,H(X \given Y = y)
+              = -\sum_{x,y} p(x,y)\log p(x \given y).
+\]
+\end{definition}
+
+The conditional entropy $H(X \given Y)$ answers exactly the question ``after I am told $Y$, how surprised
+will I still be by $X$, on average?'' Note the averaging: for a \emph{particular} value $Y=y$ the residual
+uncertainty $H(X \given Y=y)$ could go up or down, but \emph{averaged} over $Y$, conditioning can only
+help---more on that shortly.
+
+\begin{theorem}[Chain rule for entropy]
+\label{ch33:chain-rule}
+\[
+  H(X,Y) = H(X) + H(Y \given X) = H(Y) + H(X \given Y).
+\]
+\end{theorem}
+
+\begin{whybox}
+\textbf{Why the chain rule is just $\log$ of the multiplication rule.} The whole identity falls out of
+$p(x,y) = p(x)\,p(y \given x)$, the multiplication rule for probabilities, after taking $-\log$ and
+averaging. Watch:
+\[
+  H(X,Y) = -\sum_{x,y} p(x,y)\log p(x,y)
+         = -\sum_{x,y} p(x,y)\big[\log p(x) + \log p(y\given x)\big].
+\]
+Split the sum. The first piece is $-\sum_{x,y} p(x,y)\log p(x) = -\sum_x p(x)\log p(x) = H(X)$ (we summed
+out $y$). The second piece is exactly $-\sum_{x,y} p(x,y)\log p(y\given x) = H(Y\given X)$. So $H(X,Y) =
+H(X) + H(Y\given X)$. The symmetric version comes from factoring $p(x,y) = p(y)p(x\given y)$ instead.
+\end{whybox}
+
+\begin{happeningbox}
+The chain rule says uncertainty is additive in the right currency. The total surprise of the pair equals
+the surprise of $X$ \emph{plus} whatever surprise about $Y$ is left after $X$ is known. It mirrors exactly
+how you would describe the pair to someone: first tell them $X$ (costs $H(X)$ bits), then tell them $Y$
+given that they now know $X$ (costs $H(Y\given X)$ bits). Information bookkeeping is just careful
+double-entry accounting of surprise.
+\end{happeningbox}
+
+\begin{theorem}[Conditioning reduces entropy]
+\label{ch33:cond-reduces}
+$H(X \given Y) \le H(X)$, with equality iff $X \indep Y$.
+\end{theorem}
+
+This is the formal version of ``information never hurts.'' On average, learning $Y$ cannot increase your
+uncertainty about $X$. We will prove it in a moment as a one-line corollary of the nonnegativity of
+mutual information. First we need the tool that makes everything click: KL divergence.
+
+\section{Relative entropy (KL divergence): the cost of being wrong}
+\label{ch33:kl}
+
+Here is a question that turns out to organize the entire subject. Suppose the data really come from a
+distribution $p$, but you, mistakenly, believe they come from $q$. You design your code, your bets, your
+model around $q$. How much do you pay for the discrepancy? The answer is the \textbf{Kullback--Leibler
+divergence}, also called \emph{relative entropy}.
+
+\begin{definition}[KL divergence]
+\label{ch33:def-kl}
+For two pmfs $p, q$ on the same alphabet $\mathcal{X}$, the KL divergence \emph{from $q$ to $p$} (the
+extra cost of using $q$ when the truth is $p$) is
+\[
+  \KL(p \,\|\, q) \;=\; \sum_{x} p(x)\,\log\frac{p(x)}{q(x)}
+                 \;=\; \E_{X \sim p}\!\left[\log\frac{p(X)}{q(X)}\right].
+\]
+We require $q(x) = 0 \implies p(x) = 0$ (else the divergence is $+\infty$): you cannot afford a model that
+assigns zero probability to something that actually happens.
+\end{definition}
+
+\begin{intuitionbox}
+Read it as a difference of surprises. Under your wrong model $q$, an outcome $x$ surprises you by
+$\log(1/q(x))$ bits. Under the truth $p$, it ``should'' surprise you by $\log(1/p(x))$. The per-outcome
+overpayment is $\log(1/q(x)) - \log(1/p(x)) = \log(p(x)/q(x))$, and KL is the average overpayment, weighted
+by how often each outcome \emph{really} occurs (weighted by $p$, not $q$, because reality runs on $p$).
+\end{intuitionbox}
+
+The single most important fact about KL divergence is that it is never negative, and is zero only when
+your model is exactly right. This is \emph{Gibbs' inequality}, and it is the load-bearing wall of the
+whole theory.
+
+\begin{theorem}[Gibbs' inequality / nonnegativity of KL]
+\label{ch33:gibbs}
+$\KL(p\,\|\,q) \ge 0$, with equality iff $p = q$ everywhere.
+\end{theorem}
+
+\begin{whybox}
+\textbf{Why KL is nonnegative.} Again Jensen, applied to the concave $\log$. Write the \emph{negative}
+divergence and pull the log out:
+\[
+  -\KL(p\,\|\,q) = \sum_x p(x)\log\frac{q(x)}{p(x)}
+               = \E_{X\sim p}\!\left[\log\frac{q(X)}{p(X)}\right]
+               \;\le\; \log\,\E_{X\sim p}\!\left[\frac{q(X)}{p(X)}\right]
+               = \log\sum_x q(x) = \log 1 = 0.
+\]
+So $-\KL \le 0$, i.e.\ $\KL \ge 0$. Equality in Jensen for the strictly concave $\log$ requires the ratio
+$q(X)/p(X)$ to be constant; since both are distributions summing to $1$, that constant must be $1$, forcing
+$p = q$. A perfectly correct model pays nothing; any error costs strictly positive divergence.
+\end{whybox}
+
+\begin{trapbox}
+\textbf{KL is not a distance.} It is tempting to read $\KL(p\,\|\,q)$ as ``how far apart $p$ and $q$ are,''
+but it is \emph{not symmetric}: $\KL(p\,\|\,q) \ne \KL(q\,\|\,p)$ in general, and it violates the triangle
+inequality. The asymmetry is meaningful, not a defect. $\KL(p\,\|\,q)$ weights errors by the \emph{true}
+$p$, so it punishes you for assigning low $q$ to outcomes that truly occur, but barely notices if you waste
+$q$-mass on outcomes that never happen. Swapping the arguments swaps which mistake is expensive. In
+variational inference, choosing to minimize $\KL(q\,\|\,p)$ versus $\KL(p\,\|\,q)$ gives qualitatively
+different approximations (``mode-seeking'' versus ``mean-seeking''). Always mind the order.
+\end{trapbox}
+
+\begin{example}[Two coins]
+\label{ch33:kl-coins}
+Let the truth be a fair coin $p = (0.5, 0.5)$ and your model a biased guess $q = (0.9, 0.1)$. Then
+\[
+  \KL(p\,\|\,q) = 0.5\log_2\frac{0.5}{0.9} + 0.5\log_2\frac{0.5}{0.1}
+               = 0.5(-0.848) + 0.5(2.322) = 0.737 \text{ bits.}
+\]
+You overpay about $0.74$ bits per flip for believing the coin is biased when it is fair. Reverse the
+roles---truth $q = (0.9,0.1)$, model $p = (0.5,0.5)$:
+\[
+  \KL(q\,\|\,p) = 0.9\log_2\frac{0.9}{0.5} + 0.1\log_2\frac{0.1}{0.5}
+               = 0.9(0.848) + 0.1(-2.322) = 0.531 \text{ bits.}
+\]
+Different number---concrete proof of asymmetry.
+\end{example}
+
+\section{Cross-entropy: the loss that trains your models}
+\label{ch33:cross-entropy}
+
+KL divergence has a twin that is even more famous in practice, because it is the literal loss function
+minimized by nearly every classifier you have ever heard of. It is the \textbf{cross-entropy}.
+
+\begin{definition}[Cross-entropy]
+\label{ch33:def-cross-entropy}
+The cross-entropy of the model $q$ relative to the truth $p$ is the average surprise you experience when
+reality is $p$ but you reason with $q$:
+\[
+  H(p, q) \;=\; -\sum_x p(x)\log q(x) \;=\; \E_{X\sim p}\!\left[\log\frac{1}{q(X)}\right].
+\]
+\end{definition}
+
+The three quantities entropy, cross-entropy, and KL are bound by one short, illuminating identity. Split
+$\log(p/q) = \log(1/q) - \log(1/p)$ inside the KL sum:
+\[
+  \KL(p\,\|\,q) = \underbrace{-\sum_x p(x)\log q(x)}_{H(p,q)} \;-\; \underbrace{\Big(-\sum_x p(x)\log p(x)\Big)}_{H(p)},
+\]
+so
+\[
+  \boxed{\,H(p, q) = H(p) + \KL(p \,\|\, q)\,}.
+\]
+
+\begin{aestheticbox}
+Read this identity aloud and you understand all of supervised learning. The cost of coding reality with
+your model equals the \emph{irreducible} cost (the true entropy $H(p)$, which no model can avoid) plus the
+\emph{avoidable} cost (the divergence $\KL(p\,\|\,q)$, which your error inflicts). Since $H(p)$ does not
+depend on your model $q$, \emph{minimizing cross-entropy over $q$ is exactly the same as minimizing KL
+divergence over $q$.} Training a model to minimize cross-entropy is training it to make $q$ match the true
+$p$ as closely as KL can measure. And because $\KL \ge 0$, cross-entropy is bounded below by $H(p)$, with
+the floor reached only by a perfect model.
+\end{aestheticbox}
+
+\begin{applicationbox}
+\textbf{Why cross-entropy is \emph{the} classification loss.} In multiclass classification, each training
+example $i$ has a true label, which we write as a one-hot vector $p^{(i)}$ (all mass on the correct class
+$y_i$). The network outputs predicted class probabilities $q^{(i)}$ (the softmax layer). The cross-entropy
+loss on example $i$ is
+\[
+  H(p^{(i)}, q^{(i)}) = -\sum_c p^{(i)}_c \log q^{(i)}_c = -\log q^{(i)}_{y_i},
+\]
+because the one-hot $p^{(i)}$ kills every term except the true class. So the loss is simply the surprise
+the model assigns to the correct answer: $-\log(\text{predicted probability of the right class})$. Confident
+and correct $\Rightarrow$ near $0$ loss; confident and wrong $\Rightarrow$ enormous loss. Averaged over the
+dataset, minimizing this is minimizing the empirical cross-entropy between the data distribution and the
+model---and, by the identity above and the next section, it is \emph{exactly maximum likelihood}. Every
+time you call \texttt{CrossEntropyLoss} or \texttt{categorical\_crossentropy}, this is the math running
+underneath.
+\end{applicationbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=11.5cm, height=6.5cm,
+    xlabel={$q$ = model's predicted probability of the true class},
+    ylabel={loss $= -\log_2 q$ (bits)},
+    domain=0.02:1, samples=160,
+    xmin=0, xmax=1, ymin=0, ymax=6,
+    grid=both, grid style={gray!18},
+    title={Cross-entropy loss for one correctly labeled example},
+]
+\addplot[densityred, very thick] {-log2(x)};
+\addplot[gray, dashed] coordinates {(1,0) (1,6)};
+\node[anchor=west] at (axis cs:0.45,4.3) {\small confident \& wrong: huge penalty};
+\node[anchor=east] at (axis cs:0.97,0.6) {\small confident \& right: $\approx 0$};
+\end{axis}
+\end{tikzpicture}
+\caption{The per-example cross-entropy loss $-\log q$ as a function of the probability $q$ the model
+assigned to the correct class. The penalty is gentle near $q=1$ but explodes as $q \to 0$: a model that is
+confidently wrong is punished savagely, which is exactly the gradient signal that drives learning.}
+\label{ch33:fig-crossentropy-loss}
+\end{figure}
+
+\section{Maximum likelihood is minimum cross-entropy}
+\label{ch33:mle-connection}
+
+We promised that the workhorse of statistics is secretly an information-theoretic quantity. Here is the
+payoff. Suppose you observe i.i.d.\ data $x_1, \dots, x_N$ and fit a model $q_\theta$ by maximum
+likelihood. The log-likelihood, scaled by $1/N$, is
+\[
+  \frac{1}{N}\sum_{i=1}^N \log q_\theta(x_i)
+  \;=\; \sum_{x} \hat p(x)\,\log q_\theta(x),
+\]
+where $\hat p(x) = \frac1N \#\{i : x_i = x\}$ is the \emph{empirical distribution} of the data. The
+right-hand side is precisely $-H(\hat p, q_\theta)$, the negative cross-entropy between the data
+distribution and the model. Therefore
+\[
+  \underbrace{\max_\theta \frac1N \sum_i \log q_\theta(x_i)}_{\text{maximum likelihood}}
+  \;=\;
+  \underbrace{\min_\theta\; H(\hat p, q_\theta)}_{\text{minimum cross-entropy}}
+  \;=\;
+  \underbrace{\min_\theta\; \KL(\hat p \,\|\, q_\theta)}_{\text{best fit in KL}}
+  \;+\; \text{const}.
+\]
+
+\begin{happeningbox}
+\textbf{What maximizing likelihood is really doing.} You are choosing the model $q_\theta$ that
+is \emph{closest in KL divergence} to the empirical distribution of your data. As the sample grows,
+$\hat p \to p$ (the true distribution) by the law of large numbers, so maximum likelihood drives your
+model toward the $q_\theta$ that minimizes $\KL(p\,\|\,q_\theta)$---the best possible approximation to
+reality within your model family. This is exactly why MLE is consistent: if the truth is \emph{in} your
+family, the KL-closest model is the truth itself, and you find it. Likelihood, cross-entropy, and KL are
+three views of one optimization.
+\end{happeningbox}
+
+\begin{connectionbox}
+This recasts the estimation chapter (Maximum Likelihood) in information-theoretic clothing. There you saw
+MLE as ``the parameter that makes the data most probable.'' Here you see it as ``the parameter whose model
+distribution is informationally closest to the data.'' Both are correct; the second explains \emph{why}
+MLE generalizes, why cross-entropy is the right loss, and why a misspecified model still converges to its
+KL-projection onto the truth. The Bayesian-inference chapter's variational methods minimize a KL
+divergence directly, making the link explicit.
+\end{connectionbox}
+
+\section{Mutual information: how much $Y$ tells you about $X$}
+\label{ch33:mutual-info}
+
+We come to the crown jewel. Correlation measures linear co-movement and misses everything nonlinear.
+\emph{Mutual information} measures \emph{all} statistical dependence---it is zero exactly when two variables
+are independent, no matter how twisted their relationship.
+
+\begin{definition}[Mutual information]
+\label{ch33:def-mi}
+The mutual information between $X$ and $Y$ is the KL divergence between their joint distribution and the
+product of their marginals:
+\[
+  I(X; Y) \;=\; \KL\big(p(x,y) \,\big\|\, p(x)p(y)\big)
+          \;=\; \sum_{x,y} p(x,y)\,\log\frac{p(x,y)}{p(x)\,p(y)}.
+\]
+\end{definition}
+
+The definition is gorgeous once you see it. Independence \emph{means} $p(x,y) = p(x)p(y)$. So mutual
+information literally measures how far the joint distribution is from the ``independent'' distribution
+it would be if $X$ and $Y$ ignored each other. By Gibbs' inequality, $I(X;Y) \ge 0$, with equality iff
+$p(x,y) = p(x)p(y)$, i.e.\ iff $X \indep Y$. \emph{Mutual information is zero exactly when the variables
+are independent}---a clean ``yes/no'' test for dependence of any kind.
+
+\begin{theorem}[Mutual information in terms of entropy]
+\label{ch33:mi-entropy}
+\[
+  I(X;Y) = H(X) - H(X\given Y) = H(Y) - H(Y\given X) = H(X) + H(Y) - H(X,Y).
+\]
+\end{theorem}
+
+\begin{whybox}
+\textbf{Why these forms agree.} Start from the definition and split the log using $p(x,y) = p(x\given
+y)p(y)$:
+\[
+  I(X;Y) = \sum_{x,y} p(x,y)\log\frac{p(x\given y)}{p(x)}
+         = \sum_{x,y}p(x,y)\log p(x\given y) - \sum_{x,y}p(x,y)\log p(x).
+\]
+The first sum is $-H(X\given Y)$; the second is $-H(X)$ (sum out $y$). Hence $I(X;Y) = H(X) -
+H(X\given Y)$. By symmetry of the definition in $x$ and $y$, also $I(X;Y) = H(Y) - H(Y\given X)$. Finally,
+substitute the chain rule $H(X\given Y) = H(X,Y) - H(Y)$ into the first form to get $I(X;Y) = H(X) + H(Y)
+- H(X,Y)$.
+\end{whybox}
+
+The middle form $I(X;Y) = H(X) - H(X\given Y)$ is the one to memorize as a sentence: \emph{mutual
+information is the reduction in your uncertainty about $X$ once you learn $Y$.} It is the average number of
+bits that knowing $Y$ saves you when you have to describe $X$. And since $I(X;Y) \ge 0$, this rearranges
+instantly to $H(X\given Y) \le H(X)$---the promised proof that \emph{conditioning reduces entropy}.
+Information never hurts, on average.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0]
+  \begin{scope}
+    \fill[sourceblue!22] (0,0) circle (1.85cm);
+    \fill[targetgreen!22] (2.0,0) circle (1.85cm);
+    \begin{scope}
+      \clip (0,0) circle (1.85cm);
+      \fill[structurepurple!35] (2.0,0) circle (1.85cm);
+    \end{scope}
+  \end{scope}
+  \draw[sourceblue, thick] (0,0) circle (1.85cm);
+  \draw[targetgreen, thick] (2.0,0) circle (1.85cm);
+  \node[sourceblue!60!black] at (-1.45,1.75) {$H(X)$};
+  \node[targetgreen!60!black] at (3.45,1.75) {$H(Y)$};
+  \node[sourceblue!50!black] at (-0.55,0) {\small $H(X\given Y)$};
+  \node[targetgreen!50!black] at (2.55,0) {\small $H(Y\given X)$};
+  \node[structurepurple!70!black, align=center] at (1.0,0) {\small $I(X;Y)$};
+  \node[align=center] at (1.0,-2.55) {\small the union of both circles is $H(X,Y)$};
+\end{tikzpicture}
+\caption{The information ``Venn diagram.'' Each circle is the entropy of one variable. Their overlap is
+the mutual information $I(X;Y)$, the shared uncertainty resolved by either variable. The crescents are the
+conditional entropies---what remains uncertain about one variable after the other is known. The total area
+of the union is the joint entropy $H(X,Y) = H(X) + H(Y) - I(X;Y)$.}
+\label{ch33:fig-venn}
+\end{figure}
+
+\begin{example}[A noisy channel]
+\label{ch33:noisy-channel}
+Send a fair bit $X \in \{0,1\}$ through a channel that flips it with probability $f = 0.1$ (the ``binary
+symmetric channel,'' sketched in Figure~\ref{ch33:fig-bsc}). The receiver sees $Y$. By symmetry $Y$ is
+also a fair bit, so $H(Y) = 1$. Given the
+input, the only uncertainty in the output is the flip, so $H(Y\given X) = H_b(0.1) = -0.1\log_2 0.1 -
+0.9\log_2 0.9 \approx 0.469$ bits. Therefore
+\[
+  I(X;Y) = H(Y) - H(Y\given X) \approx 1 - 0.469 = 0.531 \text{ bits.}
+\]
+Each use of this noisy channel conveys about half a bit of genuine information about the input. A noiseless
+channel ($f=0$) would convey the full bit; a useless channel that flips with probability $0.5$ would
+convey $1 - H_b(0.5) = 0$ bits---pure noise tells you nothing. This number, maximized over input
+distributions, is the channel's \emph{capacity}, the ceiling on reliable communication rate that Shannon's
+second great theorem says you can actually approach.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Latex, node distance=3.4cm, every node/.style={font=\small}]
+  \node[circle, draw=sourceblue, thick, minimum size=0.9cm] (x0) {$0$};
+  \node[circle, draw=sourceblue, thick, minimum size=0.9cm, below=1.8cm of x0] (x1) {$1$};
+  \node[circle, draw=targetgreen, thick, minimum size=0.9cm, right=3.4cm of x0] (y0) {$0$};
+  \node[circle, draw=targetgreen, thick, minimum size=0.9cm, right=3.4cm of x1] (y1) {$1$};
+  \draw[->, sourceblue, thick] (x0) -- node[above]{$1-f$} (y0);
+  \draw[->, sourceblue, thick] (x1) -- node[below]{$1-f$} (y1);
+  \draw[->, trapred, thick] (x0) -- node[pos=0.25, right]{$f$} (y1);
+  \draw[->, trapred, thick] (x1) -- node[pos=0.25, right]{$f$} (y0);
+  \node[above=0.2cm of x0] {input $X$};
+  \node[above=0.2cm of y0] {output $Y$};
+\end{tikzpicture}
+\caption{The binary symmetric channel. Each transmitted bit arrives unchanged with probability $1-f$ and
+flipped with probability $f$. With $f=0.1$ and a fair input, each use carries
+$I(X;Y)=1-H_b(0.1)\approx 0.531$ bits; at $f=0.5$ the two red and blue arrows are equally likely, the
+output is independent of the input, and the channel conveys nothing.}
+\label{ch33:fig-bsc}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=11.5cm, height=6cm,
+    xlabel={flip probability $f$},
+    ylabel={$I(X;Y)=1-H_b(f)$ (bits)},
+    domain=0.0005:0.9995, samples=160,
+    xmin=0, xmax=1, ymin=0, ymax=1.05,
+    grid=both, grid style={gray!18},
+    title={Information per use of the binary symmetric channel},
+]
+\addplot[structurepurple, very thick] {1 - (-x*log2(x) - (1-x)*log2(1-x))};
+\addplot[gray, dashed] coordinates {(0.5,0) (0.5,1.05)};
+\node[anchor=south] at (axis cs:0.5,0.02) {\small useless at $f=\tfrac12$};
+\end{axis}
+\end{tikzpicture}
+\caption{Mutual information of the binary symmetric channel as the flip probability $f$ varies. It is a
+full bit at the noiseless ends $f=0$ and $f=1$ (a guaranteed flip is just as informative as no flip, since
+the receiver can invert it), and drops to $0$ exactly at $f=\tfrac12$, where output and input are
+independent.}
+\label{ch33:fig-bsc-capacity}
+\end{figure}
+
+\begin{applicationbox}
+\textbf{Mutual information in data science.} Because $I(X;Y) = 0$ iff $X \indep Y$ and it captures
+nonlinear dependence, mutual information is a go-to tool for \emph{feature selection}: rank candidate
+features by how much information they carry about the target, keeping high-$I$ features even when their
+\emph{correlation} with the target is zero (think of $Y = X^2$ with symmetric $X$: correlation $0$, mutual
+information large). Decision trees split on the feature with the highest \emph{information gain}, which is
+exactly a conditional mutual information. And in modern representation learning, objectives like InfoNCE
+\emph{maximize} a lower bound on the mutual information between an input and its learned embedding, forcing
+the representation to retain what matters.
+\end{applicationbox}
+
+\begin{paradoxbox}
+\textbf{Can knowing more ever make you more uncertain?} We proved $H(X\given Y) \le H(X)$: conditioning
+reduces entropy. Yet everyday experience says ``the more I learned, the more confused I got!'' Both are
+true, and the resolution is the word \emph{average}. The theorem bounds the \emph{expected} residual
+uncertainty $H(X\given Y) = \sum_y p(y)H(X\given Y=y)$. For a \emph{particular} observed value $Y=y$, the
+specific conditional entropy $H(X\given Y=y)$ can absolutely \emph{exceed} $H(X)$. Example: you are fairly
+sure a die is fair (low uncertainty about which loading it has), then you observe three sixes in a row
+(an unusual $y$); now you genuinely do not know whether it is fair or loaded---your uncertainty has gone
+\emph{up}. The theorem guarantees only that across all possible observations, weighted by how likely they
+are, the surprising-and-confusing $y$'s are outnumbered by the clarifying ones. Information never hurts
+\emph{on average}; any single message certainly can.
+\end{paradoxbox}
+
+\section{Continuous variables: differential entropy in one breath}
+\label{ch33:differential}
+
+Everything above was discrete. For a continuous random variable with density $f$, the natural analogue is
+the \emph{differential entropy}
+\[
+  h(X) = -\int_{-\infty}^{\infty} f(x)\log f(x)\,\dd x = \E[-\log f(X)],
+\]
+replacing the sum by an integral. It is genuinely useful---among all densities with a fixed variance
+$\sigma^2$, the Gaussian uniquely maximizes differential entropy, at $h = \tfrac12\log(2\pi e\,\sigma^2)$,
+which is the maximum-entropy justification for the bell curve. But beware: differential entropy is not a
+clean limit of discrete entropy (finely discretizing a continuous variable gives entropy that blows up
+like $\log(1/\Delta)$), and it can be negative or change under a change of variables. The quantities that
+\emph{do} behave well in the continuous world are the \emph{relative} ones---KL divergence and mutual
+information---because the troublesome infinities cancel between the two distributions being compared. That
+is one more reason KL and mutual information, not entropy itself, are the durable currency of modern
+machine learning.
+
+\begin{connectionbox}
+The differential entropy is an honest Riemann/Lebesgue integral $\E[-\log f(X)]$; see the companion
+calculus volume for integration of densities, and the measure-theory chapters here for the careful
+statement that KL divergence is well defined whenever $p$ is absolutely continuous with respect to $q$,
+with the integrand $\log(\dd p/\dd q)$ being the log of the Radon--Nikodym derivative.
+\end{connectionbox}
+
+\section{Bringing it together}
+\label{ch33:summary}
+
+One idea generated this entire chapter: \emph{surprise is $\log(1/p)$, and information theory is the study
+of its averages.}
+
+\begin{itemize}
+  \item \textbf{Entropy} $H(X) = \E[\log(1/p(X))]$ is average surprise---uncertainty, and the
+        unbeatable cost in bits of describing $X$. It is maximized by the uniform distribution.
+  \item \textbf{Conditional entropy} $H(X\given Y)$ is leftover uncertainty after seeing $Y$; the
+        \textbf{chain rule} $H(X,Y) = H(X) + H(Y\given X)$ is $\log$ of the multiplication rule.
+  \item \textbf{KL divergence} $\KL(p\|q) = \E_p[\log(p/q)] \ge 0$ is the cost of modeling truth $p$ with
+        wrong model $q$; it is zero iff $p=q$ (Gibbs).
+  \item \textbf{Cross-entropy} $H(p,q) = H(p) + \KL(p\|q)$ is the ML loss; minimizing it is minimizing KL
+        is maximizing likelihood.
+  \item \textbf{Mutual information} $I(X;Y) = \KL(p_{XY}\|p_Xp_Y) = H(X) - H(X\given Y) \ge 0$ measures
+        all dependence and is zero iff $X\indep Y$.
+\end{itemize}
+
+Every modern loss function, dependence measure, and compression scheme you will meet is one of these five
+quantities wearing a costume. Learn to recognize $\log(1/p)$ underneath, and information theory stops being
+a list of formulas and becomes a single, simple story about surprise.
+
+\section{Exercises}
+\label{ch33:exercises}
+
+\begin{exercise}[Warm-up entropies]
+\label{ch33:ex-warmup}
+Compute the entropy in bits of: (a) a fair coin; (b) a fair $8$-sided die; (c) a coin with $p=0.25$;
+(d) the distribution $(\tfrac12, \tfrac14, \tfrac18, \tfrac1{16}, \tfrac1{16})$. For (d), compare your
+answer to $\log_2 5$ and explain why it is smaller.
+\end{exercise}
+
+\begin{exercise}[Surprise adds]
+\label{ch33:ex-surprise-adds}
+You draw a card from a shuffled standard deck. Express in bits the surprise of the events ``it is a
+spade,'' ``it is an ace,'' and ``it is the ace of spades.'' Verify numerically that the third surprise
+equals the sum of the first two, and explain which property of independence makes this work.
+\end{exercise}
+
+\begin{exercise}[The maximum is uniform]
+\label{ch33:ex-max-uniform}
+Using Lagrange multipliers, maximize $H(p_1,\dots,p_n) = -\sum_i p_i\log p_i$ subject to $\sum_i p_i = 1$.
+Show the optimum is $p_i = 1/n$ for all $i$ and that the maximal value is $\log n$. (This re-derives the
+upper bound of Theorem~\ref{ch33:entropy-bounds} by calculus rather than Jensen.)
+\end{exercise}
+
+\begin{exercise}[A Huffman-style code]
+\label{ch33:ex-huffman}
+A source emits symbols $A,B,C,D,E$ with probabilities $0.4, 0.2, 0.2, 0.1, 0.1$. (a) Compute the entropy.
+(b) Build a prefix-free binary code by repeatedly merging the two least-probable symbols (Huffman's
+algorithm) and report the average codeword length. (c) By how many bits per symbol does it beat the naive
+$3$-bit fixed-length code, and how close is it to the entropy lower bound?
+\end{exercise}
+
+\begin{exercise}[KL is not symmetric]
+\label{ch33:ex-kl-asym}
+Let $p = (0.7, 0.3)$ and $q = (0.5, 0.5)$. Compute $\KL(p\|q)$ and $\KL(q\|p)$ in bits, confirm both are
+positive, and confirm they differ. Then verify the identity $H(p,q) = H(p) + \KL(p\|q)$ numerically for
+this pair.
+\end{exercise}
+
+\begin{exercise}[Cross-entropy as a loss]
+\label{ch33:ex-crossent-loss}
+A three-class classifier outputs probabilities $q = (0.7, 0.2, 0.1)$ on a particular example whose true
+label is class $2$ (the middle one). (a) Write the one-hot true distribution $p$. (b) Compute the
+cross-entropy loss $H(p,q)$ in bits. (c) Show that the loss equals $-\log_2 q_{\text{true}}$ and explain
+why only the true-class probability appears. (d) What loss would a perfectly confident correct prediction
+incur?
+\end{exercise}
+
+\begin{exercise}[Mutual information of a noisy channel]
+\label{ch33:ex-bsc}
+For the binary symmetric channel with flip probability $f$ and a fair input bit, show that $I(X;Y) = 1 -
+H_b(f)$. Tabulate $I$ for $f \in \{0, 0.1, 0.25, 0.5\}$ and interpret the endpoints. At what $f$
+is the channel useless, and why?
+\end{exercise}
+
+\begin{exercise}[Conditioning can increase specific uncertainty]
+\label{ch33:ex-conditioning}
+Construct an explicit joint distribution of two binary variables $X,Y$ for which there is a value $y$ with
+$H(X\given Y=y) > H(X)$, yet the \emph{average} $H(X\given Y) \le H(X)$ still holds. Verify both
+inequalities numerically. (This makes the paradox box concrete.)
+\end{exercise}
+
+\begin{exercise}[MLE equals minimum cross-entropy --- proof]
+\label{ch33:ex-mle-proof}
+Let $x_1,\dots,x_N$ be i.i.d.\ draws over a finite alphabet, with empirical distribution $\hat p$. Prove
+that $\frac1N\sum_i \log q_\theta(x_i) = -H(\hat p, q_\theta)$, and conclude that maximizing the
+log-likelihood over $\theta$ is equivalent to minimizing $\KL(\hat p\|q_\theta)$. State precisely which
+term in the decomposition does not depend on $\theta$ and why that makes the two optimizations identical.
+\end{exercise}
+
+\begin{exercise}[Independence and mutual information]
+\label{ch33:ex-mi-indep}
+Let $X \in \{-1,0,1\}$ be uniform and let $Y = X^2$. (a) Compute $\Corr(X,Y)$ and observe it is zero.
+(b) Compute $I(X;Y)$ and show it is strictly positive. (c) Explain in one sentence why mutual information
+detects the dependence that correlation completely misses.
+\end{exercise}
+
+\begin{exercise}[Grouping / recursivity of entropy --- proof]
+\label{ch33:ex-grouping}
+Show that entropy satisfies the grouping property: if outcomes are partitioned into groups, the total
+entropy equals the entropy of the group choice plus the average within-group entropy,
+\[
+  H(p_1,\dots,p_n) = H(\text{group probabilities}) + \sum_{\text{groups } g} \P(g)\,H(\text{conditional dist.\ within } g).
+\]
+Verify it on $(\tfrac12,\tfrac14,\tfrac14)$ grouped as $\{1\}$ and $\{2,3\}$, and explain how this is the
+chain rule in disguise.
+\end{exercise}

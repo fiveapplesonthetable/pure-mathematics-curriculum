@@ -1,0 +1,839 @@
+\chapter{Brownian Motion}
+
+In the summer of 1827 the Scottish botanist Robert Brown put a drop of water
+under his microscope. Suspended in the water were tiny grains of pollen, and
+inside the grains were even tinier particles. Brown watched these particles and
+saw something that bothered him: they would not sit still. They jittered, darted,
+and zig-zagged in a ceaseless, aimless dance. His first thought was that they
+were alive. But he tested grains from a plant pressed in a herbarium a century
+earlier, then specks of ground glass, then dust scraped from the Sphinx -- and
+they all danced the same. Whatever was making them move, it was not life. It was
+something about the water itself.
+
+It took most of a century to understand what Brown had seen. The answer, when it
+came, tied together three of the deepest ideas in science: that matter is made of
+molecules, that heat is molecular motion, and that the visible jitter of a pollen
+grain is the accumulated effect of billions of invisible water molecules pelting
+it from every side. The particle is a punching bag in a storm of collisions, and
+the storm never stops.
+
+This chapter is about the \emph{mathematical} object that captures that dance. We
+will build it the way nature builds it: as the limit of a random walk taken with
+smaller and smaller, faster and faster steps. We will discover that this limit is
+a single, beautiful, slightly monstrous process -- \emph{Brownian motion}, also
+called the \emph{Wiener process}. It is continuous everywhere yet smooth nowhere.
+Its increments are normal. It is the bridge between the Central Limit Theorem and
+the world of moving, evolving randomness. It solves the heat equation. And it is
+the engine underneath the most famous formula in mathematical finance. By the end
+you should be able to \emph{see} Brownian motion, not just compute with it.
+
+\chapterline
+
+\section{From Random Walk to a Wild Curve}
+\label{ch29:walk-to-curve}
+
+You have already met the simple random walk. A walker stands at the origin. Every
+unit of time she flips a fair coin and steps $+1$ or $-1$. After $n$ steps her
+position is
+\[
+  S_n = X_1 + X_2 + \dots + X_n,
+  \qquad X_i = \pm 1 \text{ each with probability } \tfrac12.
+\]
+The steps are independent, each has mean $0$ and variance $1$, so
+\[
+  \E[S_n] = 0, \qquad \Var(S_n) = n.
+\]
+The walk drifts nowhere on average, but it spreads: its typical distance from the
+origin grows like $\sqrt{n}$, the square root of the number of steps. That
+$\sqrt{n}$ is the heartbeat of this whole chapter. Hold onto it.
+
+\begin{intuitionbox}
+Why $\sqrt n$ and not $n$? Because the steps point in random directions and
+mostly cancel. If they all pointed the same way you would travel a distance $n$.
+If they were perfectly anti-correlated you would never leave home. Independent
+random signs land you in between, at the scale $\sqrt n$. The variance adds (that
+is the one thing variance always does for independent terms), and standard
+deviation is its square root. Diffusion is slow precisely because it is built out
+of cancellation.
+\end{intuitionbox}
+
+Now we want a \emph{continuous} version. The trick is a clever rescaling. Suppose
+we want to watch the walk over the time interval $[0,1]$, but take $n$ steps in
+that interval instead of one. Then each step lasts time $1/n$. To keep the spread
+finite as $n\to\infty$ we must also shrink each spatial step. How much? Variance
+must stay finite. After $n$ steps the variance is $n$ times the variance of one
+step. If each step has size $\Delta x$, its variance is $(\Delta x)^2$, so the
+total variance is $n(\Delta x)^2$. For this to equal $1$ (one unit of time, one
+unit of variance) we need
+\[
+  (\Delta x)^2 = \frac1n,
+  \qquad\text{i.e.}\qquad \Delta x = \frac{1}{\sqrt n}.
+\]
+Here is the famous, almost magical, scaling: \textbf{time shrinks like
+$1/n$, but space shrinks only like $1/\sqrt n$.} Space and time scale
+\emph{differently}. This asymmetry -- space as the square root of time -- is the
+signature of diffusion, and it is why Brownian motion looks the way it does.
+
+Define the rescaled walk
+\[
+  W^{(n)}(t) \;=\; \frac{1}{\sqrt n}\, S_{\floor{nt}},
+  \qquad 0 \le t \le 1,
+\]
+interpolated linearly between the integer step times. At $t=1$ this is
+$S_n/\sqrt n$, which by the Central Limit Theorem converges to a standard normal.
+But the CLT only tells you about the endpoint. The deep statement is that the
+\emph{entire path} $t\mapsto W^{(n)}(t)$ converges, as a random function, to a
+limiting random function. That limit is Brownian motion.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6.2cm,
+  xlabel={time $t$}, ylabel={position},
+  title={Rescaled random walks approach a continuous path},
+  legend pos=north west, legend cell align=left,
+  grid=both, grid style={gray!15},
+]
+\addplot[sourceblue, thick] coordinates {
+ (0,0)(0.0625,0.25)(0.125,0)(0.1875,0.25)(0.25,0.5)(0.3125,0.25)
+ (0.375,0.5)(0.4375,0.25)(0.5,0)(0.5625,-0.25)(0.625,0)(0.6875,-0.25)
+ (0.75,-0.5)(0.8125,-0.25)(0.875,-0.5)(0.9375,-0.75)(1,-0.5)};
+\addlegendentry{$n=16$ (coarse)}
+\addplot[quotientorange, thick] coordinates {
+ (0,0)(0.05,0.18)(0.1,0.05)(0.15,0.30)(0.2,0.42)(0.25,0.28)(0.3,0.50)
+ (0.35,0.38)(0.4,0.55)(0.45,0.40)(0.5,0.22)(0.55,0.05)(0.6,0.20)
+ (0.65,-0.02)(0.7,-0.25)(0.75,-0.40)(0.8,-0.22)(0.85,-0.45)(0.9,-0.60)
+ (0.95,-0.48)(1,-0.55)};
+\addlegendentry{$n=64$ (finer)}
+\addplot[densityred, very thick] coordinates {
+ (0,0)(0.04,0.14)(0.08,0.09)(0.12,0.26)(0.16,0.20)(0.2,0.38)(0.24,0.30)
+ (0.28,0.44)(0.32,0.40)(0.36,0.52)(0.4,0.47)(0.44,0.36)(0.48,0.27)
+ (0.52,0.15)(0.56,0.10)(0.6,0.18)(0.64,0.05)(0.68,-0.10)(0.72,-0.22)
+ (0.76,-0.34)(0.8,-0.28)(0.84,-0.40)(0.88,-0.52)(0.92,-0.55)(0.96,-0.50)(1,-0.55)};
+\addlegendentry{large $n$ (Brownian)}
+\end{axis}
+\end{tikzpicture}
+\caption{As we take more, smaller steps with the diffusive scaling
+$\Delta x = 1/\sqrt n$, the jagged random walk fills in to a continuous but
+infinitely wiggly curve. The endpoint distribution stays fixed (standard normal);
+what converges is the whole path.}
+\label{ch29:fig-scaling}
+\end{figure}
+
+\begin{historybox}
+Brown observed the dance in 1827 and published his account in 1828, but could
+not explain it. In 1905 -- his
+\emph{annus mirabilis}, the same year as special relativity -- Albert Einstein
+derived the law $\E[\text{displacement}^2] = 2Dt$ from the molecular hypothesis,
+predicting that the mean-squared displacement grows linearly in time. This was
+\emph{quantitative} evidence that atoms exist. In 1908 Jean Perrin measured the
+jitter under a microscope, confirmed Einstein's law, estimated Avogadro's number,
+and won a Nobel Prize for nailing down the reality of molecules. The rigorous
+mathematical object -- a probability measure on the space of continuous paths --
+was constructed by Norbert Wiener in 1923, which is why mathematicians call
+Brownian motion the \emph{Wiener process} and write it $W(t)$.
+\end{historybox}
+
+\section{The Defining Properties}
+\label{ch29:definition}
+
+Rather than chase the limit through all its technical thickets, we do what
+mathematicians eventually learned to do: we \emph{list the properties} the limit
+must have and take \emph{those} as the definition. Wiener proved that a process
+with these properties exists and is essentially unique.
+
+\begin{definition}[Standard Brownian motion]
+\label{ch29:def-bm}
+A \emph{standard Brownian motion} (or Wiener process) is a random function
+$\{W(t): t\ge 0\}$ with these four properties:
+\begin{enumerate}
+  \item \textbf{Starts at zero:} $W(0) = 0$.
+  \item \textbf{Independent increments:} for any times
+  $0 \le t_0 < t_1 < \dots < t_k$, the increments
+  $W(t_1)-W(t_0),\ W(t_2)-W(t_1),\ \dots$ are mutually independent.
+  \item \textbf{Gaussian, stationary increments:} for $s<t$,
+  \[
+    W(t)-W(s) \;\sim\; \Normal\!\big(0,\; t-s\big).
+  \]
+  The increment is normal, mean zero, and its variance equals the
+  \emph{elapsed time}.
+  \item \textbf{Continuous paths:} with probability one, the function
+  $t\mapsto W(t)$ is continuous.
+\end{enumerate}
+\end{definition}
+
+Every one of these falls straight out of the random-walk limit. Independence of
+increments is just independence of the coin flips in disjoint time blocks.
+Stationarity (the increment law depends only on the gap $t-s$, not on where you
+start) is because every coin flip is identical. The Gaussian shape is the Central
+Limit Theorem applied to each block of flips. The variance equals elapsed time
+because we chose the scaling $\Delta x = 1/\sqrt n$ precisely to make it so. And
+continuity is the residue of the steps shrinking to zero.
+
+\begin{focusbox}
+The single most important formula in this chapter is
+\[
+  \boxed{\;\Var\big(W(t)-W(s)\big) = t-s\;}\qquad\text{and in particular}\qquad
+  \Var\big(W(t)\big) = t,\quad \SD\big(W(t)\big)=\sqrt t.
+\]
+Variance grows linearly in time; spread grows like $\sqrt t$. Everything else is
+commentary on this fact.
+\end{focusbox}
+
+From the definition we can read off the \emph{covariance structure}, which is all
+you ever need for a Gaussian process. Take $s\le t$. Write $W(t) = W(s) +
+\big(W(t)-W(s)\big)$. The second piece is independent of $W(s)$ and has mean
+zero, so
+\[
+  \Cov\big(W(s),W(t)\big)
+  = \Cov\big(W(s),\,W(s)\big) + \Cov\big(W(s),\,W(t)-W(s)\big)
+  = \Var(W(s)) + 0 = s.
+\]
+For general $s,t$ this reads
+\[
+  \boxed{\;\Cov\big(W(s),W(t)\big) = \min(s,t).\;}
+\]
+
+\begin{example}[Working with the increments]
+\label{ch29:ex-increments}
+Let $W$ be standard Brownian motion. Find $\P\big(W(4) > 3\big)$ and
+$\P\big(W(4) - W(1) > 3\big)$.
+
+Since $W(4)\sim\Normal(0,4)$, its standard deviation is $2$, so
+\[
+  \P(W(4)>3) = \P\!\left(Z > \tfrac{3}{2}\right) = 1-\Phi(1.5)\approx 0.0668,
+\]
+where $Z$ is standard normal and $\Phi$ its CDF. For the increment,
+$W(4)-W(1)\sim\Normal(0,\,4-1)=\Normal(0,3)$, with standard deviation $\sqrt3
+\approx 1.732$, so
+\[
+  \P\big(W(4)-W(1)>3\big) = \P\!\left(Z > \tfrac{3}{\sqrt3}\right)
+  = \P(Z>\sqrt3) = 1-\Phi(1.732)\approx 0.0416.
+\]
+The same threshold of $3$ is less likely to be crossed by a $3$-unit increment
+than by the $4$-unit total, because the increment has had less time to spread.
+\end{example}
+
+\begin{example}[Covariance in action]
+\label{ch29:ex-cov}
+Compute $\E\big[W(2)\,W(5)\big]$ and $\Var\big(W(5)-W(2)\big)$.
+
+Means are zero, so $\E[W(2)W(5)] = \Cov(W(2),W(5)) = \min(2,5) = 2$. For the
+variance, $W(5)-W(2)\sim\Normal(0,5-2)$, hence $\Var = 3$. Check it the long way:
+$\Var(W(5)-W(2)) = \Var(W(5)) - 2\Cov(W(5),W(2)) + \Var(W(2)) = 5 - 2(2) + 2 =
+3.$ Same answer.
+\end{example}
+
+\begin{connectionbox}
+Brownian motion is a \emph{Gaussian process}: every finite collection
+$\big(W(t_1),\dots,W(t_k)\big)$ is a multivariate normal vector. Its mean is the
+zero vector and its covariance matrix has entries $\Sigma_{ij}=\min(t_i,t_j)$.
+Once you know mean and covariance, a Gaussian object is \emph{completely}
+determined -- a fact from the chapter on the multivariate normal and the
+covariance matrix in the companion linear-algebra material. So in a real sense
+the function $\min(s,t)$ \emph{is} Brownian motion. Sampling a path is just
+drawing from a (very high-dimensional) multivariate normal.
+\end{connectionbox}
+
+\section{Scaling, Symmetry, and Self-Similarity}
+\label{ch29:scaling}
+
+Brownian motion has a family of symmetries that make it feel less like a specific
+random scribble and more like a law of nature. Each follows from the covariance
+$\min(s,t)$ or directly from the definition.
+
+\begin{proposition}[Invariances]
+\label{ch29:prop-invariance}
+Let $W$ be standard Brownian motion. Then each of the following is again a
+standard Brownian motion:
+\begin{enumerate}
+  \item \textbf{Scaling (self-similarity):} for any $c>0$,
+  $\ \widetilde W(t) = \dfrac{1}{\sqrt c}\,W(ct).$
+  \item \textbf{Symmetry:} $\ -W(t).$
+  \item \textbf{Time shift (Markov restart):} $\ W(t+s)-W(s)$ for fixed $s\ge0$.
+  \item \textbf{Time inversion:} $\ tW(1/t)$ for $t>0$, with value $0$ at $t=0$.
+\end{enumerate}
+\end{proposition}
+
+\begin{whybox}
+Take the scaling property, the most important one. We check it has the right
+covariance. With $\widetilde W(t) = c^{-1/2}W(ct)$,
+\[
+  \Cov\big(\widetilde W(s),\widetilde W(t)\big)
+  = \frac1c\,\Cov\big(W(cs),W(ct)\big)
+  = \frac1c\,\min(cs,ct)
+  = \min(s,t).
+\]
+Same covariance, still Gaussian, still mean zero, still continuous, still starts
+at $0$ -- so it is the same process in law. Read it out loud: if you zoom in on
+time by a factor $c$ and on space by $\sqrt c$, the picture is statistically
+identical. Brownian motion is a \emph{fractal}. There is no scale at which it
+looks smooth; magnify any tiny piece and you see the same jagged universe again.
+That is the $\Delta x = 1/\sqrt n$ scaling from \S\ref{ch29:walk-to-curve}
+promoted to a permanent symmetry.
+\end{whybox}
+
+\begin{aestheticbox}
+Self-similarity is why no plotter can ever truly draw Brownian motion. Whatever
+resolution you choose, the true path has structure finer than your pixels, with
+exactly the same character as what you can see. A drawn Brownian path is always a
+\emph{coarsening} -- which is fine, because by self-similarity the coarsening
+looks just like the real thing.
+\end{aestheticbox}
+
+\section{Continuous Everywhere, Smooth Nowhere}
+\label{ch29:nowhere-diff}
+
+Here is the property that earned Brownian motion its reputation as a beautiful
+monster. Its paths are continuous -- you can draw them without lifting your pen --
+yet at no single point do they have a well-defined slope. The path has no
+tangent line anywhere. You cannot differentiate it. Ever.
+
+\begin{happeningbox}
+\textbf{Why no derivative can exist.} The derivative at $t$, if it existed, would
+be the limit of the difference quotient
+\[
+  \frac{W(t+h)-W(t)}{h}.
+\]
+But the numerator is $\Normal(0,h)$, so its typical size is $\sqrt h$. Dividing by
+$h$ gives a typical size of $\sqrt h / h = 1/\sqrt h$, which \emph{blows up} as
+$h\to0$. The increments shrink like $\sqrt h$, but the time gap shrinks faster,
+like $h$. The slope is forever losing the race. Over any tiny interval the path
+moves a distance proportional to $\sqrt h$, which dwarfs $h$ -- so locally the
+graph is far steeper than any line. Zoom in and it does not flatten out into a
+tangent the way a smooth curve does; it stays just as rough. That mismatch
+between the $\sqrt h$ of space and the $h$ of time is, once again, the diffusive
+scaling, and it is exactly what forbids a derivative.
+\end{happeningbox}
+
+There is a clean way to quantify the roughness: \emph{quadratic variation}. Chop
+$[0,t]$ into $n$ equal pieces of length $\Delta = t/n$ and add up the squared
+increments,
+\[
+  Q_n = \sum_{i=1}^{n}\Big(W(t_i)-W(t_{i-1})\Big)^2 .
+\]
+Each squared increment has expectation $\Delta$ (since the increment is
+$\Normal(0,\Delta)$ and $\E[\text{normal}^2]=\text{variance}$). There are $n$ of
+them, so $\E[Q_n] = n\Delta = t$. With a little more work one shows the variance
+of $Q_n$ tends to $0$, so
+\[
+  \boxed{\;Q_n \pto t \quad\text{as } n\to\infty.\;}
+\]
+This is startling. For an ordinary smooth function $f$, the squared increments are
+of order $(\Delta)^2$ and their sum vanishes; for Brownian motion the sum
+converges to a \emph{nonzero} limit, the elapsed time itself. People summarize
+this with the formal mnemonic
+\[
+  (\dd W)^2 = \dd t,
+\]
+which we will cash in shortly when we glimpse stochastic calculus. By contrast the
+ordinary (first-order) variation $\sum |W(t_i)-W(t_{i-1})|$ is \emph{infinite}:
+the path wiggles so much that its total arc length over any interval is unbounded.
+
+\begin{trapbox}
+Do not picture the velocity of a pollen grain as a Brownian path. A real grain has
+a real velocity at every instant -- Brownian motion is an idealization that
+ignores the grain's inertia, valid only on time scales longer than the gap
+between collisions. The mathematical object $W(t)$ has \emph{no velocity}, which
+is fine because it models \emph{position}, observed at scales where the velocity
+has been averaged into oblivion. Confusing the model with the physical grain leads
+to paradoxes like ``infinite kinetic energy'' that are artifacts of the
+idealization.
+\end{trapbox}
+
+\begin{paradoxbox}
+\textbf{A continuous function with no derivative anywhere?} Before the late
+1800s, most mathematicians believed a continuous function had to be
+differentiable except perhaps at a few special points -- it was ``obvious'' that
+a curve you can draw must have tangents almost everywhere. In 1872 Karl
+Weierstrass exhibited an explicit continuous-but-nowhere-differentiable function
+and scandalized the establishment; Charles Hermite called such functions a
+``lamentable plague.'' Brownian motion shows nature took Weierstrass's side: the
+\emph{typical} continuous path -- the one a fair random process actually produces
+-- is nowhere differentiable with probability one. The smooth curves of calculus,
+far from being the rule, are an infinitely thin special case. The plague is the
+norm; the smooth functions are the freaks.
+\end{paradoxbox}
+
+\section{The Heat Equation: Randomness as Diffusion}
+\label{ch29:heat}
+
+Now for one of the most beautiful bridges in mathematics: the link between this
+random, jagged process and a smooth deterministic partial differential equation
+-- the \emph{heat equation}. The same equation describes heat spreading through a
+metal bar, ink diffusing in still water, and the probability density of a
+Brownian particle.
+
+Let $p(x,t)$ be the probability density of $W(t)$. From the definition,
+$W(t)\sim\Normal(0,t)$, so
+\[
+  p(x,t) = \frac{1}{\sqrt{2\pi t}}\,\exp\!\left(-\frac{x^2}{2t}\right).
+\]
+This is the Gaussian, but with its variance \emph{growing in time}. At $t$ near
+$0$ it is a tall thin spike at the origin (the particle is almost surely near
+$0$); as $t$ grows the bump flattens and spreads, exactly like a drop of dye
+diffusing outward.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xlabel={position $x$}, ylabel={density $p(x,t)$},
+  title={The density of $W(t)$ spreads and flattens: a diffusing Gaussian},
+  domain=-5:5, samples=200, legend pos=north east, legend cell align=left,
+  grid=both, grid style={gray!15}, ymin=0,
+]
+\addplot[densityred, very thick] {1/sqrt(2*pi*0.5)*exp(-x^2/(2*0.5))};
+\addlegendentry{$t=0.5$}
+\addplot[quotientorange, thick] {1/sqrt(2*pi*1.5)*exp(-x^2/(2*1.5))};
+\addlegendentry{$t=1.5$}
+\addplot[sourceblue, thick] {1/sqrt(2*pi*4)*exp(-x^2/(2*4))};
+\addlegendentry{$t=4$}
+\end{axis}
+\end{tikzpicture}
+\caption{Snapshots of the Brownian density at three times. The area under each
+curve stays $1$ (it is always a probability density); the bump just spreads. This
+is the same evolution heat undergoes in a conducting bar.}
+\label{ch29:fig-heat}
+\end{figure}
+
+Now differentiate. A short calculation (done in the box below) shows that this
+density satisfies
+\[
+  \boxed{\;\frac{\partial p}{\partial t} = \frac{1}{2}\frac{\partial^2 p}{\partial x^2}.\;}
+\]
+This is the \emph{heat equation} (with diffusion constant $\tfrac12$). The
+left side is the rate at which the density changes in time; the right side is its
+curvature in space. Where the density is concave down (a peak), the right side is
+negative and the peak sinks; where it is concave up (a valley between two bumps),
+probability fills in. Probability flows from high to low, smoothing itself out --
+the exact behavior of temperature.
+
+\begin{whybox}
+Let us verify $\partial_t p = \tfrac12 \partial_{xx} p$ directly for
+$p = (2\pi t)^{-1/2}e^{-x^2/2t}$. Take logs to make differentiation easy:
+$\ln p = -\tfrac12\ln(2\pi t) - \tfrac{x^2}{2t}.$ Then
+\[
+  \frac{\partial_t p}{p} = -\frac{1}{2t} + \frac{x^2}{2t^2},
+  \qquad
+  \frac{\partial_x p}{p} = -\frac{x}{t}.
+\]
+For the second space derivative,
+$\partial_{xx} p = \partial_x\!\big(p\cdot(-x/t)\big)
+= p\big(-x/t\big)\big(-x/t\big) + p\big(-1/t\big)
+= p\big(x^2/t^2 - 1/t\big).$ Therefore
+\[
+  \tfrac12\,\partial_{xx} p = p\left(\frac{x^2}{2t^2}-\frac{1}{2t}\right)
+  = \partial_t p,
+\]
+matching the time derivative line for line. The Gaussian is not just \emph{a}
+solution of the heat equation; with a point-mass initial condition it is \emph{the}
+solution, the so-called heat kernel.
+\end{whybox}
+
+\begin{happeningbox}
+\textbf{Why do randomness and heat obey the same equation?} Because both are made
+of independent little pushes. Heat is energy random-walking from molecule to
+molecule; a Brownian particle is position random-walking under molecular kicks.
+The heat equation is just the continuum bookkeeping of ``each point passes a bit
+of its stuff to its neighbors on each side.'' Whether the stuff is energy or
+probability, the local rule is identical, so the macroscopic law is identical. The
+factor of $\tfrac12$ is the fingerprint of the variance-equals-time normalization
+in Definition~\ref{ch29:def-bm}; a different step variance would rescale it.
+\end{happeningbox}
+
+\begin{connectionbox}
+This is the gateway to the \emph{Feynman--Kac formula} and to physics. Solving a
+diffusion PDE can be turned into averaging a function over Brownian paths, and
+vice versa. Expectation over random paths $\leftrightarrow$ solution of a
+deterministic PDE. The same duality, rotated into imaginary time, connects
+Brownian motion to the Schr\"odinger equation of quantum mechanics. The integral
+sign and the expectation sign are, here, two views of one object -- a theme the
+companion calculus book develops as ``expectation is an integral.''
+\end{connectionbox}
+
+\section{First Passages, the Reflection Principle, and the Maximum}
+\label{ch29:reflection}
+
+A natural question: starting from $0$, when does Brownian motion first reach a
+level $a>0$? Call that random time $\tau_a = \inf\{t: W(t)=a\}$. By continuity the
+path cannot jump over $a$; it must actually touch it. There is a gorgeous trick,
+the \emph{reflection principle}, that gives the answer almost for free.
+
+\begin{whybox}
+\textbf{The reflection principle.} Fix a level $a>0$ and a time $t$. We want
+$\P\big(\max_{0\le s\le t} W(s) \ge a\big)$, the chance the path ever reaches $a$
+by time $t$. Split the event $\{W(t)>a\}$: any path ending above $a$ has certainly
+hit $a$ on the way (continuity again). Now take any path that hits $a$ at some
+first time $\tau\le t$ but ends \emph{below} $a$, and reflect its portion after
+$\tau$ across the line $a$. By the symmetry of Brownian motion (after $\tau$ it
+restarts fresh, and up is as likely as down), the reflected path is exactly as
+probable as the original, and it ends \emph{above} $a$. This pairs up each
+``hit-then-below'' path with an equally likely ``hit-then-above'' path. Hence
+\[
+  \P\Big(\max_{0\le s\le t} W(s)\ge a\Big) = 2\,\P\big(W(t)>a\big).
+\]
+The maximum reaching $a$ is exactly twice as likely as the endpoint exceeding $a$.
+\end{whybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xlabel={time $t$}, ylabel={position},
+  title={The reflection principle: each path below $a$ pairs with a mirror image above},
+  legend pos=south west, legend cell align=left,
+  grid=both, grid style={gray!15},
+  ymin=-0.7, ymax=2.1, xmin=0, xmax=1,
+]
+% barrier level a=1.2
+\addplot[black, dashed, thick, domain=0:1, samples=2] {1.2};
+\addlegendentry{barrier $a$}
+% original path: hits a at tau~0.5, then ends below a
+\addplot[sourceblue, thick] coordinates {
+ (0,0)(0.08,0.25)(0.16,0.12)(0.24,0.45)(0.32,0.7)(0.4,0.95)(0.5,1.2)
+ (0.58,1.0)(0.66,1.15)(0.74,0.85)(0.82,0.95)(0.9,0.7)(1,0.6)};
+\addlegendentry{original (hits $a$, ends below)}
+% reflected path: same up to tau, then mirrored across a after 0.5
+\addplot[densityred, thick, dashed] coordinates {
+ (0.5,1.2)(0.58,1.4)(0.66,1.25)(0.74,1.55)(0.82,1.45)(0.9,1.7)(1,1.8)};
+\addlegendentry{reflected (ends above)}
+% mark hitting time
+\addplot[only marks, mark=*, mark size=2pt, black] coordinates {(0.5,1.2)};
+\node[anchor=south west] at (axis cs:0.5,1.2) {\small $\tau$};
+\end{axis}
+\end{tikzpicture}
+\caption{After the first hitting time $\tau$, reflect the path across the level $a$.
+Because Brownian motion restarts fresh and symmetrically at $\tau$, the reflected
+post-$\tau$ piece (red, ending above $a$) is exactly as probable as the original
+(blue, ending below $a$). This pairing is why
+$\P(\max_{[0,t]}W\ge a)=2\,\P(W(t)>a)$.}
+\label{ch29:fig-reflection}
+\end{figure}
+
+Figure~\ref{ch29:fig-reflection} shows the pairing in action. Since
+$W(t)\sim\Normal(0,t)$, this gives the clean formula
+\[
+  \P\Big(\max_{0\le s\le t}W(s)\ge a\Big)
+  = 2\,\P\big(W(t)>a\big)
+  = 2\Big(1-\Phi\big(a/\sqrt t\big)\Big).
+\]
+
+\begin{example}[Hitting a barrier]
+\label{ch29:ex-barrier}
+A particle does standard Brownian motion. What is the probability it reaches level
+$a=2$ at some point during $[0,4]$?
+
+Here $a/\sqrt t = 2/\sqrt4 = 1$, so
+\[
+  \P\Big(\max_{0\le s\le4}W(s)\ge 2\Big) = 2\big(1-\Phi(1)\big)
+  = 2(0.1587) = 0.3173.
+\]
+Even though the \emph{endpoint} $W(4)$ exceeds $2$ only with probability
+$1-\Phi(1)=0.1587$, the path \emph{touches} $2$ at some moment with twice that
+chance, because it can hit the barrier and wander back down.
+\end{example}
+
+\begin{aestheticbox}
+The reflection principle is a rare case where a hard analytic question -- the
+distribution of a maximum over a whole continuum of times -- collapses to a
+one-line symmetry argument. It works because of three facts stacked together:
+continuity (no jumping over $a$), the strong Markov property (a fresh restart at
+the hitting time), and up-down symmetry. Lose any one and the trick breaks.
+\end{aestheticbox}
+
+\section{Variations: Drift and Geometric Brownian Motion}
+\label{ch29:drift}
+
+Pure Brownian motion has no preferred direction. Real systems often do: a stock
+tends to drift upward, a diffusing particle in a current is carried along. We add
+a deterministic trend and a volatility scale:
+\[
+  X(t) = \mu t + \sigma W(t).
+\]
+Here $\mu$ is the \emph{drift} (mean velocity) and $\sigma$ the \emph{volatility}.
+Then $X(t)\sim\Normal(\mu t,\ \sigma^2 t)$: the mean marches linearly while the
+spread still grows like $\sqrt t$. For small $t$ the random $\sqrt t$ spread
+dominates the linear $\mu t$ trend; for large $t$ the trend wins. That crossover
+is why short-term price moves look like pure noise but long-term ones show the
+drift.
+
+For prices we want something that cannot go negative and whose \emph{percentage}
+changes, not absolute changes, behave nicely. The standard model is
+\emph{geometric Brownian motion},
+\[
+  S(t) = S(0)\,\exp\!\Big(\big(\mu - \tfrac12\sigma^2\big)t + \sigma W(t)\Big).
+\]
+The log-price is Brownian motion with drift, so the price itself is the
+exponential of a normal -- a \emph{lognormal} random variable. The stray
+$-\tfrac12\sigma^2$ term is not a typo; it is the price of Jensen's inequality and
+the quadratic-variation fact $(\dd W)^2=\dd t$, as we now see.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm,
+  xlabel={time $t$}, ylabel={value},
+  title={Brownian motion with drift (blue) and a geometric path (orange)},
+  legend pos=north west, legend cell align=left, grid=both, grid style={gray!15},
+]
+\addplot[sourceblue, thick] coordinates {
+ (0,0)(0.1,0.18)(0.2,0.12)(0.3,0.34)(0.4,0.30)(0.5,0.48)(0.6,0.42)
+ (0.7,0.66)(0.8,0.60)(0.9,0.84)(1,0.95)};
+\addlegendentry{$X(t)=\mu t+\sigma W(t)$}
+\addplot[quotientorange, thick] coordinates {
+ (0,1)(0.1,1.05)(0.2,1.02)(0.3,1.14)(0.4,1.10)(0.5,1.24)(0.6,1.18)
+ (0.7,1.36)(0.8,1.30)(0.9,1.52)(1,1.60)};
+\addlegendentry{$S(t)$ (geometric)}
+\addplot[densityred, dashed, thick, domain=0:1, samples=2] {0.9*x};
+\addlegendentry{mean trend $\mu t$}
+\end{axis}
+\end{tikzpicture}
+\caption{Adding a drift tilts the path; the geometric version exponentiates it so
+the value stays positive and compounds. Both still carry the unmistakable
+Brownian jitter.}
+\label{ch29:fig-drift}
+\end{figure}
+
+\section{A First Look at Stochastic Calculus}
+\label{ch29:ito}
+
+We have a process with no derivative. How on earth do you do calculus with it?
+You cannot write $\dd W/\dd t$. The escape is to keep everything in
+\emph{integral} form and to build a new integration theory -- \emph{It\^o
+calculus} -- around the one fact that makes Brownian motion special:
+$(\dd W)^2 = \dd t$.
+
+The central object is the It\^o integral $\int_0^t H(s)\,\dd W(s)$, which you
+should read as the limiting payoff of a strategy that holds $H(s)$ units of a
+Brownian asset and collects the increments $\dd W$. Crucially the integrand is
+evaluated at the \emph{left} endpoint of each tiny interval -- you must decide
+your holding \emph{before} the next random increment, not after. That ``no
+peeking into the future'' rule is what makes the theory both honest and
+tractable, and it is what links It\^o integrals to martingales (the previous
+chapter).
+
+The headline result is \textbf{It\^o's lemma}, the chain rule of this world. For
+an ordinary smooth function $f$ and ordinary calculus, $\dd f(W) = f'(W)\,\dd W$.
+But Brownian motion forces you to keep one more term, because $(\dd W)^2$ does not
+vanish -- it equals $\dd t$:
+\[
+  \boxed{\;\dd f\big(W(t)\big) = f'\big(W(t)\big)\,\dd W(t)
+  + \tfrac12 f''\big(W(t)\big)\,\dd t.\;}
+\]
+That extra $\tfrac12 f''\,\dd t$ is the entire difference between ordinary and
+stochastic calculus, and it is the quadratic variation of
+\S\ref{ch29:nowhere-diff} showing up to collect its due.
+
+\begin{whybox}
+Where does the extra term come from? Taylor-expand $f$ over a tiny step:
+\[
+  f(W+\dd W) - f(W)
+  = f'(W)\,\dd W + \tfrac12 f''(W)\,(\dd W)^2 + \cdots.
+\]
+For a smooth path $(\dd W)^2$ would be negligible compared to $\dd W$, and you
+would drop it -- that is ordinary calculus. But for Brownian motion $(\dd W)^2$ is
+\emph{not} negligible: summed up it converges to $\dd t$, not to zero. So the
+second-order term survives into the answer while the cubic and higher terms still
+vanish. It\^o's lemma is just Taylor's theorem with the rule $(\dd W)^2=\dd t$
+substituted in. The nowhere-differentiability we feared turns out to be exactly
+what we exploit.
+\end{whybox}
+
+\begin{example}[Why the $-\tfrac12\sigma^2$ in geometric Brownian motion]
+\label{ch29:ex-gbm}
+Apply It\^o's lemma to $f(w)=e^{\sigma w}$, so $f'=\sigma e^{\sigma w}$,
+$f''=\sigma^2 e^{\sigma w}$. With $Y(t)=e^{\sigma W(t)}$,
+\[
+  \dd Y = \sigma Y\,\dd W + \tfrac12\sigma^2 Y\,\dd t.
+\]
+The exponential of Brownian motion drifts \emph{upward} at rate
+$\tfrac12\sigma^2$ all by itself, purely from the convexity of $e^x$ feeding on
+the wiggle. To model a stock whose true growth rate is $\mu$, you must
+\emph{subtract} that spurious drift, which is why
+$S(t)=S_0\exp\big((\mu-\tfrac12\sigma^2)t+\sigma W(t)\big)$ carries the correction
+term. The $-\tfrac12\sigma^2$ is It\^o's lemma in disguise.
+\end{example}
+
+\begin{applicationbox}
+\textbf{Black--Scholes and the price of an option.} In 1973 Fischer Black, Myron
+Scholes, and Robert Merton modeled a stock as geometric Brownian motion and asked:
+what is the fair price today of a \emph{call option}, the right to buy the stock
+at a fixed price $K$ at a future date $T$? Their insight was a kind of magic
+trick. At each instant you can hold a mix of the stock and cash that
+\emph{exactly cancels} the random $\dd W$ term in the option's value -- a
+self-financing hedge. With the randomness hedged away, the portfolio must (to
+forbid arbitrage) earn the risk-free interest rate $r$. Setting those two facts
+equal and applying It\^o's lemma turns the problem into a PDE -- the
+Black--Scholes equation -- which is the heat equation of \S\ref{ch29:heat} in
+disguise. Solving it gives the closed-form price
+\[
+  C = S_0\,\Phi(d_1) - K e^{-rT}\,\Phi(d_2),
+  \qquad
+  d_{1,2} = \frac{\ln(S_0/K) + (r \pm \tfrac12\sigma^2)T}{\sigma\sqrt T}.
+\]
+There is that $\tfrac12\sigma^2$ and that $\Phi$ -- the Gaussian CDF -- again. A
+nineteenth-century botanist's jittering pollen grain became, a century and a half
+later, the foundation of a multitrillion-dollar derivatives industry and a Nobel
+Prize in economics. That is the reach of one random curve.
+\end{applicationbox}
+
+\begin{trapbox}
+Geometric Brownian motion is a \emph{model}, and a famously imperfect one. Real
+returns have fatter tails than the lognormal allows, volatility $\sigma$ is not
+constant, and prices occasionally jump (Brownian paths never do). The 1987 crash
+and 2008 crisis both featured moves that Black--Scholes assigns probabilities so
+small they ``should not happen in the lifetime of the universe.'' Use the model
+for intuition and as a baseline; respect its assumptions; never mistake the
+elegant curve for the messy market.
+\end{trapbox}
+
+\section{Simulating Brownian Motion}
+\label{ch29:simulate}
+
+The cleanest way to \emph{see} Brownian motion is to generate one. Definition
+\ref{ch29:def-bm} hands you the recipe directly: increments over disjoint
+intervals are independent normals with variance equal to the time step. So pick a
+step $\Delta t$, draw independent $Z_i\sim\Normal(0,1)$, and accumulate.
+
+\begin{labbox}
+Build a Brownian path on $[0,1]$ with $N=1000$ steps, so $\Delta t = 1/N$.
+\begin{enumerate}
+  \item Set $W_0 = 0$.
+  \item For $i=1,\dots,N$, draw $Z_i\sim\Normal(0,1)$ and set
+  \[
+    W_i = W_{i-1} + \sqrt{\Delta t}\; Z_i.
+  \]
+  The factor $\sqrt{\Delta t}$ is the diffusive scaling again: variance per step
+  equals $\Delta t$, so the increment's standard deviation is $\sqrt{\Delta t}$.
+  \item Plot $(i\,\Delta t,\ W_i)$.
+\end{enumerate}
+Now experiment. Halve $\Delta t$ (double $N$) and overlay: the new path looks just
+as rough -- self-similarity in your own plot. Replace the update with
+$W_i = W_{i-1} + \mu\,\Delta t + \sigma\sqrt{\Delta t}\,Z_i$ to add drift and
+volatility. Exponentiate to get a stock-price path. Run it a thousand times and
+histogram $W_1$: you will recover the standard normal, the Central Limit Theorem
+closing the loop we opened in \S\ref{ch29:walk-to-curve}.
+\end{labbox}
+
+\begin{remark}
+That update rule, $W_i = W_{i-1} + \sqrt{\Delta t}\,Z_i$, is the
+\emph{Euler--Maruyama} scheme, the workhorse of stochastic simulation. Note the
+$\sqrt{\Delta t}$ where an ordinary differential-equation solver would put
+$\Delta t$. Forget the square root and you are simulating the wrong process --
+the single most common bug in Monte Carlo finance code.
+\end{remark}
+
+\section{What to Carry Away}
+\label{ch29:summary}
+
+\begin{focusbox}
+\begin{itemize}
+  \item Brownian motion is the scaling limit of random walks under the
+  \emph{diffusive scaling}: time $\sim 1/n$, space $\sim 1/\sqrt n$. Space is the
+  square root of time.
+  \item It is defined by four properties: starts at $0$, independent increments,
+  Gaussian stationary increments with $W(t)-W(s)\sim\Normal(0,t-s)$, and
+  continuous paths. Equivalently it is the Gaussian process with covariance
+  $\min(s,t)$.
+  \item Its paths are continuous everywhere and differentiable nowhere; their
+  quadratic variation over $[0,t]$ equals $t$, encoded as $(\dd W)^2 = \dd t$.
+  \item The density of $W(t)$ is a spreading Gaussian that solves the heat
+  equation $\partial_t p = \tfrac12\partial_{xx}p$ -- randomness and diffusion are
+  the same mathematics.
+  \item The reflection principle gives maxima and first-passage probabilities for
+  free: $\P(\max_{[0,t]}W\ge a) = 2\,\P(W(t)>a)$.
+  \item It\^o's lemma, $\dd f(W) = f'(W)\dd W + \tfrac12 f''(W)\dd t$, is the chain
+  rule of a world where $(\dd W)^2=\dd t$, and it powers geometric Brownian motion
+  and the Black--Scholes formula.
+\end{itemize}
+\end{focusbox}
+
+The thread running through every section is a single scaling law -- space grows
+like the square root of time -- born from the cancellation of independent random
+steps. From that one fact flow the Gaussian increments, the fractal roughness, the
+missing derivative, the link to heat, and the strange extra term in stochastic
+calculus. Brown saw it in a microscope; Einstein explained it; Wiener made it
+rigorous; Black, Scholes, and Merton put a price on it. You should now see it too:
+a curve you can draw but never smooth, the purest picture of randomness in motion.
+
+\section{Exercises}
+\label{ch29:exercises}
+
+\begin{exercise}[Increment arithmetic]
+Let $W$ be standard Brownian motion. Compute (a) $\Var(W(7)-W(3))$;
+(b) $\Cov(W(3),W(7))$; (c) $\P(W(9)>6)$ in terms of $\Phi$; (d) $\E[W(2)^2]$.
+\end{exercise}
+
+\begin{exercise}[Correlation between times]
+For $s<t$, show that
+$\Corr\big(W(s),W(t)\big) = \sqrt{s/t}$. Interpret: why does the correlation
+between the position now and the position far in the future decay, and at what
+rate?
+\end{exercise}
+
+\begin{exercise}[Scaling self-check]
+Let $\widetilde W(t) = \tfrac{1}{2}W(4t)$. Verify directly that
+$\widetilde W(t)\sim\Normal(0,t)$ and that
+$\Cov(\widetilde W(s),\widetilde W(t)) = \min(s,t)$, confirming
+$\widetilde W$ is again a standard Brownian motion.
+\end{exercise}
+
+\begin{exercise}[Brownian bridge]
+Define $B(t) = W(t) - t\,W(1)$ for $0\le t\le1$ (Brownian motion ``tied down'' to
+$0$ at both ends). Show $B(0)=B(1)=0$, that $\E[B(t)]=0$, and that
+$\Cov\big(B(s),B(t)\big) = \min(s,t) - st$ for $s,t\in[0,1]$.
+\end{exercise}
+
+\begin{exercise}[Reflection principle]
+A standard Brownian motion runs on $[0,9]$. (a) Find the probability it reaches
+level $a=3$ at some time during $[0,9]$. (b) Find the probability it reaches $3$
+but ends below $3$, i.e.\ $\P(\max_{[0,9]}W\ge3,\ W(9)<3)$.
+(Hint: use the reflection pairing.)
+\end{exercise}
+
+\begin{exercise}[Drifted Brownian motion]
+Let $X(t)=\mu t + \sigma W(t)$ with $\mu=1$, $\sigma=2$. (a) Give the distribution
+of $X(4)$. (b) Compute $\P(X(4)>10)$ in terms of $\Phi$. (c) For what time $t$
+does the standard deviation of $X(t)$ first exceed its mean?
+\end{exercise}
+
+\begin{exercise}[Heat equation, by hand]
+Verify that $p(x,t)=(4\pi t)^{-1/2}\exp(-x^2/4t)$ satisfies
+$\partial_t p = \partial_{xx}p$ (diffusion constant $1$ rather than $\tfrac12$).
+Which variance growth rate does this correspond to, and how does the diffusion
+constant relate to the rate at which $\Var$ grows in time?
+\end{exercise}
+
+\begin{exercise}[It\^o's lemma practice]
+Use It\^o's lemma to find the stochastic differential of (a) $f(W)=W^2$ and
+(b) $f(W)=W^3$. For part (a), take expectations of both sides and integrate to
+re-derive $\E[W(t)^2]=t$. (Hint: the It\^o-integral term has expectation zero.)
+\end{exercise}
+
+\begin{exercise}[Geometric Brownian motion]
+Let $S(t)=S_0\exp\big((\mu-\tfrac12\sigma^2)t+\sigma W(t)\big)$. (a) Show that
+$\ln S(t)\sim\Normal\big(\ln S_0 + (\mu-\tfrac12\sigma^2)t,\ \sigma^2 t\big)$.
+(b) Using $\E[e^{Z}] = e^{\Var(Z)/2}$ for mean-zero normal $Z$, show that
+$\E[S(t)] = S_0 e^{\mu t}$ -- so the $-\tfrac12\sigma^2$ correction makes the
+\emph{expected} price grow at exactly rate $\mu$.
+\end{exercise}
+
+\begin{exercise}[Conceptual: why no derivative]
+Explain in your own words, using the $\sqrt h$ versus $h$ scaling of increments,
+why $\big(W(t+h)-W(t)\big)/h$ has no finite limit as $h\to0$. Then explain why the
+quadratic variation $\sum (\Delta W)^2$ converges to a nonzero limit while it
+would vanish for any differentiable function.
+\end{exercise}
+
+\begin{exercise}[Simulation, proof by experiment]
+Describe an Euler--Maruyama scheme to simulate $W$ on $[0,T]$ with $N$ steps.
+Explain why the per-step increment must use $\sqrt{\Delta t}$ and not $\Delta t$,
+and predict what histogram you would get from $W(T)$ over many independent runs.
+What does the histogram demonstrate about the connection to the Central Limit
+Theorem?
+\end{exercise}

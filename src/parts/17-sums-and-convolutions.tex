@@ -1,0 +1,941 @@
+\chapter{Sums of Random Variables and Convolutions}
+
+If there is one operation that probability cannot live without, it is
+\emph{addition}. The total of two dice. The sum of a hundred daily returns
+on a stock. The number of clicks across a thousand visitors. The position
+of a particle after a million tiny random kicks. Again and again, the
+quantity we actually care about is not a single random variable but a
+\emph{sum} of them, and the central question becomes: if I know the
+distribution of each piece, what is the distribution of the whole?
+
+This chapter answers that question. The headline tool is the
+\textbf{convolution}: a single, beautiful formula that builds the
+distribution of $X+Y$ out of the distributions of $X$ and $Y$ when they
+are independent. We will discover convolution twice -- once by counting,
+once by integrating -- and each time it will feel inevitable rather than
+imposed. Along the way we will see which families of distributions are
+``closed under addition'' (add two Poissons and you get a Poisson; add two
+normals and you get a normal), revisit why expectation and variance behave
+so cleanly under sums, and set the stage for the limit theorems that crown
+the subject.
+
+\chapterline
+
+\section{The Question: What Is the Distribution of a Sum?}
+\label{ch17:question}
+
+Let us anchor everything in the simplest possible story.
+
+\begin{intuitionbox}
+You roll two fair four-sided dice (a $\Unif\set{1,2,3,4}$ each). You do
+not care about the individual faces; you care about the \emph{total}
+$S = X + Y$. What is $\P(S = 5)$?
+
+You already know how to do this by brute force: list the $16$ equally
+likely outcomes $(x,y)$ and count those with $x+y=5$. They are
+$(1,4),(2,3),(3,2),(4,1)$ -- four of them -- so $\P(S=5)=4/16=1/4$.
+
+Stare at that list. Each pair has the form $(k,\,5-k)$. We summed over all
+the ways the two pieces can ``conspire'' to produce the target total $5$:
+the first die is $k$, the second die is $5-k$, and we add up the
+probability of each such split. That summing-over-all-splits is exactly
+what a convolution is. The rest of this chapter is just that idea, made
+precise and pushed into the continuous world.
+\end{intuitionbox}
+
+Before we name the tool, let us be clear about \emph{when} it applies and
+what could go wrong.
+
+\begin{focusbox}
+The distribution of $S = X+Y$ depends, in general, on the \emph{joint}
+distribution of $(X,Y)$, not just on the two marginals. Two random
+variables with the same individual distributions can produce very
+different sums depending on how they are coupled.
+
+\textbf{Extreme example.} Let $X \sim \Unif\set{0,1}$ (a fair coin coded
+$0/1$).
+\begin{itemize}
+  \item If $Y = X$ (perfectly dependent), then $S = 2X \in \set{0,2}$,
+        each with probability $1/2$. It can never equal $1$.
+  \item If $Y = 1-X$ (perfectly anti-dependent), then $S \equiv 1$ always.
+  \item If $Y$ is an independent copy of $X$, then
+        $S \in \set{0,1,2}$ with probabilities $\tfrac14,\tfrac12,\tfrac14$.
+\end{itemize}
+Same marginals, three completely different sums. So the clean formulas of
+this chapter will require an assumption, and that assumption is
+\textbf{independence}.
+\end{focusbox}
+
+Throughout, unless we say otherwise, $X \indep Y$.
+
+\section{Discrete Convolution: Summing Over All the Ways}
+\label{ch17:discrete-conv}
+
+Suppose $X$ and $Y$ are independent integer-valued random variables with
+probability mass functions (PMFs) $p_X$ and $p_Y$. We want the PMF of
+$S = X+Y$. Fix a target value $s$. The event $\set{S=s}$ is the union,
+over every integer $k$, of the event ``$X=k$ \emph{and} $Y=s-k$.'' These
+are disjoint (different $k$ means a different value of $X$), so we add
+their probabilities, and independence lets us factor each one:
+\[
+\P(S=s) \;=\; \sum_{k} \P(X=k,\,Y=s-k)
+            \;=\; \sum_{k} \P(X=k)\,\P(Y=s-k).
+\]
+That is the whole derivation. We give it a name.
+
+\begin{definition}[Discrete convolution]
+\label{ch17:def-discrete-conv}
+For independent integer-valued $X,Y$ with PMFs $p_X,p_Y$, the PMF of
+$S=X+Y$ is the \emph{convolution} $p_X * p_Y$:
+\[
+p_S(s) \;=\; (p_X * p_Y)(s) \;=\; \sum_{k=-\infty}^{\infty} p_X(k)\,p_Y(s-k).
+\]
+\end{definition}
+
+\begin{happeningbox}
+Read the formula as a recipe. To land the total at $s$, you must split $s$
+into a part contributed by $X$ (call it $k$) and the leftover $s-k$
+contributed by $Y$. There are many possible splits; you weight each split
+by how likely it is ($p_X(k)\,p_Y(s-k)$) and add up. The index $k$ slides
+across all values while $s-k$ slides in the opposite direction -- one
+counter goes up exactly as the other goes down so their sum is pinned at
+$s$. That ``one up, one down'' sliding is the visual signature of
+convolution, and it is why engineers describe convolution as ``flip one
+sequence and slide it past the other.''
+\end{happeningbox}
+
+\begin{connectionbox}
+If you have met convolution in the companion calculus book (or in signal
+processing), this is the \emph{same} operation applied to PMFs.
+Multiplying polynomials is convolution in disguise: if
+$A(z)=\sum_k a_k z^k$ and $B(z)=\sum_k b_k z^k$, then the coefficient of
+$z^s$ in $A(z)B(z)$ is exactly $\sum_k a_k b_{s-k}$. We will exploit this
+through the idea of \emph{generating functions}: turn a PMF into a
+polynomial (or power series), and adding independent random variables
+becomes \emph{multiplying} their generating functions. That turns hard
+convolutions into easy products -- the central trick of the next chapter.
+\end{connectionbox}
+
+\subsection{Worked example: two four-sided dice}
+
+Let $p_X(k)=p_Y(k)=\tfrac14$ for $k\in\set{1,2,3,4}$ and $0$ otherwise.
+By Definition~\ref{ch17:def-discrete-conv},
+\[
+p_S(s) \;=\; \sum_{k=1}^{4} \tfrac14 \cdot p_Y(s-k)
+        \;=\; \tfrac{1}{16}\,\#\set{k\in\set{1,2,3,4} : s-k \in \set{1,2,3,4}}.
+\]
+So $p_S(s)$ is just $1/16$ times the number of valid splits. Counting them
+for $s=2,\dots,8$ gives $1,2,3,4,3,2,1$ -- the famous triangular
+``pyramid'' of dice sums. Figure~\ref{ch17:fig-dice} plots it.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  ybar, bar width=14pt,
+  xlabel={total $s$}, ylabel={$\P(S=s)$},
+  xtick={2,3,4,5,6,7,8},
+  ymin=0, ymax=0.30,
+  enlarge x limits=0.12,
+  nodes near coords, every node near coord/.append style={font=\scriptsize},
+  point meta=explicit symbolic,
+]
+\addplot[fill=distblue!60, draw=distblue] coordinates {
+  (2,0.0625)[$\tfrac{1}{16}$] (3,0.125)[$\tfrac{2}{16}$]
+  (4,0.1875)[$\tfrac{3}{16}$] (5,0.25)[$\tfrac{4}{16}$]
+  (6,0.1875)[$\tfrac{3}{16}$] (7,0.125)[$\tfrac{2}{16}$]
+  (8,0.0625)[$\tfrac{1}{16}$]
+};
+\end{axis}
+\end{tikzpicture}
+\caption{The PMF of the sum of two fair four-sided dice. Two flat
+(uniform) distributions convolve into a triangle. This ``smoothing'' --
+flat becomes peaked -- is the first whisper of the central limit theorem.}
+\label{ch17:fig-dice}
+\end{figure}
+
+\begin{aestheticbox}
+Notice what convolution did to the \emph{shape}. Each die alone is flat:
+every face equally likely. Their sum is a triangle, peaked in the middle.
+Convolve a third die in and you get a bell-ish bump; a fourth, smoother
+still. Adding independent copies \emph{pulls probability toward the center}
+and rounds off the corners. Keep this picture in your pocket: it is the
+mechanism behind the bell curve, and we will cash it out fully when we
+reach the central limit theorem.
+\end{aestheticbox}
+
+\subsection{A nontrivial discrete example: two Poissons}
+
+Convolution is not just for finite supports. Let
+$X \sim \Pois(\lambda)$ and $Y\sim\Pois(\mu)$ be independent, supported on
+$\set{0,1,2,\dots}$. For $s\ge 0$,
+\[
+\P(S=s) = \sum_{k=0}^{s} e^{-\lambda}\frac{\lambda^k}{k!}\,
+          e^{-\mu}\frac{\mu^{\,s-k}}{(s-k)!}
+        = e^{-(\lambda+\mu)} \sum_{k=0}^{s} \frac{\lambda^k \mu^{\,s-k}}{k!\,(s-k)!}.
+\]
+Multiply and divide by $s!$ inside the sum to manufacture binomial
+coefficients:
+\[
+\P(S=s) = \frac{e^{-(\lambda+\mu)}}{s!}
+          \sum_{k=0}^{s} \binom{s}{k}\lambda^k \mu^{\,s-k}
+        = e^{-(\lambda+\mu)}\,\frac{(\lambda+\mu)^s}{s!},
+\]
+where the last step is the binomial theorem. The right-hand side is the
+PMF of $\Pois(\lambda+\mu)$. We have just proved one of the most-used
+facts in applied probability.
+
+\begin{theorem}[Poissons add]
+\label{ch17:thm-pois-add}
+If $X\sim\Pois(\lambda)$ and $Y\sim\Pois(\mu)$ are independent, then
+$X+Y \sim \Pois(\lambda+\mu)$.
+\end{theorem}
+
+\begin{intuitionbox}
+This should feel \emph{right} before you even see the algebra. The Poisson
+counts rare events over an interval at rate $\lambda$. If one phone line
+gets calls at rate $\lambda$ and another, independently, at rate $\mu$,
+then the combined switchboard gets calls at rate $\lambda+\mu$. Merging
+two independent streams of rare events just adds their rates. The
+convolution computation is merely the bookkeeping that confirms the story.
+\end{intuitionbox}
+
+\section{Continuous Convolution: From Sums to Integrals}
+\label{ch17:cont-conv}
+
+Now let $X$ and $Y$ be independent \emph{continuous} random variables with
+densities $f_X$ and $f_Y$. We want the density of $S = X+Y$. The honest
+way to get there is through the cumulative distribution function (CDF),
+because the probability of a single point is zero and cannot be added the
+way PMFs were.
+
+\subsection{Derivation via the CDF}
+
+Fix a number $s$. We compute $F_S(s) = \P(X+Y \le s)$ by integrating the
+joint density over the half-plane $\set{(x,y): x+y\le s}$. By independence
+the joint density factors, $f_{X,Y}(x,y)=f_X(x)f_Y(y)$:
+\[
+F_S(s) = \iint_{x+y\le s} f_X(x)\,f_Y(y)\,\dd x\,\dd y
+       = \int_{-\infty}^{\infty} f_X(x)
+         \left( \int_{-\infty}^{s-x} f_Y(y)\,\dd y \right) \dd x.
+\]
+The inner integral is $F_Y(s-x)$. Now differentiate in $s$ to recover the
+density. Differentiation passes under the outer integral, and
+$\frac{\dd}{\dd s}F_Y(s-x)=f_Y(s-x)$:
+\[
+f_S(s) = \frac{\dd}{\dd s}F_S(s)
+       = \int_{-\infty}^{\infty} f_X(x)\,f_Y(s-x)\,\dd x.
+\]
+
+\begin{definition}[Continuous convolution]
+\label{ch17:def-cont-conv}
+For independent continuous $X,Y$ with densities $f_X,f_Y$, the density of
+$S=X+Y$ is the \emph{convolution}
+\[
+f_S(s) = (f_X * f_Y)(s) = \int_{-\infty}^{\infty} f_X(x)\,f_Y(s-x)\,\dd x.
+\]
+\end{definition}
+
+\begin{connectionbox}
+Compare Definitions~\ref{ch17:def-discrete-conv} and
+\ref{ch17:def-cont-conv}: the sum $\sum_k$ has become an integral
+$\int \dd x$, and the PMFs have become densities. This is exactly the
+discrete-to-continuous translation you saw for expectation in the calculus
+companion -- a Riemann sum passing to its integral. Convolution is one
+operation wearing two outfits.
+\end{connectionbox}
+
+\begin{whybox}
+Why does differentiating ``under the integral sign'' give the density?
+Because for nice (continuous, integrable) $f_X,f_Y$ the map
+$s\mapsto \int f_X(x)F_Y(s-x)\dd x$ is differentiable and its derivative is
+$\int f_X(x)\,f_Y(s-x)\dd x$, by the Leibniz rule for differentiating an
+integral with respect to a parameter. The regularity conditions hold for
+every density we use in this book; the rigorous statement lives in the
+measure-theory chapters. For now, trust that the CDF is smooth enough to
+differentiate term by term.
+\end{whybox}
+
+\subsection{Worked example: sum of two uniforms is a triangle}
+
+Let $X,Y$ be independent $\Unif(0,1)$, so $f_X=f_Y=\ind_{[0,1]}$. Then
+\[
+f_S(s) = \int_{-\infty}^{\infty} \ind_{[0,1]}(x)\,\ind_{[0,1]}(s-x)\,\dd x
+       = \int_0^1 \ind_{[0,1]}(s-x)\,\dd x.
+\]
+The integrand is $1$ exactly when $0\le s-x\le 1$, i.e. when
+$s-1\le x\le s$. Intersecting that with $[0,1]$:
+\begin{itemize}
+  \item For $0\le s\le 1$: the overlap is $[0,s]$, length $s$. So $f_S(s)=s$.
+  \item For $1\le s\le 2$: the overlap is $[s-1,1]$, length $2-s$. So $f_S(s)=2-s$.
+  \item Otherwise $f_S(s)=0$.
+\end{itemize}
+The result is the \emph{triangular} (or ``tent'') density on $[0,2]$,
+peaking at $s=1$. Figure~\ref{ch17:fig-tent} shows it.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.5cm,
+  xlabel={$s$}, ylabel={$f_S(s)$},
+  xmin=-0.4, xmax=2.4, ymin=0, ymax=1.25,
+  xtick={0,0.5,1,1.5,2}, ytick={0,0.5,1},
+  samples=2,
+  axis lines=left,
+]
+\addplot[densityred, thick, domain=0:1] {x};
+\addplot[densityred, thick, domain=1:2] {2-x};
+\addplot[densityred, thick, domain=-0.4:0] {0};
+\addplot[densityred, thick, domain=2:2.4] {0};
+\addplot[dashed, gray, domain=-0.4:2.4, samples=2] {1};
+\node at (axis cs:1.7,1.0) [above, font=\scriptsize, gray] {height of one uniform};
+\node at (axis cs:1,0.55) [above, font=\scriptsize, densityred] {peak $=1$};
+\end{axis}
+\end{tikzpicture}
+\caption{Two independent $\Unif(0,1)$ variables sum to a triangular
+density on $[0,2]$. Geometrically, $f_S(s)$ is the length of overlap when
+one unit box slides past another; the overlap grows, peaks at $s=1$, then
+shrinks. Flat plus flat equals peaked -- the continuous twin of the dice
+picture.}
+\label{ch17:fig-tent}
+\end{figure}
+
+\begin{walkbox}
+\textbf{Walking question.} Before reading on: what do you expect the
+density of the sum of \emph{three} independent $\Unif(0,1)$ variables to
+look like? Sketch it.
+
+\emph{Answer.} Convolving the tent with one more box rounds the two
+straight sides into curves; you get a smooth bell-shaped piece made of
+three parabolic arcs (the Irwin--Hall density for $n=3$), supported on
+$[0,3]$ and peaking at $1.5$. Each extra uniform you add makes the result
+smoother and more bell-like. By $n=12$ the sum is so close to a normal
+that the old ``add twelve uniforms and subtract six'' trick was a standard
+way to fake a standard normal before fast Gaussian samplers existed.
+\end{walkbox}
+
+\begin{historybox}
+The word ``convolution'' (German \emph{Faltung}, literally ``a folding'')
+spread through analysis in the early twentieth century, but the
+\emph{operation} is much older in probability. Laplace, around 1810, was
+already adding independent errors by exactly this integral while developing
+what we now call the central limit theorem, and he used a
+multiply-the-transforms shortcut (characteristic functions in modern
+language) to avoid grinding through the integrals directly. The ``folding''
+name captures the picture in Figure~\ref{ch17:fig-tent}: to evaluate
+$(f*g)(s)$ you reflect $g$ about the vertical axis and slide it, folding
+one function back across the other.
+\end{historybox}
+
+\section{Sums Within a Family: Closure Under Addition}
+\label{ch17:closure}
+
+Some families of distributions have a magical property: add two members
+and you stay inside the family, with parameters that simply combine. We
+already proved it for the Poisson. Here is the roster you should know cold.
+
+\subsection{Binomial plus binomial (same \texorpdfstring{$p$}{p})}
+
+\begin{theorem}[Binomials add when $p$ matches]
+\label{ch17:thm-bin-add}
+If $X\sim\Bin(m,p)$ and $Y\sim\Bin(n,p)$ are independent \emph{with the
+same success probability $p$}, then $X+Y\sim\Bin(m+n,p)$.
+\end{theorem}
+
+\begin{whybox}
+The slick proof needs no algebra. A $\Bin(m,p)$ counts successes in $m$
+independent coin flips with bias $p$; a $\Bin(n,p)$ counts successes in
+another $n$ such flips. Lay all $m+n$ flips in a row -- they are
+independent and all have bias $p$ -- and $X+Y$ is the total number of
+successes among $m+n$ flips, which is by definition $\Bin(m+n,p)$. The
+constraint ``same $p$'' is essential: if the coins had different biases,
+the pooled flips would not be identically distributed and the count would
+not be binomial.
+\end{whybox}
+
+If you prefer to see the convolution machinery confirm it, the algebraic
+heart is Vandermonde's identity
+$\sum_{k}\binom{m}{k}\binom{n}{s-k}=\binom{m+n}{s}$, which collects the
+ways to get $s$ total successes from the two groups.
+
+\subsection{Normal plus normal}
+
+\begin{theorem}[Normals add]
+\label{ch17:thm-normal-add}
+If $X\sim\Normal(\mu_1,\sigma_1^2)$ and $Y\sim\Normal(\mu_2,\sigma_2^2)$
+are independent, then
+\[
+X+Y \sim \Normal\!\left(\mu_1+\mu_2,\;\sigma_1^2+\sigma_2^2\right).
+\]
+The means add and the \emph{variances} add (so the standard deviations add
+in quadrature, $\sqrt{\sigma_1^2+\sigma_2^2}$, not linearly).
+\end{theorem}
+
+\begin{whybox}
+Here is the convolution computation for the clean case
+$\mu_1=\mu_2=0$ (a shift handles general means). With
+$f_X(x)=\frac{1}{\sqrt{2\pi}\sigma_1}e^{-x^2/2\sigma_1^2}$ and similarly
+for $Y$,
+\[
+f_S(s) = \frac{1}{2\pi\sigma_1\sigma_2}\int_{-\infty}^{\infty}
+   \exp\!\left(-\frac{x^2}{2\sigma_1^2}-\frac{(s-x)^2}{2\sigma_2^2}\right)\dd x.
+\]
+The exponent is a quadratic in $x$. ``Completing the square'' in $x$
+splits it into a part that depends only on $s$ and a part that integrates
+to a constant Gaussian integral over $x$. Carrying out the algebra (group
+the $x^2$ terms, the $x$ terms, the constant terms; the $x$-integral
+becomes a standard $\int e^{-a(x-b)^2}\dd x=\sqrt{\pi/a}$) leaves
+\[
+f_S(s) = \frac{1}{\sqrt{2\pi(\sigma_1^2+\sigma_2^2)}}\,
+         \exp\!\left(-\frac{s^2}{2(\sigma_1^2+\sigma_2^2)}\right),
+\]
+which is exactly the $\Normal(0,\sigma_1^2+\sigma_2^2)$ density. The whole
+miracle is that a Gaussian times a Gaussian, integrated, is a Gaussian --
+because the product of two exponentials-of-quadratics is an
+exponential-of-a-quadratic, and quadratics complete the square. (Using
+characteristic functions in the next chapter, the same fact takes one
+line.)
+\end{whybox}
+
+\begin{aestheticbox}
+The normal family is the \emph{fixed point} of convolution. Almost every
+other family changes shape when you add copies (uniform becomes triangle
+becomes bell), forever crawling toward the normal. The normal is already
+there. It does not move. That self-reproducing stability is the deep
+reason the normal is the universal limit: it is the only ``shape'' that
+adding cannot disturb (among distributions with finite variance). We make
+this precise in the central limit theorem.
+\end{aestheticbox}
+
+\subsection{Gamma plus gamma (same rate)}
+
+The Gamma family with shape $\alpha$ and rate $\beta$ has density
+$f(x)=\frac{\beta^\alpha}{\Gamma(\alpha)}x^{\alpha-1}e^{-\beta x}$ for
+$x>0$. It too is closed under addition when the rate matches.
+
+\begin{theorem}[Gammas add when the rate matches]
+\label{ch17:thm-gamma-add}
+If $X\sim\Gam(\alpha_1,\beta)$ and $Y\sim\Gam(\alpha_2,\beta)$ are
+independent with the same rate $\beta$, then
+$X+Y\sim\Gam(\alpha_1+\alpha_2,\beta)$.
+\end{theorem}
+
+\begin{whybox}
+Convolve the densities for $s>0$ (constants pulled out, $\beta$ shared):
+\[
+f_S(s) = \frac{\beta^{\alpha_1+\alpha_2}}{\Gamma(\alpha_1)\Gamma(\alpha_2)}
+         e^{-\beta s}\int_0^s x^{\alpha_1-1}(s-x)^{\alpha_2-1}\,\dd x.
+\]
+Substitute $x=su$ ($\dd x = s\,\dd u$, limits $0$ to $1$):
+\[
+\int_0^s x^{\alpha_1-1}(s-x)^{\alpha_2-1}\dd x
+ = s^{\alpha_1+\alpha_2-1}\int_0^1 u^{\alpha_1-1}(1-u)^{\alpha_2-1}\dd u
+ = s^{\alpha_1+\alpha_2-1}\,B(\alpha_1,\alpha_2),
+\]
+where $B(\alpha_1,\alpha_2)=\Gamma(\alpha_1)\Gamma(\alpha_2)/\Gamma(\alpha_1+\alpha_2)$
+is the Beta function. Substituting back, the Gamma functions telescope:
+\[
+f_S(s) = \frac{\beta^{\alpha_1+\alpha_2}}{\Gamma(\alpha_1+\alpha_2)}\,
+         s^{\alpha_1+\alpha_2-1}e^{-\beta s},
+\]
+the $\Gam(\alpha_1+\alpha_2,\beta)$ density. The Beta integral is doing all
+the work; this is the same combinatorics-of-the-continuum that made the
+uniforms convolve into a tent.
+\end{whybox}
+
+\begin{corollary}[Exponentials sum to an Erlang]
+\label{ch17:cor-erlang}
+Since $\Expo(\beta)=\Gam(1,\beta)$, the sum of $n$ independent
+$\Expo(\beta)$ variables is $\Gam(n,\beta)$ (the \emph{Erlang}
+distribution). Concretely, the waiting time until the $n$th event in a
+Poisson process of rate $\beta$ is $\Gam(n,\beta)$ -- you wait for $n$
+independent exponential inter-arrival gaps and add them up.
+\end{corollary}
+
+\begin{applicationbox}
+\textbf{Convolution in machine learning, two ways.} The same word shows up
+in deep learning, and the connection is exact. A convolutional layer slides
+a small kernel across an input and, at each position, computes
+$\sum_k w_k\,x_{s-k}$ -- the discrete convolution of
+Definition~\ref{ch17:def-discrete-conv} with the kernel $w$ playing the role
+of one PMF. The probabilistic reading also pays off directly: when a system
+adds independent random delays -- a request hops through several
+microservices, each adding an $\Expo(\beta)$-like latency -- the end-to-end
+latency is the convolution of the per-hop densities, an Erlang by
+Corollary~\ref{ch17:cor-erlang}. Engineers who size timeouts from the
+\emph{tail} of that convolved distribution (the $99.9$th percentile) rather
+than the mean are using exactly this chapter's machinery to budget for the
+rare slow request.
+\end{applicationbox}
+
+\begin{trapbox}
+\textbf{The matching-parameter trap.} Each closure theorem comes with a
+\emph{shared} parameter that you may not violate:
+\begin{itemize}
+  \item Binomials add only with the \textbf{same $p$}.
+  \item Gammas add only with the \textbf{same rate $\beta$}.
+  \item Normals add for \textbf{any} parameters (no matching needed) --
+        that is part of what makes them special.
+  \item Poissons add for any rates (the rates simply sum).
+\end{itemize}
+A common error is to ``add'' two binomials with different $p$, or two
+gammas with different rates, and report a member of the same family. The
+true sum exists, of course, but it is \emph{not} in the family and has no
+tidy closed form. When the shared parameter does not match, you must fall
+back to the raw convolution.
+\end{trapbox}
+
+\begin{labbox}
+\textbf{Work it yourself.} Convince yourself the closures are mutually
+consistent. Start from $X_i\sim\Bern(p)$ i.i.d.
+\begin{enumerate}
+  \item Each $X_i$ is $\Bin(1,p)$. Use Theorem~\ref{ch17:thm-bin-add}
+        $n$ times to conclude $\sum_{i=1}^n X_i\sim\Bin(n,p)$. (This is
+        the very \emph{definition} of the binomial -- nice that the
+        convolution machinery reproduces it.)
+  \item Each $\Expo(\beta)$ is $\Gam(1,\beta)$. Use
+        Theorem~\ref{ch17:thm-gamma-add} to get the Erlang of
+        Corollary~\ref{ch17:cor-erlang}.
+  \item Each $\Pois(\lambda/n)$ is independent; their sum over $i=1,\dots,n$
+        is $\Pois(\lambda)$ by Theorem~\ref{ch17:thm-pois-add}. So a
+        Poisson of rate $\lambda$ is an aggregate of many tiny Poissons --
+        the ``infinitely divisible'' property.
+\end{enumerate}
+\end{labbox}
+
+\section{Expectation and Variance of Sums, Revisited}
+\label{ch17:mean-var}
+
+Convolution gives the \emph{entire} distribution of a sum, which is more
+than we often need. Frequently we only want two numbers: the mean and the
+variance. Those obey rules so clean they almost feel like cheating, and --
+crucially -- the mean rule needs \emph{no} independence at all.
+
+\begin{theorem}[Linearity of expectation; additivity of variance]
+\label{ch17:thm-mean-var}
+For \emph{any} random variables $X_1,\dots,X_n$ with finite means,
+\[
+\E\!\left[\sum_{i=1}^n X_i\right] = \sum_{i=1}^n \E[X_i].
+\]
+For the variance, in general
+\[
+\Var\!\left(\sum_{i=1}^n X_i\right)
+  = \sum_{i=1}^n \Var(X_i) + 2\!\!\sum_{1\le i<j\le n}\!\! \Cov(X_i,X_j),
+\]
+and if the $X_i$ are \emph{(pairwise) uncorrelated} -- in particular if
+they are independent -- the covariance terms vanish:
+\[
+\Var\!\left(\sum_{i=1}^n X_i\right) = \sum_{i=1}^n \Var(X_i).
+\]
+\end{theorem}
+
+\begin{happeningbox}
+The contrast here is one of the most important lessons in the subject.
+\emph{Means always add.} It does not matter whether your variables are
+independent, correlated, tangled, adversarial -- expectation is linear,
+full stop. \emph{Variances add only when there is no correlation.} If your
+variables move together ($\Cov>0$), the sum swings more wildly than the
+individual variances would suggest; if they move oppositely ($\Cov<0$),
+they cancel and the sum is calmer. This single asymmetry -- mean is always
+linear, spread is not -- underlies portfolio diversification, the design
+of experiments, and the $\sqrt{n}$ that governs the law of large numbers.
+\end{happeningbox}
+
+\begin{focusbox}
+\textbf{The $\sqrt{n}$ that runs through all of probability.}
+Let $X_1,\dots,X_n$ be i.i.d.\ with mean $\mu$ and variance $\sigma^2$,
+and form $S_n=\sum X_i$. Then
+\[
+\E[S_n]=n\mu, \qquad \Var(S_n)=n\sigma^2, \qquad \SD(S_n)=\sigma\sqrt{n}.
+\]
+The sum's \emph{typical size} grows like $n$, but its \emph{typical
+wobble} grows only like $\sqrt n$. So the wobble \emph{relative to} the
+total shrinks like $\sqrt n / n = 1/\sqrt n \to 0$. For the average
+$\bar X_n=S_n/n$ this reads $\Var(\bar X_n)=\sigma^2/n$, with standard
+deviation $\sigma/\sqrt n$. That vanishing $\sigma/\sqrt n$ is the engine
+of the law of large numbers (the average concentrates on $\mu$) and, once
+you rescale by exactly $\sqrt n$, the engine of the central limit theorem.
+Remember the slogan: \textbf{sums grow like $n$, fluctuations like
+$\sqrt n$.}
+\end{focusbox}
+
+\begin{applicationbox}
+\textbf{Diversification in a portfolio.} Put your money equally in $n$
+assets, each with return of variance $\sigma^2$. If the assets are
+\emph{independent}, the portfolio return $\bar X_n$ has variance
+$\sigma^2/n$ -- risk falls toward zero as you add names. This is the
+mathematical content of ``don't put all your eggs in one basket.'' But the
+\emph{covariance} terms are the catch: in a market crash assets fall
+\emph{together} ($\Cov>0$), the cross terms in
+Theorem~\ref{ch17:thm-mean-var} do not vanish, and diversification stalls.
+The reason a diversified portfolio still carries irreducible
+``systematic'' risk is precisely those non-zero covariances. The clean
+$1/n$ decay is a fantasy that requires independence the real world does
+not grant.
+\end{applicationbox}
+
+\begin{example}[Mean and variance without finding the full distribution]
+\label{ch17:ex-meanvar}
+You sum $n=100$ i.i.d.\ rolls of a fair six-sided die. A single die has
+$\E[X]=3.5$ and $\Var(X)=\frac{35}{12}\approx 2.9167$. Without ever
+computing the (genuinely messy) convolution of $100$ uniforms, we read off
+\[
+\E[S_{100}] = 100\cdot 3.5 = 350,\qquad
+\Var(S_{100}) = 100\cdot\tfrac{35}{12} \approx 291.7,\qquad
+\SD(S_{100}) \approx 17.1.
+\]
+So a total near $350\pm 17$ is typical; a total of $450$ would be about
+$6$ standard deviations out -- effectively impossible. We extracted the
+practical content of the distribution from two one-line rules, no
+convolution required. (And by the central limit theorem the full
+distribution is very nearly $\Normal(350,291.7)$.)
+\end{example}
+
+\section{A Paradox of Sums: The Cauchy That Refuses to Average}
+\label{ch17:cauchy}
+
+Everything above whispered the same comforting story: add many independent
+pieces, divide by $n$, and the average settles down near a fixed number.
+It is so intuitive it feels like a law of nature. It is not. There is a
+distribution that breaks it, and the break is instructive.
+
+\begin{paradoxbox}
+\textbf{The standard Cauchy distribution} has density
+$f(x)=\dfrac{1}{\pi(1+x^2)}$ on all of $\R$. It looks like a tame,
+symmetric bell. But it has \emph{heavy tails}: the density only decays like
+$1/x^2$, so heavily that $\int |x|\,f(x)\,\dd x=\infty$. The Cauchy has
+\textbf{no mean} (and hence no variance).
+
+Now the shock. If $X_1,\dots,X_n$ are i.i.d.\ standard Cauchy, their
+\emph{average} $\bar X_n=\frac{1}{n}\sum X_i$ is again \emph{exactly}
+standard Cauchy -- the \emph{same} distribution, for every $n$. Averaging
+a million Cauchy samples is statistically no better than taking one. The
+sample mean does not converge to anything; it just keeps wandering with
+the same spread forever.
+\end{paradoxbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xlabel={$x$}, ylabel={density},
+  xmin=-6, xmax=6, ymin=0, ymax=0.45,
+  xtick={-6,-4,-2,0,2,4,6}, ytick={0,0.1,0.2,0.3,0.4},
+  legend pos=north east, legend style={font=\scriptsize},
+  axis lines=left, samples=120,
+]
+\addplot[densityred, thick, domain=-6:6] {1/sqrt(2*pi)*exp(-x^2/2)};
+\addlegendentry{standard normal}
+\addplot[distblue, thick, domain=-6:6] {1/(pi*(1+x^2))};
+\addlegendentry{standard Cauchy}
+\end{axis}
+\end{tikzpicture}
+\caption{The standard normal (red) and standard Cauchy (blue) both look like
+symmetric bells near the center, but the Cauchy's tails decay only like
+$1/x^2$ -- far slower than the normal's $e^{-x^2/2}$. Those fat tails carry
+enough probability far out that $\int|x|\,f(x)\,\dd x$ diverges, so the Cauchy
+has no mean. A single extreme draw can dominate any average, which is why
+averaging Cauchy samples never settles down.}
+\label{ch17:fig-cauchy}
+\end{figure}
+
+\begin{whybox}
+How can the average not improve? Two facts collide. First, the Cauchy is
+closed under addition like the normal: the convolution of two standard
+Cauchys is a Cauchy of scale $2$, and in general the sum of $n$ standard
+Cauchys is a Cauchy of scale $n$. (One slick proof: the characteristic
+function of a standard Cauchy is $e^{-|t|}$; multiplying $n$ of them gives
+$e^{-n|t|}$, the characteristic function of a Cauchy of scale $n$ --
+exactly the convolution-becomes-multiplication trick of the next chapter.)
+Dividing that sum by $n$ rescales by $1/n$, turning scale $n$ back into
+scale $1$. So the average is standard Cauchy again.
+
+Second, the law of large numbers \emph{requires a finite mean}. Its proof
+leans on $\Var(\bar X_n)=\sigma^2/n\to 0$, and the Cauchy has neither a
+finite variance nor even a finite mean to converge to. The $\sqrt n$
+slogan silently assumed finite variance. When the tails are heavy enough
+to destroy the mean, the whole averaging machine seizes up.
+\end{whybox}
+
+\begin{aestheticbox}
+The Cauchy is the cautionary twin of the normal. Both are stable under
+addition; both are fixed points of convolution. But the normal pulls
+probability \emph{inward} and tames sums, while the Cauchy's fat tails (Figure~\ref{ch17:fig-cauchy}) let
+a single freak sample dominate the whole average no matter how many other
+samples you collect. The lesson for data science is blunt: before you
+trust an average, ask whether the thing you are averaging even \emph{has}
+a mean. Heavy-tailed data -- file sizes, city populations, financial
+losses, network traffic -- can behave far more like Cauchy than like the
+normal your instincts default to.
+\end{aestheticbox}
+
+\section{Setting Up the Limit Theorems}
+\label{ch17:limit-setup}
+
+We close by pointing the convolution machinery straight at the summit of
+the book. We have all the pieces; we just need to see how they assemble.
+
+\begin{intuitionbox}
+Take i.i.d.\ $X_1,X_2,\dots$ with mean $\mu$ and finite variance
+$\sigma^2$, and let $S_n=\sum_{i=1}^n X_i$. The PMF/PDF of $S_n$ is the
+$n$-fold convolution of the common distribution with itself:
+\[
+f_{S_n} = f * f * \cdots * f \quad (n\ \text{copies}).
+\]
+We watched this in miniature: one uniform (flat) convolves into a triangle
+($n{=}2$), then a bell ($n{=}3$), smoother and smoother. \emph{Convolving
+a distribution with itself repeatedly drives it toward a single universal
+shape.} Two clean facts pin that shape down:
+\begin{itemize}
+  \item \textbf{Center.} $\E[S_n]=n\mu$, so the bump marches off to the
+        right (or left). Re-center by subtracting $n\mu$.
+  \item \textbf{Spread.} $\Var(S_n)=n\sigma^2$, so the bump widens like
+        $\sqrt n$. Re-scale by dividing by $\sigma\sqrt n$.
+\end{itemize}
+The exactly-tuned object
+\[
+Z_n=\frac{S_n-n\mu}{\sigma\sqrt n}
+\]
+has mean $0$ and variance $1$ for every $n$ -- centered and standardized
+so it can neither run away nor blow up nor collapse. What shape does its
+distribution converge to?
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=6cm,
+  xlabel={value}, ylabel={density / scaled PMF},
+  xmin=-0.1, xmax=4.1, ymin=0, ymax=1.15,
+  xtick={0,1,2,3,4}, ytick={0,0.5,1},
+  legend pos=north east, legend style={font=\scriptsize},
+  axis lines=left, samples=100,
+]
+% n=1 uniform (flat)
+\addplot[gray, thick, domain=0:1] {1};
+\addlegendentry{$n=1$ (flat)}
+\addplot[gray, thick, domain=-0.1:0, forget plot] {0};
+\addplot[gray, thick, domain=1:4.1, forget plot] {0};
+% n=2 triangle on [0,2]
+\addplot[distblue, thick, domain=0:1] {x};
+\addlegendentry{$n=2$ (triangle)}
+\addplot[distblue, thick, domain=1:2, forget plot] {2-x};
+% n=3 Irwin-Hall (three parabolic arcs) on [0,3]
+\addplot[densityred, thick, domain=0:1] {x^2/2};
+\addlegendentry{$n=3$ (bell-like)}
+\addplot[densityred, thick, domain=1:2, forget plot] {(-2*x^2+6*x-3)/2};
+\addplot[densityred, thick, domain=2:3, forget plot] {(3-x)^2/2};
+\end{axis}
+\end{tikzpicture}
+\caption{Repeatedly convolving a $\Unif(0,1)$ density with itself. The flat
+box ($n{=}1$) becomes a triangle ($n{=}2$) becomes a smooth, bell-shaped
+curve ($n{=}3$). Each extra summand smooths and centers the shape. Recenter
+and rescale, and the limit is the normal curve -- this picture \emph{is}
+the central limit theorem in slow motion.}
+\label{ch17:fig-clt}
+\end{figure}
+
+\begin{aestheticbox}
+\textbf{The central limit theorem (preview).} For i.i.d.\ summands with
+finite mean $\mu$ and variance $\sigma^2$,
+\[
+Z_n=\frac{S_n-n\mu}{\sigma\sqrt n}\ \dto\ \Normal(0,1)
+\qquad\text{as } n\to\infty,
+\]
+\emph{no matter what distribution the $X_i$ came from} (uniform, Bernoulli,
+exponential, your own homemade lump -- anything with finite variance).
+This chapter built the gears: convolution is the operation that adds
+independent variables; repeated convolution smooths any starting shape
+(Figure~\ref{ch17:fig-clt}); linearity of expectation and additivity of
+variance supply the exact centering $n\mu$ and scaling $\sigma\sqrt n$; and
+the normal is the unique shape that convolution leaves unchanged, so it is
+the only possible destination (Figure~\ref{ch17:fig-bell}). The Cauchy detour warned us why the
+``finite variance'' clause cannot be dropped. A few chapters from now we
+prove it.
+\end{aestheticbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.8cm,
+  xlabel={$z$}, ylabel={$\varphi(z)$},
+  xmin=-4, xmax=4, ymin=0, ymax=0.46,
+  xtick={-3,-2,-1,0,1,2,3}, ytick={0,0.1,0.2,0.3,0.4},
+  axis lines=left, samples=120,
+]
+\addplot[name path=curve, densityred, thick, domain=-4:4]
+  {1/sqrt(2*pi)*exp(-x^2/2)};
+\path[name path=axis] (axis cs:-4,0) -- (axis cs:4,0);
+\addplot[densityred!30] fill between[of=curve and axis, soft clip={domain=-4:-1.96}];
+\addplot[densityred!30] fill between[of=curve and axis, soft clip={domain=1.96:4}];
+\node at (axis cs:-2.7,0.05) [font=\scriptsize] {$2.5\%$};
+\node at (axis cs:2.7,0.05) [font=\scriptsize] {$2.5\%$};
+\draw[gray, dashed] (axis cs:-1.96,0) -- (axis cs:-1.96,0.4);
+\draw[gray, dashed] (axis cs:1.96,0) -- (axis cs:1.96,0.4);
+\node at (axis cs:0,0.43) [font=\scriptsize] {middle $95\%$};
+\end{axis}
+\end{tikzpicture}
+\caption{The destination of the standardized sum $Z_n$: the standard normal
+density $\varphi(z)=\frac{1}{\sqrt{2\pi}}e^{-z^2/2}$. The shaded tails beyond
+$\pm 1.96$ each hold about $2.5\%$ of the probability, so roughly $95\%$ of
+the mass lies within two standard deviations of the mean -- the rule of thumb
+that powers confidence intervals once the central limit theorem licenses the
+normal approximation.}
+\label{ch17:fig-bell}
+\end{figure}
+
+\begin{connectionbox}
+The leap from ``convolutions are hard integrals'' to ``the limit is
+normal'' goes through \textbf{generating functions} and
+\textbf{characteristic functions}, the subject of the very next chapter.
+The key identity: if $\varphi_X(t)=\E[e^{itX}]$ is the characteristic
+function, then independence turns the convolution of densities into the
+\emph{product} of characteristic functions,
+\[
+\varphi_{X+Y}(t)=\varphi_X(t)\,\varphi_Y(t),
+\]
+and the $n$-fold convolution into the $n$th \emph{power}
+$\varphi_{S_n}(t)=\varphi_X(t)^n$. Hard convolutions collapse into easy
+algebra, and a Taylor expansion of $\varphi$ around $t=0$ -- whose
+coefficients are exactly the mean and variance from this chapter -- makes
+the Gaussian limit fall out almost by itself. Convolution is the
+\emph{what}; the transform is the \emph{how}.
+\end{connectionbox}
+
+\section{Summary}
+\label{ch17:summary}
+
+\begin{formalbox}
+\textbf{The distribution of a sum of independent variables.}
+\begin{itemize}
+  \item \textbf{Discrete:} $p_{X+Y}(s)=\sum_k p_X(k)\,p_Y(s-k)$.
+  \item \textbf{Continuous:} $f_{X+Y}(s)=\int f_X(x)\,f_Y(s-x)\,\dd x$.
+  \item Both are the \emph{convolution} $p_X*p_Y$ / $f_X*f_Y$: sum (or
+        integrate) over every way the two pieces split the target total.
+\end{itemize}
+\textbf{Closure under addition} (independent summands):
+\begin{itemize}
+  \item $\Pois(\lambda)+\Pois(\mu)=\Pois(\lambda+\mu)$ (any rates).
+  \item $\Bin(m,p)+\Bin(n,p)=\Bin(m+n,p)$ (same $p$).
+  \item $\Normal(\mu_1,\sigma_1^2)+\Normal(\mu_2,\sigma_2^2)
+        =\Normal(\mu_1+\mu_2,\sigma_1^2+\sigma_2^2)$ (any parameters).
+  \item $\Gam(\alpha_1,\beta)+\Gam(\alpha_2,\beta)=\Gam(\alpha_1+\alpha_2,\beta)$
+        (same rate); $n$ exponentials sum to an Erlang.
+\end{itemize}
+\textbf{Two numbers, two rules:} $\E[\sum X_i]=\sum\E[X_i]$ \emph{always};
+$\Var(\sum X_i)=\sum\Var(X_i)$ \emph{when uncorrelated}. For i.i.d.\
+summands, sums grow like $n$ and fluctuations like $\sqrt n$.
+\textbf{Caveat:} heavy tails (Cauchy) can destroy the mean and break
+averaging entirely.
+\end{formalbox}
+
+\section{Exercises}
+\label{ch17:exercises}
+
+\begin{exercise}[Convolve by hand]
+\label{ch17:ex-byhand}
+Let $X\sim\Unif\set{1,2,3}$ and, independently, $Y$ take value $0$ with
+probability $1/2$ and value $3$ with probability $1/2$. Use the discrete
+convolution formula to write out the full PMF of $S=X+Y$. Verify the
+probabilities sum to $1$, and compute $\E[S]$ two ways: directly from your
+PMF, and via linearity of expectation.
+\end{exercise}
+
+\begin{exercise}[Poisson merging]
+\label{ch17:ex-pois}
+A help desk receives emails as a $\Pois(8)$ count per hour and phone calls
+as an independent $\Pois(5)$ count per hour.
+(a) What is the distribution of the total number of contacts per hour?
+(b) Compute $\P(\text{total}=0)$ in one hour.
+(c) Over an $8$-hour shift, what is the distribution and the expected total?
+\end{exercise}
+
+\begin{exercise}[Uniform sum density]
+\label{ch17:ex-unif}
+Let $X\sim\Unif(0,2)$ and $Y\sim\Unif(0,1)$ be independent. Carefully
+carry out the convolution integral
+$f_S(s)=\int f_X(x)f_Y(s-x)\dd x$, paying attention to the overlap of the
+two boxes, and show that $f_S$ is a \emph{trapezoid}: it ramps up, stays
+flat, then ramps down. Give the breakpoints and the flat height.
+\end{exercise}
+
+\begin{exercise}[Variance with correlation]
+\label{ch17:ex-cov}
+Let $X$ and $Y$ each have variance $4$, with $\Corr(X,Y)=\rho$.
+(a) Express $\Var(X+Y)$ in terms of $\rho$.
+(b) For which $\rho$ is $\Var(X+Y)$ largest? Smallest? Interpret both
+extremes in words (perfectly aligned vs.\ perfectly opposing variables).
+(c) For what value of $\rho$ does $X+Y$ have the same variance as a single
+variable, namely $4$?
+\end{exercise}
+
+\begin{exercise}[Erlang waiting time]
+\label{ch17:ex-erlang}
+Buses arrive as a Poisson process at rate $\beta=3$ per hour, so
+inter-arrival times are i.i.d.\ $\Expo(3)$.
+(a) Name the distribution of the waiting time $T$ until the \emph{fourth}
+bus, with its parameters.
+(b) Compute $\E[T]$ and $\Var(T)$ using the additivity rules (do not
+integrate).
+(c) Explain in one sentence why $\SD(T)$ is smaller than four times the
+$\SD$ of a single gap.
+\end{exercise}
+
+\begin{exercise}[The $\sqrt n$ law, numerically]
+\label{ch17:ex-sqrtn}
+A single fair coin scored $+1$ for heads and $-1$ for tails has mean $0$
+and variance $1$. Let $S_n$ be the sum of $n$ such i.i.d.\ scores (a simple
+random walk).
+(a) Give $\E[S_n]$ and $\SD(S_n)$.
+(b) For $n=10{,}000$, roughly how far from $0$ is $S_n$ typically? Is
+$S_n=500$ surprising? Is $S_n=5000$?
+(c) Now consider the \emph{fraction} of heads, $(S_n/n + 1)/2$. How does
+its standard deviation behave as $n\to\infty$, and what theorem does that
+foreshadow?
+\end{exercise}
+
+\begin{exercise}[Why same-$p$ matters]
+\label{ch17:ex-difp}
+Let $X\sim\Bin(1,0.2)$ and $Y\sim\Bin(1,0.8)$ be independent.
+(a) Write the full PMF of $S=X+Y$ on $\set{0,1,2}$.
+(b) If $S$ were $\Bin(2,p)$ for some $p$, the value $\P(S=2)$ would force a
+particular $p$; find it, then check whether that same $p$ reproduces
+$\P(S=0)$. Conclude that $S$ is \emph{not} binomial, and explain which
+hypothesis of Theorem~\ref{ch17:thm-bin-add} fails.
+\end{exercise}
+
+\begin{exercise}[Normal closure and standardization]
+\label{ch17:ex-normal}
+Let $X\sim\Normal(3,4)$ and $Y\sim\Normal(-1,9)$ be independent.
+(a) State the distribution of $X+Y$.
+(b) State the distribution of $X-Y$ (be careful: the variance still adds).
+(c) Find a constant $a\in[0,1]$ so that $aX+(1-a)Y$ has the smallest
+possible variance, and report that minimum variance. (This is the seed of
+inverse-variance weighting in statistics.)
+\end{exercise}
+
+\begin{exercise}[Proof: convolution is commutative]
+\label{ch17:ex-commute}
+Show directly from Definition~\ref{ch17:def-cont-conv} that
+$f_X*f_Y=f_Y*f_X$, i.e.\ $\int f_X(x)f_Y(s-x)\dd x=\int f_Y(x)f_X(s-x)\dd x$,
+using the substitution $u=s-x$. Then explain in one sentence why this is
+obvious \emph{probabilistically}, with no integral at all (hint: what is
+$X+Y$ versus $Y+X$?).
+\end{exercise}
+
+\begin{exercise}[Heavy tails break averaging]
+\label{ch17:ex-cauchy}
+Two independent standard Cauchy variables $X_1,X_2$ have
+$\bar X_2=(X_1+X_2)/2$.
+(a) Using the stated fact that $X_1+X_2$ is Cauchy of scale $2$, argue that
+$\bar X_2$ is standard Cauchy again.
+(b) Explain why this does not contradict the law of large numbers --
+which hypothesis of that law does the Cauchy violate?
+(c) In one sentence, what practical advice does this give a data analyst
+facing heavy-tailed measurements?
+\end{exercise}

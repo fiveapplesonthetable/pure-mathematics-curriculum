@@ -1,0 +1,830 @@
+\chapter{Conditional Distributions and Conditional Expectation}
+
+There is a single idea behind almost everything we do once randomness gets complicated, and it is
+deceptively simple: \emph{learn something, then update}. You started a journey with a vague sense of
+how long it would take. Then you saw the first hour of traffic. Now your guess is sharper. You did not
+throw away probability; you sharpened it with information. That act of sharpening --- replacing a
+distribution with a \emph{conditional} distribution, and replacing an expectation with a
+\emph{conditional} expectation --- is the engine of prediction, regression, Bayesian inference,
+Markov chains, and martingales. Everything later in this book leans on it.
+
+We already met conditioning on \emph{events} back when we wrote $\P(A \given B)$. This chapter does
+something more powerful and, at first, slightly more disorienting: we condition on a \emph{random
+variable}. The result, $\E[Y \given X]$, is not a number. It is itself a random variable --- a
+function of $X$ --- and learning to think of it that way is the whole game. Once you see it, the two
+crown jewels of the chapter, the \textbf{tower property} (law of total expectation) and the
+\textbf{law of total variance}, become almost obvious, and you will understand in your bones why
+$\E[Y \given X]$ is the \emph{best possible prediction} of $Y$ from $X$. That last fact is the
+mathematical seed of all of regression and supervised learning.
+
+\section{From conditioning on events to conditioning on a variable}
+\label{ch15:from-events}
+
+Recall the definition that started it all. For events $A$ and $B$ with $\P(B) > 0$,
+\[
+  \P(A \given B) \;=\; \frac{\P(A \cap B)}{\P(B)}.
+\]
+This is just renormalization: throw away the part of the world where $B$ failed, and rescale what is
+left so the probabilities sum to one again. The conditional probability is an honest probability
+distribution living inside the smaller universe $B$.
+
+Now suppose $X$ and $Y$ are random variables and we want ``the distribution of $Y$ once we know the
+value of $X$.'' If $X$ is discrete, this is no harder than the event case: the value $\set{X = x}$ is
+an event, so we just condition on it.
+
+\begin{definition}[Conditional pmf, discrete case]
+\label{ch15:def-cond-pmf}
+Let $X, Y$ be discrete with joint pmf $p_{X,Y}(x,y) = \P(X = x, Y = y)$. For any $x$ with
+$p_X(x) = \P(X=x) > 0$, the \emph{conditional pmf of $Y$ given $X = x$} is
+\[
+  p_{Y \given X}(y \given x) \;=\; \P(Y = y \given X = x)
+  \;=\; \frac{p_{X,Y}(x,y)}{p_X(x)}.
+\]
+\end{definition}
+
+For each fixed $x$, the function $y \mapsto p_{Y \given X}(y \given x)$ is a genuine pmf: it is
+nonnegative and sums to one over $y$, because $\sum_y p_{X,Y}(x,y) = p_X(x)$ is exactly the
+normalizing constant. So conditioning on $X=x$ just slices the joint table along the row $X=x$ and
+renormalizes that row.
+
+\begin{intuitionbox}
+Picture the joint pmf as a grid of probabilities, one cell per $(x,y)$ pair. The \emph{marginal}
+$p_X(x)$ is the total weight in column $x$. The \emph{conditional} $p_{Y\given X}(\cdot \given x)$ is
+that single column, blown up so its weights sum to one. Marginalizing collapses the grid; conditioning
+zooms into one strip of it. Same data, two different questions.
+\end{intuitionbox}
+
+\begin{example}[Two dice, conditioned on the sum]
+\label{ch15:ex-two-dice}
+Roll two fair dice; let $X_1, X_2$ be the faces and $S = X_1 + X_2$. What is the distribution of
+$X_1$ given $S = 7$? The event $\set{S=7}$ contains the six ordered outcomes
+$(1,6),(2,5),\dots,(6,1)$, each with probability $1/36$, so $\P(S=7) = 6/36$. For any
+$x_1 \in \set{1,\dots,6}$ there is exactly one matching pair, so
+\[
+  \P(X_1 = x_1 \given S = 7) = \frac{1/36}{6/36} = \frac{1}{6}.
+\]
+Given the sum is $7$, the first die is uniform on $\set{1,\dots,6}$. Now condition instead on $S=4$:
+the matching pairs are $(1,3),(2,2),(3,1)$, so $\P(S=4) = 3/36$ and
+$\P(X_1 = x_1 \given S=4) = 1/3$ for $x_1 \in \set{1,2,3}$ and $0$ otherwise. The conditional
+distribution genuinely \emph{changed shape} as the conditioning value changed --- a fact we will turn
+into a random variable in a moment.
+\end{example}
+
+\subsection{The continuous case: dividing densities}
+When $X$ is continuous, the event $\set{X=x}$ has probability zero, and our event-based definition
+divides by zero. Yet intuitively the question ``what is the distribution of $Y$ given $X = x$'' is
+perfectly sensible --- think of the heights of people who weigh exactly $70$ kg. The resolution is to
+do the same division, but with \emph{densities} instead of probabilities.
+
+\begin{definition}[Conditional density, continuous case]
+\label{ch15:def-cond-density}
+Let $(X,Y)$ have joint density $f_{X,Y}(x,y)$ with marginal $f_X(x) = \int_{\R} f_{X,Y}(x,y)\,\dd y$.
+For any $x$ with $f_X(x) > 0$, the \emph{conditional density of $Y$ given $X=x$} is
+\[
+  f_{Y \given X}(y \given x) \;=\; \frac{f_{X,Y}(x,y)}{f_X(x)}.
+\]
+\end{definition}
+
+The same sanity check works: for fixed $x$, integrating over $y$ gives
+$\int_\R f_{Y\given X}(y\given x)\,\dd y = f_X(x)/f_X(x) = 1$, so it is a legitimate density.
+
+\begin{whybox}
+Why is dividing densities the ``right'' way to condition on a measure-zero event? Condition on the
+\emph{thin slab} $\set{x \le X \le x + \eps}$, which has positive probability, and let $\eps \to 0$.
+For small $\eps$,
+\[
+  \P(Y \le y \given x \le X \le x+\eps)
+  = \frac{\int_{-\infty}^{y}\int_x^{x+\eps} f_{X,Y}(u,v)\,\dd u\,\dd v}
+         {\int_x^{x+\eps} f_X(u)\,\dd u}
+  \;\approx\; \frac{\eps \int_{-\infty}^{y} f_{X,Y}(x,v)\,\dd v}{\eps\, f_X(x)}.
+\]
+The $\eps$'s cancel, and what survives is exactly $\int_{-\infty}^{y} f_{Y\given X}(v \given x)\,\dd v$.
+So the density quotient is the \emph{limit} of honest conditional probabilities on shrinking slabs ---
+not a trick, but the only consistent answer. (Choosing a different shape of vanishing neighborhood can
+give a different limit; this is the famous Borel paradox, and it is why measure-theoretic care
+eventually becomes necessary --- see the rigorous treatment later in the book.)
+\end{whybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6.2cm,
+  xlabel={$y$}, ylabel={conditional density $f_{Y\given X}(y\given x)$},
+  domain=-2:6, samples=120, no markers,
+  legend pos=north east, legend cell align=left,
+  title={Slicing a bivariate normal: $Y\given X{=}x$ for three values of $x$},
+  ymin=0,
+]
+% For standard bivariate normal with corr rho, Y|X=x ~ N(rho*x, 1-rho^2).
+% Use rho=0.7 -> mean 0.7x, var 1-0.49=0.51, sd~0.714.
+\addplot[densityred, thick] {1/(0.714*sqrt(2*pi))*exp(-(x-(-1.4))^2/(2*0.51))};
+\addlegendentry{$x=-2$}
+\addplot[distblue, thick] {1/(0.714*sqrt(2*pi))*exp(-(x-(0))^2/(2*0.51))};
+\addlegendentry{$x=0$}
+\addplot[targetgreen, thick] {1/(0.714*sqrt(2*pi))*exp(-(x-(2.1))^2/(2*0.51))};
+\addlegendentry{$x=3$}
+\end{axis}
+\end{tikzpicture}
+\caption{Each value of $X$ selects a different conditional distribution of $Y$. For a bivariate normal
+with correlation $\rho = 0.7$, the slice $Y \given X = x$ is Normal with mean $\rho x$ and the
+\emph{same} variance $1-\rho^2$ for every $x$. The center slides with $x$; the spread does not. The
+moving center, as a function of $x$, is the regression line --- and it is the conditional expectation
+$\E[Y \given X = x]$ that we build next.}
+\label{ch15:fig-slices}
+\end{figure}
+
+\section{Conditional expectation given a value: \texorpdfstring{$\E[Y \given X = x]$}{E[Y|X=x]}}
+\label{ch15:cond-exp-value}
+
+Once we have a conditional distribution, we can take its mean exactly as we always do --- it is just
+an expectation computed inside the smaller universe.
+
+\begin{definition}[Conditional expectation given $X = x$]
+\label{ch15:def-cond-exp-value}
+\[
+  \E[Y \given X = x] \;=\;
+  \begin{cases}
+    \displaystyle\sum_y y \, p_{Y\given X}(y \given x), & \text{discrete},\\[1.2em]
+    \displaystyle\int_\R y \, f_{Y\given X}(y \given x)\,\dd y, & \text{continuous}.
+  \end{cases}
+\]
+\end{definition}
+
+This is a \emph{number} for each fixed $x$, but a number that depends on $x$. Define the function
+\[
+  g(x) \;=\; \E[Y \given X = x].
+\]
+We call $g$ the \emph{regression function} of $Y$ on $X$. It answers: ``if all I knew was $X = x$,
+what is my best single-number guess for $Y$?'' Figure~\ref{ch15:fig-slices} drew the slices; $g(x)$ is
+the curve traced by their centers.
+
+\begin{example}[Uniform on a triangle]
+\label{ch15:ex-triangle}
+Let $(X,Y)$ be uniform on the triangle $\set{(x,y) : 0 \le x \le 1,\ 0 \le y \le x}$. The triangle has
+area $1/2$, so $f_{X,Y}(x,y) = 2$ on it. The marginal of $X$ is
+$f_X(x) = \int_0^x 2 \,\dd y = 2x$ for $0 \le x \le 1$. Hence for fixed $x$,
+\[
+  f_{Y\given X}(y \given x) = \frac{2}{2x} = \frac{1}{x}, \qquad 0 \le y \le x,
+\]
+which is $\Unif(0,x)$. Therefore
+\[
+  \E[Y \given X = x] = \frac{x}{2}, \qquad g(x) = \frac{x}{2}.
+\]
+This is wonderfully intuitive: given the cap $X = x$, the height $Y$ is uniform up to $x$, so on
+average it sits halfway up. The regression function is the line $y = x/2$.
+\end{example}
+
+\begin{example}[Mixed: a Poisson rate that is itself random]
+\label{ch15:ex-poisson-rate}
+Let $\Lambda \sim \Unif(0, 4)$ be a random rate, and given $\Lambda = \lambda$ let $N \sim \Pois(\lambda)$
+be a count. Then $\E[N \given \Lambda = \lambda] = \lambda$ directly from the Poisson mean. So here the
+regression function of $N$ on $\Lambda$ is the identity, $g(\lambda) = \lambda$. We will return to this
+example to compute $\E[N]$ and $\Var(N)$ painlessly using the tower property and the law of total
+variance.
+\end{example}
+
+\section{The leap: \texorpdfstring{$\E[Y\given X]$}{E[Y|X]} as a random variable}
+\label{ch15:the-leap}
+
+Here is the conceptual hinge of the chapter. We have $g(x) = \E[Y\given X = x]$, an ordinary function.
+Now feed the \emph{random} variable $X$ into it. The result, $g(X)$, is a new random variable. We give
+it a name and a notation.
+
+\begin{definition}[Conditional expectation as a random variable]
+\label{ch15:def-cond-exp-rv}
+Let $g(x) = \E[Y \given X = x]$. The \emph{conditional expectation of $Y$ given $X$} is the random
+variable
+\[
+  \E[Y \given X] \;:=\; g(X).
+\]
+It is a function of $X$ alone. On the outcome where $X$ took value $x$, it equals $g(x) = \E[Y\given X=x]$.
+\end{definition}
+
+Read that twice. $\E[Y \given X = x]$ is a number (you plugged in a specific $x$). $\E[Y\given X]$ is a
+random variable (you left $X$ random). The first is a value of the second.
+
+\begin{trapbox}
+The single most common error in this entire subject is treating $\E[Y \given X]$ as a constant. It is
+\emph{not}. It is random, because $X$ is random. Whenever you write $\E[Y \given X]$, ask yourself:
+``this is a function of $X$ --- which function?'' If you can name $g$, you understand the object. Only
+\emph{after} you take a further expectation over $X$ (or plug in a specific value) do you get a number.
+\end{trapbox}
+
+\begin{happeningbox}
+What is really happening when we form $\E[Y \given X]$? We are building the \emph{best summary of $Y$
+that is allowed to depend on $X$ but on nothing else}. Imagine partitioning the sample space by the
+value of $X$: all outcomes with $X = x$ get lumped together. Within each lump, $\E[Y\given X]$ reports
+the average value of $Y$ over that lump. So $\E[Y\given X]$ is a ``coarsened'' or ``smoothed'' version
+of $Y$ --- it forgets every detail of the outcome except what $X$ reveals, and within each level of
+$X$ it replaces $Y$ by its local average. It is $Y$ as seen through the blurry lens of $X$. This is
+literally the measure-theoretic definition (conditioning on the $\sigma$-algebra generated by $X$),
+which we make rigorous in a later chapter.
+\end{happeningbox}
+
+\begin{example}[Back to the two dice]
+In Example~\ref{ch15:ex-two-dice}, given $S = s$ the first die $X_1$ is uniform on the pairs summing to
+$s$. By symmetry $\E[X_1 \given S = s] = s/2$ (the two dice are exchangeable, so each carries half the
+sum on average). Therefore, as a random variable,
+\[
+  \E[X_1 \given S] = \frac{S}{2}.
+\]
+Notice this is genuinely random: it equals $7/2$ on outcomes with $S = 7$, equals $2$ on outcomes with
+$S = 4$, and so on. We will check in a moment that its average, $\E\!\big[\E[X_1\given S]\big]
+= \E[S/2] = 7/2$, equals $\E[X_1] = 7/2$. That is the tower property previewing itself.
+\end{example}
+
+\subsection{Two properties you will use constantly}
+Because $\E[Y \given X]$ is a function of $X$, anything that is itself a function of $X$ behaves like a
+\emph{constant} inside the conditional expectation: you already know it once you know $X$.
+
+\begin{proposition}[Taking out what is known; linearity]
+\label{ch15:prop-pullout}
+Let $h$ be any function and $a, b$ constants. Then (whenever the expectations exist)
+\begin{enumerate}
+  \item \textbf{Linearity:} $\E[aY + bZ \given X] = a\,\E[Y\given X] + b\,\E[Z \given X]$.
+  \item \textbf{Pulling out a known factor:} $\E[h(X)\,Y \given X] = h(X)\,\E[Y \given X]$.
+  \item \textbf{Independence collapses it:} if $Y \indep X$ then $\E[Y \given X] = \E[Y]$ (a constant).
+\end{enumerate}
+\end{proposition}
+
+\begin{whybox}
+Each is intuitive once you remember that conditioning on $X$ means ``treat $X$ as known.'' Linearity is
+just linearity of the ordinary expectation done inside each slice $\set{X=x}$. For the pull-out, once
+$X = x$ is known the factor $h(X) = h(x)$ is a fixed number and slides out of the average:
+$\E[h(x) Y \given X = x] = h(x)\E[Y\given X = x]$; now let $x$ be random again. For independence, if $Y$
+tells you nothing about $X$ then knowing $X$ tells you nothing about $Y$, so the conditional
+distribution of $Y$ equals its marginal and its mean is just $\E[Y]$.
+\end{whybox}
+
+\section{The tower property (law of total expectation)}
+\label{ch15:tower}
+
+Now comes the result that makes conditional expectation indispensable. It says you can compute an
+expectation in two stages: first average within each level of $X$, then average those averages across
+levels of $X$.
+
+\begin{theorem}[Tower property / Law of total expectation]
+\label{ch15:thm-tower}
+For random variables $X, Y$ with $\E\abs{Y} < \infty$,
+\[
+  \E\big[\,\E[Y \given X]\,\big] \;=\; \E[Y].
+\]
+Equivalently, in the explicit two-stage form,
+\[
+  \E[Y] = \sum_x \E[Y\given X = x]\,\P(X=x)
+  \qquad\text{or}\qquad
+  \E[Y] = \int_\R \E[Y \given X = x]\, f_X(x)\,\dd x.
+\]
+\end{theorem}
+
+\begin{intuitionbox}
+A company has three departments. You want the average salary across the whole company. One way: list
+every employee and average. Another way: find the average salary \emph{within} each department, then
+average those department-averages \emph{weighted by department size}. Same answer. The tower property
+is exactly this: $\E[Y\given X]$ is the within-group average (group = level of $X$), and the outer
+$\E[\cdot]$ weights groups by how likely they are. The weighting by group size is essential --- a plain
+unweighted average of group means would be wrong (Figure~\ref{ch15:fig-tower-tree}).
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  level 1/.style={sibling distance=34mm, level distance=15mm},
+  every node/.style={font=\small},
+  grp/.style={draw=sourceblue, fill=blue!6, rounded corners, minimum width=20mm, minimum height=8mm},
+  root/.style={draw=structurepurple, fill=structurepurple!12, rounded corners, minimum width=24mm, minimum height=8mm},
+]
+\node[root] (r) {$\E[Y]$}
+  child {node[grp] (g1) {$\E[Y\given X{=}x_1]$}}
+  child {node[grp] (g2) {$\E[Y\given X{=}x_2]$}}
+  child {node[grp] (g3) {$\E[Y\given X{=}x_3]$}};
+\path (r) -- (g1) node[midway, above left=0.2mm and -4mm, sourceblue] {\scriptsize $p_X(x_1)$};
+\path (r) -- (g2) node[midway, left, sourceblue] {\scriptsize $p_X(x_2)$};
+\path (r) -- (g3) node[midway, above right=0.2mm and -4mm, sourceblue] {\scriptsize $p_X(x_3)$};
+\end{tikzpicture}
+\caption{The tower property as a two-stage average. Partition the sample space by the value of $X$;
+inside each group $\set{X = x_k}$ the within-group mean is $\E[Y\given X = x_k]$. Reassembling them,
+weighted by the group probabilities $p_X(x_k)$, returns the grand mean $\E[Y]$. The weights are the
+whole point: an unweighted average of the leaves would not equal $\E[Y]$.}
+\label{ch15:fig-tower-tree}
+\end{figure}
+
+\begin{proof}
+Take the discrete case; the continuous case replaces sums by integrals verbatim. By
+Definition~\ref{ch15:def-cond-exp-rv}, $\E[Y\given X] = g(X)$ with $g(x) = \E[Y\given X = x]$. Apply the
+law of the unconscious statistician to the function $g$ of $X$:
+\[
+  \E\big[g(X)\big] = \sum_x g(x)\,p_X(x)
+  = \sum_x \Big(\sum_y y\, p_{Y\given X}(y\given x)\Big) p_X(x).
+\]
+Now substitute $p_{Y\given X}(y\given x)\,p_X(x) = p_{X,Y}(x,y)$ (the defining identity, valid wherever
+$p_X(x)>0$, and the other terms contribute nothing):
+\[
+  = \sum_x \sum_y y \, p_{X,Y}(x,y)
+  = \sum_y y \sum_x p_{X,Y}(x,y)
+  = \sum_y y \, p_Y(y) = \E[Y].
+\]
+The swap of summation order is justified because $\E\abs Y < \infty$ makes the double sum absolutely
+convergent. The continuous proof is identical with $f$'s and integrals.
+\end{proof}
+
+\begin{happeningbox}
+The proof reveals the trick in one line: $\E[Y\given X]\,p_X = $ ``joint, then sum out $X$.'' The
+conditional expectation \emph{undoes} the conditioning's normalization when you reweight by $p_X$, and
+summing over $x$ marginalizes $X$ away, leaving plain $\E[Y]$. Tower property = ``condition, then
+un-condition by averaging.''
+\end{happeningbox}
+
+\subsection{Why the tower property is a superpower}
+The tower property turns hard expectations into easy ones whenever there is a natural variable to
+condition on --- typically a quantity that, once known, makes $Y$ simple.
+
+\begin{example}[Random sum / Wald-style identity]
+\label{ch15:ex-random-sum}
+Let $N$ be a nonnegative-integer random variable (a random count), and let $X_1, X_2, \dots$ be i.i.d.
+with mean $\mu$, independent of $N$. Define the \emph{random sum} $T = \sum_{i=1}^{N} X_i$. What is
+$\E[T]$? Condition on $N$: once $N = n$ is known, $T$ is a sum of exactly $n$ i.i.d. terms, so
+\[
+  \E[T \given N = n] = n\mu, \qquad\text{hence}\qquad \E[T\given N] = N\mu.
+\]
+Apply the tower property:
+\[
+  \E[T] = \E\big[\E[T\given N]\big] = \E[N\mu] = \mu\,\E[N].
+\]
+The expected total equals the expected count times the expected size --- clean, and almost impossible
+to see without conditioning. (Think: total insurance payout = expected number of claims $\times$
+expected size per claim.)
+\end{example}
+
+\begin{example}[Geometric via conditioning on the first step]
+\label{ch15:ex-geom}
+Let $N$ be the number of flips of a coin (heads probability $p$) until the first head. Condition on the
+first flip. With probability $p$ the first flip is a head and $N = 1$. With probability $1-p$ it is a
+tail and, by the memoryless restart, the remaining number of flips has the same distribution as a fresh
+$N$, so we have used $1$ flip plus another $\E[N]$ on average. Writing $m = \E[N]$ and using the tower
+property over the first flip $F$,
+\[
+  m = \E[N\given F=\text{H}]\,p + \E[N\given F=\text{T}](1-p)
+    = 1\cdot p + (1 + m)(1-p).
+\]
+Solve: $m = p + (1-p) + (1-p)m = 1 + (1-p)m$, so $m\,p = 1$ and $\E[N] = 1/p$. Conditioning on one step
+collapses an infinite sum into a single linear equation --- the prototype of ``first-step analysis''
+that powers Markov chains.
+\end{example}
+
+\begin{example}[Finishing the random Poisson rate]
+For Example~\ref{ch15:ex-poisson-rate}, $\E[N\given \Lambda] = \Lambda$, so by the tower property
+\[
+  \E[N] = \E[\Lambda] = \frac{0+4}{2} = 2.
+\]
+\end{example}
+
+\section{The law of total variance}
+\label{ch15:total-var}
+
+Expectation splits cleanly under conditioning. Variance does too, but with an illuminating twist: it
+splits into \emph{two} pieces, and the two pieces have a beautiful interpretation as ``noise'' and
+``signal.''
+
+\begin{theorem}[Law of total variance]
+\label{ch15:thm-eve}
+For $Y$ with $\E[Y^2] < \infty$,
+\[
+  \Var(Y) \;=\; \underbrace{\E\big[\Var(Y\given X)\big]}_{\text{within-group variance}}
+  \;+\; \underbrace{\Var\big(\E[Y\given X]\big)}_{\text{between-group variance}}.
+\]
+Here $\Var(Y\given X) = \E[Y^2 \given X] - \big(\E[Y\given X]\big)^2$ is itself a random variable
+(a function of $X$).
+\end{theorem}
+
+\begin{proof}
+Write $m(X) = \E[Y\given X]$. Start from the conditional-variance definition and take expectations,
+using the tower property on the first term:
+\[
+  \E\big[\Var(Y\given X)\big]
+  = \E\big[\E[Y^2\given X]\big] - \E\big[m(X)^2\big]
+  = \E[Y^2] - \E\big[m(X)^2\big].
+\]
+Next, by definition of variance of the random variable $m(X)$ and the tower property
+$\E[m(X)] = \E[Y]$,
+\[
+  \Var\big(\E[Y\given X]\big) = \E\big[m(X)^2\big] - \big(\E[m(X)]\big)^2
+  = \E\big[m(X)^2\big] - \big(\E[Y]\big)^2.
+\]
+Add the two displays. The $\E[m(X)^2]$ terms cancel, leaving
+$\E[Y^2] - (\E[Y])^2 = \Var(Y)$.
+\end{proof}
+
+\begin{intuitionbox}
+The mnemonic is \textbf{EVVE}: \underline{E}xpectation of the \underline{V}ariance, plus
+\underline{V}ariance of the \underline{E}xpectation. The first term, $\E[\Var(Y\given X)]$, is the
+\emph{average leftover scatter} of $Y$ once you know $X$ --- the part $X$ \emph{cannot} explain (call it
+\emph{noise}, or \emph{unexplained} variation). The second term, $\Var(\E[Y\given X])$, is how much the
+group means themselves bounce around as $X$ varies --- the part $X$ \emph{does} explain (call it
+\emph{signal}, or \emph{explained} variation). Total spread $=$ unexplained $+$ explained. If $X$
+determines $Y$ exactly, the first term is $0$. If $X$ is useless, the second term is $0$ and all spread
+is noise.
+\end{intuitionbox}
+
+\begin{connectionbox}
+This decomposition is the probabilistic skeleton of the ANOVA identity in statistics
+(``total sum of squares $=$ within-group $+$ between-group'') and of the $R^2$ coefficient in
+regression: $R^2 = \Var(\E[Y\given X]) / \Var(Y)$ is exactly the \emph{fraction of variance explained},
+the signal share. Linear algebra fans will recognize the Pythagorean flavor --- and indeed in the next
+section we see $Y = \E[Y\given X] + (\text{residual})$ is an orthogonal decomposition, with the law of
+total variance as its Pythagorean theorem.
+\end{connectionbox}
+
+\begin{example}[Finishing the variance of the random Poisson count]
+\label{ch15:ex-poisson-var}
+Recall $\Lambda \sim \Unif(0,4)$ and $N \given \Lambda \sim \Pois(\Lambda)$. For a Poisson both mean and
+variance equal the rate, so
+\[
+  \E[N\given\Lambda] = \Lambda, \qquad \Var(N\given\Lambda) = \Lambda.
+\]
+The uniform on $(0,4)$ has mean $2$ and variance $(4-0)^2/12 = 16/12 = 4/3$. Apply EVVE:
+\[
+  \Var(N) = \E[\Var(N\given\Lambda)] + \Var(\E[N\given\Lambda])
+          = \E[\Lambda] + \Var(\Lambda) = 2 + \frac{4}{3} = \frac{10}{3}.
+\]
+Notice $\Var(N) = 10/3 > 2 = \E[N]$: the random rate \emph{inflates} the variance beyond the
+Poisson's own $\Var = \E$. This \emph{overdispersion} --- extra variance injected by an unknown latent
+rate --- is exactly why mixed/hierarchical models exist in applied statistics. The $\Var(\Lambda) = 4/3$
+is the signal (variation we could in principle explain by learning $\Lambda$); the $\E[\Lambda] = 2$ is
+the irreducible Poisson noise.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  ybar, bar width=10pt,
+  xlabel={value}, ylabel={contribution to variance},
+  symbolic x coords={Within (noise), Between (signal), Total},
+  xtick=data, nodes near coords, nodes near coords align={vertical},
+  ymin=0, ymax=4,
+  title={Law of total variance for the Poisson--Uniform mixture},
+  enlarge x limits=0.3,
+]
+\addplot[fill=densityred!70] coordinates {(Within (noise),2) (Between (signal),1.333) (Total,3.333)};
+\end{axis}
+\end{tikzpicture}
+\caption{$\Var(N) = 10/3$ splits into within-group (unexplained) variance $\E[\Lambda] = 2$ and
+between-group (explained) variance $\Var(\Lambda) = 4/3$. Knowing $\Lambda$ would remove the second bar
+but never the first.}
+\label{ch15:fig-eve}
+\end{figure}
+
+\begin{paradoxbox}
+\textbf{Simpson's paradox: when conditioning flips the story.} The law of total expectation warns you, quietly, that \emph{group averages must be weighted by group
+size}. Ignore that warning and you get Simpson's paradox. Suppose treatment A beats treatment B for
+men, \emph{and} A beats B for women, yet B beats A overall. Impossible? No --- it happens whenever the
+two treatments were given to very different mixes of men and women. Within each group ($X = $ sex), A
+wins: $\E[\text{cure}\given A, X] > \E[\text{cure}\given B, X]$. But the overall average
+$\E[\text{cure}\given A] = \sum_x \E[\text{cure}\given A, X=x]\,\P(X=x\given A)$ uses the
+\emph{conditional group mix} $\P(X = x \given A)$, which can differ wildly between A and B. If A was
+mostly given to the harder-to-cure group, A's good within-group rates get drowned by bad weights. The
+paradox is not a paradox once you internalize that conditional expectation is a \emph{weighted}
+reassembly --- and that the weights are part of the data, not a nuisance to be averaged away. The
+lesson: never average group means without their proper $\P(X = x)$ weights.
+\end{paradoxbox}
+
+\section{Conditional expectation is the best predictor}
+\label{ch15:best-predictor}
+
+We now reach the result that justifies calling $\E[Y\given X]$ the ``best guess of $Y$ from $X$,'' and
+that secretly underlies all of supervised learning. Suppose you must predict $Y$ using only a function
+$h(X)$ of the observed $X$, and you will be scored by mean squared error $\E\big[(Y - h(X))^2\big]$.
+Which function $h$ should you choose?
+
+\begin{theorem}[{$\E[Y\given X]$ minimizes mean squared error}]
+\label{ch15:thm-best-predictor}
+Among all (measurable) functions $h$ with $\E[h(X)^2] < \infty$, the mean squared prediction error
+$\E\big[(Y - h(X))^2\big]$ is minimized uniquely by
+\[
+  h^\star(X) = \E[Y \given X].
+\]
+\end{theorem}
+
+\begin{proof}
+Let $m(X) = \E[Y\given X]$ and let $h(X)$ be any competitor. Split and add zero:
+\[
+  Y - h(X) = \big(Y - m(X)\big) + \big(m(X) - h(X)\big).
+\]
+Square and take expectations:
+\[
+  \E\big[(Y-h(X))^2\big]
+  = \E\big[(Y - m(X))^2\big] + 2\,\E\big[(Y-m(X))(m(X)-h(X))\big] + \E\big[(m(X)-h(X))^2\big].
+\]
+The cross term vanishes. To see it, note that $m(X) - h(X)$ is a function of $X$, so condition on $X$
+and pull it out (Proposition~\ref{ch15:prop-pullout}):
+\[
+  \E\big[(Y-m(X))(m(X)-h(X)) \given X\big]
+  = (m(X)-h(X))\,\E\big[Y - m(X)\given X\big]
+  = (m(X)-h(X))\cdot 0,
+\]
+because $\E[Y\given X] - m(X) = 0$ by definition of $m$. Taking the outer expectation (tower property)
+shows the cross term is $0$. Therefore
+\[
+  \E\big[(Y - h(X))^2\big] = \underbrace{\E\big[(Y-m(X))^2\big]}_{\text{fixed, independent of }h}
+  + \underbrace{\E\big[(m(X)-h(X))^2\big]}_{\ge 0}.
+\]
+The right-most term is nonnegative and equals zero iff $h(X) = m(X)$ almost surely. So $m = \E[Y\given X]$
+is the unique minimizer.
+\end{proof}
+
+\begin{happeningbox}
+That ``cross term vanishes'' is not an algebraic accident --- it is \emph{orthogonality}. Think of
+random variables (with finite variance) as vectors, with inner product
+$\langle U, V\rangle = \E[UV]$. The proof shows the prediction error $Y - \E[Y\given X]$ is orthogonal
+to \emph{every} function of $X$. So $\E[Y\given X]$ is the \emph{orthogonal projection} of $Y$ onto the
+subspace of all functions of $X$. ``Best predictor'' literally means ``foot of the perpendicular.'' And
+the decomposition $\E[(Y-h)^2] = \E[(Y-m)^2] + \E[(m-h)^2]$ is the Pythagorean theorem in this
+geometry. The law of total variance is the same Pythagorean theorem with $h$ taken to be the constant
+$\E[Y]$: total $=$ residual $+$ explained.
+\end{happeningbox}
+
+\begin{aestheticbox}
+Step back and admire the unity. Conditional expectation is \emph{simultaneously}: (i) a within-group
+average; (ii) a smoothing/coarsening of $Y$ through the lens of $X$; (iii) the orthogonal projection of
+$Y$ onto functions of $X$; (iv) the minimum-mean-squared-error predictor. Four descriptions, one
+object. When a single definition wears that many hats, you are looking at something fundamental --- and
+indeed $\E[\cdot \given X]$ is the operation that the rest of advanced probability is built around.
+\end{aestheticbox}
+
+\begin{applicationbox}
+\textbf{Regression is conditional expectation.} This theorem \emph{is} the foundation of regression and supervised machine learning. In regression we
+seek a function that predicts a target $Y$ (price, click, diagnosis) from features $X$; the gold
+standard, if we had unlimited data and unlimited flexibility, is the \emph{regression function}
+$g(x) = \E[Y\given X = x]$ --- the true conditional mean, the curve that threads the center of the data
+cloud (Figure~\ref{ch15:fig-scatter}). Every regression method is an \emph{estimate}
+of this curve under some restriction:
+\begin{itemize}
+  \item \textbf{Linear regression} restricts $h$ to the form $a + bX$ and finds the best line --- the
+        orthogonal projection of $Y$ onto the smaller subspace of \emph{linear} functions of $X$, not
+        all functions. It recovers the true $\E[Y\given X]$ only when that conditional mean happens to be
+        linear (e.g., the bivariate normal of Figure~\ref{ch15:fig-slices}, whose regression function is
+        exactly $\rho x$).
+  \item \textbf{Trees, kernels, splines, neural nets} enlarge the class of allowed $h$ to approximate
+        the full curve $\E[Y\given X = x]$, trading bias for variance.
+\end{itemize}
+The squared-error loss that nearly every regressor minimizes is chosen \emph{precisely because}
+Theorem~\ref{ch15:thm-best-predictor} guarantees its population minimizer is the conditional mean. When
+a data scientist says ``the model predicts the expected value of $Y$ given the features,'' this theorem
+is what makes that sentence true.
+\end{applicationbox}
+
+\begin{remark}[Best \emph{linear} predictor, for contrast]
+If you restrict to linear predictors $h(X) = a + bX$, minimizing $\E[(Y - a - bX)^2]$ gives the
+familiar least-squares coefficients
+\[
+  b = \frac{\Cov(X,Y)}{\Var(X)}, \qquad a = \E[Y] - b\,\E[X].
+\]
+This is the projection onto the \emph{line}, not onto all functions of $X$. It uses only the first two
+moments (means, variances, covariance), whereas the true $\E[Y\given X]$ uses the entire joint
+distribution. They coincide exactly when the regression function is linear.
+\end{remark}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6.4cm,
+  xlabel={$x$}, ylabel={prediction of $Y$},
+  domain=0:1, samples=120, no markers,
+  legend pos=north west, legend cell align=left,
+  title={Best predictor vs.\ best line for $Y = X^2 + W$, $X\sim\Unif(0,1)$},
+  ymin=-0.25, ymax=1.05, xmin=0, xmax=1,
+]
+% True regression function E[Y|X=x] = x^2.
+\addplot[targetgreen, very thick] {x^2};
+\addlegendentry{$\E[Y\given X{=}x]=x^2$ (best predictor)}
+% Best linear predictor: y = x - 1/6 (b=1, a=-1/6).
+\addplot[densityred, thick, dashed] {x - 1/6};
+\addlegendentry{best line $a+bx = x-\tfrac16$}
+\end{axis}
+\end{tikzpicture}
+\caption{When the regression function is curved, the unconstrained best predictor
+$\E[Y\given X=x] = x^2$ (solid) bends to follow it, while the best \emph{linear} predictor (dashed) can
+only pass a straight line through the data and is forced to compromise --- too high near the ends, too
+low in the middle. The gap between the curves is precisely the excess error a linear model pays for its
+rigidity; it vanishes only when $\E[Y\given X]$ is already a line. This is the visual content of
+Theorem~\ref{ch15:thm-best-predictor} and Exercise~\ref{ch15:exr-best}.}
+\label{ch15:fig-nonlinear}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6.4cm,
+  xlabel={$x$}, ylabel={$y$},
+  domain=0:1, samples=80, no markers,
+  legend pos=north west, legend cell align=left,
+  title={A data cloud and the curve threading its conditional means},
+  xmin=0, xmax=1, ymin=-0.3, ymax=1.1,
+]
+\addplot[only marks, mark=*, mark size=1.1pt, draw=sourceblue, fill=sourceblue, opacity=0.8]
+coordinates {
+(0.050,0.118) (0.120,0.125) (0.180,0.033) (0.240,-0.052) (0.310,-0.021)
+(0.370,0.124) (0.430,0.288) (0.500,0.371) (0.560,0.338) (0.620,0.289)
+(0.690,0.351) (0.750,0.526) (0.810,0.743) (0.880,0.902) (0.940,0.931)
+(0.080,-0.072) (0.210,-0.085) (0.340,0.057) (0.470,0.289) (0.600,0.490)
+(0.730,0.601) (0.860,0.682) (0.150,-0.107) (0.400,0.082) (0.650,0.470)
+(0.900,0.938) (0.280,0.166) (0.550,0.267) (0.780,0.483) (0.970,0.845)
+};
+\addlegendentry{sample $(X,Y)$ pairs}
+\addplot[targetgreen, very thick] {x^2};
+\addlegendentry{$\E[Y\given X{=}x]=x^2$}
+\addplot[densityred, thick, dashed] {x - 1/6};
+\addlegendentry{best line $x-\tfrac16$}
+\end{axis}
+\end{tikzpicture}
+\caption{The same model $Y = X^2 + W$ shown as a scatter of draws. The conditional-mean curve
+$\E[Y\given X{=}x] = x^2$ (solid) passes through the vertical center of the cloud at every $x$: that is
+exactly what ``best mean-square predictor'' means --- for each $x$ it sits at the balance point of the
+$Y$-values stacked above $x$. The best line (dashed) is the best straight-line compromise but misses the
+curvature. The vertical scatter remaining around the solid curve is the irreducible noise
+$\E[\Var(Y\given X)] = \Var(W) = 1$ that no function of $X$ can remove.}
+\label{ch15:fig-scatter}
+\end{figure}
+
+\section{A fully worked, end-to-end example}
+\label{ch15:worked}
+
+Let us exercise every tool on one problem. A factory ships boxes. The number of items in a box is
+$N \sim \Pois(\lambda)$ with $\lambda = 10$. Each item independently is defective with probability
+$q = 0.1$. Let $D$ be the number of \emph{defective} items in a box. We want $\E[D]$, $\Var(D)$, the
+conditional distribution $D \given N$, and the best predictor of $D$ from $N$.
+
+\textbf{Step 1 --- conditional distribution.} Given $N = n$, each of the $n$ items is an independent
+$\Bern(q)$ defect, so
+\[
+  D \given N = n \;\sim\; \Bin(n, q),
+  \qquad \E[D\given N] = qN, \qquad \Var(D\given N) = N q (1-q).
+\]
+
+\textbf{Step 2 --- mean via the tower property.}
+\[
+  \E[D] = \E[\E[D\given N]] = \E[qN] = q\,\E[N] = 0.1 \times 10 = 1.
+\]
+
+\textbf{Step 3 --- variance via EVVE.} Using $\E[N] = \Var(N) = \lambda = 10$ for the Poisson:
+\[
+  \Var(D) = \E[\Var(D\given N)] + \Var(\E[D\given N])
+          = \E[Nq(1-q)] + \Var(qN)
+          = q(1-q)\E[N] + q^2 \Var(N).
+\]
+Plug in: $0.1\cdot 0.9\cdot 10 + 0.01\cdot 10 = 0.9 + 0.1 = 1.0$. So $\Var(D) = 1$.
+
+\textbf{Step 4 --- recognize the answer.} We found $\E[D] = \Var(D) = 1 = \lambda q$. That is no
+coincidence: \emph{thinning a Poisson is Poisson.} Indeed $D \sim \Pois(\lambda q)$ exactly, a fact you
+can prove directly but which the tower/EVVE computation already strongly suggests. Conditioning gave us
+the moments with almost no algebra.
+
+\textbf{Step 5 --- best predictor.} By Theorem~\ref{ch15:thm-best-predictor}, the best predictor of $D$
+from $N$ in mean square is $\E[D\given N] = 0.1\,N$. Knowing the box held $N = 14$ items, predict
+$0.1 \times 14 = 1.4$ defectives. The leftover unexplained variance is $\E[\Var(D\given N)] =
+q(1-q)\E[N] = 0.9$, and the explained variance is $\Var(qN) = q^2\lambda = 0.1$; they sum to
+$\Var(D) = 1.0$, as the law of total variance demands.
+
+\begin{labbox}
+Re-run Step~3 but make the defect probability itself uncertain: let $Q \sim \Bet(2, 18)$ (mean $0.1$)
+independently of $N$, and given $(N, Q)$ let $D \sim \Bin(N, Q)$. Condition first on $(N, Q)$, then peel
+off one layer at a time with the tower property and EVVE. You should find $\E[D]$ unchanged at $1$ but
+$\Var(D)$ \emph{larger} than before --- the extra randomness in $Q$ adds a third source of spread.
+Identify which term of the variance decomposition it lands in. (Hint: $\Var(Q) = \frac{2\cdot 18}
+{20^2\cdot 21} \approx 0.0043$.)
+\end{labbox}
+
+\begin{historybox}
+Conditional expectation as we use it --- a \emph{random variable}, the projection picture, conditioning
+on a $\sigma$-algebra rather than a single event --- was forged in the 1930s. Andrey Kolmogorov's 1933
+\emph{Grundbegriffe der Wahrscheinlichkeitsrechnung} put probability on measure-theoretic foundations
+and \emph{defined} conditional expectation abstractly via the Radon--Nikodym theorem, precisely to
+sidestep the division-by-zero that wrecks the naive definition when you condition on a continuous
+variable (recall the Borel paradox from the Why-box). Earlier, the two-stage averaging idea was already
+implicit in Laplace's and Huygens's reasoning about games and expectations, and in the actuarial
+mathematics of random sums. But it was Kolmogorov's leap --- ``define $\E[Y\given X]$ by the property
+that it averages correctly over every event determined by $X$'' --- that turned conditional expectation
+from a computational recipe into the structural backbone of modern probability, martingales and
+stochastic calculus very much included. We give that defining property its own rigorous chapter later;
+everything in this chapter is the concrete, hands-on shadow of it.
+\end{historybox}
+
+\section{The defining property, stated cleanly}
+\label{ch15:defining-property}
+
+It is worth recording the one identity that, in the rigorous theory, \emph{is} the definition --- and
+which every formula above is a special case of. It bundles the tower property and the orthogonality of
+the residual into a single line.
+
+\begin{formalbox}
+$\E[Y\given X]$ is the unique (up to probability-zero events) function of $X$ such that
+\[
+  \E\big[\,\E[Y\given X]\cdot h(X)\,\big] \;=\; \E\big[\,Y\, h(X)\,\big]
+  \qquad \text{for every bounded function } h.
+\]
+Setting $h \equiv 1$ recovers the tower property $\E[\E[Y\given X]] = \E[Y]$. Rearranged, it says
+$\E[(Y - \E[Y\given X])\,h(X)] = 0$: the residual is orthogonal to every function of $X$, which is
+exactly the best-predictor theorem. One identity, all the consequences.
+\end{formalbox}
+
+\begin{recoverybox}
+If only one sentence survives this chapter, let it be this: \textbf{$\E[Y\given X]$ is a random
+variable --- the function of $X$ that averages $Y$ within each value of $X$ --- and it is the best
+mean-square prediction of $Y$ from $X$.} The tower property ($\E[\E[Y\given X]] = \E[Y]$) and the law of
+total variance ($\Var(Y) = \E[\Var(Y\given X)] + \Var(\E[Y\given X])$) are the two ways this object lets
+you compute, and orthogonality is why it is best. Everything else is bookkeeping.
+\end{recoverybox}
+
+\section{Exercises}
+\label{ch15:exercises}
+
+\begin{exercise}[Warm-up with a table]
+\label{ch15:exr-table}
+The joint pmf of $(X,Y)$ with $X \in \set{0,1}$ and $Y \in \set{0,1,2}$ is
+\[
+  \begin{array}{c|ccc}
+    p_{X,Y} & Y{=}0 & Y{=}1 & Y{=}2 \\\hline
+    X{=}0 & 0.10 & 0.20 & 0.10 \\
+    X{=}1 & 0.20 & 0.30 & 0.10
+  \end{array}
+\]
+(a) Find the conditional pmf $p_{Y\given X}(\cdot\given 1)$. (b) Compute $\E[Y\given X = 0]$ and
+$\E[Y\given X=1]$, and write $\E[Y\given X]$ as a random variable. (c) Verify the tower property by
+computing $\E[Y]$ two ways.
+\end{exercise}
+
+\begin{exercise}[Uniform on a triangle, continued]
+\label{ch15:exr-triangle}
+For $(X,Y)$ uniform on $\set{0\le y \le x \le 1}$ as in Example~\ref{ch15:ex-triangle}: (a) confirm
+$\E[Y\given X] = X/2$; (b) find $\Var(Y\given X)$ as a function of $X$ (recall the variance of
+$\Unif(0,x)$ is $x^2/12$); (c) use the law of total variance to compute $\Var(Y)$. You will need
+$\E[X]$, $\E[X^2]$ for the marginal $f_X(x) = 2x$.
+\end{exercise}
+
+\begin{exercise}[Mixture of two coins]
+\label{ch15:exr-mixture}
+A drawer has two coins: a fair one ($p=1/2$) and a biased one ($p=0.9$). You pick one uniformly at
+random (call the choice $X$) and flip it $n = 10$ times; let $Y$ be the number of heads. (a) Find
+$\E[Y\given X]$ and $\Var(Y\given X)$ for each coin. (b) Compute $\E[Y]$ and $\Var(Y)$ via the tower
+property and EVVE. (c) Which term of the variance decomposition captures ``not knowing which coin''?
+\end{exercise}
+
+\begin{exercise}[Random sum variance]
+\label{ch15:exr-random-sum}
+Let $T = \sum_{i=1}^N X_i$ with $X_i$ i.i.d. mean $\mu$, variance $\sigma^2$, independent of the count
+$N$ (mean $\E[N]$, variance $\Var(N)$). Using EVVE, show
+\[
+  \Var(T) = \E[N]\,\sigma^2 + \mu^2\,\Var(N).
+\]
+Interpret each term. (Hint: $\Var(T\given N) = N\sigma^2$ and $\E[T\given N] = N\mu$.)
+\end{exercise}
+
+\begin{exercise}[Best predictor sanity check]
+\label{ch15:exr-best}
+Let $X \sim \Unif(0,1)$ and $Y = X^2 + W$ where $W \sim \Normal(0, 1)$ independent of $X$. (a) Find
+$\E[Y\given X]$. (b) What is the minimum achievable mean squared error $\E[(Y - h(X))^2]$ over all
+functions $h$, and which $h$ achieves it? (c) Explain why a linear predictor $a + bX$ cannot match it
+here.
+\end{exercise}
+
+\begin{exercise}[Conditional expectation of an indicator is a probability]
+\label{ch15:exr-indicator}
+Let $A$ be an event and $\ind_A$ its indicator. Show that $\E[\ind_A \given X] = \P(A \given X)$, the
+conditional probability of $A$ as a random variable. Then deduce the law of total probability
+$\P(A) = \E[\P(A\given X)] = \sum_x \P(A\given X=x)\P(X=x)$ as a special case of the tower property.
+\end{exercise}
+
+\begin{exercise}[Overdispersion]
+\label{ch15:exr-overdispersion}
+Let $\Lambda \sim \Gam(\alpha, \beta)$ (mean $\alpha/\beta$, variance $\alpha/\beta^2$) and
+$N\given\Lambda \sim \Pois(\Lambda)$. (a) Find $\E[N]$ and $\Var(N)$ using the tower property and EVVE.
+(b) Show $\Var(N) > \E[N]$, and identify the extra variance with the ``signal'' term. (This mixture is
+the negative binomial distribution --- the standard fix for overdispersed count data.)
+\end{exercise}
+
+\begin{exercise}[Proof: pulling out a known factor]
+\label{ch15:exr-proof-pullout}
+Prove part (2) of Proposition~\ref{ch15:prop-pullout}: for any functions $h$ and $Y$ with
+$\E\abs{h(X)Y} < \infty$, $\E[h(X)Y \given X] = h(X)\,\E[Y\given X]$. Do the discrete case from the
+definition of conditional expectation, being explicit about why $h(X)$ may leave the inner sum.
+\end{exercise}
+
+\begin{exercise}[Proof: the defining property implies the tower property and orthogonality]
+\label{ch15:exr-proof-defining}
+Assume the defining identity of the Formal box: $\E[\E[Y\given X]\,h(X)] = \E[Y\,h(X)]$ for all bounded
+$h$. (a) Derive the tower property. (b) Derive that $Y - \E[Y\given X]$ is uncorrelated with every
+$h(X)$. (c) Use (b) to give a one-line proof that $\E[Y\given X]$ minimizes
+$\E[(Y - h(X))^2]$ among functions of $X$.
+\end{exercise}
+
+\begin{exercise}[Conceptual: when do best and best-linear coincide?]
+\label{ch15:exr-conceptual}
+Give an example of a joint distribution where $\E[Y\given X]$ is a nonlinear function of $X$ (so the
+best predictor strictly beats the best line), and a second example where they are equal. For the second,
+explain what is special about the bivariate normal that forces $\E[Y\given X]$ to be linear.
+\end{exercise}

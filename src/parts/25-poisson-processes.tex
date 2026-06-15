@@ -1,0 +1,795 @@
+\chapter{Poisson Processes}
+
+So far almost every random object in this book has lived at a single moment.
+A coin flip, a normal measurement, a Poisson count of typos on a page --- each
+is one snapshot. But the world does not hand us snapshots. It hands us
+\emph{streams}: customers walking through a door, photons striking a detector,
+earthquakes rattling a fault, requests hitting a server, mutations accumulating
+along a strand of DNA. Events arrive, one after another, scattered along the
+axis of time, and we want a probability model for the whole pattern at once.
+
+The \emph{Poisson process} is that model. It is, without exaggeration, the most
+important random process in all of applied probability --- the ``hydrogen atom''
+of stochastic processes. It is what you get when events happen completely at
+random in time, with no memory and no coordination, at some steady average rate.
+It is simple enough to compute almost everything by hand, yet rich enough to be
+the foundation of queueing theory, reliability engineering, insurance
+mathematics, particle physics, and the analysis of point patterns in space.
+
+This chapter builds the Poisson process three times over, from three different
+starting points, and then proves that all three describe the \emph{same} object.
+That triple viewpoint is not pedantic repetition --- each lens makes a different
+property obvious, and the deepest understanding comes from being able to slide
+between them at will.
+
+\section{Three ways to see the same thing}
+\label{ch25:three-views}
+
+Picture a long horizontal time axis and a scattering of dots on it --- the
+instants at which events occur. There are three honest questions you can ask
+about that picture, and each one is a complete description of it.
+
+\begin{enumerate}
+\item \textbf{The counting view.} Fix a window of time, say the interval
+$[0,t]$, and ask: \emph{how many} dots fall inside it? Call that number $N(t)$.
+As $t$ grows, $N(t)$ ticks upward in unit jumps. The whole process is the random
+staircase $t \mapsto N(t)$.
+\item \textbf{The interarrival view.} Forget windows. Just read off the
+\emph{gaps}: how long until the first dot, then how long from the first to the
+second, and so on. Call these waiting times $T_1, T_2, T_3, \dots$. Knowing all
+the gaps is the same as knowing where every dot is.
+\item \textbf{The infinitesimal view.} Zoom in on a tiny sliver of time of width
+$\dd t$. Ask only one local question: \emph{what is the chance a dot lands in
+this sliver}, and does what happens here depend on what happened elsewhere? This
+view describes the process by its instantaneous behavior, like a differential
+equation.
+\end{enumerate}
+
+\begin{intuitionbox}
+These are the same information packaged three ways, exactly as a function can be
+described by its values, its inverse, or its derivative. The counting view is
+global and discrete (a staircase). The interarrival view is a list of gaps. The
+infinitesimal view is local and ``differential.'' The Poisson process is the one
+process on which all three descriptions are as clean and as friendly as
+possible, and the magic of the chapter is that cleanness in any one view
+\emph{forces} cleanness in the other two.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1]
+% time axis
+\draw[->,thick] (0,0) -- (11,0) node[right]{time $t$};
+% event dots (arrival instants)
+\foreach \x in {1.1, 1.7, 3.0, 3.4, 3.7, 5.5, 7.1, 8.0, 9.4, 9.8} {
+  \filldraw[densityred] (\x,0) circle (2.3pt);
+  \draw[densityred, thin] (\x,0) -- (\x,-0.18);
+}
+% interarrival braces for first few
+\draw[decorate,decoration={brace,amplitude=5pt},sourceblue]
+  (0,0.35) -- (1.1,0.35) node[midway,above=4pt,sourceblue,font=\small]{$T_1$};
+\draw[decorate,decoration={brace,amplitude=5pt},sourceblue]
+  (1.1,0.35) -- (1.7,0.35) node[midway,above=4pt,sourceblue,font=\small]{$T_2$};
+\draw[decorate,decoration={brace,amplitude=5pt},sourceblue]
+  (1.7,0.35) -- (3.0,0.35) node[midway,above=4pt,sourceblue,font=\small]{$T_3$};
+\node[densityred,font=\small] at (5.5,-0.45) {arrival instants};
+\end{tikzpicture}
+\caption{A single realization of a point process on the time line. The counting
+view asks how many red dots lie left of $t$; the interarrival view records the
+blue gaps $T_1, T_2, \dots$; the infinitesimal view asks about a tiny window
+around one point.}
+\label{ch25:fig-pointprocess}
+\end{figure}
+
+\section{The infinitesimal definition: events at random, with no memory}
+\label{ch25:infinitesimal}
+
+We start with the infinitesimal view because it is the one that captures, in the
+most physical and honest way, what we \emph{mean} by ``events happening at random
+at a steady rate.'' Three assumptions, each a plain-language statement about
+local behavior, pin the whole process down.
+
+\begin{definition}[Poisson process, infinitesimal form]
+\label{ch25:def-infinitesimal}
+A counting process $\{N(t): t \ge 0\}$ with $N(0)=0$ is a \emph{(homogeneous)
+Poisson process with rate} $\lambda > 0$ if, for a small time increment $h$,
+\begin{enumerate}
+\item \textbf{(one at a time)} the chance of exactly one event in a window of
+width $h$ is $\lambda h + o(h)$;
+\item \textbf{(no doubles)} the chance of two or more events in a window of width
+$h$ is $o(h)$ --- vanishingly small compared to $h$;
+\item \textbf{(independence)} what happens in disjoint time windows is
+independent, and the rule above does not depend on \emph{where} the window sits
+(stationarity).
+\end{enumerate}
+Here $o(h)$ denotes a quantity that goes to zero faster than $h$, i.e.
+$o(h)/h \to 0$ as $h \to 0$.
+\end{definition}
+
+Read those three lines as a story. Events come \emph{singly} --- two of them
+never share an instant. They come at a \emph{constant intensity} $\lambda$: in a
+window of width $h$ you expect about $\lambda h$ of them, so $\lambda$ is events
+per unit time. And the future is \emph{indifferent to the past}: knowing the
+process has been quiet for an hour tells you nothing about the next second.
+
+\begin{happeningbox}
+The condition $\P(\text{one event in }h) = \lambda h + o(h)$ is the engine of the
+entire chapter. It says the probability of an arrival is, to first order,
+\emph{proportional to the length of time you wait} --- and proportional to
+nothing else. Not to how long since the last arrival, not to the clock reading,
+not to how many have already occurred. ``Random'' here means precisely this:
+each instant gets the same, independent, tiny shot at producing an event. Every
+clean formula below is just this local rule integrated up.
+\end{happeningbox}
+
+\subsection{From the local rule to the count}
+
+Let us extract the distribution of $N(t)$ directly from
+Definition~\ref{ch25:def-infinitesimal}. Chop $[0,t]$ into $n$ equal slices of
+width $h = t/n$. By the ``no doubles'' rule, when $n$ is enormous each slice
+holds either zero events or one, and the chance of one is $\lambda h + o(h)
+\approx \lambda t / n$. By independence, the slices behave like $n$ independent
+coin flips, each landing ``event'' with probability $p = \lambda t/n$. So
+\[
+N(t) \;\approx\; \Bin\!\left(n,\ \tfrac{\lambda t}{n}\right).
+\]
+Now let $n \to \infty$. This is exactly the limit that \emph{defines} the Poisson
+distribution --- a binomial with many trials and a tiny per-trial probability,
+holding the mean $np = \lambda t$ fixed. The law of small numbers gives
+\[
+\P\big(N(t) = k\big) \;=\; \lim_{n\to\infty}\binom{n}{k}
+\left(\tfrac{\lambda t}{n}\right)^{k}\!\left(1-\tfrac{\lambda t}{n}\right)^{n-k}
+\;=\; e^{-\lambda t}\,\frac{(\lambda t)^{k}}{k!}.
+\]
+
+\begin{theorem}[Counts are Poisson]
+\label{ch25:thm-counts-poisson}
+In a rate-$\lambda$ Poisson process, the number of events in any window of length
+$t$ is
+\[
+N(t) \sim \Pois(\lambda t), \qquad
+\P\big(N(t)=k\big) = e^{-\lambda t}\frac{(\lambda t)^k}{k!}, \quad k=0,1,2,\dots
+\]
+More generally, the number of events in any interval $(a,b]$ is
+$\Pois\big(\lambda(b-a)\big)$, and counts in disjoint intervals are independent.
+\end{theorem}
+
+\begin{whybox}
+Why does the slicing argument become exact in the limit rather than merely
+approximate? Two reasons, and both are the $o(h)$ terms doing their job. First,
+the probability that any slice contains \emph{two or more} events is $o(h)$ per
+slice, so across all $n$ slices the total chance of a ``double'' is at most
+$n\cdot o(t/n) = t\cdot \frac{o(t/n)}{t/n} \to 0$. The single-event approximation
+is therefore not lossy in the limit. Second, the $o(h)$ correction to the
+single-event probability likewise washes out. What survives is precisely a
+$\Bin(n, \lambda t/n)$, and its limit is Poisson. The Poisson distribution is not
+\emph{assumed} here --- it is \emph{forced} by ``rare, independent, one-at-a-time,
+steady-rate.''
+\end{whybox}
+
+This is why the distribution and the process share a name. The Poisson
+\emph{distribution} of Chapter~7 counts rare independent events; the Poisson
+\emph{process} is what you get when you let those events live on a time line and
+ask about every window at once. The number $\lambda t$ is the expected count in a
+window of length $t$, and $\E N(t) = \Var N(t) = \lambda t$ --- the count's mean
+and variance both equal $\lambda t$, the signature of a Poisson variable
+(Figure~\ref{ch25:fig-poisson-pmf}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.2cm,
+  ybar, bar width=10pt,
+  xmin=-0.6, xmax=12.6, ymin=0, ymax=0.24,
+  xtick={0,2,4,6,8,10,12},
+  xlabel={number of events $k$ in the window},
+  ylabel={$\P(N(t)=k)$},
+  title={The count is Poisson: pmf of $N(t)\sim\Pois(\lambda t)$ at mean $\lambda t=4$},
+  axis lines=left, every axis title/.style={font=\small},
+]
+% Poisson(4) pmf: e^-4 4^k / k!
+\addplot[fill=histfill, draw=distblue] coordinates {
+ (0,0.018316) (1,0.073263) (2,0.146525) (3,0.195367) (4,0.195367)
+ (5,0.156293) (6,0.104196) (7,0.059540) (8,0.029770) (9,0.013231)
+ (10,0.005292) (11,0.001925) (12,0.000642)};
+\end{axis}
+\end{tikzpicture}
+\caption{The number of events in a window of length $t$ follows the Poisson pmf
+with mean $\lambda t$ (here $\lambda t = 4$). The distribution peaks near its
+mean and has the equal mean-equals-variance signature: both equal $\lambda t$.}
+\label{ch25:fig-poisson-pmf}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm,
+  ymin=0, ymax=10.5, xmin=0, xmax=10,
+  xlabel={time $t$}, ylabel={$N(t)$},
+  title={A sample path of the counting process (a random staircase)},
+  axis lines=left, ytick={0,2,4,6,8,10},
+  every axis title/.style={font=\small},
+]
+% staircase: jumps at the arrival instants from fig above
+\addplot[const plot, no marks, thick, sourceblue] coordinates {
+ (0,0) (1.1,0) (1.7,1) (3.0,2) (3.4,3) (3.7,4) (5.5,5) (7.1,6) (8.0,7)
+ (9.4,8) (9.8,9) (10,10)};
+% mark arrival instants on the x-axis
+\addplot[only marks, mark=*, mark size=1.6pt, densityred] coordinates {
+ (1.1,0)(1.7,0)(3.0,0)(3.4,0)(3.7,0)(5.5,0)(7.1,0)(8.0,0)(9.4,0)(9.8,0)};
+\end{axis}
+\end{tikzpicture}
+\caption{The counting view of the same realization as
+Figure~\ref{ch25:fig-pointprocess}: $N(t)$ jumps up by one at each red arrival
+and is flat in between. The Poisson process \emph{is} this staircase.}
+\label{ch25:fig-staircase}
+\end{figure}
+
+\section{The interarrival view: why the gaps are exponential}
+\label{ch25:interarrival}
+
+Now switch lenses. Instead of counting, watch the clock between events. Let $T_1$
+be the time of the first event, $T_2$ the gap from the first to the second, and
+so on. The single most beautiful fact about the Poisson process is what these
+gaps turn out to be.
+
+\begin{theorem}[Interarrival times are i.i.d.\ exponential]
+\label{ch25:thm-exponential}
+In a rate-$\lambda$ Poisson process the interarrival times
+$T_1, T_2, T_3, \dots$ are independent and identically distributed, each
+$\Expo(\lambda)$:
+\[
+\P(T_i > s) = e^{-\lambda s}, \qquad f_{T_i}(s) = \lambda e^{-\lambda s},
+\quad s \ge 0,
+\]
+with mean gap $\E T_i = 1/\lambda$.
+\end{theorem}
+
+\begin{whybox}
+The proof of the first gap is a one-liner once you have the counting view. The
+event ``the first arrival happens after time $s$'' is \emph{exactly} the event
+``no arrivals in $[0,s]$.'' But the count $N(s)$ is $\Pois(\lambda s)$, so
+\[
+\P(T_1 > s) = \P\big(N(s) = 0\big) = e^{-\lambda s}\frac{(\lambda s)^0}{0!}
+= e^{-\lambda s}.
+\]
+That is the exponential survival function on the nose. So $T_1 \sim
+\Expo(\lambda)$, and differentiating gives the density $\lambda e^{-\lambda s}$.
+For the later gaps, independence of disjoint intervals means that once the first
+event lands, the process from that instant onward is a fresh Poisson process that
+has forgotten its past entirely --- so $T_2$ is, by the identical argument,
+$\Expo(\lambda)$ and independent of $T_1$, and so on for all the gaps.
+\end{whybox}
+
+Look at what just happened. The exponential distribution did not get assumed; it
+got \emph{derived} from ``no arrivals yet'' plus ``counts are Poisson.'' And the
+reverse holds too: if you simply \emph{define} a process by dropping i.i.d.\
+$\Expo(\lambda)$ gaps end to end, you recover a process whose counts are
+$\Pois(\lambda t)$. This is the equivalence promised in the introduction.
+
+\begin{intuitionbox}
+The deep reason the gaps are exponential is \emph{memorylessness}. The
+infinitesimal rule says every instant is an independent fresh shot at an event,
+indifferent to history. A waiting time built from a memoryless local rule must
+itself be memoryless: $\P(T > s+u \given T > s) = \P(T > u)$. And the exponential
+is the \emph{only} continuous distribution with that property (Chapter~11). So
+``random events with no memory'' and ``exponential gaps'' are two names for the
+same thing.
+\end{intuitionbox}
+
+\subsection{Where the $n$-th event lands: the Erlang/Gamma}
+
+The time of the $n$-th arrival is the sum of the first $n$ gaps,
+\[
+S_n = T_1 + T_2 + \cdots + T_n.
+\]
+A sum of $n$ independent $\Expo(\lambda)$ variables is, by the convolution
+results of Chapter~17, a Gamma with shape $n$ --- often called the \emph{Erlang}
+distribution:
+\[
+S_n \sim \Gam(n, \lambda), \qquad
+f_{S_n}(t) = \frac{\lambda^n t^{\,n-1} e^{-\lambda t}}{(n-1)!}, \quad t \ge 0.
+\]
+There is a lovely consistency check hiding here, the bridge between the
+interarrival and counting views: the $n$-th event lands after time $t$ exactly
+when fewer than $n$ events have occurred by time $t$. In symbols,
+$\{S_n > t\} = \{N(t) < n\}$, so
+\[
+\P(S_n > t) = \P\big(N(t) \le n-1\big)
+= \sum_{k=0}^{n-1} e^{-\lambda t}\frac{(\lambda t)^k}{k!}.
+\]
+Differentiating that finite sum collapses (the series telescopes) right back to
+the Erlang density above --- the two viewpoints agreeing to the last term.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.4cm,
+  domain=0:12, samples=160,
+  xmin=0, xmax=12, ymin=0, ymax=0.42,
+  xlabel={$t$}, ylabel={density of $S_n$},
+  title={Arrival-time densities $S_n\sim\Gam(n,1)$ for $n=1,2,3,5$},
+  axis lines=left, legend pos=north east,
+  every axis title/.style={font=\small}, legend style={font=\small},
+]
+\addplot[densityred, very thick] {exp(-x)};
+\addlegendentry{$n=1$ (exponential)}
+\addplot[distblue, very thick] {x*exp(-x)};
+\addlegendentry{$n=2$}
+\addplot[targetgreen, very thick] {x^2*exp(-x)/2};
+\addlegendentry{$n=3$}
+\addplot[quotientorange, very thick] {x^4*exp(-x)/24};
+\addlegendentry{$n=5$}
+\end{axis}
+\end{tikzpicture}
+\caption{The time of the $n$-th arrival is a sum of $n$ exponential gaps, so its
+density is Erlang/Gamma. As $n$ grows the hump marches right (the $n$-th event
+takes longer) and grows more symmetric --- a preview of the central limit theorem
+acting on the gaps.}
+\label{ch25:fig-erlang}
+\end{figure}
+
+\begin{example}[Phone calls at a help desk]
+\label{ch25:ex-helpdesk}
+Calls arrive as a Poisson process at $\lambda = 6$ per hour. (a) What is the
+chance of no calls in a given 10-minute stretch? (b) What is the expected wait
+until the next call? (c) What is the chance the third call of the day arrives
+within the first half hour?
+
+\emph{Solution.} Work in hours. (a) A 10-minute window is $t = 1/6$ hour, so the
+count is $\Pois(6 \cdot \tfrac16) = \Pois(1)$ and $\P(N=0) = e^{-1} \approx
+0.368$. (b) The gap is $\Expo(6)$ with mean $1/6$ hour $= 10$ minutes. (c) We
+want $\P(S_3 \le 0.5)$ where $S_3 \sim \Gam(3,6)$. Equivalently, by the bridge
+identity, we want $\P\big(N(0.5) \ge 3\big)$ with $N(0.5) \sim \Pois(3)$:
+\[
+\P\big(N(0.5)\ge 3\big) = 1 - e^{-3}\Big(1 + 3 + \tfrac{9}{2}\Big)
+= 1 - 8.5\,e^{-3} \approx 0.577.
+\]
+Notice how the counting view turned a Gamma integral into a three-term sum ---
+that switch between lenses is the practical payoff of the equivalence.
+\end{example}
+
+\begin{historybox}
+The exponential-gap picture has deep engineering roots. Around 1909 the Danish
+mathematician and telephone engineer \emph{Agner Krarup Erlang}, working for the
+Copenhagen Telephone Company, modeled incoming calls as random arrivals to size
+the number of circuits a switchboard needed. His insight --- that call arrivals
+have no memory and that waiting times are exponential --- launched the entire
+field of \emph{queueing theory}. The Erlang distribution and the unit of
+telephone traffic (the \emph{erlang}) both carry his name. The same mathematics
+that once dimensioned telephone exchanges now sizes data-center capacity, call
+centers, and hospital emergency rooms.
+\end{historybox}
+
+\section{The two structural superpowers: superposition and thinning}
+\label{ch25:super-thin}
+
+Two operations make the Poisson process behave like a perfect Lego brick: you can
+\emph{merge} processes and \emph{split} a process, and in both cases you land back
+on Poisson processes. These are not curiosities --- they are the reason the model
+appears everywhere, because real streams are constantly being pooled and
+filtered.
+
+\begin{theorem}[Superposition]
+\label{ch25:thm-superposition}
+If $N_1, N_2, \dots, N_m$ are independent Poisson processes with rates
+$\lambda_1, \dots, \lambda_m$, then their pooled process $N = N_1 + \cdots + N_m$
+--- the single stream you get by ignoring labels and watching all events together
+--- is a Poisson process with rate $\lambda_1 + \cdots + \lambda_m$.
+\end{theorem}
+
+The infinitesimal view makes this almost obvious. In a tiny window, the chance of
+an event from source $i$ is $\lambda_i h + o(h)$; the chance of an event from
+\emph{some} source is the sum $(\sum_i \lambda_i)h + o(h)$ (the chance two
+different sources fire in the same sliver is $o(h)$, negligible). Independence of
+disjoint windows is inherited from the parts. All three axioms of
+Definition~\ref{ch25:def-infinitesimal} hold for the pool with the summed rate.
+Rates simply add.
+
+\begin{theorem}[Thinning]
+\label{ch25:thm-thinning}
+Take a rate-$\lambda$ Poisson process and independently label each event ``type
+A'' with probability $p$ and ``type B'' with probability $1-p$, the coin flips
+independent of everything else. Then the type-A events form a Poisson process of
+rate $\lambda p$, the type-B events form a Poisson process of rate
+$\lambda(1-p)$, and --- the surprising part --- \emph{the two thinned processes
+are independent of each other}.
+\end{theorem}
+
+\begin{whybox}
+Why are the two thinned streams independent, when they came from a single shared
+process? Condition on the total count $N(t)=n$. Given $n$ events, each is
+independently type A with probability $p$, so the number of type-A events is
+$\Bin(n,p)$. Summing over $n$ against the Poisson law of $N(t)$:
+\[
+\P(N_A = j,\ N_B = k)
+= \underbrace{e^{-\lambda t}\frac{(\lambda t)^{j+k}}{(j+k)!}}_{\P(N=j+k)}\cdot
+\underbrace{\binom{j+k}{j}p^j(1-p)^k}_{\text{labelling}}.
+\]
+Now do the algebra: $(j+k)!$ cancels, $(\lambda t)^{j+k}=(\lambda t)^j(\lambda
+t)^k$ splits, and $e^{-\lambda t}=e^{-\lambda p t}e^{-\lambda(1-p)t}$ factors. The
+joint probability separates cleanly into
+\[
+\Big[e^{-\lambda p t}\tfrac{(\lambda p t)^j}{j!}\Big]
+\cdot
+\Big[e^{-\lambda (1-p) t}\tfrac{(\lambda (1-p) t)^k}{k!}\Big],
+\]
+a product of two independent Poisson pmfs with means $\lambda p t$ and
+$\lambda(1-p)t$. The factorization \emph{is} the independence. This ``Poissonizing
+the trials'' trick --- a random Poisson number of binomial labels splits into
+independent Poissons --- is one of the genuinely magical identities in
+probability.
+\end{whybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1, every node/.style={font=\small}]
+% pooled / superposition (top)
+\draw[->,thick] (0,2.2) -- (7.2,2.2);
+\foreach \x in {0.6,1.4,2.1,3.3,4.0,5.1,6.0,6.6} \filldraw[densityred] (\x,2.2) circle (2pt);
+\node[densityred] at (8.4,2.2) {rate $\lambda$};
+% thinning arrows
+\draw[->,thick,gray] (3.6,1.95) -- (3.6,1.25);
+\node[gray] at (5.7,1.55) {label A w.p. $p$, B w.p. $1-p$};
+% type A
+\draw[->,thick] (0,0.6) -- (7.2,0.6);
+\foreach \x in {0.6,2.1,4.0,6.0} \filldraw[distblue] (\x,0.6) circle (2pt);
+\node[distblue] at (8.6,0.6) {A: rate $\lambda p$};
+% type B
+\draw[->,thick] (0,-0.6) -- (7.2,-0.6);
+\foreach \x in {1.4,3.3,5.1,6.6} \filldraw[targetgreen] (\x,-0.6) circle (2pt);
+\node[targetgreen] at (8.8,-0.6) {B: rate $\lambda(1{-}p)$};
+\end{tikzpicture}
+\caption{Thinning: each event of a rate-$\lambda$ process is independently
+sorted into stream A or stream B. The two sub-streams are themselves independent
+Poisson processes whose rates split the original. Run the picture upward and it
+reads as superposition: two independent Poisson streams merge into one whose rate
+is the sum.}
+\label{ch25:fig-thinning}
+\end{figure}
+
+\begin{example}[Splitting a traffic stream]
+\label{ch25:ex-thinning}
+Cars pass a sensor as a Poisson process at $\lambda = 120$ per hour; each
+independently turns left with probability $0.25$. Then left-turners form a
+Poisson process at $0.25 \cdot 120 = 30$ per hour and straight-throughs at $90$
+per hour, and these two streams are independent. So the number of left-turners in
+the next hour is $\Pois(30)$, completely uninformative about the number going
+straight. The pooled-then-split structure means you can model each lane in
+isolation.
+\end{example}
+
+\begin{applicationbox}[Modeling rare events, arrivals, and queues]
+The Poisson process is the default first model whenever many independent sources
+each rarely contribute to a common stream --- precisely the setting of the law of
+small numbers.
+\begin{itemize}
+\item \textbf{Queues and servers.} An ``M/M/1'' queue (the workhorse of
+performance modeling) has \emph{M}arkovian Poisson arrivals and \emph{M}arkovian
+exponential service. Web-request load, database transactions, and packets on a
+link are all routinely modeled this way; Chapter~27 develops the queueing theory
+that sits on top of this chapter.
+\item \textbf{Reliability and insurance.} Failures of a large fleet of
+independent components, or claims arriving at an insurer, are classic thinned and
+superposed Poisson streams; the total claim amount over a year is a
+\emph{compound Poisson} sum.
+\item \textbf{Physics and biology.} Radioactive decay clicks on a Geiger counter,
+photons hitting a detector, and mutations along a genome are textbook Poisson
+processes --- the independence of disjoint windows reflects genuinely
+memoryless physics.
+\item \textbf{Networks and ML.} Arrival models for recommendation impressions, ad
+auctions, and event logs start from Poisson assumptions; Hawkes processes (where
+events \emph{excite} more events) are the standard generalization when the
+independence assumption breaks.
+\end{itemize}
+\end{applicationbox}
+
+\section{The conditional-uniformity property}
+\label{ch25:uniformity}
+
+Here is a fact that surprises almost everyone the first time, and that, once
+internalized, demystifies the whole process.
+
+\begin{theorem}[Order statistics / conditional uniformity]
+\label{ch25:thm-uniformity}
+Condition on $N(t)=n$: that is, suppose you are told exactly $n$ events occurred
+in $[0,t]$, but not when. Then the $n$ arrival times, regarded as an unordered
+set, are distributed exactly like $n$ independent $\Unif(0,t)$ points. Their
+sorted values $S_1 < \cdots < S_n$ are the order statistics of $n$ uniform draws.
+\end{theorem}
+
+In words: \emph{given the count}, the Poisson process scatters its events
+completely uniformly and with no preference for any sub-interval. The rate
+$\lambda$ governs \emph{how many} events occur; once that number is fixed,
+$\lambda$ drops out entirely and the events are just uniform confetti.
+
+\begin{whybox}
+A clean way to see it: chop $[0,t]$ into the slices of the infinitesimal view.
+Each event is equally likely to fall in any slice (the rate is constant), and the
+events are placed independently. ``Equally likely across the interval,
+independent'' is the definition of i.i.d.\ uniform. More formally, write the joint
+density of getting $n$ events near specified ordered times $s_1<\cdots<s_n$ and no
+events elsewhere; the rate factors $\lambda^n$ and the empty-interval
+probabilities multiply to $e^{-\lambda t}$, and after dividing by
+$\P(N(t)=n)=e^{-\lambda t}(\lambda t)^n/n!$ everything $\lambda$-dependent
+cancels, leaving the constant density $n!/t^n$ --- exactly the joint density of
+$n$ ordered uniforms.
+\end{whybox}
+
+\begin{paradoxbox}[The inspection / waiting-time paradox]
+You arrive at a bus stop at a random moment. Buses come as a Poisson process with
+mean gap $1/\lambda$. How long is the gap of time that \emph{you} land inside?
+Naively you might say $1/\lambda$, since that is the average gap. But the answer
+is $2/\lambda$ --- on average the bus you wait for took \emph{twice} the mean gap
+to arrive.
+
+How can the gap you land in be longer than the average gap? Because your random
+arrival is more likely to fall inside a \emph{long} gap than a short one --- a
+long gap is, by definition, a bigger target. This \emph{length-biased sampling}
+inflates the gap you observe. Concretely, by memorylessness the time you still
+wait for the next bus is $\Expo(\lambda)$ with mean $1/\lambda$; but the time
+since the \emph{previous} bus is \emph{also} $\Expo(\lambda)$ with mean
+$1/\lambda$ (the process is memoryless looking backward too). The gap containing
+you is the sum, mean $2/\lambda$. The lesson generalizes far beyond buses: when
+you sample by ``whatever interval I happen to be in,'' you oversample the long
+ones. It is the same bias that makes your friends seem to have more friends than
+you do, and that makes class sizes feel larger than the average roster
+(Figure~\ref{ch25:fig-inspection}).
+\end{paradoxbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1, every node/.style={font=\small}]
+% time axis with bus arrivals making gaps of varying length
+\draw[->,thick] (0,0) -- (11,0) node[right]{time};
+\foreach \x in {0.5, 1.3, 2.0, 5.5, 6.2, 7.0, 7.6, 10.2} {
+  \filldraw[densityred] (\x,0) circle (2.2pt);
+  \draw[densityred] (\x,0) -- (\x,-0.15);
+}
+% highlight the long gap 2.0 -- 5.5
+\draw[decorate,decoration={brace,amplitude=5pt,mirror},structurepurple,thick]
+  (2.0,-0.35) -- (5.5,-0.35) node[midway,below=4pt,structurepurple]{long gap};
+% the random observer arrow lands in the long gap
+\draw[->,thick,targetgreen] (3.7,1.0) -- (3.7,0.12);
+\node[targetgreen] at (3.7,1.25) {you arrive here};
+\node[densityred] at (6.5,0.55) {bus arrivals};
+\end{tikzpicture}
+\caption{Length-biased sampling behind the inspection paradox. A uniformly
+random arrival time is more likely to land inside a \emph{wide} gap than a narrow
+one, because wide gaps cover more of the axis. So the gap you observe is, on
+average, longer than a gap picked at random from the list --- mean $2/\lambda$
+rather than $1/\lambda$.}
+\label{ch25:fig-inspection}
+\end{figure}
+
+\section{Nonhomogeneous Poisson processes: a rate that breathes}
+\label{ch25:nonhomogeneous}
+
+Constant rate is a strong assumption, and reality often violates it. A restaurant
+gets a lunch rush; a website spikes at 9\,a.m.; earthquakes cluster after a big
+one. We keep the independence and one-at-a-time structure but let the rate vary
+in time, replacing the constant $\lambda$ with an \emph{intensity function}
+$\lambda(t) \ge 0$.
+
+\begin{definition}[Nonhomogeneous Poisson process]
+\label{ch25:def-nonhomogeneous}
+A counting process $\{N(t)\}$ with $N(0)=0$ is a \emph{nonhomogeneous Poisson
+process} with intensity $\lambda(t) \ge 0$ if it has independent increments,
+events occur singly, and the chance of an event in $[t, t+h)$ is $\lambda(t)h +
+o(h)$. Define the \emph{mean (cumulative) intensity}
+\[
+m(t) = \int_0^t \lambda(u)\,\dd u.
+\]
+Then the count in $(a,b]$ is Poisson with mean $m(b)-m(a)$:
+\[
+N(b)-N(a) \sim \Pois\!\Big(\textstyle\int_a^b \lambda(u)\,\dd u\Big).
+\]
+\end{definition}
+
+The mean count over a window is no longer rate $\times$ width; it is the
+\emph{area under the intensity curve} over that window. Everything else is
+inherited: counts in disjoint windows are still independent Poissons, only with
+window-dependent means.
+
+\begin{connectionbox}
+The leap from homogeneous to nonhomogeneous is exactly the leap from
+multiplication to integration. For constant rate the expected count is the
+rectangle $\lambda \cdot t$; for varying rate it is the integral $\int_0^t
+\lambda(u)\,\dd u$, the accumulated area under the intensity. This is the same
+move that turns ``distance $=$ speed $\times$ time'' into ``distance $=
+\int$ speed $\dd t$'' in the companion calculus volume. The intensity
+$\lambda(t)$ is to the mean-count curve $m(t)$ exactly as velocity is to
+position: $m'(t) = \lambda(t)$.
+\end{connectionbox}
+
+\begin{happeningbox}
+There is a slick way to think of a nonhomogeneous process: it is a homogeneous
+rate-1 process viewed through a \emph{warped clock}. Define new time
+$\tau = m(t)$. Stretching the axis so that equal amounts of \emph{expected events}
+occupy equal length turns the breathing rate back into a constant rate of $1$.
+This ``time change'' is why so many homogeneous results carry over: you prove them
+once at constant rate, then warp time. It is also exactly how you \emph{simulate}
+a nonhomogeneous process --- generate a rate-1 process and unwarp, or use
+\emph{thinning} (next box).
+\end{happeningbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.2cm,
+  domain=0:24, samples=160,
+  xmin=0, xmax=24, ymin=0, ymax=14,
+  xlabel={hour of day}, ylabel={intensity $\lambda(t)$ (calls/hr)},
+  title={A breathing rate: two daily rushes},
+  axis lines=left, every axis title/.style={font=\small},
+]
+\addplot[name path=lam, densityred, very thick] {2 + 9*exp(-(x-12)^2/6) + 6*exp(-(x-18)^2/4)};
+\addplot[name path=base, draw=none] {0};
+\addplot[densityred!22] fill between[of=lam and base];
+\end{axis}
+\end{tikzpicture}
+\caption{A nonhomogeneous intensity $\lambda(t)$ with a midday and an evening
+peak. The expected number of events between two times is the \emph{area} under
+this curve over that span, not a simple rate times width.}
+\label{ch25:fig-nonhomog}
+\end{figure}
+
+\begin{applicationbox}[Simulation by thinning]
+To simulate a nonhomogeneous process with intensity bounded by
+$\lambda(t)\le \lambda^\star$, run a homogeneous rate-$\lambda^\star$ process
+(easy: just add up $\Expo(\lambda^\star)$ gaps) and then \emph{keep} each
+candidate event at time $t$ with probability $\lambda(t)/\lambda^\star$, throwing
+the rest away. By the thinning theorem the survivors have exactly the intensity
+$\lambda(t)$. This \emph{Lewis--Shedler thinning} algorithm is the standard way
+to generate arrivals for nonhomogeneous queueing simulations and for fitting
+point-process models in epidemiology and seismology.
+\end{applicationbox}
+
+\section{A fully worked path, end to end}
+\label{ch25:worked-path}
+
+Let us pin every viewpoint to one concrete computation.
+
+\begin{example}[Server requests]
+\label{ch25:ex-server}
+Requests hit a server as a Poisson process at $\lambda = 3$ per second.
+
+\textbf{(a) Count in a window.} Requests in the next 2 seconds:
+$N(2) \sim \Pois(6)$, so $\E = 6$, $\Var = 6$, and
+$\P(N(2)=4) = e^{-6}6^4/4! = 1296\,e^{-6}/24 = 54\,e^{-6} \approx 0.134.$
+
+\textbf{(b) Waiting for the next.} The next request is $\Expo(3)$ seconds away,
+mean $1/3$ s. Chance you wait more than $1$ second: $e^{-3}\approx 0.0498$.
+
+\textbf{(c) Waiting for the fifth.} $S_5\sim\Gam(5,3)$, mean $5/3$ s. Chance the
+fifth request arrives within $1$ second is $\P(N(1)\ge 5)$ with
+$N(1)\sim\Pois(3)$:
+\[
+1 - e^{-3}\!\left(1+3+\tfrac{9}{2}+\tfrac{27}{6}+\tfrac{81}{24}\right)
+= 1 - e^{-3}\cdot 16.375 \approx 0.185.
+\]
+
+\textbf{(d) Thinning.} Suppose $20\%$ of requests are writes. Writes form a
+Poisson process at $0.6$/s, reads at $2.4$/s, and the two streams are
+independent. Writes in the next $10$ s: $\Pois(6)$.
+
+\textbf{(e) Conditional uniformity.} Told that exactly $3$ requests arrived in
+$[0,2]$, the chance all three came in the first second is, by uniformity,
+$(1/2)^3 = 1/8$ --- the rate $\lambda$ has vanished entirely from the question.
+\end{example}
+
+\begin{trapbox}
+A few recurring stumbles. (1) \emph{Mismatched units.} A rate is per unit time;
+always convert the window to the same units before forming $\lambda t$. A rate of
+$6$/hour over $10$ minutes gives mean $1$, not $6$. (2) \emph{Confusing the
+exponential gap with the Gamma arrival time.} $T_i\sim\Expo(\lambda)$ is one gap;
+$S_n=\sum T_i \sim\Gam(n,\lambda)$ is when the $n$-th event lands. (3)
+\emph{Forgetting independence after thinning.} The two thinned streams really are
+independent --- do not double-count shared randomness. (4) \emph{Assuming the gap
+you observe equals the mean gap}; the inspection paradox says the gap you land in
+averages $2/\lambda$.
+\end{trapbox}
+
+\begin{aestheticbox}
+Step back and admire the unity. A handful of words --- ``events at random, no
+memory, steady rate'' --- forces the Poisson count, the exponential gap, the
+Gamma arrival time, the additivity of rates, the splitting into independent
+streams, and the uniform scattering given the count. Nothing was bolted on; each
+fact is the same assumption seen from a new angle. That is what a \emph{canonical}
+object feels like in mathematics: a single idea whose every consequence is
+inevitable and clean. The Poisson process is the point where ``random in time''
+becomes fully computable.
+\end{aestheticbox}
+
+\section{Exercises}
+\label{ch25:exercises}
+
+\begin{exercise}[Warm-up counts]
+\label{ch25:exr-counts}
+Emails arrive at $\lambda = 4$ per hour as a Poisson process. Find (a) the
+probability of exactly $2$ emails in the next half hour; (b) the probability of
+\emph{no} emails in the next $15$ minutes; (c) the expected number and the
+variance of emails in an $8$-hour workday.
+\end{exercise}
+
+\begin{exercise}[Gaps and arrival times]
+\label{ch25:exr-gaps}
+For the email process above, find (a) the mean and standard deviation of the time
+until the next email; (b) the probability that the gap to the next email exceeds
+$20$ minutes; (c) the distribution and mean of the time until the \emph{third}
+email.
+\end{exercise}
+
+\begin{exercise}[The Poisson--exponential bridge]
+\label{ch25:exr-bridge}
+Using only the identity $\{S_n > t\} = \{N(t) < n\}$, show that
+$\P(S_2 > t) = e^{-\lambda t}(1+\lambda t)$, and then differentiate to recover
+the $\Gam(2,\lambda)$ density. Explain in one sentence why this identity is the
+formal statement that ``counting'' and ``waiting'' are the same process.
+\end{exercise}
+
+\begin{exercise}[Superposition in practice]
+\label{ch25:exr-super}
+Three independent ticket machines sell at Poisson rates $5$, $8$, and $7$ per
+minute. (a) What is the distribution of total sales in a $2$-minute window? (b)
+Given that a sale just occurred, what is the probability it came from the second
+machine? (Hint: in a tiny window the chance the event is from machine $i$ is
+$\lambda_i/\sum_j\lambda_j$.)
+\end{exercise}
+
+\begin{exercise}[Thinning and independence]
+\label{ch25:exr-thin}
+Customers enter a shop at $\lambda = 30$ per hour; each independently makes a
+purchase with probability $0.4$. (a) Find the distribution of the number of
+\emph{buyers} in the next hour. (b) Find the distribution of the number of
+\emph{non-buyers}. (c) If $20$ buyers walked in this hour, what does that tell you
+about the number of non-buyers? Justify with the thinning theorem.
+\end{exercise}
+
+\begin{exercise}[Conditional uniformity]
+\label{ch25:exr-uniform}
+Exactly $5$ meteors are seen during a $4$-hour watch modeled as a Poisson
+process. (a) What is the probability that exactly $2$ of them appeared in the
+first hour? (b) What is the expected number that appeared in the first hour? (c)
+Why does the rate $\lambda$ not appear in your answers?
+\end{exercise}
+
+\begin{exercise}[Nonhomogeneous process]
+\label{ch25:exr-nonhomog}
+A call center has intensity $\lambda(t) = 10 + 6\sin(\pi t/12)$ calls per hour,
+$t$ in hours past midnight. (a) Write the expected number of calls between
+$8$\,a.m.\ and noon as an integral and evaluate it. (b) What is the distribution
+of the number of calls in that window? (c) Sketch why a constant-rate model would
+mis-size staffing.
+\end{exercise}
+
+\begin{exercise}[The inspection paradox, quantitatively]
+\label{ch25:exr-inspection}
+Buses arrive as a Poisson process with mean gap $10$ minutes. You show up at a
+uniformly random time. (a) What is the expected time until the next bus? (b) What
+is the expected time since the previous bus? (c) Hence the expected length of the
+gap you land in --- and explain in words why it exceeds $10$ minutes.
+\end{exercise}
+
+\begin{exercise}[Proof: memorylessness forces exponential gaps]
+\label{ch25:exr-proof}
+Let $G(s) = \P(T_1 > s)$ be the survival function of the first gap. Argue from
+the independence and stationarity axioms that
+$G(s+u) = G(s)\,G(u)$ for all $s,u\ge 0$. Then, assuming $G$ is continuous and
+decreasing with $G(0)=1$, prove the only solution is $G(s) = e^{-\lambda s}$ for
+some $\lambda > 0$. (This is the functional-equation heart of the whole chapter.)
+\end{exercise}
+
+\begin{exercise}[Compound Poisson, a peek ahead]
+\label{ch25:exr-compound}
+Claims arrive at an insurer as a Poisson process at $\lambda = 2$ per day, and
+each claim is an independent amount with mean \$$1000$ and standard deviation
+\$$400$. Let $X$ be the total claim amount in a $30$-day month. Using the laws of
+total expectation and total variance (Chapter~15), find $\E X$ and $\Var X$.
+(Hint: $\E X = \lambda T\,\E(\text{amount})$ and
+$\Var X = \lambda T\,\E(\text{amount}^2)$.)
+\end{exercise}

@@ -1,0 +1,897 @@
+\chapter{Confidence Intervals and Hypothesis Testing}
+
+You have spent the last two chapters learning how to point at a number. Given data,
+the method of moments and maximum likelihood hand you an \emph{estimate} --- a single
+value $\hat\theta$ that is your best guess for some unknown quantity $\theta$. But a
+single number, offered with no hint of how much you should trust it, is almost
+dishonest. If a pollster tells you ``$52\%$ of voters favor the measure'' and stops
+there, the right response is not ``thank you'' but ``$52\%$ \emph{plus or minus what}?''
+A guess without a margin is a guess pretending to be a fact.
+
+This chapter is about attaching honesty to estimates. There are two great traditions
+for doing it, and they are really two answers to two different questions.
+
+\begin{itemize}
+  \item \textbf{Confidence intervals} answer: \emph{how wide a net should I cast so that
+  the truth is plausibly inside it?} The output is a \emph{range} of values.
+  \item \textbf{Hypothesis tests} answer: \emph{is the effect I see real, or could plain
+  randomness have produced it?} The output is a \emph{decision} (or a number, the
+  p-value, that informs one).
+\end{itemize}
+
+Both are built on one idea you already own from Chapter~21: the \emph{sampling
+distribution}. Everything in this chapter --- every $\pm$, every p-value, every t-test
+--- is an accountant's report on how much an estimate wobbles when you redraw the
+data. We will build that idea carefully, then watch it grow into the two most-used (and
+two most-\emph{misused}) tools in all of applied statistics. We will be honest about
+what they do and, just as importantly, what they do \emph{not} do.
+
+\section{The sampling distribution: the engine underneath}
+\label{ch32:sampling}
+
+Imagine the unknown quantity is the mean height $\mu$ of adult women in a country. You
+cannot measure everyone, so you draw a random sample of $n$ women and compute the
+sample mean
+\[
+  \bar X_n = \frac{1}{n}\sum_{i=1}^n X_i .
+\]
+Here is the conceptual leap that makes all of inference work. Your particular sample
+gave you, say, $\bar X_n = 164.3$ cm. But that number was an accident of \emph{which}
+$n$ women happened to be chosen. A different random sample would have given a slightly
+different mean. So $\bar X_n$ is not a fixed number --- it is itself a random variable,
+with its own distribution. That distribution is called the \textbf{sampling
+distribution} of the estimator.
+
+\begin{intuitionbox}
+Picture a giant, hypothetical experiment: draw a sample of size $n$, write down
+$\bar X_n$, throw the sample back, and repeat forever. The histogram of all those
+$\bar X_n$ values \emph{is} the sampling distribution. We never actually run this
+experiment --- we have only the one sample we paid for. But probability theory lets us
+\emph{predict} the shape of that histogram without running it. That prediction is the
+whole game.
+\end{intuitionbox}
+
+For the sample mean we know the prediction exactly. If the $X_i$ are i.i.d.\ with mean
+$\mu$ and variance $\sigma^2$, then by linearity and independence (Chapters 8--9),
+\[
+  \E[\bar X_n] = \mu, \qquad \Var(\bar X_n) = \frac{\sigma^2}{n}.
+\]
+The estimator is centered on the truth (it is \emph{unbiased}) and its spread shrinks
+like $1/n$. The standard deviation of an estimator has a special name: the
+\textbf{standard error}.
+\[
+  \SD(\bar X_n) = \frac{\sigma}{\sqrt n} \;=:\; \mathrm{SE}.
+\]
+
+\begin{trapbox}
+Do not confuse the \emph{standard deviation} $\sigma$ (how spread out individual people
+are) with the \emph{standard error} $\sigma/\sqrt n$ (how spread out the \emph{sample
+mean} is across hypothetical repetitions). Heights vary by maybe $7$ cm person to
+person; the mean of $1000$ heights varies by only $7/\sqrt{1000}\approx 0.22$ cm. As
+$n$ grows, people stay just as different but the \emph{average} becomes razor-sharp.
+This is the single most common confusion in introductory statistics.
+\end{trapbox}
+
+And the shape? This is where the Central Limit Theorem (Chapter~21) does its magic. No
+matter what the distribution of an individual $X_i$ looks like --- skewed, bimodal,
+discrete --- the sampling distribution of $\bar X_n$ is approximately Normal for large
+$n$:
+\[
+  \bar X_n \;\overset{\text{approx}}{\sim}\; \Normal\!\left(\mu,\ \frac{\sigma^2}{n}\right),
+  \qquad\text{equivalently}\qquad
+  \frac{\bar X_n - \mu}{\sigma/\sqrt n} \;\dto\; \Normal(0,1).
+\]
+
+\begin{whybox}
+Why is the Normal curve the universal shape of sampling distributions? Because
+$\bar X_n$ is an \emph{average of many small independent contributions}, and the CLT
+says such averages forget the idiosyncrasies of their ingredients and converge to the
+same bell curve. This is the deep reason confidence intervals and z-tests work for
+almost any underlying population: we are never really using the population's shape, only
+the shape of the \emph{average}, and that shape is always Normal in the limit.
+\end{whybox}
+
+Figure~\ref{ch32:fig-sampling} shows the punchline visually: a wildly non-Normal
+population (a skewed exponential) whose sample means nonetheless pile up into a tidy
+bell as $n$ grows, narrowing all the while.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6.2cm,
+  xlabel={value of $\bar X_n$}, ylabel={density},
+  domain=0:3, samples=160,
+  legend pos=north east, legend style={font=\small},
+  ymin=0, axis lines=left, clip=false,
+]
+% population mean = 1; SE = 1/sqrt(n); CLT bells of increasing n
+\addplot[densityred, thick] {1/(1*0.7071)*0.39894*exp(-((x-1)^2)/(2*0.5))};
+\addlegendentry{$n=2$}
+\addplot[quotientorange, thick] {1/(1*0.3162)*0.39894*exp(-((x-1)^2)/(2*0.1))};
+\addlegendentry{$n=10$}
+\addplot[distblue, thick] {1/(1*0.1414)*0.39894*exp(-((x-1)^2)/(2*0.02))};
+\addlegendentry{$n=50$}
+\draw[gray,dashed] (axis cs:1,0) -- (axis cs:1,3.1);
+\node[gray,anchor=south] at (axis cs:1,3.1) {\small truth $\mu=1$};
+\end{axis}
+\end{tikzpicture}
+\caption{Sampling distributions of $\bar X_n$ for samples drawn from a skewed
+population with mean $\mu=1$. Two things happen as $n$ grows: the curves become more
+Normal (CLT) and narrower (standard error $\sigma/\sqrt n \to 0$). All are centered on
+the truth.}
+\label{ch32:fig-sampling}
+\end{figure}
+
+\begin{happeningbox}
+Inference is a kind of reverse engineering. We observe one point drawn from the
+sampling distribution (our single $\bar X_n$) and we ask: which values of the unknown
+$\mu$ would make this observation unsurprising? A confidence interval is the set of
+such $\mu$'s. A hypothesis test fixes one candidate $\mu$ and asks whether our
+observation is surprising under it. Same engine, two readouts.
+\end{happeningbox}
+
+\section{Confidence intervals}
+\label{ch32:ci}
+
+\subsection{Building one from the sampling distribution}
+
+Start with the clean case: i.i.d.\ data, large $n$, and suppose for a moment we know
+$\sigma$. Standardize the sample mean:
+\[
+  Z = \frac{\bar X_n - \mu}{\sigma/\sqrt n} \approx \Normal(0,1).
+\]
+From the standard Normal we know that $95\%$ of the probability lies between $-1.96$ and
+$+1.96$. Write $z_{\alpha/2}$ for the value with $\alpha/2$ probability in the upper
+tail; for $95\%$ confidence, $\alpha = 0.05$ and $z_{0.025} = 1.96$. Then
+\[
+  \P\!\left(-z_{\alpha/2} \le \frac{\bar X_n - \mu}{\sigma/\sqrt n} \le z_{\alpha/2}\right)
+  \approx 1-\alpha .
+\]
+Now do nothing but algebra --- multiply through by the standard error and rearrange to
+isolate $\mu$ in the middle:
+\[
+  \P\!\left(\bar X_n - z_{\alpha/2}\frac{\sigma}{\sqrt n}
+  \ \le\ \mu\ \le\
+  \bar X_n + z_{\alpha/2}\frac{\sigma}{\sqrt n}\right) \approx 1-\alpha .
+\]
+
+\begin{formalbox}
+A \textbf{$(1-\alpha)$ confidence interval} for $\mu$ (known $\sigma$, large $n$) is
+\[
+  \boxed{\ \bar X_n \ \pm\ z_{\alpha/2}\,\frac{\sigma}{\sqrt n}\ } .
+\]
+The half-width $z_{\alpha/2}\,\sigma/\sqrt n$ is the \textbf{margin of error}. It shrinks
+with $\sqrt n$: to halve the margin you must \emph{quadruple} the sample.
+\end{formalbox}
+
+\begin{example}[A polling margin]
+\label{ch32:ex-poll}
+A poll of $n=1000$ voters finds $\hat p = 0.52$ in favor. For a proportion the variance
+of a single response is $p(1-p)$, so the standard error is $\sqrt{p(1-p)/n}$; plugging
+in $\hat p$ gives $\sqrt{0.52\cdot 0.48/1000}\approx 0.0158$. The $95\%$ interval is
+\[
+  0.52 \pm 1.96 \times 0.0158 = 0.52 \pm 0.031 = (0.489,\ 0.551).
+\]
+This is the famous ``margin of error of about $3$ points.'' Note the interval includes
+$0.50$: on this evidence we cannot rule out a tie. The headline ``leading $52$ to $48$''
+oversells what the data support.
+\end{example}
+
+\subsection{What a confidence interval really means --- and does not}
+
+This is the most misunderstood concept in statistics, so let us be slow and exact.
+
+\begin{trapbox}
+\textbf{The interval $(0.489, 0.551)$ does NOT mean ``there is a $95\%$ probability that
+$\mu$ lies in $(0.489, 0.551)$.''} In the frequentist framework $\mu$ is a fixed,
+unknown constant --- not random. It is either in that particular interval or it is not;
+the probability is $0$ or $1$, we just do not know which. The randomness was in the
+\emph{data}, which produced the \emph{endpoints}, not in $\mu$.
+\end{trapbox}
+
+So what is the $95\%$ attached to? It is a property of the \emph{procedure}, not of any
+single interval.
+
+\begin{focusbox}
+\textbf{The correct interpretation.} The recipe ``compute $\bar X_n \pm 1.96\,
+\mathrm{SE}$'' is a machine that spits out a random interval every time you feed it a
+fresh sample. \emph{Across many independent samples, $95\%$ of the intervals this machine
+produces will contain the true $\mu$.} Your one interval is a single draw from that
+machine. You do not know if it is one of the lucky $95\%$ or the unlucky $5\%$ --- but
+you trust the machine because it is right $95\%$ of the time.
+\end{focusbox}
+
+Figure~\ref{ch32:fig-coverage} makes this tangible. We simulate twenty samples, draw the
+twenty intervals, and mark the fixed truth with a vertical line. Most intervals cover
+it; a stray one or two miss. The ``$95\%$'' is the long-run \emph{coverage rate}, the
+fraction of horizontal bars that cross the line.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=7cm,
+  xlabel={estimate scale}, ylabel={sample number},
+  xmin=-3.2, xmax=4.2, ymin=0, ymax=21,
+  axis lines=left, ytick=\empty,
+]
+\draw[densityred, thick, dashed] (axis cs:0,0) -- (axis cs:0,21);
+\node[densityred, anchor=south] at (axis cs:0,21) {\small true $\mu$};
+% each interval: center +- 1.5 (the "95% half-width" on this scale); 19 cover, 1 misses.
+% covering intervals (blue), each centered at \c with half-width 1.5:
+\draw[distblue, very thick] (axis cs:-1.9,1) -- (axis cs:1.1,1); \fill[distblue] (axis cs:-0.4,1) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-0.9,2) -- (axis cs:2.1,2); \fill[distblue] (axis cs:0.6,2) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-2.4,3) -- (axis cs:0.6,3); \fill[distblue] (axis cs:-0.9,3) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-1.2,4) -- (axis cs:1.8,4); \fill[distblue] (axis cs:0.3,4) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-0.5,5) -- (axis cs:2.5,5); \fill[distblue] (axis cs:1.0,5) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-2.0,6) -- (axis cs:1.0,6); \fill[distblue] (axis cs:-0.5,6) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-0.7,7) -- (axis cs:2.3,7); \fill[distblue] (axis cs:0.8,7) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-2.6,8) -- (axis cs:0.4,8); \fill[distblue] (axis cs:-1.1,8) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-1.3,9) -- (axis cs:1.7,9); \fill[distblue] (axis cs:0.2,9) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-1.0,10) -- (axis cs:2.0,10); \fill[distblue] (axis cs:0.5,10) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-2.2,11) -- (axis cs:0.8,11); \fill[distblue] (axis cs:-0.7,11) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-0.6,12) -- (axis cs:2.4,12); \fill[distblue] (axis cs:0.9,12) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-1.8,13) -- (axis cs:1.2,13); \fill[distblue] (axis cs:-0.3,13) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-1.1,14) -- (axis cs:1.9,14); \fill[distblue] (axis cs:0.4,14) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-2.1,15) -- (axis cs:0.9,15); \fill[distblue] (axis cs:-0.6,15) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-0.8,16) -- (axis cs:2.2,16); \fill[distblue] (axis cs:0.7,16) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-1.7,17) -- (axis cs:1.3,17); \fill[distblue] (axis cs:-0.2,17) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-0.4,18) -- (axis cs:2.6,18); \fill[distblue] (axis cs:1.1,18) circle (1.3pt);
+\draw[distblue, very thick] (axis cs:-2.3,19) -- (axis cs:0.7,19); \fill[distblue] (axis cs:-0.8,19) circle (1.3pt);
+% the one missing interval (red): lies entirely to the right of the truth
+\draw[trapred, very thick] (axis cs:0.9,20) -- (axis cs:3.9,20); \fill[trapred] (axis cs:2.4,20) circle (1.3pt);
+\end{axis}
+\end{tikzpicture}
+\caption{Twenty $95\%$ confidence intervals from twenty independent samples. The truth
+$\mu$ (red dashed line) is fixed; the intervals jiggle. Nineteen of the twenty cover the
+truth (blue); one misses (red). Over the long run, $95\%$ cover. The confidence level
+describes the \emph{procedure}, not your particular interval.}
+\label{ch32:fig-coverage}
+\end{figure}
+
+\begin{historybox}
+The confidence interval was introduced by Jerzy Neyman in a landmark 1937 paper, ``Outline
+of a Theory of Statistical Estimation Based on the Classical Theory of Probability.''
+Neyman was deliberately, almost stubbornly, careful: he insisted the probability
+statement attaches to the \emph{random interval before the data are seen}, never to the
+fixed parameter after. He knew the temptation to say ``$95\%$ chance $\mu$ is in here''
+and built the whole theory to resist it. The persistent misinterpretation ever since is a
+testament to how badly people \emph{want} the Bayesian statement --- which, as
+Chapter~31 shows, is exactly what a Bayesian credible interval delivers, at the price of
+a prior.
+\end{historybox}
+
+\begin{connectionbox}
+The frequentist confidence interval and the Bayesian credible interval (Chapter~31)
+often produce nearly identical numbers but answer different questions. The credible
+interval \emph{does} let you say ``$95\%$ probability $\mu$ is in here,'' because in the
+Bayesian world $\mu$ has a probability distribution. The confidence interval refuses
+that statement and instead guarantees long-run coverage. With a flat prior and a Normal
+likelihood the two intervals coincide algebraically --- a reassuring meeting point of
+the two great schools.
+\end{connectionbox}
+
+\subsection{When you do not know $\sigma$: the t-interval}
+
+We assumed we knew the population standard deviation $\sigma$. In real life we never do
+--- we estimate it from the same data with the \emph{sample standard deviation}
+\[
+  s = \sqrt{\frac{1}{n-1}\sum_{i=1}^n (X_i - \bar X_n)^2}.
+\]
+The $n-1$ (rather than $n$) makes $s^2$ an unbiased estimator of $\sigma^2$; we lose one
+degree of freedom because we already spent the data to estimate $\bar X_n$. Substituting
+$s$ for $\sigma$ introduces extra uncertainty --- now \emph{both} the numerator and the
+denominator of our standardized statistic are random. William Gosset worked out the
+consequence: the statistic
+\[
+  T = \frac{\bar X_n - \mu}{s/\sqrt n}
+\]
+no longer follows a Normal distribution but \textbf{Student's $t$-distribution} with
+$n-1$ degrees of freedom. The $t$ looks like the Normal but with heavier tails ---
+fatter, because the extra randomness in $s$ makes large deviations more likely.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm,
+  xlabel={$t$}, ylabel={density}, domain=-4:4, samples=160,
+  legend pos=north east, legend style={font=\small}, ymin=0, axis lines=left,
+]
+\addplot[distblue, thick] {0.39894*exp(-x^2/2)};
+\addlegendentry{Normal}
+% t with 3 df: c=0.36755; (1+x^2/3)^{-2}
+\addplot[densityred, thick] {0.36755*(1+x^2/3)^(-2)};
+\addlegendentry{$t_3$ (heavier tails)}
+\end{axis}
+\end{tikzpicture}
+\caption{Student's $t$ with $3$ degrees of freedom versus the standard Normal. The $t$
+has heavier tails: estimating $\sigma$ from the data costs you, so you must reach
+further out for the same confidence. As $n\to\infty$, $s\to\sigma$ and $t\to$ Normal.}
+\label{ch32:fig-t}
+\end{figure}
+
+The confidence interval is identical in form, with the critical value taken from the
+$t$-table instead of the Normal:
+\[
+  \boxed{\ \bar X_n \ \pm\ t_{n-1,\,\alpha/2}\,\frac{s}{\sqrt n}\ } .
+\]
+Because $t_{n-1,\alpha/2} > z_{\alpha/2}$, the $t$-interval is always a little
+\emph{wider} --- the honest price of not knowing $\sigma$. For $n = 10$, the $95\%$
+critical value is $t_{9,0.025} = 2.262$, noticeably more than $1.96$. By $n = 100$ it
+has fallen to $1.984$, almost the Normal value. For large samples the distinction
+vanishes, which is why the z- and t-intervals merge.
+
+\begin{historybox}
+Student's $t$ is named for a pseudonym. William Sealy Gosset derived it in 1908 while
+working as a chemist at the Guinness brewery in Dublin, where he needed to draw
+conclusions from \emph{small} batches of barley and yeast --- samples far too small for
+the large-$n$ Normal approximation. Guinness forbade employees from publishing (a rival
+had leaked trade secrets), so Gosset published under the modest pen name ``Student.''
+The most-used distribution in applied statistics is thus named after a man hiding from
+his employer. R.~A.~Fisher later put the result on rigorous footing and gave it the
+letter $t$.
+\end{historybox}
+
+\begin{example}[A small-sample t-interval]
+\label{ch32:ex-tinterval}
+Six measurements of a chemical yield: $48, 51, 49, 53, 50, 52$ (grams). The sample mean
+is $\bar X = 50.5$. The deviations are $-2.5, 0.5, -1.5, 2.5, -0.5, 1.5$, whose squares
+sum to $6.25+0.25+2.25+6.25+0.25+2.25 = 17.5$, so
+\[
+  s^2 = \frac{17.5}{6-1} = 3.5,\qquad s = 1.871,\qquad \frac{s}{\sqrt 6} = 0.764.
+\]
+With $5$ degrees of freedom, $t_{5,0.025} = 2.571$. The $95\%$ interval is
+\[
+  50.5 \pm 2.571 \times 0.764 = 50.5 \pm 1.96 = (48.54,\ 52.46)\ \text{grams}.
+\]
+Had we naively used $1.96$ instead of $2.571$, we would have reported a falsely narrow
+interval --- overstating our precision, exactly the dishonesty the $t$ corrects.
+\end{example}
+
+\section{Hypothesis testing}
+\label{ch32:testing}
+
+A confidence interval casts a net. A hypothesis test asks a sharper, binary question:
+\emph{is there any effect at all, or could what I see be pure chance?} The logic is a
+courtroom's --- presumption of innocence, evidence, a verdict ``beyond reasonable
+doubt'' --- dressed in the language of probability.
+
+\subsection{The null, the alternative, and the logic of contradiction}
+
+We set up two competing claims:
+
+\begin{itemize}
+  \item The \textbf{null hypothesis} $H_0$: the boring, status-quo, ``nothing is going
+  on'' claim. The drug has no effect; the coin is fair; the two web pages convert at the
+  same rate. $H_0$ is the defendant, presumed innocent.
+  \item The \textbf{alternative hypothesis} $H_1$ (or $H_a$): the interesting claim we
+  would believe only if the evidence forces us. The drug works; the coin is biased; page
+  B is better.
+\end{itemize}
+
+The strategy is \emph{proof by contradiction, softened by probability}. We provisionally
+assume $H_0$ is true. We then ask: \emph{if the null were true, how surprising would my
+data be?} If the data are wildly unlikely under $H_0$, we take that as evidence against
+$H_0$ and \emph{reject} it. If the data are unremarkable under $H_0$, we have no grounds
+to abandon it and we \emph{fail to reject}.
+
+\begin{trapbox}
+We say ``fail to reject $H_0$,'' never ``accept $H_0$.'' Absence of evidence is not
+evidence of absence. A jury that does not convict declares ``not guilty,'' not
+``innocent.'' Failing to find an effect could mean there is none --- or that your sample
+was too small to see it. The asymmetry is deliberate and important.
+\end{trapbox}
+
+\subsection{Test statistics and the null distribution}
+
+To measure ``how surprising,'' we compress the data into a single \textbf{test
+statistic} whose distribution we know \emph{assuming $H_0$ is true}. For testing a mean
+with known $\sigma$, the natural statistic is again the standardized sample mean,
+\[
+  Z = \frac{\bar X_n - \mu_0}{\sigma/\sqrt n},
+\]
+where $\mu_0$ is the value claimed by $H_0$. Under $H_0$ this $Z$ is approximately
+$\Normal(0,1)$ --- this is the \textbf{null distribution}. A $Z$ near $0$ is what the
+null predicts; a $Z$ far out in the tails is the kind of thing the null almost never
+produces, and so it indicts the null.
+
+\subsection{The p-value}
+
+\begin{formalbox}
+The \textbf{p-value} is the probability, \emph{computed assuming $H_0$ is true}, of
+observing a test statistic at least as extreme as the one you actually got:
+\[
+  p = \P\big(\,\text{statistic at least as extreme as observed}\ \big|\ H_0\,\big).
+\]
+Small $p$ means your data would be a rare fluke if the null held --- evidence
+\emph{against} $H_0$.
+\end{formalbox}
+
+For a two-sided test with observed value $z_{\text{obs}}$, ``as extreme'' means as far
+from $0$ in either direction, so
+\[
+  p = \P(|Z| \ge |z_{\text{obs}}|) = 2\big(1 - \Phi(|z_{\text{obs}}|)\big),
+\]
+where $\Phi$ is the standard Normal CDF. Figure~\ref{ch32:fig-pvalue} shows the p-value
+as the shaded tail area.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm,
+  xlabel={$z$ (test statistic under $H_0$)}, ylabel={density},
+  domain=-4:4, samples=200, ymin=0, axis lines=left, clip=false,
+]
+\addplot[distblue, thick] {0.39894*exp(-x^2/2)};
+% right tail beyond 2.1
+\addplot[draw=none, fill=trapred!45, domain=2.1:4] {0.39894*exp(-x^2/2)} \closedcycle;
+% left tail beyond -2.1
+\addplot[draw=none, fill=trapred!45, domain=-4:-2.1] {0.39894*exp(-x^2/2)} \closedcycle;
+\draw[densityred, thick] (axis cs:2.1,0) -- (axis cs:2.1,0.34);
+\node[densityred, anchor=south, font=\small] at (axis cs:2.1,0.34) {$z_{\text{obs}}$};
+\node[trapred, anchor=west, font=\small] at (axis cs:2.6,0.07) {tail};
+\node[trapred, anchor=east, font=\small] at (axis cs:-2.6,0.07) {tail};
+\node[anchor=south, font=\small] at (axis cs:0,0.40) {$p = $ both shaded tails};
+\end{axis}
+\end{tikzpicture}
+\caption{The p-value for a two-sided z-test is the total tail area beyond the observed
+statistic (here $z_{\text{obs}}=2.1$), in \emph{both} directions. It is the probability
+the null would generate something at least this extreme by chance alone.}
+\label{ch32:fig-pvalue}
+\end{figure}
+
+We compare $p$ to a pre-chosen threshold $\alpha$ (the \textbf{significance level},
+conventionally $0.05$). If $p \le \alpha$, we reject $H_0$ and call the result
+``statistically significant.'' If $p > \alpha$, we fail to reject.
+
+\begin{example}[A z-test for a fair coin]
+\label{ch32:ex-coin}
+You flip a coin $n=100$ times and see $62$ heads. Is it fair? Let $H_0\!: p = 0.5$ versus
+$H_1\!: p \ne 0.5$. Under $H_0$ the number of heads has mean $50$ and standard deviation
+$\sqrt{100 \cdot 0.5 \cdot 0.5}=5$. The standardized statistic is
+\[
+  z_{\text{obs}} = \frac{62 - 50}{5} = 2.4.
+\]
+The two-sided p-value is $p = 2(1-\Phi(2.4)) = 2(0.0082) = 0.0164$. Since $0.0164 <
+0.05$, we reject $H_0$: this coin looks biased. Had we seen $58$ heads, $z = 1.6$,
+$p = 0.11 > 0.05$, and we would not reject --- $58$ heads is the sort of thing a fair
+coin throws up often enough.
+\end{example}
+
+\subsection{What the p-value is not}
+
+The p-value may be the single most abused number in science. Three corrections:
+
+\begin{trapbox}
+\textbf{The p-value is NOT the probability that $H_0$ is true.} It is computed
+\emph{assuming} $H_0$ is true: $p = \P(\text{data}\given H_0)$, not $\P(H_0\given
+\text{data})$. Confusing these two is the \emph{prosecutor's fallacy} --- swapping the
+direction of a conditional probability (Chapter~5). A small p-value says ``the data are
+surprising if $H_0$ holds,'' which is genuine evidence against $H_0$, but it is not a
+posterior probability. Getting from $\P(\text{data}\given H_0)$ to $\P(H_0\given
+\text{data})$ requires Bayes' theorem and a prior --- which the p-value does not have.
+\end{trapbox}
+
+\begin{trapbox}
+\textbf{Statistical significance is not practical importance.} With a large enough $n$,
+\emph{any} effect, however trivially small, will eventually produce $p<0.05$ --- because
+the standard error $\sigma/\sqrt n$ shrinks to zero and even a microscopic difference
+lands many standard errors from the null. A drug that lowers blood pressure by
+$0.1$ mmHg can be ``highly significant'' in a study of a million people and utterly
+useless in a clinic. Always report the \emph{effect size} (and a confidence interval),
+not just the p-value.
+\end{trapbox}
+
+\begin{trapbox}
+\textbf{$p = 0.049$ and $p = 0.051$ are essentially the same evidence.} The $0.05$
+cutoff is a convention, not a law of nature (Fisher proposed it almost offhandedly).
+Treating $0.05$ as a bright line between ``real'' and ``not real'' --- and worse,
+running analyses until you crawl under it (``p-hacking'') --- has fueled a replication
+crisis across the sciences. The p-value is a continuous measure of surprise; report it
+as such.
+\end{trapbox}
+
+\begin{paradoxbox}
+\textbf{The base-rate trap behind ``significant'' findings.} Suppose only $1$ in $10$
+hypotheses a lab tests is actually true, and tests run at $\alpha=0.05$ with power
+$0.8$ (defined below). Out of $1000$ tests, $100$ effects are real and $900$ are null.
+The tests flag $0.8\times 100 = 80$ true effects and $0.05\times 900 = 45$ false ones.
+So among the $125$ ``significant'' results, $45/125 = 36\%$ are \emph{false positives}
+--- despite every individual test having only a $5\%$ error rate! This is Bayes' theorem
+again (Chapter~5): a low false-positive \emph{rate} per test does not imply a low
+false-discovery \emph{proportion} when true effects are rare. It explains why so many
+published ``significant'' findings fail to replicate.
+\end{paradoxbox}
+
+\section{Two kinds of error, and the power to detect}
+\label{ch32:errors}
+
+Any decision rule that says ``reject'' or ``do not reject'' can be wrong in two ways.
+The truth ($H_0$ or $H_1$) crossed with our verdict gives a $2\times 2$ table:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{l|cc}
+ & \textbf{$H_0$ true} & \textbf{$H_1$ true} \\ \hline
+\textbf{Reject $H_0$} & Type I error ($\alpha$) & correct (power) \\
+\textbf{Fail to reject} & correct & Type II error ($\beta$) \\
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+  \item A \textbf{Type I error} is convicting the innocent: rejecting $H_0$ when it is
+  true. We \emph{control} its probability directly --- it is exactly $\alpha$, the
+  significance level we chose. Setting $\alpha=0.05$ means ``I am willing to cry wolf
+  $5\%$ of the time when there is no wolf.''
+  \item A \textbf{Type II error} is acquitting the guilty: failing to reject $H_0$ when
+  $H_1$ is true. Its probability is called $\beta$.
+  \item The \textbf{power} of a test is $1-\beta$: the probability of correctly detecting
+  a real effect. More power is better.
+\end{itemize}
+
+\begin{intuitionbox}
+Think of $\alpha$ as the sensitivity of a smoke alarm. Crank it up (large $\alpha$,
+quick to reject) and you catch every fire (high power) but also scream at burnt toast
+(many Type I errors). Quiet it down (small $\alpha$) and you stop the false alarms but
+risk sleeping through a real blaze (Type II errors). For \emph{fixed} $n$ there is a
+genuine trade-off: pushing $\alpha$ down pushes $\beta$ up. The only way to beat the
+trade-off --- to shrink both errors at once --- is to gather more data.
+\end{intuitionbox}
+
+Figure~\ref{ch32:fig-power} shows the two error regions as overlapping bells: the null
+distribution centered at $\mu_0$ and the (true) alternative centered at some $\mu_1$.
+The cutoff $c$ slices both. The right tail of the null beyond $c$ is $\alpha$; the left
+tail of the alternative below $c$ is $\beta$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=6cm,
+  xlabel={test statistic / sample mean}, ylabel={density},
+  domain=-4:7, samples=200, ymin=0, axis lines=left, clip=false,
+  xtick={0,3}, xticklabels={$\mu_0$,$\mu_1$},
+]
+% null centered 0, alt centered 3, cutoff at 1.9
+\addplot[distblue, thick] {0.39894*exp(-x^2/2)};
+\addplot[targetgreen, thick] {0.39894*exp(-(x-3)^2/2)};
+% alpha: right tail of null beyond 1.9
+\addplot[draw=none, fill=trapred!50, domain=1.9:4] {0.39894*exp(-x^2/2)} \closedcycle;
+% beta: left tail of alt below 1.9
+\addplot[draw=none, fill=quotientorange!45, domain=-1:1.9] {0.39894*exp(-(x-3)^2/2)} \closedcycle;
+\draw[densityred, thick] (axis cs:1.9,0) -- (axis cs:1.9,0.42);
+\node[densityred, anchor=south, font=\small] at (axis cs:1.9,0.42) {cutoff $c$};
+\node[distblue, anchor=south, font=\small] at (axis cs:0,0.40) {$H_0$};
+\node[targetgreen, anchor=south, font=\small] at (axis cs:3,0.40) {$H_1$};
+\node[trapred, font=\small, anchor=west] at (axis cs:2.3,0.045) {$\alpha$};
+\node[quotientorange, font=\small, anchor=east] at (axis cs:1.6,0.05) {$\beta$};
+\end{axis}
+\end{tikzpicture}
+\caption{Type I and Type II errors. Reject when the statistic exceeds the cutoff $c$.
+The red area $\alpha$ is the chance of a false alarm under $H_0$; the orange area
+$\beta$ is the chance of missing a real effect under $H_1$. Power is the green area to
+the \emph{right} of $c$, i.e.\ $1-\beta$. Moving $c$ left trades $\beta$ for $\alpha$.}
+\label{ch32:fig-power}
+\end{figure}
+
+\begin{whybox}
+Why does power rise with sample size? Larger $n$ shrinks the standard error
+$\sigma/\sqrt n$, so \emph{both} bells in Figure~\ref{ch32:fig-power} narrow. Two narrow
+bells centered at $\mu_0$ and $\mu_1$ overlap far less than two wide ones. Less overlap
+means the cutoff can keep $\alpha$ fixed while slicing off much less of the alternative
+--- so $\beta$ falls and power climbs. This is the mathematical reason ``get more data''
+is the universal cure: it separates the hypotheses.
+\end{whybox}
+
+\begin{example}[Power and sample-size planning]
+\label{ch32:ex-power}
+You want to detect whether a new process raises mean yield from $\mu_0=50$ to
+$\mu_1=52$, with $\sigma=4$, at $\alpha=0.05$ (one-sided). The cutoff in raw units is
+$c = \mu_0 + 1.645\,\sigma/\sqrt n$. To achieve power $0.8$ you need $\mu_1$ to sit
+$0.84$ standard errors above $c$ (since $\Phi(0.84)=0.80$). Setting
+$\mu_1 = c + 0.84\,\sigma/\sqrt n$ and solving,
+\[
+  \mu_1 - \mu_0 = (1.645 + 0.84)\frac{\sigma}{\sqrt n}
+  \ \Rightarrow\
+  n = \left(\frac{(1.645+0.84)\,\sigma}{\mu_1-\mu_0}\right)^2
+  = \left(\frac{2.485 \times 4}{2}\right)^2 \approx 24.7.
+\]
+So $n=25$ samples give roughly $80\%$ power. Halve the effect you wish to detect and $n$
+\emph{quadruples} --- the same $\sqrt n$ law that governs confidence intervals. Power
+analysis done \emph{before} collecting data is how careful experimenters avoid the
+heartbreak of an underpowered study that could never have found the effect.
+\end{example}
+
+\section{The duality of intervals and tests}
+\label{ch32:duality}
+
+Confidence intervals and hypothesis tests are not two separate tools --- they are two
+views of the same picture, and seeing the link makes both clearer.
+
+\begin{focusbox}
+\textbf{Interval--test duality.} A two-sided level-$\alpha$ test of $H_0\!:\mu=\mu_0$
+rejects exactly when $\mu_0$ falls \emph{outside} the $(1-\alpha)$ confidence interval.
+Equivalently: \emph{the confidence interval is the set of all null values $\mu_0$ that
+would not be rejected.}
+\end{focusbox}
+
+The algebra is immediate. The test fails to reject when
+$\left|\frac{\bar X_n - \mu_0}{\sigma/\sqrt n}\right| \le z_{\alpha/2}$, which rearranges
+to $\bar X_n - z_{\alpha/2}\,\sigma/\sqrt n \le \mu_0 \le \bar X_n + z_{\alpha/2}\,
+\sigma/\sqrt n$ --- precisely the statement ``$\mu_0$ is inside the interval.''
+Figure~\ref{ch32:fig-duality} draws the equivalence: a null value lands outside the bar
+exactly when the test rejects it.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1.4cm,y=1cm]
+% number line
+\draw[->,gray] (-3.4,0) -- (3.6,0) node[right,black,font=\small] {$\mu_0$};
+% the confidence interval as a thick bar
+\draw[distblue, line width=3pt] (-1.96,1.1) -- (1.96,1.1);
+\fill[distblue] (0,1.1) circle (2pt);
+% endpoint ticks down to the axis
+\draw[distblue,dashed] (-1.96,0) -- (-1.96,1.1);
+\draw[distblue,dashed] (1.96,0) -- (1.96,1.1);
+\node[below,font=\footnotesize] at (-1.96,0) {$\bar X_n - z_{\alpha/2}\mathrm{SE}$};
+\node[below,font=\footnotesize] at (0,0) {$\bar X_n$};
+\node[below,font=\footnotesize] at (1.96,0) {$\bar X_n + z_{\alpha/2}\mathrm{SE}$};
+\node[distblue, anchor=south, font=\small] at (0,1.25) {$(1-\alpha)$ confidence interval};
+\node[targetgreen, font=\footnotesize, anchor=north] at (0,0.95) {test fails to reject these $\mu_0$};
+% a rejected null on the right
+\fill[trapred] (2.8,1.1) circle (2.2pt);
+\node[trapred, font=\footnotesize, anchor=south] at (2.8,1.25) {$\mu_0$ rejected};
+\draw[trapred,<-] (2.05,1.1) -- (2.7,1.1);
+\end{tikzpicture}
+\caption{Interval--test duality. The confidence interval (blue bar) is exactly the set
+of null values a two-sided level-$\alpha$ test would \emph{not} reject. A candidate
+$\mu_0$ inside the bar survives the test; one outside it (red) is rejected. One picture,
+two tools.}
+\label{ch32:fig-duality}
+\end{figure}
+
+This duality pays off in practice. Reporting a confidence interval is strictly more
+informative than reporting a single test: it tells you \emph{every} null you would
+reject at once, plus the plausible range and the effect size --- which is exactly why
+statisticians increasingly prefer intervals to bare p-values.
+
+\section{The t-test in practice}
+\label{ch32:ttest}
+
+Combining the pieces: when $\sigma$ is unknown (always, in practice) and we test a mean,
+we use the \textbf{t-test}. The statistic is
+\[
+  T = \frac{\bar X_n - \mu_0}{s/\sqrt n},
+\]
+compared against the $t_{n-1}$ distribution. There are three common flavors:
+
+\begin{itemize}
+  \item \textbf{One-sample t-test}: is the mean of one group equal to a fixed $\mu_0$?
+  \item \textbf{Two-sample t-test}: do two independent groups have equal means? The
+  statistic is $T = (\bar X - \bar Y)/\mathrm{SE}_{\text{diff}}$, where the standard
+  error of the difference combines both groups' variability.
+  \item \textbf{Paired t-test}: when observations come in matched pairs (before/after on
+  the same subject), test whether the mean \emph{difference} is zero --- a one-sample
+  test on the differences, which cancels person-to-person variation.
+\end{itemize}
+
+\begin{example}[Two-sample t-test]
+\label{ch32:ex-twosample}
+A field gets $\bar X = 52$ bushels/acre with fertilizer ($n_X=10$, $s_X=4$); a control
+gets $\bar Y = 48$ ($n_Y=10$, $s_Y=5$). Does fertilizer help? With $H_0\!:\mu_X=\mu_Y$,
+the standard error of the difference (assuming independent groups) is
+\[
+  \mathrm{SE}_{\text{diff}} = \sqrt{\frac{s_X^2}{n_X}+\frac{s_Y^2}{n_Y}}
+  = \sqrt{\frac{16}{10}+\frac{25}{10}} = \sqrt{4.1} = 2.025.
+\]
+The statistic is $T = (52-48)/2.025 = 1.98$. With roughly $17$ degrees of freedom (a
+standard approximation for unequal variances), the two-sided critical value is about
+$2.11$. Since $1.98 < 2.11$, $p \approx 0.064$: we (just barely) fail to reject at
+$\alpha=0.05$. The fertilizer \emph{looks} helpful, but with only ten plots per group we
+cannot rule out chance. The honest report is: ``estimated gain $4$ bushels, $95\%$ CI
+roughly $(-0.3, 8.3)$, $p=0.06$'' --- not ``no effect.''
+\end{example}
+
+\begin{applicationbox}
+\textbf{A/B testing: hypothesis testing at internet scale.} Every major website runs
+hypothesis tests constantly, under the name \emph{A/B testing}. To decide whether a new
+checkout button (variant B) beats the current one (variant A), you randomly assign
+incoming users to A or B and measure a conversion rate for each. This is exactly a
+two-sample test of proportions:
+\[
+  H_0\!:\ p_A = p_B \quad\text{vs}\quad H_1\!:\ p_A \ne p_B,\qquad
+  Z = \frac{\hat p_B - \hat p_A}{\sqrt{\hat p(1-\hat p)\left(\tfrac{1}{n_A}+\tfrac{1}{n_B}\right)}},
+\]
+where $\hat p$ pools both groups under the null. \emph{Randomization} is the secret
+ingredient: by assigning users at random, A/B testing turns observational guesswork into
+a genuine controlled experiment, so a significant difference can be \emph{causally}
+attributed to the button, not to confounders. Companies run thousands of these
+simultaneously --- which is exactly why the base-rate and multiple-comparisons traps
+below bite hard, and why disciplined teams fix $\alpha$, compute required sample size
+\emph{in advance} (power analysis, Example~\ref{ch32:ex-power}), and resist the urge to
+``peek.''
+\end{applicationbox}
+
+\begin{trapbox}
+\textbf{Peeking and the optional-stopping trap.} If you watch an A/B test's p-value live
+and stop the moment it dips below $0.05$, your true Type I error is far above $5\%$ ---
+sometimes $30\%$ or more. The reason: the p-value wanders randomly over time, and a
+wandering quantity will eventually cross any fixed line by chance even if $H_0$ is true.
+You have effectively run many tests and reported only the lucky one. The fix is to fix
+the sample size in advance, or to use sequential methods (alpha-spending, sequential
+probability ratio tests) explicitly designed to permit honest peeking.
+\end{trapbox}
+
+\begin{applicationbox}
+\textbf{Is model B really better than model A?} When a machine-learning team reports
+that a new model beats the old one by $0.4$ accuracy points on a benchmark, the very
+first question is the one this chapter is built around: \emph{is that gap real, or test-set
+noise?} A held-out test set is itself a finite sample, so accuracy is an estimate with a
+standard error. For a test set of $m$ examples and accuracy $\hat a$, the standard error
+is $\sqrt{\hat a(1-\hat a)/m}$, and a paired test (the \emph{McNemar test}, a chi-square
+on the examples where the two models \emph{disagree}) checks whether the difference
+exceeds chance. With $m=10{,}000$ the standard error of an accuracy near $0.9$ is about
+$\sqrt{0.9\cdot 0.1/10000}=0.003$, so a $0.4$-point gain ($0.004$) is barely one standard
+error --- not significant. Leaderboards that crown winners by hundredths of a percent are
+usually reporting noise. The same $\sqrt n$ humility that tames pollsters tames
+benchmark hype.
+\end{applicationbox}
+
+\begin{trapbox}
+\textbf{Multiple comparisons.} Test $20$ independent true nulls at $\alpha=0.05$ and the
+chance that \emph{at least one} comes up ``significant'' is $1-(0.95)^{20}=0.64$. Test
+enough things and you will find ``significant'' nonsense. The cartoon of the scientist
+who tests $20$ jelly-bean colors for acne and triumphantly reports the one with $p<0.05$
+is not a joke about bad scientists --- it is a mathematical inevitability. Corrections
+like Bonferroni (use $\alpha/m$ for $m$ tests) or controlling the false discovery rate
+restore honesty.
+\end{trapbox}
+
+\section{Putting it together: a complete worked study}
+\label{ch32:worked}
+
+\begin{walkbox}
+A clinic claims its weight-loss program produces an average loss of more than $5$ kg
+over $12$ weeks. You enroll $n=16$ volunteers and record their losses; the sample mean
+is $\bar X = 6.2$ kg with sample standard deviation $s = 3.0$ kg. Does the data support
+the claim, and how big might the true effect be?
+\end{walkbox}
+
+\textbf{Step 1 --- frame the hypotheses.} The claim is ``more than $5$,'' so this is
+one-sided: $H_0\!:\mu \le 5$ versus $H_1\!:\mu > 5$. We test at the boundary $\mu_0=5$.
+
+\textbf{Step 2 --- choose the test.} $\sigma$ unknown, small sample, testing a mean:
+one-sample, one-sided \textbf{t-test} with $n-1 = 15$ degrees of freedom.
+
+\textbf{Step 3 --- compute the statistic.}
+\[
+  \mathrm{SE} = \frac{s}{\sqrt n} = \frac{3.0}{4} = 0.75,\qquad
+  T = \frac{\bar X - \mu_0}{\mathrm{SE}} = \frac{6.2 - 5}{0.75} = 1.60.
+\]
+
+\textbf{Step 4 --- the p-value.} For $t_{15}$, $\P(T \ge 1.60) \approx 0.065$ (one-sided).
+
+\textbf{Step 5 --- decide and report honestly.} At $\alpha=0.05$, since $0.065 > 0.05$,
+we \emph{fail to reject} $H_0$: the data do not quite establish that the true mean loss
+exceeds $5$ kg, though they lean that way. The $95\%$ confidence interval for $\mu$ is
+\[
+  6.2 \pm t_{15,0.025}\,\mathrm{SE} = 6.2 \pm 2.131 \times 0.75 = 6.2 \pm 1.60 = (4.6,\ 7.8).
+\]
+The interval includes $5$ --- consistent with failing to reject --- but also stretches
+to $7.8$, so a clinically meaningful effect remains very plausible. The right conclusion
+is not ``the program does not work'' but ``promising; the study was too small to confirm
+the specific $5$-kg claim --- run a larger trial.'' This is the disciplined, honest voice
+the whole chapter has been building toward.
+
+\section{Summary}
+\label{ch32:summary}
+
+\begin{aestheticbox}
+Every tool in this chapter is a reading of one instrument: the sampling distribution,
+the predicted wobble of an estimate across hypothetical repetitions, made Normal by the
+CLT and scaled by the standard error $\sigma/\sqrt n$.
+\begin{itemize}
+  \item A \textbf{confidence interval} inverts the wobble into a range; its ``$95\%$'' is
+  long-run \emph{coverage of the procedure}, not a probability about your one interval.
+  \item A \textbf{hypothesis test} asks whether the data are surprising under a null; the
+  \textbf{p-value} measures that surprise --- and is \emph{not} $\P(H_0\given$ data$)$,
+  not effect size, and not a sacred line at $0.05$.
+  \item Use \textbf{z} when $\sigma$ is known, \textbf{t} when it is estimated (wider,
+  heavier tails, the honest price of ignorance).
+  \item \textbf{Type I} ($\alpha$, false alarm) and \textbf{Type II} ($\beta$, missed
+  effect) trade off at fixed $n$; \textbf{power} $=1-\beta$ rises only with more data.
+  \item Intervals and tests are \textbf{dual}; A/B testing is hypothesis testing with
+  randomization; peeking, multiple comparisons, and the base-rate trap are where honest
+  practice is won or lost.
+\end{itemize}
+The throughline is humility wearing the clothes of mathematics: never a number alone,
+always a number with its uncertainty attached.
+\end{aestheticbox}
+
+\section{Exercises}
+\label{ch32:exercises}
+
+\begin{exercise}[Margin and sample size]
+A survey of $n=400$ people estimates a proportion $\hat p = 0.35$. (a) Give the $95\%$
+confidence interval. (b) How large must $n$ be to shrink the margin of error to $\pm
+0.02$? (c) Explain in one sentence why the answer to (b) is roughly four times (a)'s $n$
+when you halve the margin.
+\end{exercise}
+
+\begin{exercise}[z versus t]
+You have $n=9$ observations with $\bar X = 20$ and $s = 6$. (a) Build the $95\%$
+$t$-interval (use $t_{8,0.025}=2.306$). (b) Build the (incorrect) interval you would get
+by using $1.96$. (c) By what percentage does using $z$ understate the half-width, and
+why is that dishonest?
+\end{exercise}
+
+\begin{exercise}[Coin test]
+A coin gives $44$ heads in $80$ flips. (a) Compute the two-sided z-test statistic and
+p-value for $H_0\!: p=0.5$. (b) State your conclusion at $\alpha=0.05$. (c) Give the
+$95\%$ confidence interval for $p$ and confirm it is consistent with your test via
+duality.
+\end{exercise}
+
+\begin{exercise}[Interpreting the interval --- conceptual]
+A study reports a $95\%$ confidence interval of $(2.1, 4.7)$ for a treatment effect. For
+each statement, say whether it is correct and why: (a) ``There is a $95\%$ probability
+the true effect is between $2.1$ and $4.7$.'' (b) ``If we repeated the study many times,
+about $95\%$ of the intervals would contain the true effect.'' (c) ``We can reject
+$H_0\!:\text{effect}=0$ at the $5\%$ level.'' (d) ``$95\%$ of treated subjects had an
+effect between $2.1$ and $4.7$.''
+\end{exercise}
+
+\begin{exercise}[The p-value is not what you think]
+A test on a true null ($H_0$ holds) produces $p=0.03$, and a colleague concludes ``there
+is only a $3\%$ chance the null is true.'' (a) Identify the precise error. (b) Explain
+what the $3\%$ actually refers to. (c) Using the base-rate paradox, sketch why even a
+genuine $p=0.03$ can correspond to a much higher probability that $H_0$ is true when
+true effects are rare.
+\end{exercise}
+
+\begin{exercise}[Power]
+A one-sided z-test at $\alpha=0.05$ tests $H_0\!:\mu=0$ against $H_1\!:\mu=\delta>0$ with
+$\sigma=10$ and $n=25$. (a) Find the rejection cutoff for $\bar X$. (b) Compute the power
+when $\delta=4$. (c) What $n$ would raise the power to $0.9$ for $\delta=4$? (Use
+$\Phi(1.28)=0.90$.)
+\end{exercise}
+
+\begin{exercise}[Two-sample A/B test]
+Variant A converts $180$ of $3000$ visitors; variant B converts $230$ of $3000$. (a)
+Compute $\hat p_A$, $\hat p_B$, and the pooled $\hat p$. (b) Compute the two-sided
+z-statistic and p-value for $H_0\!: p_A=p_B$. (c) State the business conclusion, and
+name one trap (peeking, multiple comparisons, base rate) that could still make this
+result misleading.
+\end{exercise}
+
+\begin{exercise}[Paired versus unpaired --- conceptual]
+Twelve runners are timed before and after a training regimen. Explain why a
+\emph{paired} t-test on the within-runner differences is far more powerful than an
+unpaired two-sample test treating ``before'' and ``after'' as independent groups. What
+source of variation does pairing remove?
+\end{exercise}
+
+\begin{exercise}[Duality, proved]
+For the known-$\sigma$ case, prove from the definitions that a value $\mu_0$ lies in the
+$(1-\alpha)$ confidence interval $\bar X_n \pm z_{\alpha/2}\,\sigma/\sqrt n$ if and only
+if the two-sided level-$\alpha$ z-test of $H_0\!:\mu=\mu_0$ fails to reject. (This is the
+interval--test duality of Section~\ref{ch32:duality}.)
+\end{exercise}
+
+\begin{exercise}[Why $n-1$? --- proof]
+Let $X_1,\dots,X_n$ be i.i.d.\ with variance $\sigma^2$. Show that
+$\E\!\left[\sum_{i=1}^n (X_i - \bar X_n)^2\right] = (n-1)\sigma^2$, and hence that
+dividing by $n-1$ (not $n$) makes $s^2$ unbiased. \emph{Hint:} write $X_i - \bar X_n =
+(X_i - \mu) - (\bar X_n - \mu)$, expand the square, and use $\Var(\bar X_n)=\sigma^2/n$.
+\end{exercise}
+
+\begin{exercise}[Significance versus importance]
+A study of $n=1{,}000{,}000$ users finds that a redesign increases average session length
+from $300.0$ to $300.5$ seconds, with $s=120$ seconds, $p < 10^{-4}$. (a) Verify the
+result is ``highly significant.'' (b) Compute the $95\%$ confidence interval for the
+increase. (c) Argue, using the interval, why ``statistically significant'' here does not
+mean ``worth shipping.''
+\end{exercise}

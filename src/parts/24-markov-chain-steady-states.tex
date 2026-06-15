@@ -1,0 +1,943 @@
+\chapter{Markov Chain Steady States and Mixing}
+
+In the previous chapter you met the Markov chain: a system that hops between
+states, where the only thing that matters for the next step is where you
+\emph{are now}, not the whole story of how you got there. That memorylessness is
+a strong assumption, and it buys us something remarkable. If you let a Markov
+chain run for a long time, it very often \emph{forgets where it started}. The
+fraction of time it spends in each state settles down to a fixed set of numbers,
+and those numbers do not depend on your starting point at all.
+
+This chapter is about that settling-down. We will ask three questions and answer
+all of them honestly:
+
+\begin{itemize}
+  \item \textbf{Is there a long-run distribution at all?} (Stationary
+    distributions, and how to find them as a left eigenvector.)
+  \item \textbf{Does the chain actually converge to it, no matter where it
+    starts?} (The convergence theorem for ergodic chains.)
+  \item \textbf{How long do you have to wait?} (Mixing time.)
+\end{itemize}
+
+Along the way we will meet \emph{reversibility} and detailed balance --- a
+beautiful shortcut for guessing the steady state --- and we will cash everything
+out in the two applications that made this corner of probability famous: Google's
+PageRank, and Markov chain Monte Carlo (MCMC), the engine behind modern Bayesian
+statistics.
+
+\chapterline
+
+\section{The Long Run: A First Look}
+\label{ch24:longrun}
+
+Let us anchor everything in a tiny, concrete world. Imagine the weather in a town
+that has only two moods: \textbf{Sunny} (state $S$) and \textbf{Rainy} (state
+$R$). The weather tomorrow depends only on the weather today. Suppose:
+
+\begin{itemize}
+  \item If it is sunny today, tomorrow is sunny with probability $0.8$ and rainy
+    with probability $0.2$.
+  \item If it is rainy today, tomorrow is rainy with probability $0.6$ and sunny
+    with probability $0.4$.
+\end{itemize}
+
+We collect these into a \textbf{transition matrix} $P$, where the entry
+$P_{ij}$ is the probability of moving from state $i$ to state $j$:
+\[
+  P = \begin{pmatrix} P_{SS} & P_{SR} \\ P_{RS} & P_{RR} \end{pmatrix}
+    = \begin{pmatrix} 0.8 & 0.2 \\ 0.4 & 0.6 \end{pmatrix}.
+\]
+Each row sums to $1$, because from any state \emph{something} must happen
+tomorrow. (A matrix with nonnegative entries and rows summing to one is called a
+\textbf{stochastic matrix}; every Markov chain is one of these and vice versa.)
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[>=Stealth, node distance=3.4cm]
+    \node[circle,draw=sourceblue,very thick,fill=sourceblue!12,minimum size=1.2cm] (S) {$S$};
+    \node[circle,draw=targetgreen,very thick,fill=targetgreen!12,minimum size=1.2cm,right=of S] (R) {$R$};
+    \draw[->,thick,bend left=18] (S) to node[above]{$0.2$} (R);
+    \draw[->,thick,bend left=18] (R) to node[below]{$0.4$} (S);
+    \draw[->,thick] (S) edge[loop left,looseness=6] node[left]{$0.8$} (S);
+    \draw[->,thick] (R) edge[loop right,looseness=6] node[right]{$0.6$} (R);
+  \end{tikzpicture}
+  \caption{The two-state weather chain. Arrows are transition probabilities;
+  the loops are the chances of staying put.}
+  \label{ch24:fig-weather-diagram}
+\end{figure}
+
+Now here is the move that makes matrices earn their keep. Suppose today the
+weather is described by a \textbf{row vector} of probabilities,
+$\pi^{(0)} = (\,\P(\text{sunny}),\ \P(\text{rainy})\,)$. What is the distribution
+tomorrow? You multiply on the right by $P$:
+\[
+  \pi^{(1)} = \pi^{(0)} P.
+\]
+Why on the right, and why a row vector? Because the probability of being sunny
+tomorrow is ``probability sunny today times $P_{SS}$, plus probability rainy
+today times $P_{RS}$'' --- exactly the dot product of the row vector with the
+$S$-column of $P$. Iterating, after $n$ days,
+\[
+  \pi^{(n)} = \pi^{(0)} P^n.
+\]
+The whole dynamics of the chain is hidden inside the powers of one matrix.
+
+\begin{walkbox}
+Start certain that today is sunny, so $\pi^{(0)} = (1,0)$. Compute the
+distribution for the next few days. Watch what happens.
+\[
+  \begin{aligned}
+    \pi^{(1)} &= (1,0)P = (0.8,\,0.2),\\
+    \pi^{(2)} &= (0.8,0.2)P = (0.8\cdot0.8 + 0.2\cdot0.4,\ \ 0.8\cdot0.2 + 0.2\cdot0.6) = (0.72,\,0.28),\\
+    \pi^{(3)} &= (0.72,0.28)P = (0.688,\,0.312),\\
+    \pi^{(4)} &\approx (0.6752,\,0.3248),\qquad
+    \pi^{(5)} \approx (0.6701,\,0.3299).
+  \end{aligned}
+\]
+Now start \emph{certain that today is rainy}, $\pi^{(0)}=(0,1)$:
+\[
+  \pi^{(1)} = (0.4,0.6),\ \ \pi^{(2)}=(0.56,0.44),\ \ \pi^{(3)}=(0.624,0.376),\ \ \pi^{(5)}\approx(0.6598,0.3402).
+\]
+The two sequences are marching toward the \emph{same} pair of numbers,
+$(2/3,\,1/3)$, from opposite sides. The chain is forgetting where it began.
+\end{walkbox}
+
+Figure~\ref{ch24:fig-weather-converge} plots both runs. This convergence to a
+single distribution, regardless of the start, is the central phenomenon of the
+chapter. Our job now is to (a) name the limit, (b) compute it without grinding
+out powers, and (c) understand exactly when it is guaranteed.
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[
+        width=12cm, height=6.2cm,
+        xlabel={day $n$}, ylabel={$\P(\text{sunny})$ on day $n$},
+        xmin=0, xmax=10, ymin=0, ymax=1.05,
+        grid=both, grid style={gray!18},
+        legend pos=south east, legend cell align=left,
+      ]
+      % start sunny: pi_S converges down to 2/3
+      \addplot[sourceblue,very thick,mark=*,mark size=1.4pt] coordinates {
+        (0,1)(1,0.8)(2,0.72)(3,0.688)(4,0.6752)(5,0.67008)(6,0.668032)(7,0.6672128)(8,0.66688512)(9,0.666754048)(10,0.6667016192)};
+      \addlegendentry{start sunny}
+      % start rainy: pi_S converges up to 2/3
+      \addplot[densityred,very thick,mark=square*,mark size=1.4pt] coordinates {
+        (0,0)(1,0.4)(2,0.56)(3,0.624)(4,0.6496)(5,0.65984)(6,0.663936)(7,0.6655744)(8,0.66622976)(9,0.666491904)(10,0.6665967616)};
+      \addlegendentry{start rainy}
+      \addplot[black,dashed,thick,domain=0:10] {0.66666667};
+      \addlegendentry{$\pi_S = 2/3$}
+    \end{axis}
+  \end{tikzpicture}
+  \caption{Both starting conditions converge to the same stationary
+  probability of sun, $2/3$, within a handful of days. The gap between the curves
+  --- a memory of the initial state --- shrinks geometrically.}
+  \label{ch24:fig-weather-converge}
+\end{figure}
+
+\section{Stationary Distributions}
+\label{ch24:stationary}
+
+The limit we just watched has a defining property: once you are \emph{in} it,
+applying $P$ leaves you unchanged. It is a fixed point of the dynamics.
+
+\begin{definition}[Stationary distribution]
+\label{ch24:def-stationary}
+A probability row vector $\pi = (\pi_1,\dots,\pi_m)$ (so $\pi_i \ge 0$ and
+$\sum_i \pi_i = 1$) is a \textbf{stationary distribution} (also called an
+\emph{invariant} or \emph{equilibrium} distribution) for a chain with transition
+matrix $P$ if
+\[
+  \pi P = \pi.
+\]
+Equivalently, for every state $j$, \quad $\displaystyle \pi_j = \sum_i \pi_i\,P_{ij}$.
+\end{definition}
+
+Read the componentwise version as a \emph{conservation law}. Picture a large
+population of independent walkers spread over the states in proportions $\pi$.
+In one step, each state $j$ \emph{receives} a flow $\pi_i P_{ij}$ from every state
+$i$. The distribution is stationary exactly when the total inflow into $j$ equals
+the amount $\pi_j$ that was there to begin with: probability mass sloshes around,
+but the overall proportions never change.
+
+\begin{intuitionbox}
+``Stationary'' does not mean nothing moves. Individual walkers keep hopping
+forever. What stands still is the \emph{histogram} of where they are. It is like
+a steady waterfall: every droplet is in motion, yet the shape of the falling
+sheet is frozen. Equilibrium is dynamic, not static.
+\end{intuitionbox}
+
+\subsection{Finding it by hand}
+
+For the weather chain, $\pi P = \pi$ with $\pi = (\pi_S, \pi_R)$ gives
+\[
+  \begin{cases}
+    0.8\,\pi_S + 0.4\,\pi_R = \pi_S,\\
+    0.2\,\pi_S + 0.6\,\pi_R = \pi_R.
+  \end{cases}
+\]
+Both equations reduce to the \emph{same} relation $0.2\,\pi_S = 0.4\,\pi_R$, i.e.
+$\pi_S = 2\pi_R$. That is no accident: because the rows of $P$ sum to one, the
+columns of $P - I$ sum to zero, so one of the balance equations is always
+redundant. The missing equation is supplied by the normalization
+$\pi_S + \pi_R = 1$. Solving,
+\[
+  2\pi_R + \pi_R = 1 \ \Rightarrow\ \pi_R = \tfrac13,\qquad \pi_S = \tfrac23.
+\]
+So $\pi = (2/3,\,1/3)$ --- precisely the numbers Figure~\ref{ch24:fig-weather-converge}
+crept toward. In the long run this town is sunny two days out of three.
+
+\begin{trapbox}
+A stationary distribution must be \emph{normalized}. The equation $\pi P = \pi$ is
+homogeneous: if $\pi$ solves it, so does $5\pi$ and so does $0$. Those are not
+distributions. You always need the extra condition $\sum_i \pi_i = 1$ to pin down
+the actual probability vector. In practice: solve $\pi P = \pi$ for the
+\emph{ratios} between components, then scale so they add to $1$.
+\end{trapbox}
+
+\subsection{It really is a left eigenvector}
+
+\begin{connectionbox}
+The equation $\pi P = \pi$ is the eigenvalue equation $\pi P = 1\cdot\pi$. A row
+vector $\pi$ with $\pi P = \lambda \pi$ is a \textbf{left eigenvector} of $P$ with
+eigenvalue $\lambda$. \emph{A stationary distribution is exactly a left
+eigenvector of $P$ for the eigenvalue $\lambda = 1$, normalized to sum to one.}
+
+Why is $1$ always an eigenvalue? Because $P$ has constant row sums equal to $1$,
+the all-ones \emph{column} vector $\mathbf{1}$ satisfies $P\mathbf{1} = \mathbf{1}$
+--- it is a \emph{right} eigenvector with eigenvalue $1$. A matrix and its
+transpose have the same eigenvalues, so $1$ is a left eigenvalue too, guaranteeing
+a (possibly complex, but in fact real and nonnegative) left eigenvector $\pi$.
+That existence is half of the Perron--Frobenius theorem from linear algebra; the
+companion linear algebra book treats it in full. The deep fact we borrow: for a
+``nice'' (irreducible, aperiodic) stochastic matrix, the eigenvalue $1$ is
+\emph{simple} (multiplicity one), every other eigenvalue has modulus strictly
+less than one, and the eigenvector $\pi$ can be taken with all entries positive.
+\end{connectionbox}
+
+This eigenvalue picture is not just notation --- it controls the \emph{speed} of
+convergence, as we will see in Section~\ref{ch24:mixing}. The second-largest
+eigenvalue is the rate at which memory of the starting state decays.
+
+\begin{example}[A three-state chain]
+\label{ch24:ex-three-state}
+Consider three web pages $A$, $B$, $C$ with a surfer who clicks links:
+\[
+  P = \begin{pmatrix}
+    0 & 1 & 0 \\
+    \tfrac14 & 0 & \tfrac34 \\
+    \tfrac12 & \tfrac12 & 0
+  \end{pmatrix}.
+\]
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[>=Stealth, node distance=3.2cm]
+    \node[circle,draw=sourceblue,very thick,fill=sourceblue!12,minimum size=1.1cm] (A) {$A$};
+    \node[circle,draw=targetgreen,very thick,fill=targetgreen!12,minimum size=1.1cm,right=of A] (B) {$B$};
+    \node[circle,draw=quotientorange,very thick,fill=quotientorange!16,minimum size=1.1cm,below=2.4cm of $(A)!0.5!(B)$] (C) {$C$};
+    \draw[->,thick,bend left=15] (A) to node[above]{$1$} (B);
+    \draw[->,thick,bend left=15] (B) to node[below,pos=0.4]{$\tfrac14$} (A);
+    \draw[->,thick,bend left=15] (B) to node[right]{$\tfrac34$} (C);
+    \draw[->,thick,bend left=15] (C) to node[left]{$\tfrac12$} (A);
+    \draw[->,thick,bend left=15] (C) to node[right]{$\tfrac12$} (B);
+  \end{tikzpicture}
+  \caption{The three-page surfer chain of Example~\ref{ch24:ex-three-state}.
+  Page $A$ sends all its weight to $B$; $B$ splits between $A$ and $C$; $C$ splits
+  between $A$ and $B$. Page $B$ is the one both other pages feed, which is why it
+  wins the largest stationary share.}
+  \label{ch24:fig-three-state-diagram}
+\end{figure}
+
+We seek $\pi = (a,b,c)$ with $\pi P = \pi$:
+\[
+  \begin{aligned}
+    a &= \tfrac14 b + \tfrac12 c, \\
+    b &= a + \tfrac12 c, \\
+    c &= \tfrac34 b.
+  \end{aligned}
+\]
+Substitute $c = \tfrac34 b$ into the first: $a = \tfrac14 b + \tfrac12\cdot\tfrac34 b
+= \tfrac14 b + \tfrac38 b = \tfrac58 b$. Check the second:
+$a + \tfrac12 c = \tfrac58 b + \tfrac38 b = b$, consistent. Normalizing,
+\[
+  a + b + c = \tfrac58 b + b + \tfrac34 b = \tfrac{19}{8} b = 1
+  \ \Rightarrow\ b = \tfrac{8}{19}.
+\]
+Hence $\pi = \bigl(\tfrac{5}{19},\,\tfrac{8}{19},\,\tfrac{6}{19}\bigr)$. Page $B$
+is most visited: as Figure~\ref{ch24:fig-three-state-diagram} shows, it is the
+only page two others both point to.
+\end{example}
+
+\section{Does the Chain Converge? The Ergodic Theorem}
+\label{ch24:ergodic}
+
+Existence of a stationary $\pi$ does not by itself guarantee that the chain
+\emph{approaches} it. Two failure modes block convergence, and naming them tells
+us exactly what to require.
+
+\subsection{Failure mode 1: the chain is reducible}
+
+If the state space splits into pieces that cannot reach one another, the long-run
+behavior depends on which piece you started in --- there is no single universal
+limit. We need every state to be reachable from every other.
+
+\begin{definition}[Irreducible]
+\label{ch24:def-irreducible}
+A chain is \textbf{irreducible} if for every pair of states $i,j$ there is some
+number of steps $n$ with $(P^n)_{ij} > 0$: you can get from anywhere to anywhere,
+eventually. (On the diagram: the directed graph of allowed transitions is
+strongly connected.)
+\end{definition}
+
+\subsection{Failure mode 2: the chain is periodic}
+
+Even an irreducible chain can fail to settle if it marches in lockstep. Consider
+two states with $P = \left(\begin{smallmatrix} 0 & 1 \\ 1 & 0\end{smallmatrix}\right)$:
+it flips $A \to B \to A \to B \to \cdots$ forever. The stationary distribution is
+$(1/2,1/2)$, but starting at $A$ the distribution is $(1,0),(0,1),(1,0),\dots$ ---
+it oscillates and never converges. The trouble is \emph{period}.
+
+\begin{definition}[Period; aperiodic]
+\label{ch24:def-aperiodic}
+The \textbf{period} of state $i$ is $d(i) = \gcd\set{n \ge 1 : (P^n)_{ii} > 0}$,
+the greatest common divisor of the lengths of all loops returning to $i$. If
+$d(i)=1$ the state is \textbf{aperiodic}. In an irreducible chain all states share
+the same period; the chain is aperiodic if that common period is $1$. A single
+self-loop $P_{ii}>0$ anywhere forces aperiodicity.
+\end{definition}
+
+\begin{intuitionbox}
+Periodicity is a tyranny of timing. The flip-flop chain has plenty of
+``probability of being at $A$'' on average --- but the parity of the clock decides
+which state holds all the mass at any instant. Aperiodicity breaks the tyranny:
+once there is any slack in the return times (a self-loop, or two cycles of
+coprime length), the phases blur together and the distribution can relax.
+\end{intuitionbox}
+
+\subsection{The theorem}
+
+A chain that is both irreducible and aperiodic on a finite state space is called
+\textbf{ergodic}. For such chains everything works.
+
+\begin{theorem}[Fundamental theorem of Markov chains / convergence]
+\label{ch24:thm-convergence}
+Let $P$ be the transition matrix of a finite, irreducible, aperiodic Markov chain.
+Then:
+\begin{enumerate}
+  \item There is a \emph{unique} stationary distribution $\pi$, with $\pi_i > 0$
+    for every state $i$.
+  \item For \emph{every} starting distribution $\pi^{(0)}$,
+    \[
+      \pi^{(0)} P^n \longrightarrow \pi \qquad \text{as } n\to\infty .
+    \]
+    Equivalently, every row of $P^n$ converges to $\pi$: the chain forgets where
+    it started.
+  \item \textbf{(Ergodic / time-average form.)} With probability one, the
+    long-run fraction of time spent in state $i$ equals $\pi_i$:
+    \[
+      \frac{1}{n}\sum_{t=1}^{n} \ind\{X_t = i\} \asto \pi_i .
+    \]
+    Moreover $\pi_i = 1/\E_i[T_i]$, the reciprocal of the mean return
+    time to $i$.
+\end{enumerate}
+\end{theorem}
+
+Parts (2) and (3) are different statements, and the distinction matters. Part (2)
+is about the \emph{distribution} at a single far-off time $n$ --- ``where is the
+chain likely to be on day 1000?'' Part (3) is about a \emph{single sample path}
+--- ``what fraction of its life does this one particular trajectory spend in state
+$i$?'' Aperiodicity is needed for (2) (otherwise the distribution oscillates) but
+\emph{not} for (3): the flip-flop chain still spends half its time in each state,
+even though its distribution never converges. This is why simulations work: a
+running average over one long run estimates $\pi$ even for periodic chains.
+
+\begin{whybox}
+\textbf{Why does convergence happen, intuitively?} Here is the cleanest argument,
+the \emph{coupling} idea. Run two copies of the chain in parallel: copy $X$
+started from your distribution of interest, copy $Y$ started from the stationary
+$\pi$ (so $Y$ stays distributed as $\pi$ for all time). Let them move
+independently until the first moment they happen to land on the same state ---
+call it the coupling time $\tau$. After $\tau$, glue them: let $X$ copy $Y$'s moves
+exactly. From that instant on, $X$ and $Y$ are identical, so $X$ is also
+distributed as $\pi$.
+
+Because the chain is irreducible and aperiodic, the two copies \emph{will} meet
+with probability one, and in fact the chance they have \emph{not} met by time $n$
+decays geometrically. The total-variation distance between $X$'s distribution and
+$\pi$ is bounded by $\P(\tau > n)$, which $\to 0$. So the only obstruction to
+convergence is the two copies never managing to meet --- which is exactly what
+reducibility (they live in different worlds) or periodicity (they march in
+opposite phase and keep missing) would cause. Rule those out and convergence is
+forced.
+\end{whybox}
+
+\begin{historybox}
+The man behind the chains was \textbf{Andrei Andreyevich Markov} (1856--1922), a
+combative St.\ Petersburg analyst and student of Chebyshev. In 1906--1913 he
+introduced ``chains'' of dependent variables explicitly to refute a theological
+opponent, P.\ A.\ Nekrasov, who had claimed that the law of large numbers
+\emph{required} independence and therefore (Nekrasov argued) was evidence of free
+will. Markov's reply was a constructive insult: here are variables that are
+strongly \emph{dependent} and yet obey a law of large numbers anyway. To make the
+point vivid he counted the alternation of vowels and consonants across
+$20{,}000$ letters of Pushkin's \emph{Eugene Onegin} --- arguably the first
+statistical analysis of text and a direct ancestor of every language model that
+followed. The general convergence theory, and the Perron--Frobenius machinery
+underneath it, was filled in over the following decades by Kolmogorov, Doeblin,
+and others.
+\end{historybox}
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[
+        width=12cm, height=6cm,
+        xlabel={step $t$}, ylabel={empirical fraction of time sunny},
+        xmin=0, xmax=400, ymin=0, ymax=1.0,
+        grid=both, grid style={gray!18},
+        legend pos=north east, legend cell align=left,
+      ]
+      % a plausible-looking running average converging to 2/3 (illustrative path)
+      \addplot[sourceblue,thick] coordinates {
+        (1,1)(5,0.8)(10,0.7)(20,0.6)(30,0.633)(45,0.71)(60,0.683)(80,0.65)
+        (110,0.672)(150,0.66)(200,0.671)(260,0.663)(320,0.6685)(400,0.6664)};
+      \addlegendentry{running fraction in $S$}
+      \addplot[black,dashed,thick,domain=0:400] {0.6666667};
+      \addlegendentry{$\pi_S = 2/3$}
+    \end{axis}
+  \end{tikzpicture}
+  \caption{The ergodic theorem in action (a single simulated path of the weather
+  chain). The fraction of days that are sunny wanders at first, then locks onto
+  the stationary value $2/3$. This is part (3) of
+  Theorem~\ref{ch24:thm-convergence}: time averages converge along one
+  trajectory.}
+  \label{ch24:fig-ergodic-timeavg}
+\end{figure}
+
+\begin{paradoxbox}
+\textbf{Equilibrium without ever being at rest.} Newcomers often expect a chain
+``at its stationary distribution'' to slow down or stop. It does the opposite ---
+it keeps hopping just as energetically as before. The paradox dissolves once you
+separate two ensembles. Imagine a million towns, each running its own weather
+chain. If today the \emph{collection} has $2/3$ sunny towns, then tomorrow it
+still has $2/3$ sunny towns --- even though roughly $20\%$ of today's sunny towns
+turned rainy and exactly enough rainy ones turned sunny to replace them. No single
+town is frozen; the \emph{population} is. Confusing the fate of one walker with
+the shape of the crowd is the root of nearly every Markov-chain misconception.
+\end{paradoxbox}
+
+\section{Reversibility and Detailed Balance}
+\label{ch24:reversibility}
+
+Solving $\pi P = \pi$ means solving a linear system --- fine for three states,
+miserable for three million. There is a far easier sufficient condition that, when
+it holds, hands you $\pi$ almost for free. It is also the single most important
+idea in all of MCMC.
+
+The stationarity equation $\pi_j = \sum_i \pi_i P_{ij}$ is a statement about
+\emph{total} flow: the net probability current into each state is zero. Detailed
+balance demands something stronger and far more rigid --- that the flow balance
+between \emph{every individual pair} of states, edge by edge.
+
+\begin{definition}[Detailed balance; reversibility]
+\label{ch24:def-detailed-balance}
+A distribution $\pi$ satisfies \textbf{detailed balance} for $P$ if
+\[
+  \pi_i\, P_{ij} = \pi_j\, P_{ji} \qquad \text{for all states } i,j .
+\]
+A chain that has such a $\pi$ is called \textbf{reversible}.
+\end{definition}
+
+The left side is the rate of $i\to j$ traffic in equilibrium; the right side is
+the rate of $j\to i$ traffic. Detailed balance says these are equal for each edge:
+no net circulation anywhere.
+
+\begin{theorem}[Detailed balance implies stationary]
+\label{ch24:thm-db-implies-stationary}
+If $\pi$ satisfies detailed balance for $P$, then $\pi$ is stationary: $\pi P = \pi$.
+\end{theorem}
+
+\begin{proof}
+Sum the detailed-balance equations over $i$ for a fixed $j$:
+\[
+  \sum_i \pi_i P_{ij} = \sum_i \pi_j P_{ji} = \pi_j \sum_i P_{ji} = \pi_j \cdot 1 = \pi_j ,
+\]
+using that the $j$-th row of $P$ sums to one. But $\sum_i \pi_i P_{ij} = (\pi P)_j$,
+so $(\pi P)_j = \pi_j$ for every $j$, i.e.\ $\pi P = \pi$.
+\end{proof}
+
+\begin{happeningbox}
+\textbf{What is really happening: time looks the same run backwards.} The name
+``reversible'' is literal. Record a long stationary run of the chain and play the
+film backwards. If detailed balance holds, the reversed film is statistically
+\emph{indistinguishable} from a forward run --- the same transition probabilities
+govern it. Check: the probability of seeing $i$ then $j$ forward is
+$\pi_i P_{ij}$; the probability of seeing $j$ then $i$ (which is what
+``$i$ then $j$'' looks like in reverse) is $\pi_j P_{ji}$. Detailed balance is
+exactly the statement that these are equal. So reversibility $=$ time-symmetry of
+the equilibrium dynamics. Chains \emph{without} it have a built-in arrow of time:
+a preferred direction of circulation, like a whirlpool, that you would notice if
+the film were reversed.
+\end{happeningbox}
+
+\begin{example}[Random walk on a graph]
+\label{ch24:ex-graph-walk}
+Take any connected undirected graph. A walker sits at a vertex and at each step
+moves to a uniformly random neighbor. If vertex $i$ has degree $d_i$ (number of
+edges), then $P_{ij} = 1/d_i$ when $i,j$ are adjacent, else $0$. Guess
+$\pi_i \propto d_i$, i.e.\ $\pi_i = d_i / (2E)$ where $E$ is the number of edges
+(so $\sum_i d_i = 2E$). Check detailed balance on an edge $\{i,j\}$:
+\[
+  \pi_i P_{ij} = \frac{d_i}{2E}\cdot\frac{1}{d_i} = \frac{1}{2E}
+  = \frac{d_j}{2E}\cdot\frac{1}{d_j} = \pi_j P_{ji}. \checkmark
+\]
+It balances for every edge, so $\pi_i = d_i/(2E)$ is stationary. We \emph{guessed}
+the answer and verified it in one line --- no linear system. The lesson: a random
+walker lingers in proportion to how connected a place is. High-degree hubs are
+visited more. This single observation is the seed of PageRank.
+\end{example}
+
+\begin{aestheticbox}
+Detailed balance is the probabilist's version of a conservation law in physics ---
+indeed it \emph{is} one. In statistical mechanics the equilibrium (Boltzmann)
+distribution $\pi_i \propto e^{-E_i/kT}$ satisfies detailed balance with respect
+to the microscopic dynamics, and that is precisely why thermal systems settle. The
+same equation that tells you the weather will be sunny $2/3$ of the time tells a
+physicist how molecules distribute among energy levels. When you reach
+Section~\ref{ch24:mcmc} you will see we run the logic \emph{backwards}: given a
+target $\pi$ we \emph{design} a $P$ that satisfies detailed balance, so that the
+chain is forced to equilibrate to the distribution we secretly wanted to sample.
+\end{aestheticbox}
+
+\section{Mixing Time: How Long Until ``Long Run''?}
+\label{ch24:mixing}
+
+Theorem~\ref{ch24:thm-convergence} promises convergence but is silent about
+\emph{speed}. In Figure~\ref{ch24:fig-weather-converge} we were essentially done
+in five days. A poorly connected chain on a million states might need millions of
+steps. ``How long?'' is the question of \textbf{mixing time}, and for
+applications it is everything: a sampler that has not yet mixed gives you biased
+garbage.
+
+To measure ``how far from $\pi$,'' we need a distance between distributions.
+
+\begin{definition}[Total variation distance]
+\label{ch24:def-tv}
+For two distributions $\mu,\nu$ on the same states,
+\[
+  \norm{\mu - \nu}_{\mathrm{TV}} = \tfrac12 \sum_i \abs{\mu_i - \nu_i}
+  = \max_{A} \abs{\mu(A) - \nu(A)} .
+\]
+It is $0$ when the distributions coincide and $1$ when their supports are disjoint;
+the second form says it is the largest gap in probability they assign to any event.
+\end{definition}
+
+\begin{definition}[Mixing time]
+\label{ch24:def-mixing}
+Fix a tolerance $\eps$ (commonly $\eps = 1/4$). The \textbf{mixing time} is
+\[
+  t_{\mathrm{mix}}(\eps) = \min\set[\Big]{ n : \max_{x}\ \norm{\,\delta_x P^n - \pi\,}_{\mathrm{TV}} \le \eps },
+\]
+the number of steps after which, \emph{no matter the starting state} $x$, the
+chain's distribution is within $\eps$ of stationary in total variation.
+\end{definition}
+
+\subsection{The spectral gap controls the rate}
+
+Here the eigenvalues come back to do real work. Order the eigenvalues of $P$ by
+modulus: $1 = \lambda_1 > \abs{\lambda_2} \ge \cdots \ge \abs{\lambda_m}$. For an
+ergodic chain the top one is $1$ (the stationary direction) and all others are
+strictly smaller. Decompose any starting vector along the eigen-directions; under
+repeated multiplication by $P$, the stationary component is preserved while every
+other component is multiplied by its $\lambda_k$ each step and \emph{decays
+geometrically}. The slowest-dying piece is governed by the second eigenvalue.
+
+\begin{theorem}[Geometric convergence rate]
+\label{ch24:thm-spectral}
+For an ergodic chain (reversible, say, so the $\lambda_k$ are real), there is a
+constant $C$ with
+\[
+  \norm{\,\delta_x P^n - \pi\,}_{\mathrm{TV}} \le C\,\abs{\lambda_2}^{\,n}.
+\]
+Writing the \textbf{spectral gap} as $\gamma = 1 - \abs{\lambda_2}$, the mixing
+time scales like
+\[
+  t_{\mathrm{mix}} \approx \frac{1}{\gamma}\,\log\frac{1}{\eps}.
+\]
+A big gap (small $\abs{\lambda_2}$) means fast mixing; a tiny gap means a sluggish
+chain.
+\end{theorem}
+
+For the weather chain the eigenvalues of $P$ are $\lambda_1 = 1$ and
+$\lambda_2 = 0.8 + 0.6 - 1 = 0.4$ (the eigenvalues of a $2\times2$ stochastic
+matrix are $1$ and $\mathrm{tr}\,P - 1$). The gap is $0.6$ --- large --- so error
+falls by a factor of $0.4$ per day, matching the rapid collapse in
+Figure~\ref{ch24:fig-weather-converge}. Indeed the gap between the two curves
+there shrinks by exactly $0.4$ each step: that is $\abs{\lambda_2}^n$ in the flesh.
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[
+        width=12cm, height=6cm,
+        xlabel={step $n$}, ylabel={TV distance to $\pi$ (log scale)},
+        ymode=log, xmin=0, xmax=12, ymin=1e-5, ymax=1,
+        grid=both, grid style={gray!18},
+        legend pos=north east, legend cell align=left,
+      ]
+      % fast-mixing chain: gap 0.6, |lambda2| = 0.4
+      \addplot[sourceblue,very thick,mark=*,mark size=1.3pt,domain=0:12,samples=13] {0.5*0.4^x};
+      \addlegendentry{fast: $\abs{\lambda_2}=0.4$}
+      % slow-mixing chain: |lambda2| = 0.9
+      \addplot[densityred,very thick,mark=square*,mark size=1.3pt,domain=0:12,samples=13] {0.5*0.9^x};
+      \addlegendentry{slow: $\abs{\lambda_2}=0.9$}
+    \end{axis}
+  \end{tikzpicture}
+  \caption{On a log scale, total-variation distance to $\pi$ falls along a
+  straight line whose slope is $\log\abs{\lambda_2}$. The fast chain (steep line)
+  mixes in a few steps; the slow chain (shallow line) crawls. The spectral gap is
+  the slope.}
+  \label{ch24:fig-mixing-rate}
+\end{figure}
+
+\begin{intuitionbox}
+What makes a chain slow to mix is a \textbf{bottleneck}: a narrow bridge between
+two roomy regions of state space. The walker spends ages on one side, only rarely
+squeezing through. Until it crosses, it cannot ``know'' about the far side, so its
+distribution stays lopsided. Mathematically, a bottleneck of small ``conductance''
+forces $\abs{\lambda_2}$ close to $1$ and the gap close to $0$. This is the
+central headache of MCMC: a multimodal target with widely separated modes is a
+chain with a vicious bottleneck, and a naive sampler can sit in one mode for
+billions of steps, reporting confident nonsense.
+\end{intuitionbox}
+
+\begin{paradoxbox}
+\textbf{The cutoff phenomenon.} You might guess mixing is gradual --- the chain
+oozes toward $\pi$, getting a bit closer each step. For many natural chains the
+truth is startlingly different. Persi Diaconis and collaborators showed that
+shuffling a deck of cards by the standard riffle shuffle exhibits a sharp
+\emph{cutoff}: after about $6$ shuffles the deck is still glaringly nonrandom, and
+after about $8$ it is essentially perfectly mixed. The TV distance stays near $1$,
+then plunges to near $0$ over a window much shorter than the mixing time itself ---
+a probabilistic phase transition. The famous headline ``seven shuffles'' is
+exactly this cutoff for $52$ cards: $\ceil{\tfrac32 \log_2 52} = 9$, with
+the curtain falling around $7$. Convergence, it turns out, can be an event rather
+than a trend.
+\end{paradoxbox}
+
+\section{Headline Application I: PageRank}
+\label{ch24:pagerank}
+
+\begin{applicationbox}
+\textbf{Google's original ranking algorithm is a stationary distribution.} Model
+the web as a giant directed graph: pages are states, links are edges. Imagine a
+\emph{random surfer} who, at each page, clicks a uniformly random outgoing link.
+This is a Markov chain with $P_{ij} = 1/(\text{outdegree of }i)$ for each link
+$i\to j$. The PageRank of a page is defined as its stationary probability $\pi_i$:
+the long-run fraction of time the surfer spends there. Pages that many
+(important) pages link to get visited often, so they score high --- importance
+defined self-referentially and resolved by the eigenvector. Crucially, PageRank
+is \emph{the left eigenvector of the web's transition matrix for eigenvalue $1$}
+(Section~\ref{ch24:stationary}). Brin and Page's 1998 insight was that this single
+number, computable for the whole web, ranks pages astonishingly well.
+
+\textbf{Two repairs are needed} to guarantee a unique limit
+(Theorem~\ref{ch24:thm-convergence}). (1) \emph{Dangling pages} with no outgoing
+links are dead ends --- the surfer gets stuck, breaking irreducibility. (2) The
+web is not strongly connected; it has many traps. Both are fixed by the
+\textbf{teleportation} trick. With probability $d \approx 0.85$ the surfer
+follows a random link as before; with probability $1-d$ she jumps to a page chosen
+uniformly at random from all $N$ pages. The modified matrix is
+\[
+  G = d\,P + (1-d)\,\tfrac{1}{N}\,\mathbf{J},
+\]
+where $\mathbf{J}$ is the all-ones matrix (the ``Google matrix''). Because $G$ has
+every entry strictly positive, the chain is automatically irreducible and
+aperiodic, so a unique positive $\pi$ exists and the surfer converges to it from
+any start. PageRank is just $\pi G = \pi$.
+\end{applicationbox}
+
+\begin{happeningbox}
+\textbf{How is $\pi$ actually computed for billions of pages?} Not by solving a
+linear system (infeasible at web scale) and not by finding eigenvectors with
+standard linear-algebra routines. It is computed by \emph{the power iteration of
+Section~\ref{ch24:longrun}}: pick any starting vector, repeatedly multiply by $G$,
+and watch it converge. This is exactly $\pi^{(n)} = \pi^{(0)} G^n$. The damping
+factor $d=0.85$ sets the second eigenvalue to about $0.85$, so the spectral gap is
+about $0.15$ and the error drops by $0.85$ per iteration --- roughly $50$--$100$
+iterations reach acceptable accuracy. The whole engine that organized the early
+web is the convergence theorem plus a matrix-vector product run a few dozen times.
+This is why the eigenvalue framing in this chapter is not decoration: it
+\emph{is} the algorithm.
+\end{happeningbox}
+
+\begin{example}[A tiny PageRank]
+\label{ch24:ex-pagerank}
+Reuse the three-page chain of Example~\ref{ch24:ex-three-state} (pretend it is
+already strongly connected, so we can skip teleportation). We found
+$\pi = (5/19,\,8/19,\,6/19) \approx (0.263,\,0.421,\,0.316)$. So page $B$ ranks
+first, $C$ second, $A$ third. Notice the ranking is \emph{not} simply ``count the
+inbound links'': it weights each inbound link by the importance of its source and
+splits a page's vote across its outbound links. That recursive weighting is the
+whole point, and the stationary distribution resolves the recursion in one shot.
+\end{example}
+
+\section{Headline Application II: Markov Chain Monte Carlo}
+\label{ch24:mcmc}
+
+\begin{applicationbox}
+\textbf{Sampling from impossible distributions by building a chain on purpose.}
+In Bayesian statistics, machine learning, and physics you constantly need to draw
+samples from a distribution $\pi$ known only up to a constant:
+$\pi(x) = \tilde\pi(x)/Z$, where $\tilde\pi$ is computable but the normalizer
+$Z = \sum_x \tilde\pi(x)$ is a sum over astronomically many states (every
+parameter setting, every spin configuration). You cannot compute $Z$, so you
+cannot use it directly --- yet you want samples from $\pi$.
+
+\textbf{MCMC turns the whole chapter inside out.} Instead of being handed a chain
+and asked for its $\pi$, you are handed a target $\pi$ and you \emph{construct a
+chain whose stationary distribution is that $\pi$}. Run the chain long enough
+(past its mixing time) and its state is an (approximate) sample from $\pi$.
+Convergence (Theorem~\ref{ch24:thm-convergence}) guarantees this works; detailed
+balance (Section~\ref{ch24:reversibility}) is how you build it; mixing time
+(Section~\ref{ch24:mixing}) tells you how long to wait.
+\end{applicationbox}
+
+The workhorse is the \textbf{Metropolis--Hastings} algorithm, and it is detailed
+balance run in reverse. We \emph{want} $\pi_i P_{ij} = \pi_j P_{ji}$; we
+\emph{design} $P$ to make it so. The recipe: from state $i$, \emph{propose} a move
+to a candidate $j$ using any convenient proposal $Q_{ij}$ (say, perturb the
+current parameters a little). Then \emph{accept} the move with probability
+\[
+  \alpha_{ij} = \min\set[\Big]{1,\ \frac{\tilde\pi_j\, Q_{ji}}{\tilde\pi_i\, Q_{ij}}};
+\]
+otherwise stay at $i$. The realized transition probability is
+$P_{ij} = Q_{ij}\,\alpha_{ij}$ for $j\neq i$.
+
+\begin{whybox}
+\textbf{Why the acceptance rule produces the right $\pi$.} Check detailed balance
+directly. Suppose, without loss of generality, that the ratio
+$r = \tilde\pi_j Q_{ji} / (\tilde\pi_i Q_{ij}) \le 1$, so $\alpha_{ij} = r$ and
+$\alpha_{ji} = 1$. Then
+\[
+  \pi_i P_{ij} = \pi_i\, Q_{ij}\,\alpha_{ij}
+  = \frac{\tilde\pi_i}{Z}\, Q_{ij}\cdot \frac{\tilde\pi_j Q_{ji}}{\tilde\pi_i Q_{ij}}
+  = \frac{\tilde\pi_j Q_{ji}}{Z},
+\]
+while
+\[
+  \pi_j P_{ji} = \pi_j\, Q_{ji}\,\alpha_{ji}
+  = \frac{\tilde\pi_j}{Z}\, Q_{ji}\cdot 1 = \frac{\tilde\pi_j Q_{ji}}{Z}.
+\]
+They are equal, so detailed balance holds and $\pi$ is stationary by
+Theorem~\ref{ch24:thm-db-implies-stationary}. \emph{The unknown normalizer $Z$
+cancels} --- it appears in both sides and divides out, and inside $\alpha$ only the
+ratio $\tilde\pi_j/\tilde\pi_i$ ever appears. That cancellation is the miracle that
+makes MCMC possible: you sample from $\pi$ while being utterly unable to compute
+$Z$.
+\end{whybox}
+
+\begin{labbox}
+Convince yourself the cancellation is real, on a baby example. Let the target be
+$\tilde\pi = (1, 3, 2)$ on three states (so the true $\pi = (1/6, 1/2, 1/3)$, but
+pretend you do not know the denominator $6$). Use a symmetric proposal: from any
+state, propose each of the other two with probability $1/2$, so $Q_{ij}=Q_{ji}$
+and the acceptance ratio is just $\tilde\pi_j/\tilde\pi_i$. Work out the
+acceptance probability for the proposal $1 \to 2$ (it is
+$\min\{1, 3/1\} = 1$, always accept --- you are climbing toward higher
+probability) and for $2 \to 1$ (it is $\min\{1, 1/3\} = 1/3$ --- you usually
+refuse to descend). Simulate a few hundred steps by hand or by code and tally the
+visits; the fractions should approach $(1/6, 1/2, 1/3)$ (Figure~\ref{ch24:fig-mcmc-hist}).
+You will have sampled from $\pi$ using only the \emph{ratios} of $\tilde\pi$.
+\end{labbox}
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[
+        width=11cm, height=6cm,
+        ybar, bar width=14pt,
+        xlabel={state}, ylabel={probability},
+        symbolic x coords={1,2,3},
+        xtick=data, ymin=0, ymax=0.6,
+        enlarge x limits=0.3,
+        legend pos=north west, legend cell align=left,
+        grid=both, grid style={gray!18},
+      ]
+      % true target pi = (1/6, 1/2, 1/3)
+      \addplot[draw=sourceblue,fill=sourceblue!35] coordinates {(1,0.1667)(2,0.5)(3,0.3333)};
+      \addlegendentry{target $\pi$}
+      % empirical from 20000 Metropolis steps (seed 7)
+      \addplot[draw=densityred,fill=densityred!35] coordinates {(1,0.169)(2,0.500)(3,0.331)};
+      \addlegendentry{Metropolis (20000 steps)}
+    \end{axis}
+  \end{tikzpicture}
+  \caption{The Metropolis sampler of the lab box in action on
+  $\tilde\pi=(1,3,2)$. Tallying the visited states over $20{,}000$ steps
+  reproduces the target $\pi=(1/6,1/2,1/3)$ to within sampling noise --- all
+  while never computing the normalizer $Z=6$. The chain samples the right shape
+  from the ratios alone.}
+  \label{ch24:fig-mcmc-hist}
+\end{figure}
+
+\begin{connectionbox}
+MCMC is the bridge from this chapter to Bayesian inference (treated in its own
+chapter). There the target is the posterior
+$\pi(\theta) \propto \text{likelihood}(\theta)\times \text{prior}(\theta)$, whose
+normalizer --- the ``evidence'' --- is the very integral that makes Bayesian
+computation hard. Metropolis--Hastings, Gibbs sampling, and Hamiltonian Monte
+Carlo are all Markov chains engineered to have that posterior as their stationary
+distribution. Everything you have learned here --- existence and uniqueness of
+$\pi$, the convergence theorem licensing ``run it long enough,'' detailed balance
+as the construction principle, and the spectral gap warning you that a badly
+mixing chain (a multimodal posterior with separated modes) can lie convincingly
+--- is exactly the theory practitioners lean on every day. The diagnostics they
+run (trace plots, $\hat R$, effective sample size) are empirical probes of the
+mixing time you met in Section~\ref{ch24:mixing}.
+\end{connectionbox}
+
+\begin{trapbox}
+\textbf{Burn-in and the perils of not-yet-mixed chains.} A freshly started MCMC
+chain reflects its (arbitrary) starting point, not $\pi$. Samples from the early
+phase are biased, so practitioners discard an initial \emph{burn-in} segment ---
+an attempt to wait out the mixing time. But there is no honest way to be
+\emph{certain} a chain has mixed from the inside: a chain trapped in one mode of a
+multimodal target looks perfectly converged (flat trace, stable averages) while
+completely missing the other modes. Convergence diagnostics reduce the risk but
+cannot eliminate it. The spectral-gap intuition is the right mental safeguard: if
+you suspect your target has well-separated regions, suspect a bottleneck, and
+suspect your chain.
+\end{trapbox}
+
+\section{Worked Examples}
+\label{ch24:worked}
+
+\begin{example}[Stationary distribution of a $3\times 3$ chain]
+\label{ch24:ex-3x3}
+Let
+\[
+  P = \begin{pmatrix}
+    0.5 & 0.5 & 0 \\
+    0.25 & 0.5 & 0.25 \\
+    0 & 0.5 & 0.5
+  \end{pmatrix}.
+\]
+This is a random walk on a path $1 - 2 - 3$ with self-loops --- irreducible
+(you can get anywhere) and aperiodic (self-loops). Solve $\pi P = \pi$ with
+$\pi = (a,b,c)$:
+\[
+  a = 0.5a + 0.25b,\qquad c = 0.25b + 0.5c .
+\]
+The first gives $0.5a = 0.25b$, so $b = 2a$; the third gives $0.5c = 0.25b$, so
+$b = 2c$, hence $a = c$. Normalizing $a + 2a + a = 4a = 1$ gives
+$\pi = (1/4,\,1/2,\,1/4)$. \emph{Sanity check via detailed balance:} this is a
+path graph; treating self-loops as not affecting the edge balance, the chain is
+reversible, and indeed $\pi_1 P_{12} = \tfrac14\cdot\tfrac12 = \tfrac18 =
+\tfrac12\cdot\tfrac14 = \pi_2 P_{21}$. \checkmark
+\end{example}
+
+\begin{example}[Mean return time]
+\label{ch24:ex-return-time}
+In the weather chain, how many days on average between rainy days? By part (3) of
+Theorem~\ref{ch24:thm-convergence}, the mean return time to a state is
+$1/\pi_i$. Since $\pi_R = 1/3$, the expected gap between consecutive rainy days
+(counting from one rainy day to the next return) is $1/\pi_R = 3$ days. Likewise a
+sunny day recurs on average every $1/\pi_S = 1.5$ days. The rarer state has the
+longer return time --- exactly as it should.
+\end{example}
+
+\begin{example}[Build a sampler with Metropolis]
+\label{ch24:ex-metropolis}
+You want samples from $\pi \propto (4, 2, 1)$ on states $\{1,2,3\}$ (true
+$\pi = (4/7, 2/7, 1/7)$, pretend $7$ unknown). Use the symmetric proposal ``flip a
+coin to propose a neighbor'' on the cycle $1\!-\!2\!-\!3\!-\!1$. Acceptance for
+$1\to 2$: $\min\{1, 2/4\} = 1/2$. For $2\to 1$: $\min\{1, 4/2\}=1$. For $2\to 3$:
+$\min\{1,1/2\}=1/2$. For $3\to 2$: $\min\{1, 2\}=1$. Detailed balance check on edge
+$\{1,2\}$ with $Q_{12}=Q_{21}=1/2$:
+\[
+  \pi_1 P_{12} = \tfrac47\cdot\tfrac12\cdot\tfrac12 = \tfrac{1}{7},\qquad
+  \pi_2 P_{21} = \tfrac27\cdot\tfrac12\cdot 1 = \tfrac{1}{7}. \checkmark
+\]
+Balanced, so the chain's stationary distribution is the target. The asymmetry of
+acceptance --- always climb, sometimes descend --- is what concentrates the
+samples on the high-probability state $1$.
+\end{example}
+
+\section{Exercises}
+\label{ch24:exercises}
+
+\begin{exercise}[Two-state mixing rate]
+For the weather matrix $P=\left(\begin{smallmatrix}0.8 & 0.2\\ 0.4 & 0.6\end{smallmatrix}\right)$,
+verify that the eigenvalues are $1$ and $0.4$. Starting from $(1,0)$, find a
+closed form for $\pi^{(n)}_S$ and confirm it converges to $2/3$ with the error
+shrinking by a factor of $0.4$ each step. (Hint: write $\pi^{(0)}$ as a
+combination of the left eigenvectors.)
+\end{exercise}
+
+\begin{exercise}[Find the stationary distribution]
+Compute the stationary distribution of
+\[
+  P = \begin{pmatrix} 0.2 & 0.6 & 0.2 \\ 0.3 & 0.4 & 0.3 \\ 0.5 & 0.1 & 0.4 \end{pmatrix}.
+\]
+Confirm your answer satisfies $\pi P = \pi$ and sums to $1$.
+\end{exercise}
+
+\begin{exercise}[Reducible and periodic]
+(a) Give an example of an irreducible chain with no self-loops that is periodic,
+and state its period. (b) Give an example of a chain that has \emph{two} different
+stationary distributions, and explain which hypothesis of
+Theorem~\ref{ch24:thm-convergence} it violates.
+\end{exercise}
+
+\begin{exercise}[Random walk on a graph]
+Consider the random walk on the square graph (a $4$-cycle $1\!-\!2\!-\!3\!-\!4\!-\!1$).
+Use the degree formula from Example~\ref{ch24:ex-graph-walk} to write down $\pi$
+without solving any linear system, then verify $\pi P = \pi$. Is this chain
+aperiodic? What goes wrong, and how would a single self-loop fix it?
+\end{exercise}
+
+\begin{exercise}[Detailed balance fails]
+Show that the cyclic chain
+$P=\left(\begin{smallmatrix}0&1&0\\0&0&1\\1&0&0\end{smallmatrix}\right)$ has
+stationary distribution $(1/3,1/3,1/3)$ but does \emph{not} satisfy detailed
+balance. Interpret the failure in terms of the ``arrow of time'': what does the
+chain look like played backwards?
+\end{exercise}
+
+\begin{exercise}[Metropolis by hand]
+You want to sample from $\tilde\pi = (1, 4, 9, 16)$ on states $\{1,2,3,4\}$ using
+the symmetric ``propose a uniform random other state'' proposal. Write down the
+acceptance probability for every ordered pair $(i,j)$, $i\neq j$. Verify detailed
+balance on the pair $\{2,4\}$. Which state will the sampler visit most often?
+\end{exercise}
+
+\begin{exercise}[Spectral gap and bottlenecks]
+Consider two ``rooms'' of $k$ states each, densely connected within a room, joined
+by a single low-probability bridge edge. Argue qualitatively why the second
+eigenvalue $\abs{\lambda_2}$ is close to $1$ and the mixing time is large.
+Connect this to why a multimodal target is hard for MCMC.
+\end{exercise}
+
+\begin{exercise}[PageRank with teleportation]
+Take the two-page web $1 \to 2$, $2 \to 1$ (each page links only to the other).
+(a) Write the raw transition matrix $P$ and its stationary distribution.
+(b) Form the Google matrix $G = 0.85\,P + 0.15\cdot\tfrac12 \mathbf{J}$ and find
+its stationary distribution. (c) Now add a dangling page $3$ with no outlinks;
+explain why $P$ alone has no well-defined surfer chain and how teleportation
+repairs it.
+\end{exercise}
+
+\begin{exercise}[Proof: detailed balance gives stationarity]
+Prove Theorem~\ref{ch24:thm-db-implies-stationary} from scratch (do not just cite
+it): assuming $\pi_i P_{ij} = \pi_j P_{ji}$ for all $i,j$, show $\pi P = \pi$.
+Where exactly does the proof use that the rows of $P$ sum to one?
+\end{exercise}
+
+\begin{exercise}[Time average vs.\ distribution]
+For the flip-flop chain $P=\left(\begin{smallmatrix}0&1\\1&0\end{smallmatrix}\right)$
+started at state $1$: (a) Does $\pi^{(n)}$ converge? (b) Does the time-average
+fraction of visits to state $1$ converge, and to what? (c) Reconcile your answers
+with parts (2) and (3) of Theorem~\ref{ch24:thm-convergence}, identifying which
+hypothesis fails and which conclusion survives anyway.
+\end{exercise}

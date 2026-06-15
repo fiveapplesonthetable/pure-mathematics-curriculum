@@ -1,0 +1,949 @@
+\chapter{Probability in Machine Learning}
+
+There is a temptation, when you first meet machine learning, to picture it as a
+bag of clever tricks: a decision tree here, a neural network there, a gradient
+descent loop turning the crank. Useful, yes -- but it leaves you with a hundred
+disconnected recipes and no story. The goal of this chapter is to give you the
+story. And the story is short enough to state in one sentence:
+
+\begin{focusbox}
+Almost every supervised and unsupervised learning method you will ever meet is,
+underneath, a \emph{probabilistic model} together with a rule for choosing its
+parameters from data. Learning \emph{is} estimation. Prediction \emph{is}
+computing a conditional distribution.
+\end{focusbox}
+
+Once you believe that sentence, machine learning stops being a zoo and becomes a
+single landscape with familiar landmarks. Maximum likelihood (Chapter on
+estimation), Bayes' theorem (the conditioning chapter), the normal distribution,
+the law of large numbers, KL divergence from information theory -- they all
+reappear here wearing work clothes. This is the flagship application chapter: it
+ties the book together. We will move slowly, build each idea from a concrete
+story, and stay honest about what works, what fails, and why.
+
+\section{The likelihood view of learning}
+\label{ch34:likelihood-view}
+
+\subsection{A story: the biased coin and the spam filter}
+
+Suppose a friend hands you a bent coin and asks, ``what's the probability it
+lands heads?'' You flip it $20$ times and see $14$ heads. You would not hesitate:
+your gut says about $14/20 = 0.7$. Where does that number come from? Not from a
+formula you memorized -- from a deeper instinct. You are reaching for the value of
+$p$ that makes the data you actually saw \emph{least surprising}. A coin with
+$p=0.7$ produces ``$14$ out of $20$'' far more readily than a coin with $p=0.1$
+or $p=0.95$. You are, without naming it, doing maximum likelihood.
+
+Now zoom out. A spam filter sees an email and must decide \texttt{spam} or
+\texttt{ham}. A medical model sees a scan and outputs a probability of disease. A
+recommender sees your clicks and predicts the next one. In every case there is an
+input $x$, an output $y$, and a family of probability distributions
+$p(y \given x; \theta)$ indexed by parameters $\theta$. \emph{Learning} is
+choosing $\theta$ from a training set. \emph{Prediction} is plugging in a new $x$
+and reading off the distribution over $y$. The bent coin is the whole subject in
+miniature.
+
+\begin{intuitionbox}
+A model is a \emph{machine for assigning probabilities to data}. A good model
+assigns high probability to the things that actually happened and low
+probability to things that did not. Training tunes the knobs $\theta$ to do
+exactly that on the data you have, in the hope it generalizes to data you do not.
+\end{intuitionbox}
+
+\subsection{Datasets, models, and the i.i.d.\ assumption}
+
+Fix the setup we will use all chapter. We observe a dataset
+\[
+  \mathcal{D} = \set{(x_1,y_1),\dots,(x_n,y_n)},
+\]
+$n$ examples, each a pair of an input (or \emph{feature vector}) $x_i$ and a
+label $y_i$. We posit a parametric model: a family of distributions
+$p(\,\cdot \given \theta)$. The single most common assumption -- so common it is
+often left unstated -- is that the examples are drawn \emph{independently from one
+fixed distribution}, i.i.d.:
+\[
+  (x_i,y_i) \overset{\text{i.i.d.}}{\sim} p^\star, \qquad i=1,\dots,n.
+\]
+Here $p^\star$ is the true, unknown data-generating distribution. We never see
+$p^\star$ directly; we see $n$ samples from it and try to approximate it with our
+model $p(\,\cdot\given\theta)$.
+
+\begin{trapbox}
+The i.i.d.\ assumption is a \emph{modeling choice}, not a law of nature. Time
+series are not i.i.d.\ (today depends on yesterday). Data with distribution
+shift -- the test set drawn from a different $p^\star$ than the training set --
+breaks every guarantee in this chapter. When a model fails mysteriously in
+production, ``the i.i.d.\ assumption was violated'' is the first suspect.
+\end{trapbox}
+
+\subsection{The likelihood and its logarithm}
+
+The \emph{likelihood} of the parameters $\theta$ given the data is the
+probability the model assigns to the data, read as a function of $\theta$:
+\[
+  L(\theta) = p(\mathcal{D}\given\theta) = \prod_{i=1}^n p(x_i,y_i\given\theta),
+\]
+the product because of independence. We choose $\theta$ to make this large. But a
+product of $n$ small numbers underflows to zero on any real computer, and
+products are awkward to differentiate. So we take logarithms. Because $\log$ is
+strictly increasing, maximizing $L$ and maximizing $\log L$ give the \emph{same}
+$\theta$, and the product becomes a sum:
+\[
+  \ell(\theta) = \log L(\theta) = \sum_{i=1}^n \log p(x_i,y_i\given\theta).
+\]
+This is the \emph{log-likelihood}, the central object of the chapter.
+
+\begin{whybox}
+Why does the maximizer not change when we take logs? If $\theta^\star$ maximizes
+$L$, then $L(\theta^\star) \ge L(\theta)$ for all $\theta$. Apply the increasing
+function $\log$ to both sides: $\log L(\theta^\star) \ge \log L(\theta)$. So
+$\theta^\star$ also maximizes $\log L$. The logarithm relabels the heights of the
+landscape but never moves a peak. We get numerical stability and additive
+structure for free.
+\end{whybox}
+
+\begin{example}[The coin, made precise]
+\label{ch34:coin-mle}
+Model: $y_i \sim \Bern(p)$ i.i.d., so $p(y_i\given p) = p^{y_i}(1-p)^{1-y_i}$. With
+$k = \sum y_i$ heads out of $n$,
+\[
+  \ell(p) = \sum_{i=1}^n \big[y_i\log p + (1-y_i)\log(1-p)\big]
+          = k\log p + (n-k)\log(1-p).
+\]
+Differentiate and set to zero:
+\[
+  \ell'(p) = \frac{k}{p} - \frac{n-k}{1-p} = 0
+  \;\Longrightarrow\; k(1-p) = (n-k)p
+  \;\Longrightarrow\; \hat p = \frac{k}{n}.
+\]
+With $k=14$, $n=20$ we get $\hat p = 0.7$, precisely the gut answer. The second
+derivative is negative, confirming a maximum. Your instinct \emph{was} calculus
+on a log-likelihood all along.
+\end{example}
+
+Figure~\ref{ch34:fig-loglik} plots $\ell(p)$ for this data. Notice it is a single
+smooth hill -- one peak, no traps. That concavity is what makes the coin (and,
+later, logistic regression) so well-behaved.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.4cm,
+  xlabel={$p$ (probability of heads)},
+  ylabel={log-likelihood $\ell(p)$},
+  domain=0.02:0.98, samples=120,
+  xmin=0, xmax=1,
+  grid=both,
+  title={Log-likelihood for 14 heads in 20 flips}
+]
+\addplot[densityred, thick] {14*ln(x) + 6*ln(1-x)};
+\addplot[dashed, gray] coordinates {(0.7,-30) (0.7,-12.2)};
+\node[anchor=south] at (axis cs:0.7,-12.0) {$\hat p = 0.7$};
+\end{axis}
+\end{tikzpicture}
+\caption{The log-likelihood is a single concave hill peaking exactly at the
+sample fraction $\hat p = k/n = 0.7$. Maximum likelihood walks uphill to this
+peak.}
+\label{ch34:fig-loglik}
+\end{figure}
+
+\begin{historybox}
+The likelihood as a tool for inference is largely the creation of Ronald A.
+Fisher in the 1910s and 1920s. He insisted on a sharp distinction that still
+trips people up: probability runs forward from a fixed parameter to random data;
+\emph{likelihood} runs backward from fixed data to a varying parameter. They use
+the same formula $p(\text{data}\given\theta)$ but read it along different axes.
+Fisher's word ``likelihood'' was deliberate -- he did not want people to think a
+parameter has a probability (that is the Bayesian move, coming later).
+\end{historybox}
+
+\section{MLE and MAP as training}
+\label{ch34:mle-map}
+
+\subsection{Maximum likelihood is minimizing surprise}
+
+Define the maximum likelihood estimate
+\[
+  \hat\theta_{\text{MLE}} = \arg\max_\theta \ell(\theta)
+                          = \arg\max_\theta \sum_{i=1}^n \log p(\text{datum}_i\given\theta).
+\]
+Flip the sign and you get a quantity machine learners love:
+\[
+  \hat\theta_{\text{MLE}} = \arg\min_\theta \underbrace{\Big[-\tfrac{1}{n}\sum_{i=1}^n \log p(\text{datum}_i\given\theta)\Big]}_{\text{average negative log-likelihood}}.
+\]
+The bracketed term is a \emph{loss function}. So ``maximize likelihood'' and
+``minimize loss'' are the same sentence said two ways. This is the bridge between
+the probability vocabulary and the optimization vocabulary of deep learning.
+
+\begin{happeningbox}
+What is the average negative log-likelihood really measuring? It is the
+\emph{cross-entropy} between the empirical data distribution and your model (see
+the information theory chapter). Minimizing it is the same as minimizing the KL
+divergence $\KL(\hat p_{\text{data}} \,\|\, p_\theta)$: you are pulling your
+model as close as possible, in the information-theoretic sense, to the histogram
+of the data you saw. Every cross-entropy loss in every neural network is this
+exact quantity. ``Train the network'' = ``do maximum likelihood.''
+\end{happeningbox}
+
+\begin{connectionbox}
+The leap from ``minimize KL to the empirical distribution'' to ``minimize KL to
+the true $p^\star$'' is justified by the law of large numbers: as $n\to\infty$,
+the empirical average $\frac1n\sum -\log p_\theta(\text{datum}_i)$ converges to
+its expectation $\E_{p^\star}[-\log p_\theta]$, which is minimized at the
+$\theta$ closest to $p^\star$. So MLE is consistent precisely \emph{because} of
+the LLN you proved earlier. The whole edifice rests on that one limit theorem.
+\end{connectionbox}
+
+\subsection{Overfitting and the case for a prior}
+
+MLE has a famous weakness. Flip a coin three times, see three heads. MLE says
+$\hat p = 3/3 = 1$: the coin \emph{never} lands tails. That is absurd, and worse,
+it is dangerous -- the model now assigns probability zero to an outcome that can
+certainly happen, and a single tail in the future makes the likelihood collapse.
+With little data, maximum likelihood believes the data too literally. It
+overfits.
+
+The fix is to bring in prior knowledge. Before seeing any flips you already
+believe a coin is roughly fair; you should need real evidence to be talked out of
+that. Bayes' theorem is exactly the machinery for updating a belief with
+evidence:
+\[
+  \underbrace{p(\theta\given\mathcal{D})}_{\text{posterior}}
+  \;\propto\;
+  \underbrace{p(\mathcal{D}\given\theta)}_{\text{likelihood}}\;
+  \underbrace{p(\theta)}_{\text{prior}}.
+\]
+
+\subsection{MAP: maximum a posteriori}
+
+If, instead of the value that maximizes the likelihood, we take the value that
+maximizes the \emph{posterior}, we get the maximum a posteriori estimate:
+\[
+  \hat\theta_{\text{MAP}}
+  = \arg\max_\theta \big[\log p(\mathcal{D}\given\theta) + \log p(\theta)\big]
+  = \arg\max_\theta \big[\ell(\theta) + \log p(\theta)\big].
+\]
+The prior contributes an \emph{additive penalty} $\log p(\theta)$ to the
+log-likelihood. This single line unifies two worlds.
+
+\begin{example}[The coin, regularized]
+\label{ch34:coin-map}
+Put a $\Bet(\alpha,\beta)$ prior on $p$: $p(p)\propto p^{\alpha-1}(1-p)^{\beta-1}$.
+The Beta is the conjugate prior for the Bernoulli (the posterior is again Beta),
+which is why it is the natural choice. The posterior is
+$\Bet(\alpha+k,\ \beta+n-k)$, and its mode (the MAP estimate) is
+\[
+  \hat p_{\text{MAP}} = \frac{k + \alpha - 1}{n + \alpha + \beta - 2}.
+\]
+With a mild fair-coin prior $\alpha=\beta=2$ and the three-heads disaster
+$k=n=3$,
+\[
+  \hat p_{\text{MAP}} = \frac{3 + 1}{3 + 2} = 0.8,
+\]
+not the reckless $1.0$ of MLE. The prior acts like two phantom flips, one head and
+one tail, added to the data. The Beta hyperparameters are ``pseudo-counts'': prior
+evidence measured in the same currency as real evidence.
+\end{example}
+
+\begin{aestheticbox}
+MAP reveals that \emph{regularization is a prior in disguise}. The famous
+$L^2$ penalty (ridge regression, weight decay) $\lambda\norm{\theta}^2$ is
+exactly $-\log p(\theta)$ for a Gaussian prior
+$\theta\sim\Normal(0,\sigma^2 I)$ with $\lambda = 1/(2\sigma^2)$. The $L^1$
+penalty (lasso) is a Laplace prior. So every time a practitioner ``adds
+regularization to prevent overfitting,'' they are -- whether they know it or
+not -- declaring a prior belief that the parameters are small. Weight decay is
+Bayes.
+\end{aestheticbox}
+
+\begin{whybox}
+Why does $L^2$ regularization equal a Gaussian prior? A Gaussian density is
+$p(\theta)\propto \exp(-\norm{\theta}^2/(2\sigma^2))$, so
+$\log p(\theta) = -\norm{\theta}^2/(2\sigma^2) + \text{const}$. The MAP objective
+$\ell(\theta) + \log p(\theta)$ therefore equals
+$\ell(\theta) - \tfrac{1}{2\sigma^2}\norm{\theta}^2 + \text{const}$. Maximizing
+this is the same as minimizing $-\ell(\theta) + \lambda\norm{\theta}^2$ with
+$\lambda=1/(2\sigma^2)$: ordinary penalized loss. The penalty strength and the
+prior's tightness are two names for the same dial.
+\end{whybox}
+
+\begin{trapbox}
+MAP gives a single point, the \emph{peak} of the posterior. The full Bayesian
+answer is the entire posterior \emph{distribution}, which also carries the width
+(your uncertainty). For a skewed posterior the mode can sit far from the mean and
+be a poor summary. MAP is Bayes' theorem used as a regularizer, not Bayes' theorem
+used to quantify uncertainty. Do not confuse the two.
+\end{trapbox}
+
+\section{Naive Bayes: a generative classifier}
+\label{ch34:naive-bayes}
+
+\subsection{Turning Bayes' theorem into a classifier}
+
+Our first full-fledged learning algorithm. We want $p(y\given x)$ -- the
+probability of class $y$ given features $x$. Bayes' theorem flips it:
+\[
+  p(y\given x) = \frac{p(x\given y)\,p(y)}{p(x)} \;\propto\; p(x\given y)\,p(y).
+\]
+To classify, pick the class with the largest right-hand side; the denominator
+$p(x)$ is the same for every class and drops out. We need two ingredients: the
+\emph{class prior} $p(y)$ (how common each class is) and the \emph{class-conditional}
+$p(x\given y)$ (what features look like within each class).
+
+The catch: $x$ is often high-dimensional -- thousands of word counts in an email --
+and $p(x\given y)$ is a joint distribution over all of them, hopeless to estimate.
+
+\subsection{The naive assumption}
+
+Here is the bold, ``naive'' move: assume the features are
+\emph{conditionally independent given the class}:
+\[
+  p(x\given y) = \prod_{j=1}^d p(x_j \given y).
+\]
+A monstrous joint distribution collapses into a product of $d$ one-dimensional
+distributions, each trivial to estimate by counting. For spam: assume that, once
+you know an email is spam, the appearance of ``viagra'' tells you nothing extra
+about whether ``free'' also appears. This is false -- those words travel together --
+yet the classifier works astonishingly well in practice.
+
+Figure~\ref{ch34:fig-nbtree} shows the generative story as a tree: nature first
+picks the class with probability $p(y)$, then -- treating the words as
+independent given the class -- emits each word with its own class-conditional
+probability.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  every node/.style={font=\small},
+  level 1/.style={sibling distance=34mm, level distance=14mm},
+  level 2/.style={sibling distance=17mm, level distance=14mm},
+  edge from parent/.style={draw, -{Latex[length=2mm]}}
+]
+\node[draw, rounded corners, fill=blue!5] {class $y$}
+  child {node[draw, rounded corners, fill=red!5] {spam}
+    child {node {``free''?}}
+    child {node {``viagra''?}}
+    edge from parent node[left, pos=0.5] {$p(\texttt{spam})$}}
+  child {node[draw, rounded corners, fill=green!5] {ham}
+    child {node {``free''?}}
+    child {node {``viagra''?}}
+    edge from parent node[right, pos=0.5] {$p(\texttt{ham})$}};
+\end{tikzpicture}
+\caption{The generative tree behind naive Bayes. First a class is drawn from the
+prior $p(y)$; then, \emph{given} the class, each word is emitted independently
+with probability $p(x_j\given y)$. The independence is the ``naive'' part: the
+branches for ``free'' and ``viagra'' do not talk to each other once the class is
+fixed.}
+\label{ch34:fig-nbtree}
+\end{figure}
+
+\begin{example}[Spam filtering by counting]
+\label{ch34:spam}
+Bag-of-words model: $x_j = 1$ if word $j$ appears. By MLE the parameters are pure
+counts:
+\[
+  \hat p(y=\texttt{spam}) = \frac{\#\text{spam emails}}{\#\text{emails}},
+  \qquad
+  \hat p(x_j=1\given y) = \frac{\#\{y\text{-emails with word } j\}}{\#\,y\text{-emails}}.
+\]
+A new email with word-presence vector $x$ is scored by
+\[
+  \log\frac{p(\texttt{spam}\given x)}{p(\texttt{ham}\given x)}
+  = \log\frac{p(\texttt{spam})}{p(\texttt{ham})}
+   + \sum_{j} \log\frac{p(x_j\given\texttt{spam})}{p(x_j\given\texttt{ham})}.
+\]
+Each word casts an additive vote on the log-odds scale, and the votes simply add
+up. Classify as spam when the total exceeds zero.
+\end{example}
+
+\begin{trapbox}
+\textbf{The zero-frequency trap.} If a word never appeared in spam during
+training, $\hat p(x_j=1\given\texttt{spam}) = 0$, and a single such word drives
+the whole product -- and the spam probability -- to exactly zero, vetoing all
+other evidence. The cure is \emph{Laplace smoothing}: add a pseudo-count to every
+tally,
+\[
+  \hat p(x_j=1\given y) = \frac{\#\{\dots\} + 1}{\#\,y\text{-emails} + 2}.
+\]
+This is not an ad hoc patch: it is precisely the MAP estimate under a uniform
+$\Bet(2,2)$ prior. The same phantom counts from Example~\ref{ch34:coin-map}
+return to save us. Theory and the engineering hack are the same thing.
+\end{trapbox}
+
+\begin{paradoxbox}
+\textbf{Naive Bayes is wrong yet wins.} Its independence assumption is almost
+never true, so its probability \emph{estimates} are badly miscalibrated --
+typically pushed toward $0$ or $1$ with false confidence. How can a model with
+wrong probabilities classify well? Because classification needs only the
+\emph{ranking} of classes to be correct, not the probabilities. As long as the
+true class ends up with the largest score, the inflated magnitudes do not matter
+for the decision. Naive Bayes can be a great classifier and a terrible
+probability estimator at the same time -- a sharp reminder to separate ``which
+class'' from ``how sure.''
+\end{paradoxbox}
+
+\section{Logistic regression as a probabilistic model}
+\label{ch34:logistic}
+
+\subsection{From a line to a probability}
+
+Naive Bayes models how the features are generated. Logistic regression makes the
+opposite bet: model $p(y\given x)$ \emph{directly}, without ever describing how
+$x$ arises. Start with a linear score $z = w^\top x + b$, which ranges over all of
+$\R$, and squash it into $(0,1)$ with the \emph{logistic} (sigmoid) function:
+\[
+  \sigma(z) = \frac{1}{1+e^{-z}}, \qquad
+  p(y=1\given x) = \sigma(w^\top x + b).
+\]
+The sigmoid (Figure~\ref{ch34:fig-sigmoid}) is a smooth switch: very negative
+scores map near $0$, very positive scores near $1$, and the steep middle is the
+decision boundary.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5.6cm,
+  xlabel={score $z = w^\top x + b$},
+  ylabel={$p(y=1\given x)$},
+  domain=-7:7, samples=160,
+  ymin=-0.05, ymax=1.05, xmin=-7, xmax=7,
+  grid=both,
+  title={The logistic (sigmoid) link}
+]
+\addplot[distblue, very thick] {1/(1+exp(-x))};
+\addplot[dashed, gray] coordinates {(-7,0.5) (7,0.5)};
+\addplot[dashed, gray] coordinates {(0,-0.05) (0,1.05)};
+\end{axis}
+\end{tikzpicture}
+\caption{The sigmoid turns an unbounded linear score into a probability. At
+$z=0$ the model is maximally uncertain ($p=0.5$); the slope there is steepest,
+so small changes near the boundary swing the prediction most.}
+\label{ch34:fig-sigmoid}
+\end{figure}
+
+\subsection{Why the sigmoid, of all functions?}
+
+It is not arbitrary. The log-odds (logit) is the natural inverse:
+\[
+  \log\frac{p(y=1\given x)}{p(y=0\given x)} = w^\top x + b.
+\]
+Logistic regression is the assumption that the \emph{log-odds are linear in the
+features}. And recall the naive-Bayes spam score: it too was linear in the
+features on the log-odds scale. That is no coincidence.
+
+\begin{connectionbox}
+If the class-conditionals $p(x\given y)$ are Gaussians with a shared covariance,
+Bayes' theorem produces \emph{exactly} a logistic form for $p(y\given x)$. So
+Gaussian naive Bayes and logistic regression can describe the same boundary --
+but they fit it differently. Naive Bayes estimates the Gaussians (generative);
+logistic regression optimizes the boundary directly (discriminative). This is
+the cleanest example of the generative/discriminative pair in
+Section~\ref{ch34:gen-disc}.
+\end{connectionbox}
+
+\subsection{Training: maximum likelihood again}
+
+With $y_i\in\{0,1\}$ and $\hat p_i = \sigma(w^\top x_i + b)$, each label is
+Bernoulli, so the log-likelihood is
+\[
+  \ell(w,b) = \sum_{i=1}^n \big[y_i\log\hat p_i + (1-y_i)\log(1-\hat p_i)\big].
+\]
+Negate it and you have the \emph{binary cross-entropy} loss -- the workhorse loss
+of binary classifiers everywhere. Maximizing this likelihood is training the
+classifier; once more, learning is MLE.
+
+There is no closed form for $\hat w$ this time, but the news is good: $\ell$ is
+\emph{concave} in $(w,b)$, so gradient ascent cannot get stuck in a bad local
+optimum. The gradient is strikingly clean:
+\[
+  \frac{\partial \ell}{\partial w} = \sum_{i=1}^n (y_i - \hat p_i)\,x_i.
+\]
+Each example pushes the weights in the direction of its features, scaled by the
+\emph{residual} $y_i - \hat p_i$ -- how wrong the current prediction was.
+Confident-and-correct examples ($\hat p_i\approx y_i$) contribute almost nothing;
+the surprises do the teaching.
+
+\begin{whybox}
+Why is that gradient so simple? Two derivatives conspire. The sigmoid satisfies
+$\sigma'(z) = \sigma(z)(1-\sigma(z))$, and the cross-entropy's derivative with
+respect to $\hat p$ has a matching $\hat p(1-\hat p)$ in the denominator. They
+cancel exactly, leaving the bare residual $y_i-\hat p_i$. This cancellation is
+not luck -- it is the signature of \emph{matching the loss to the link} via the
+exponential-family/canonical-link theory of generalized linear models. Use the
+right loss for your link and the gradient always reduces to (truth minus
+prediction) times input.
+\end{whybox}
+
+\begin{applicationbox}
+Logistic regression is still, in the 2020s, one of the most deployed models on
+Earth: credit scoring, click-through prediction, clinical risk scores, fraud
+detection. Why, in the age of deep nets? It is fast, its coefficients are
+interpretable (each $w_j$ is a log-odds change per unit feature), it produces
+genuine probabilities, and it is the final layer of essentially every neural
+classifier -- a deep net is logistic regression on top of learned features. Master
+this and you have mastered the output end of modern deep learning.
+\end{applicationbox}
+
+\section{Generative vs.\ discriminative}
+\label{ch34:gen-disc}
+
+We have now met both species, so let us name the divide explicitly. A
+\emph{generative} model learns the full joint $p(x,y) = p(x\given y)\,p(y)$ -- it
+can, in principle, dream up new $(x,y)$ pairs. A \emph{discriminative} model
+learns only the conditional $p(y\given x)$ -- it can answer questions about $y$
+but cannot generate $x$.
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+ & \textbf{Generative} & \textbf{Discriminative} \\
+\midrule
+Models & $p(x,y)$ & $p(y\given x)$ \\
+Examples & naive Bayes, GMM, LDA & logistic regression, neural nets \\
+Can sample new $x$? & yes & no \\
+Small-data behavior & often better & needs more data \\
+Large-data accuracy & can plateau & usually higher \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{happeningbox}
+There is a deep result behind this table (Ng and Jordan, 2002). A
+generative--discriminative pair like Gaussian naive Bayes and logistic regression
+converge to \emph{different} answers, and the generative model reaches its
+(higher) asymptotic error faster -- it needs fewer examples -- while the
+discriminative model reaches a lower asymptotic error but needs more data to get
+there. The curves cross. Generative wins in the small-data regime; discriminative
+wins once data is plentiful. This is not folklore; it is a theorem about the
+price you pay for the generative model's stronger assumptions.
+\end{happeningbox}
+
+\section{Gaussian mixtures and the EM algorithm}
+\label{ch34:gmm-em}
+
+\subsection{When the labels are hidden}
+
+Everything so far was \emph{supervised}: we saw labels $y_i$. Now suppose we see
+only the features -- a cloud of points -- and suspect they come from a few distinct
+groups (customer segments, cell types, signal sources). This is
+\emph{clustering}, and the probabilistic way to think about it is a
+\emph{mixture model}: each point was generated by first secretly choosing a group
+$z\in\{1,\dots,K\}$, then drawing $x$ from that group's distribution.
+
+For continuous data the natural choice is the \emph{Gaussian mixture}:
+\[
+  p(x) = \sum_{k=1}^K \pi_k\,\Normal(x \given \mu_k, \Sigma_k),
+\]
+a weighted blend of $K$ bell curves with mixing weights $\pi_k \ge 0$,
+$\sum_k\pi_k = 1$. The hidden group label $z$ is a \emph{latent variable}: it was
+part of the generative story but is missing from the data.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5.6cm,
+  xlabel={$x$}, ylabel={density},
+  domain=-6:10, samples=180,
+  ymin=0, grid=both, legend pos=north east,
+  title={A two-component Gaussian mixture}
+]
+\addplot[dashed, sourceblue, thick] {0.4*exp(-(x-0)^2/2)/sqrt(2*pi)};
+\addplot[dashed, quotientorange, thick] {0.6*exp(-(x-5)^2/(2*1.5^2))/(1.5*sqrt(2*pi))};
+\addplot[densityred, very thick] {0.4*exp(-(x-0)^2/2)/sqrt(2*pi) + 0.6*exp(-(x-5)^2/(2*1.5^2))/(1.5*sqrt(2*pi))};
+\legend{component 1, component 2, mixture}
+\end{axis}
+\end{tikzpicture}
+\caption{The solid curve is the observed density; the dashed curves are the
+hidden components. Clustering is the problem of recovering the dashed curves --
+and which point came from which -- when you can see only the solid one.}
+\label{ch34:fig-gmm}
+\end{figure}
+
+In two dimensions the same picture becomes a cloud of points
+(Figure~\ref{ch34:fig-scatter}). Our eyes group it instantly into two blobs; the
+EM algorithm below is a precise procedure for doing what the eye does, and for
+attaching a probability to each membership rather than a hard verdict.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=8.4cm, height=6.0cm,
+  xlabel={$x_1$}, ylabel={$x_2$},
+  xmin=-4, xmax=8, ymin=-4, ymax=8,
+  grid=both,
+  title={Two clusters, labels hidden}
+]
+\addplot[only marks, mark=*, mark size=1.1pt, sourceblue] coordinates {
+  (-0.4,0.6) (0.7,-0.3) (-1.1,0.2) (0.3,1.2) (1.0,0.4) (-0.6,-0.8)
+  (0.1,-0.5) (-1.4,0.9) (0.9,1.1) (-0.2,-1.2) (1.3,-0.1) (-0.9,1.4)
+  (0.5,0.0) (-0.3,-0.4) (0.8,-1.0) (-1.0,-0.2)};
+\addplot[only marks, mark=*, mark size=1.1pt, quotientorange] coordinates {
+  (4.6,4.4) (5.3,3.7) (3.9,5.2) (5.0,4.9) (4.2,3.6) (5.6,4.1)
+  (4.8,5.5) (3.7,4.0) (5.4,5.0) (4.1,4.7) (5.1,3.9) (4.5,5.3)
+  (3.8,4.5) (5.2,4.6) (4.9,3.8) (4.3,4.9)};
+\end{axis}
+\end{tikzpicture}
+\caption{The same mixture in two dimensions: a cloud the eye splits into two
+groups at a glance. Clustering automates that judgment and, with a Gaussian
+mixture, reports \emph{how sure} it is about each point near the gap.}
+\label{ch34:fig-scatter}
+\end{figure}
+
+\subsection{The chicken-and-egg problem and the EM idea}
+
+Fitting a GMM by maximum likelihood faces a circular obstacle. \emph{If} we knew
+each point's group, estimating each Gaussian would be trivial averaging. \emph{If}
+we knew the Gaussians, assigning each point to its most probable group would be
+easy. But we know neither. Expectation--Maximization (EM) breaks the circle by
+guessing, then alternating:
+
+\begin{itemize}
+  \item \textbf{E-step.} Given the current Gaussians, compute for each point a
+  \emph{soft} assignment -- the posterior probability it belongs to group $k$,
+  called the \emph{responsibility}
+  \[
+    r_{ik} = \frac{\pi_k\,\Normal(x_i\given\mu_k,\Sigma_k)}
+                  {\sum_{j=1}^K \pi_j\,\Normal(x_i\given\mu_j,\Sigma_j)}.
+  \]
+  This is just Bayes' theorem for the hidden label $z$.
+  \item \textbf{M-step.} Given the responsibilities, re-estimate each Gaussian by
+  \emph{weighted} maximum likelihood:
+  \[
+    \mu_k = \frac{\sum_i r_{ik} x_i}{\sum_i r_{ik}}, \quad
+    \Sigma_k = \frac{\sum_i r_{ik}(x_i-\mu_k)(x_i-\mu_k)^\top}{\sum_i r_{ik}}, \quad
+    \pi_k = \frac{1}{n}\sum_i r_{ik}.
+  \]
+\end{itemize}
+Iterate E, M, E, M until the parameters stop moving.
+
+\begin{intuitionbox}
+EM is a guided dance between belief and evidence. The E-step says ``given what I
+currently believe the clusters are, how should I split the credit for each
+point?'' The M-step says ``given that split of credit, what clusters best explain
+it?'' Each step can only \emph{increase} the likelihood, so the dance always
+climbs -- though, unlike logistic regression, possibly to a local rather than the
+global peak.
+\end{intuitionbox}
+
+\begin{whybox}
+Why must each round increase the likelihood? EM does not maximize the awkward
+log-likelihood $\log\sum_z p(x,z\given\theta)$ directly. Instead it maximizes a
+\emph{lower bound} $\mathcal{Q}$ built using the current responsibilities (the
+bound comes from Jensen's inequality applied to the concave $\log$). The E-step
+makes the bound \emph{touch} the true log-likelihood at the current $\theta$; the
+M-step pushes the bound -- and hence the touching log-likelihood -- uphill. Climbing
+a bound that touches the true objective guarantees the true objective never
+decreases. EM is hill-climbing where you cannot see the hill, only a tangent
+surface you keep re-drawing.
+\end{whybox}
+
+\begin{connectionbox}
+The familiar $k$-means algorithm is EM's stern cousin. Replace the soft
+responsibilities with \emph{hard} assignments (each point to its single nearest
+center) and fix all $\Sigma_k = \sigma^2 I$ with $\sigma\to 0$, and the EM updates
+\emph{become} the $k$-means updates. So $k$-means is a Gaussian mixture with
+spherical clusters and zero uncertainty about membership. Knowing this tells you
+exactly when $k$-means fails: elongated or overlapping clusters, where the hard,
+spherical assumption is plainly wrong.
+\end{connectionbox}
+
+\section{A first look at sampling and MCMC}
+\label{ch34:mcmc}
+
+\subsection{Why sampling is the engine room of Bayesian ML}
+
+The honest Bayesian answer to any question is an expectation over the posterior:
+the predictive mean is $\E_{\theta\sim p(\theta\given\mathcal{D})}[\,\cdot\,]$, a
+credible interval is a posterior quantile, and so on. But the posterior
+\[
+  p(\theta\given\mathcal{D}) = \frac{p(\mathcal{D}\given\theta)\,p(\theta)}{p(\mathcal{D})},
+  \qquad p(\mathcal{D}) = \int p(\mathcal{D}\given\theta)\,p(\theta)\,\dd\theta,
+\]
+hides a usually intractable integral in its denominator (the
+\emph{evidence}). For all but a handful of conjugate models we cannot write the
+posterior down. The escape: never compute the integral; instead draw
+\emph{samples} $\theta^{(1)},\dots,\theta^{(m)}$ from the posterior and
+approximate any expectation by an average,
+\[
+  \E[g(\theta)\given\mathcal{D}] \approx \frac{1}{m}\sum_{t=1}^m g(\theta^{(t)}),
+\]
+which is valid by the law of large numbers. The whole problem becomes: how do you
+sample from a distribution you can only evaluate \emph{up to} the unknown constant
+$p(\mathcal{D})$?
+
+\subsection{Metropolis--Hastings: a random walk that obeys}
+
+Markov chain Monte Carlo (MCMC) builds a Markov chain (Chapter on Markov chains)
+whose stationary distribution \emph{is} the posterior. Run the chain long enough
+and its states become samples from the target. The Metropolis--Hastings recipe:
+
+\begin{enumerate}
+  \item From the current $\theta$, \emph{propose} a nearby $\theta'$ (e.g.\
+  $\theta' = \theta + \Normal(0,\tau^2)$).
+  \item Compute the acceptance ratio
+  $\displaystyle \alpha = \min\!\left(1,\ \frac{p(\mathcal{D}\given\theta')\,p(\theta')}
+       {p(\mathcal{D}\given\theta)\,p(\theta)}\right).$
+  \item With probability $\alpha$ move to $\theta'$; otherwise stay at $\theta$.
+  Record the current state and repeat.
+\end{enumerate}
+
+\begin{happeningbox}
+The magic is in step 2: the troublesome evidence $p(\mathcal{D})$ appears in both
+numerator and denominator of the \emph{ratio} and cancels. We only ever need the
+unnormalized posterior $p(\mathcal{D}\given\theta)p(\theta)$, which we can always
+evaluate. The rule ``always climb to higher-probability proposals, and sometimes
+climb down'' is what makes the chain's stationary distribution match the target
+exactly -- this is the \emph{detailed balance} condition from the Markov chain
+chapter. The occasional downhill moves are essential: a pure hill-climber would
+collapse to the mode and never explore, never sample.
+\end{happeningbox}
+
+Figure~\ref{ch34:fig-mcmc} shows what such a chain looks like in practice: a
+jagged walk that drifts from its arbitrary start into the bulk of the posterior
+and then wanders there, each recorded state a (correlated) draw.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.0cm,
+  xlabel={iteration $t$}, ylabel={state $\theta^{(t)}$},
+  xmin=0, xmax=80, ymin=-1, ymax=6,
+  grid=both,
+  title={A Metropolis--Hastings trace (burn-in, then mixing)}
+]
+\addplot[distblue, thick] coordinates {
+  (0,5.6)(1,5.6)(2,5.1)(3,4.7)(4,4.7)(5,4.2)(6,3.9)(7,3.9)(8,3.5)(9,3.1)
+  (10,3.1)(11,2.8)(12,2.4)(13,2.6)(14,2.1)(15,2.1)(16,1.9)(17,2.3)(18,2.0)(19,1.7)
+  (20,2.2)(21,2.4)(22,2.0)(23,1.6)(24,1.9)(25,2.5)(26,2.1)(27,1.8)(28,2.3)(29,2.0)
+  (30,1.5)(31,1.9)(32,2.4)(33,2.7)(34,2.2)(35,1.8)(36,2.1)(37,2.6)(38,2.3)(39,1.7)
+  (40,2.0)(41,2.5)(42,2.2)(43,1.6)(44,1.9)(45,2.4)(46,2.8)(47,2.3)(48,1.8)(49,2.1)
+  (50,2.6)(51,2.2)(52,1.7)(53,2.0)(54,2.5)(55,2.1)(56,1.6)(57,2.3)(58,2.7)(59,2.2)
+  (60,1.8)(61,2.1)(62,2.4)(63,2.9)(64,2.3)(65,1.9)(66,2.2)(67,2.6)(68,2.1)(69,1.7)
+  (70,2.0)(71,2.5)(72,2.2)(73,1.8)(74,2.1)(75,2.4)(76,2.0)(77,1.6)(78,2.3)(79,2.1)};
+\addplot[densityred, dashed, thick] coordinates {(15,-1)(15,6)};
+\node[anchor=south, densityred] at (axis cs:15,5.2) {\small end of burn-in};
+\end{axis}
+\end{tikzpicture}
+\caption{A one-dimensional Metropolis--Hastings trace. The chain starts high
+(an arbitrary initial guess), descends through a transient \emph{burn-in}, then
+oscillates around the posterior bulk near $\theta\approx 2$. Only the
+post-burn-in states (right of the dashed line) are kept as samples, and even
+those are correlated neighbors.}
+\label{ch34:fig-mcmc}
+\end{figure}
+
+\begin{trapbox}
+MCMC samples are \emph{correlated} (each state is a small step from the last) and
+the early ``burn-in'' states reflect the arbitrary start, not the posterior. So
+you discard an initial segment and remember that $m$ correlated draws carry less
+information than $m$ independent ones. The proposal width $\tau$ is a delicate
+dial: too small and the chain inches along, exploring nothing; too large and
+almost every proposal is rejected, so the chain freezes in place. Diagnosing
+whether a chain has ``mixed'' -- truly explored the posterior -- is a craft unto
+itself. The Monte Carlo chapter develops these ideas in full.
+\end{trapbox}
+
+\begin{historybox}
+The Metropolis algorithm was born in 1953 at Los Alamos, on the MANIAC computer,
+in a paper by Metropolis, the Rosenbluths, and the Tellers -- aimed at simulating
+the equilibrium of interacting particles, not statistics at all. W.K.\ Hastings
+generalized it in 1970. For decades it lived in physics; only in the early 1990s,
+when Gelfand, Smith, and others connected it to Bayesian inference, did it
+detonate across statistics and machine learning. It is routinely listed among the
+most influential algorithms of the twentieth century -- a physics trick that
+quietly became the engine of modern Bayesian computation.
+\end{historybox}
+
+\section{Calibration and uncertainty}
+\label{ch34:calibration}
+
+\subsection{A confident model can be a liar}
+
+A model that outputs probabilities makes an implicit promise. When it says ``$70\%$
+chance of rain,'' it is promising that across all the days it makes that call, it
+rains about $70\%$ of the time. A model that keeps this promise is
+\emph{calibrated}. Calibration is a property of the probabilities, entirely
+separate from accuracy: a model can be accurate but overconfident (think of
+naive Bayes pinning probabilities to $0$ or $1$), or modest but perfectly honest.
+
+\begin{focusbox}
+\textbf{Accuracy} asks: is the top-scoring class usually right? \textbf{Calibration}
+asks: do the probabilities mean what they say? A self-driving car or a cancer
+screen needs both -- a wrong-and-confident model is far more dangerous than a
+wrong-and-uncertain one, because the confidence is what downstream decisions
+trust.
+\end{focusbox}
+
+\subsection{Reading a reliability diagram}
+
+To check calibration, bin predictions by their stated probability and, in each
+bin, plot the \emph{actual} fraction of positives against the \emph{average
+predicted} probability. Perfect calibration lies on the $45^\circ$ line. A curve
+sagging below it means the model is overconfident; bulging above means
+underconfident (Figure~\ref{ch34:fig-calib}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=9.6cm, height=6.4cm,
+  xlabel={mean predicted probability},
+  ylabel={observed fraction positive},
+  xmin=0, xmax=1, ymin=0, ymax=1,
+  grid=both, legend pos=north west,
+  title={Reliability diagram}
+]
+\addplot[gray, dashed, thick] coordinates {(0,0) (1,1)};
+\addlegendentry{perfectly calibrated}
+\addplot[densityred, very thick, mark=*] coordinates {
+  (0.1,0.04) (0.3,0.16) (0.5,0.34) (0.7,0.55) (0.9,0.78)};
+\addlegendentry{overconfident model}
+\end{axis}
+\end{tikzpicture}
+\caption{The overconfident model's curve sits below the diagonal: when it claims
+$0.9$, positives occur only $\approx 0.78$ of the time. Such a curve is the
+fingerprint of a model that needs recalibrating.}
+\label{ch34:fig-calib}
+\end{figure}
+
+\begin{applicationbox}
+Modern deep neural networks are notoriously overconfident -- far more so than the
+simpler logistic regression they end in (Guo et al., 2017). Practical fixes are
+cheap. \emph{Temperature scaling} divides the pre-sigmoid scores by a single
+learned constant $T>1$, softening the probabilities without changing the
+predicted class or the accuracy at all -- it only adjusts the confidence. \emph{Platt
+scaling} (a tiny logistic regression on the scores) and \emph{isotonic regression}
+do the same job nonparametrically. In any setting where the probability itself
+drives a decision -- medicine, finance, autonomy -- calibration is not optional
+polish; it is a safety requirement.
+\end{applicationbox}
+
+\subsection{Two kinds of uncertainty}
+
+Finally, a distinction that matters whenever a model must say ``I don't know.''
+\emph{Aleatoric} uncertainty is irreducible noise in the world -- a fair coin is
+genuinely $50/50$ no matter how much data you gather. \emph{Epistemic}
+uncertainty is your ignorance about the model itself, and \emph{shrinks} with more
+data. The Bayesian posterior tracks epistemic uncertainty automatically: a
+parameter seen by little data has a wide posterior, and that width flows through
+into wide predictive intervals -- the model knows what it does not know.
+
+\begin{aestheticbox}
+This is the deepest reason to think probabilistically about machine learning.
+A point-estimate model (plain MLE, an ordinary neural net) gives an answer and no
+honest sense of how much to trust it. A probabilistic model gives a
+\emph{distribution} -- it can report ``I am confident'' or ``I am guessing,'' and
+out-of-distribution inputs, where it should be least sure, are exactly where a
+calibrated probabilistic model widens its intervals. In high-stakes deployment,
+knowing \emph{when not to trust the model} is worth as much as the prediction
+itself. That self-knowledge is what probability buys you.
+\end{aestheticbox}
+
+\section{The thread, pulled tight}
+
+Step back and look at the single thread running through the chapter. We posit a
+probabilistic model $p(\text{data}\given\theta)$. We score parameters by the
+likelihood, optionally tempered by a prior. Maximizing that score -- by calculus
+when we are lucky, by gradient ascent or EM when we are not -- is what everyone
+calls ``training.'' Bayes' theorem turns a generative model into a classifier
+(naive Bayes) and turns priors into the regularizers practitioners reach for by
+instinct (MAP). When integrals defeat us we sample our way around them (MCMC).
+And throughout we insist the probabilities mean what they claim (calibration) and
+report honest uncertainty. Maximum likelihood, Bayes, the normal distribution,
+KL divergence, the law of large numbers, Markov chains -- every tool you built
+earlier in this book reappears here, doing the real work of modern machine
+learning. The methods change with the decade; this probabilistic skeleton does
+not.
+
+\section*{Exercises}
+\addcontentsline{toc}{section}{Exercises}
+
+\begin{exercise}[Poisson MLE]
+You record the number of customer arrivals per hour over $n$ hours,
+$y_1,\dots,y_n$, modeled as i.i.d.\ $\Pois(\lambda)$. Write the log-likelihood
+$\ell(\lambda)$, differentiate, and show $\hat\lambda_{\text{MLE}} = \bar y$, the
+sample mean. Verify it is a maximum via the second derivative.
+\end{exercise}
+
+\begin{exercise}[Regularization is a prior]
+Show that minimizing the ridge objective
+$-\ell(\theta) + \lambda\norm{\theta}^2$ is exactly MAP estimation under a
+Gaussian prior $\theta\sim\Normal(0,\sigma^2 I)$. Express $\lambda$ in terms of
+$\sigma^2$. Then state, in one sentence, what prior belief the lasso ($L^1$
+penalty) encodes and why it tends to drive coefficients exactly to zero.
+\end{exercise}
+
+\begin{exercise}[Naive Bayes by hand]
+A spam corpus has $60$ spam and $40$ ham emails. The word ``free'' appears in
+$45$ of the spam and $8$ of the ham. Using Laplace smoothing (add one to each
+count, two to each denominator), compute $\hat p(\text{spam})$,
+$\hat p(\text{free}\given\text{spam})$, and
+$\hat p(\text{free}\given\text{ham})$. For an email containing ``free'' (and
+treating it as the only feature), compute the log-odds in favor of spam and give
+the classification.
+\end{exercise}
+
+\begin{exercise}[Sigmoid and log-odds]
+Starting from $p(y=1\given x) = \sigma(w^\top x + b)$ with
+$\sigma(z) = 1/(1+e^{-z})$, prove algebraically that
+$\log\frac{p(y=1\given x)}{p(y=0\given x)} = w^\top x + b$. Then show the identity
+$\sigma'(z) = \sigma(z)(1-\sigma(z))$ and explain in one sentence how it makes the
+logistic-regression gradient collapse to $(y_i - \hat p_i)x_i$.
+\end{exercise}
+
+\begin{exercise}[Cross-entropy is negative log-likelihood]
+For binary labels $y_i\in\{0,1\}$ with predictions $\hat p_i$, write the Bernoulli
+log-likelihood and show that its negative is the binary cross-entropy
+$-\sum_i[y_i\log\hat p_i + (1-y_i)\log(1-\hat p_i)]$. Explain in one sentence
+the sense in which minimizing it minimizes a KL divergence to the empirical
+distribution.
+\end{exercise}
+
+\begin{exercise}[One EM update]
+You fit a two-component GMM in one dimension. The current parameters are
+$\pi_1=\pi_2=0.5$, $\mu_1=0$, $\mu_2=4$, and $\sigma_1=\sigma_2=1$. For the data
+point $x=1$, compute the responsibilities $r_{11}$ and $r_{12}$ (the E-step).
+Which component currently claims more of the point, and does that match your
+intuition from the distance to each mean?
+\end{exercise}
+
+\begin{exercise}[Why the evidence cancels]
+In Metropolis--Hastings the acceptance ratio uses
+$p(\mathcal{D}\given\theta')p(\theta')$ over
+$p(\mathcal{D}\given\theta)p(\theta)$. Explain precisely why we never need the
+normalizing constant
+$p(\mathcal{D}) = \int p(\mathcal{D}\given\theta)p(\theta)\,\dd\theta$,
+and why this is what makes MCMC practical for models where that integral is
+impossible.
+\end{exercise}
+
+\begin{exercise}[Calibration vs.\ accuracy, conceptual]
+Construct a small concrete example of a binary classifier that is $90\%$ accurate
+yet badly miscalibrated, and a second classifier that is only $60\%$ accurate yet
+perfectly calibrated. (Describe the predicted probabilities and outcomes; numbers,
+not prose.) Use your examples to explain why accuracy alone is the wrong metric
+when a downstream decision depends on the probability itself.
+\end{exercise}
+
+\begin{exercise}[Generative vs.\ discriminative, proof-flavored]
+Assume two classes with class-conditional densities
+$p(x\given y=c) = \Normal(x\given\mu_c,\Sigma)$ sharing one covariance $\Sigma$,
+and class prior $p(y=1)=\pi$. Using Bayes' theorem, show that $p(y=1\given x)$ has
+the logistic form $\sigma(w^\top x + b)$, and give $w$ and $b$ in terms of
+$\mu_0,\mu_1,\Sigma,\pi$. Comment on what this reveals about the relationship
+between Gaussian naive Bayes and logistic regression.
+\end{exercise}
+
+\begin{exercise}[Aleatoric vs.\ epistemic]
+Classify each source of uncertainty as primarily aleatoric or epistemic, with a
+one-line justification: (a) the outcome of a future fair die roll; (b) a drug's
+effect size estimated from only $12$ patients; (c) sensor readout noise on a
+thermometer; (d) a self-driving model's prediction on a kind of road sign absent
+from its training set. For the epistemic ones, state what would reduce the
+uncertainty.
+\end{exercise}
