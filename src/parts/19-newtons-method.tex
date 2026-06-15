@@ -1,0 +1,900 @@
+\chapter{Newton's Method}
+
+We have spent many chapters learning to differentiate. We can take a function,
+find its derivative, read off the slope of its tangent line at any point, and use
+that tangent line as the best straight-line stand-in for the curve nearby. That
+last idea -- the tangent line as a local imitation of the curve -- has been quietly
+doing work for us since the chapter on linear approximation. In this chapter it
+pays off in one of the most useful algorithms ever discovered.
+
+Here is the problem. You have an equation. Not a friendly one like $2x - 6 = 0$,
+where you just rearrange and read off $x = 3$. A genuinely ugly one, like
+\[
+  x^5 - 3x + 1 = 0, \qquad \cos x = x, \qquad e^{-x} = x^2.
+\]
+For these there is \emph{no formula}. There is no quadratic-formula analog, no
+algebraic trick, that will hand you the answer. And yet these equations have real
+solutions -- you can practically see one of them if you sketch the curves. The
+question is: how do you actually \emph{find} the number, to as many decimal places
+as you please, when no formula exists?
+
+\begin{focusbox}
+Given a function $f$, find a number $r$ with $f(r) = 0$ -- a \textbf{root} of $f$ --
+when there is no formula for $r$. This single problem is enormous. Almost every
+equation in science is ``solve $f(x) = 0$'' in disguise: find the equilibrium, find
+the break-even point, find where the orbit crosses, find the rate that makes the
+loan balance zero. Newton's method is the workhorse that does it, and it does it
+fast.
+\end{focusbox}
+
+The strategy is breathtakingly simple once you see it, and it is built entirely
+out of the tangent line. You guess. Your guess is wrong, but instead of throwing
+it away you \emph{improve} it: you replace the hard curve with its easy tangent
+line, solve the easy linear problem exactly, and take that as your next guess. Then
+you do it again. And again. The guesses come hurtling in toward the true root --
+often doubling the number of correct digits at every single step. By the end of
+this chapter you will understand why it works, see in pictures exactly what it is
+doing, know the handful of ways it can fail, and understand the deep reason behind
+its near-magical speed.
+
+\chapterline
+
+\section{The idea: replace the curve with its tangent}
+\label{ch19:the-idea}
+
+Let us start with a picture and a guess. We want a root of some function $f$ -- a
+place where its graph crosses the horizontal axis. Suppose we have a current guess,
+call it $x_0$. Almost certainly $x_0$ is not the root: the point $(x_0, f(x_0))$
+sits above or below the axis, not on it.
+
+Now here is the move. The curve near $x_0$ is hard to work with, but the
+\emph{tangent line} at $x_0$ is trivial -- it is a straight line, and finding where
+a straight line crosses the axis is grade-school algebra. So we make a bargain: we
+pretend, just for one step, that the function \emph{is} its tangent line. We slide
+down (or up) that tangent line until it hits the axis, and wherever it lands we
+call our new, improved guess $x_1$.
+
+\begin{intuitionbox}
+The whole method in one sentence: \emph{you cannot easily find where the curve hits
+the axis, so instead you find where its tangent line hits the axis, and you bet
+that this is closer.} The tangent line hugs the curve near $x_0$, so if $x_0$ is
+already in the neighborhood of the root, the place the tangent crosses is a much
+better estimate than $x_0$ was. Repeat the bargain from the new point and the
+estimates close in.
+\end{intuitionbox}
+
+Figure~\ref{ch19:fig-onestep} shows a single step. The guess $x_0$ is off to the
+right of the true root $r$. We climb up to the point on the curve, draw the tangent
+there, and follow it down to the axis. It lands at $x_1$, noticeably closer to $r$
+than $x_0$ was.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=7cm,
+  axis lines=middle,
+  xlabel={$x$}, ylabel={$y$},
+  xmin=-0.4, xmax=3.2, ymin=-2.2, ymax=5.5,
+  xtick={\empty}, ytick={\empty},
+  clip=false,
+]
+% f(x) = x^2 - 2, root at sqrt(2) ~ 1.4142
+\addplot[curveblue, very thick, samples=100, domain=-0.3:2.6] {x^2 - 2};
+\addlegendentry{$y=f(x)$}
+% guess x0 = 2.6, f(x0) = 4.76, f'(x0)=5.2, tangent: y = 4.76 + 5.2(x-2.6)
+% crosses axis at x1 = 2.6 - 4.76/5.2 = 1.6846
+\addplot[tangentred, thick, samples=2, domain=1.0:2.95] {4.76 + 5.2*(x-2.6)};
+% points
+\addplot[only marks, mark=*, mark size=1.6pt, black] coordinates {(2.6,0) (2.6,4.76) (1.6846,0) (1.41421,0)};
+\node[below] at (axis cs:2.6,-0.08) {$x_0$};
+\node[below] at (axis cs:1.6846,-0.08) {$x_1$};
+\node[above left] at (axis cs:1.41421,0.0) {$r$};
+\node[above right] at (axis cs:2.6,4.76) {$(x_0,f(x_0))$};
+% dashed vertical
+\addplot[gray, dashed, samples=2, domain=0:1] coordinates {(2.6,0) (2.6,4.76)};
+\end{axis}
+\end{tikzpicture}
+\caption{One step of Newton's method on $f(x)=x^2-2$, whose root is $r=\sqrt2$.
+From the guess $x_0$ we ride the tangent line (red) down to the axis, landing at
+$x_1$, much nearer the root $r$ than $x_0$ was.}
+\label{ch19:fig-onestep}
+\end{figure}
+
+That is the entire idea. Everything else is bookkeeping: turning ``follow the
+tangent to the axis'' into a formula, and then turning the formula into a loop.
+
+\section{Deriving the iteration formula}
+\label{ch19:formula}
+
+Let us do the algebra once, carefully, because the formula is worth understanding
+rather than memorizing.
+
+We are standing at $x_0$. The point on the curve is $(x_0, f(x_0))$, and the slope
+of the tangent there is $f'(x_0)$. The tangent line is therefore
+\[
+  y = f(x_0) + f'(x_0)\,(x - x_0).
+\]
+This is nothing but the linear approximation of $f$ at $x_0$ -- the very same
+formula we built in the chapter on differentials. We want the place where this line
+crosses the horizontal axis, i.e.\ where $y = 0$. Set the right-hand side to zero
+and solve for $x$:
+\[
+  0 = f(x_0) + f'(x_0)\,(x - x_0)
+  \quad\Longrightarrow\quad
+  x - x_0 = -\,\frac{f(x_0)}{f'(x_0)}
+  \quad\Longrightarrow\quad
+  x = x_0 - \frac{f(x_0)}{f'(x_0)}.
+\]
+That landing point is our new guess $x_1$. Naming the general step, we get the
+celebrated recurrence.
+
+\begin{focusbox}
+\textbf{Newton's iteration.} Starting from a guess $x_0$, generate a sequence by
+\[
+  \boxed{\,x_{n+1} = x_n - \dfrac{f(x_n)}{f'(x_n)}\,}
+  \qquad n = 0, 1, 2, \ldots
+\]
+Each new estimate is the old one corrected by the amount $f(x_n)/f'(x_n)$. When the
+$x_n$ stop changing -- when $f(x_n)$ has shrunk to essentially zero -- you have your
+root.
+\end{focusbox}
+
+Look at what the correction term $f(x_n)/f'(x_n)$ is telling you. The numerator
+$f(x_n)$ is how far off the axis you are -- your ``vertical error.'' The denominator
+$f'(x_n)$ is the slope, the rate at which the function climbs. Dividing height by
+slope gives you a \emph{horizontal} distance: ``if I am this high up and the ground
+rises at this rate, I must back up this far to reach ground level.'' It is exactly
+the run you get from a given rise and a given slope. The method is just rise over
+slope equals run, applied over and over.
+
+\begin{happeningbox}
+What is really happening is that Newton's method \emph{inverts the linear
+approximation}. Linear approximation answered the forward question: ``given a small
+step $\Delta x$, how much does $f$ change?'' -- the answer being $\Delta f \approx
+f'(x)\,\Delta x$. Newton's method runs that backwards. It asks: ``I want $f$ to
+change by a specific amount, namely by $-f(x_n)$ so as to land on zero -- what step
+$\Delta x$ achieves that?'' Solving $f'(x_n)\,\Delta x = -f(x_n)$ gives $\Delta x =
+-f(x_n)/f'(x_n)$, and stepping by that amount is the update. So the iteration is
+linear approximation solved for the input instead of the output. The reason it is
+only \emph{approximate} -- the reason you must iterate rather than land on the root
+in one shot -- is that the curve is not actually a straight line, so the real $f$ is
+not yet zero at $x_{n+1}$. But it is closer, and from the closer point the linear
+approximation is even better, so the next correction is smaller still.
+\end{happeningbox}
+
+\begin{whybox}
+Why does following the tangent get you closer to the root at all? Because near a
+point the tangent line and the curve agree to \emph{first order} -- they have the
+same value and the same slope -- so over a short horizontal span they part company
+only slowly, by an amount governed by the curvature (the second derivative). If
+your guess is already reasonably near the root, the stretch between guess and root
+is short, the tangent and curve are nearly indistinguishable across it, and the
+tangent's crossing is therefore nearly the curve's crossing. The error you make by
+using the line instead of the curve is small, and -- this is the punchline we prove
+later -- it is small \emph{compared to the error you started with}. Each step's
+leftover error is roughly the \emph{square} of the previous error. Square a small
+number and you get a tiny number. That squaring is the engine of the method's
+speed.
+\end{whybox}
+
+\section{A first worked example: square roots by hand}
+\label{ch19:sqrt-example}
+
+Nothing makes the method concrete like computing a number you already know. Let us
+find $\sqrt2$. That is the positive root of
+\[
+  f(x) = x^2 - 2, \qquad f'(x) = 2x.
+\]
+Plug into the iteration:
+\[
+  x_{n+1} = x_n - \frac{x_n^2 - 2}{2 x_n}
+          = x_n - \frac{x_n}{2} + \frac{1}{x_n}
+          = \frac{x_n}{2} + \frac{1}{x_n}
+          = \frac{1}{2}\!\left(x_n + \frac{2}{x_n}\right).
+\]
+That last form is famous in its own right -- it is the \emph{Babylonian method} for
+square roots, known thousands of years before Newton. ``Average your guess with
+$2$ divided by your guess.'' It is Newton's method in disguise, which is a lovely
+piece of history: the ancients had the right iteration without the calculus that
+explains it.
+
+Start, deliberately, with a poor guess: $x_0 = 2$.
+
+\begin{labbox}
+Carry these out yourself with a calculator; watch the digits lock in.
+\begin{align*}
+  x_0 &= 2 \\
+  x_1 &= \tfrac12\!\left(2 + \tfrac{2}{2}\right) = \tfrac12(3) = 1.5 \\
+  x_2 &= \tfrac12\!\left(1.5 + \tfrac{2}{1.5}\right) = \tfrac12(1.5 + 1.3333\ldots) = 1.41666\ldots \\
+  x_3 &= \tfrac12\!\left(1.416667 + \tfrac{2}{1.416667}\right) = 1.4142156\ldots \\
+  x_4 &= 1.41421356237\ldots
+\end{align*}
+The true value is $\sqrt2 = 1.41421356237\ldots$
+\end{labbox}
+
+Stare at the errors -- the distance from each guess to the true $\sqrt2$:
+\begin{center}
+\begin{tabular}{cl}
+\toprule
+$n$ & error $\abs{x_n - \sqrt2}$ \\
+\midrule
+$0$ & $0.586$ \\
+$1$ & $0.0858$ \\
+$2$ & $0.00245$ \\
+$3$ & $0.0000021$ \\
+$4$ & $0.0000000000003$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Read that column from the top down and feel what is happening. The error goes from
+about half, to about a tenth, to a few thousandths, to a couple millionths, to a
+\emph{trillionth}. Roughly speaking, the number of correct decimal digits is
+\emph{doubling} at every step: $0$ correct, then $1$, then $2$--$3$, then $6$, then
+$12$. After four steps from a lazy guess of $2$ we have $\sqrt2$ to twelve places.
+That doubling of correct digits is the hallmark of \textbf{quadratic convergence},
+and we will explain it precisely soon.
+
+\begin{applicationbox}
+This is not a toy. The square-root key on your calculator, and the
+\texttt{sqrt} function buried in every programming language's math library, does
+not consult a table -- it runs an iteration of essentially this kind, typically
+Newton's method or a close relative, started from a clever first guess and run just
+enough times to fill the available precision. Division itself, on some processors,
+is computed by Newton's method applied to $f(x) = 1/x - a$, which finds $1/a$ using
+only multiplication and subtraction -- no division at all. The arithmetic happening
+inside your machine is shot through with this one idea.
+\end{applicationbox}
+
+\section{Watching convergence in pictures}
+\label{ch19:pictures}
+
+The formula is clean, but the soul of the method is geometric, so let us watch
+several steps unfold on a graph. We take a genuinely non-algebraic equation:
+\[
+  f(x) = x^3 - x - 2 = 0.
+\]
+There is no nice closed form you would want to use, but a sketch shows a single
+real root a bit past $1.5$. Start at $x_0 = 2$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=7.5cm,
+  axis lines=middle,
+  xlabel={$x$}, ylabel={$y$},
+  xmin=1.2, xmax=2.3, ymin=-1.5, ymax=5.0,
+  xtick={1.2,1.4,1.6,1.8,2.0,2.2},
+  ytick={\empty},
+  clip=false,
+]
+\addplot[curveblue, very thick, samples=100, domain=1.2:2.25] {x^3 - x - 2};
+% f(x)=x^3-x-2, f'=3x^2-1
+% x0=2: f=4, f'=11, x1 = 2 - 4/11 = 1.63636
+% x1=1.63636: f=0.74530; f'=7.03306; x2=1.53039
+% tangent at x0
+\addplot[tangentred, thick, samples=2, domain=1.5:2.05] {4 + 11*(x-2)};
+% tangent at x1 (1.63636, 0.74530), slope 7.03306
+\addplot[targetgreen, thick, samples=2, domain=1.45:1.75] {0.74530 + 7.03306*(x-1.63636)};
+% markers on curve and axis
+\addplot[only marks, mark=*, mark size=1.5pt, black] coordinates {(2,0)(2,4)(1.63636,0)(1.63636,0.74530)(1.53039,0)};
+% drop lines
+\addplot[gray,dashed,samples=2] coordinates {(2,0)(2,4)};
+\addplot[gray,dashed,samples=2] coordinates {(1.63636,0)(1.63636,0.74530)};
+\node[below] at (axis cs:2,-0.12) {$x_0$};
+\node[below] at (axis cs:1.63636,-0.12) {$x_1$};
+\node[below] at (axis cs:1.53039,-0.12) {$x_2$};
+\node[above left] at (axis cs:2,4) {$(x_0,f(x_0))$};
+\end{axis}
+\end{tikzpicture}
+\caption{Three guesses converging on the root of $f(x)=x^3-x-2$. From $x_0=2$ the
+red tangent lands at $x_1$; from $x_1$ the green tangent lands at $x_2$, already
+nearly on top of the root. Each tangent is taken at a point closer to the
+crossing -- the guesses pile up against the root.}
+\label{ch19:fig-cubic}
+\end{figure}
+
+The numbers behind the picture:
+\[
+  x_0 = 2, \quad x_1 = 1.63636\ldots, \quad x_2 = 1.53039\ldots,
+  \quad x_3 = 1.52144\ldots, \quad x_4 = 1.52138\ldots
+\]
+By $x_4$ the digits have stopped moving at the precision shown. The picture and the
+table tell the same story: each step the new point clings tighter to the root,
+because each tangent is taken at a point ever closer to the curve's actual
+crossing, where the line and the curve are ever harder to tell apart.
+
+\begin{walkbox}
+Take this on a walk. In Figure~\ref{ch19:fig-cubic} the curve is concave up (it
+bends upward) and the root is approached \emph{from the right}, each guess landing
+to the left of the last but never overshooting past the root. Picture instead a
+curve that is concave \emph{down} near its root, approached from the right. Sketch
+a tangent. Does the iterate stay on the same side of the root, or jump across it?
+Convince yourself that the curvature and which side you start on together decide
+whether Newton's method marches in steadily from one side or zig-zags across the
+root closing in.
+\end{walkbox}
+
+\section{When it works -- and when it fails}
+\label{ch19:failures}
+
+Newton's method is fast, but it is not foolproof, and a teacher who shows you only
+the triumphs is doing you a disservice. The method comes with a fine-print
+contract, and there are four classic ways to violate it. Knowing them is what
+separates someone who can \emph{use} the method from someone who merely knows the
+formula.
+
+\subsection{The happy case: a good start near a simple root}
+
+When everything goes right, two conditions hold. First, the starting guess $x_0$ is
+\emph{close enough} to a root $r$. Second, the root is \emph{simple} -- meaning
+$f'(r) \ne 0$, so the curve crosses the axis at a genuine slant rather than grazing
+it tangentially. Under those conditions the convergence is not just guaranteed, it
+is quadratic: digits double. That is the regime we have been admiring.
+
+The trouble is the phrase ``close enough.'' Newton's method is a \emph{local}
+method. It promises wonderful things once you are in the neighborhood of the root,
+and says almost nothing about how to get into that neighborhood in the first place.
+Starting far away, anything can happen.
+
+\subsection{Failure 1: the derivative vanishes -- a flat spot}
+
+Look again at the formula:
+\[
+  x_{n+1} = x_n - \frac{f(x_n)}{f'(x_n)}.
+\]
+If ever $f'(x_n) = 0$, you are dividing by zero and the method blows up. Geometrically
+this is obvious: where the derivative is zero the tangent line is \emph{horizontal},
+and a horizontal line either never meets the axis or lies along it. There is no
+``where the tangent crosses'' to step to. If your guess lands on or very near a flat
+spot of $f$, the tangent is nearly horizontal and it slings your next guess off to
+some wildly distant place -- possibly farther from the root than you began.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.2cm,
+  axis lines=middle,
+  xlabel={$x$}, ylabel={$y$},
+  xmin=-2.6, xmax=4.5, ymin=-1.5, ymax=4.5,
+  xtick={\empty}, ytick={\empty}, clip=false,
+]
+% a curve with a near-flat spot at x0 = 1, slope 0.2
+\addplot[curveblue, very thick, samples=100, domain=-2.4:4.3] {0.4*(x-1)^3 + 0.2*(x-1) + 1.0};
+% tangent at x0 = 1: y = 1.0 + 0.2(x-1) -> crosses axis far to the left
+\addplot[tangentred, thick, samples=2, domain=-2.4:1.5] {1.0 + 0.2*(x-1)};
+\addplot[only marks, mark=*, mark size=1.5pt, black] coordinates {(1,1.0)(1,0)};
+\node[below] at (axis cs:1,-0.12) {$x_0$};
+\node[above right] at (axis cs:1,1.0) {nearly flat tangent};
+\end{axis}
+\end{tikzpicture}
+\caption{A near-horizontal tangent. The shallow slope at $x_0$ means the tangent
+travels a vast horizontal distance before it reaches the axis, flinging the next
+guess far away. If the slope were exactly zero the next guess would be undefined.}
+\label{ch19:fig-flat}
+\end{figure}
+
+\subsection{Failure 2: a bad start -- running off to infinity}
+
+Even with a perfectly nice function, a careless starting point can send the
+iterates marching off to infinity instead of inward to the root. The classic
+demonstration is
+\[
+  f(x) = \arctan x,
+\]
+whose only root is $x = 0$. Its graph flattens out toward horizontal asymptotes
+$\pm\pi/2$ as $\abs{x}$ grows, so far from the origin the slope is tiny. Start with a
+guess that is too large -- say $x_0 = 2$ -- and the tangent, being nearly flat,
+overshoots the root and lands \emph{farther out} on the other side. The next step
+overshoots even more. The iterates spiral outward, $\abs{x_n} \to \infty$, and the
+method diverges. There is a critical starting radius: inside it Newton converges to
+$0$, outside it the method runs away. This is the price of being a local method --
+``close enough'' was a real condition, not a formality.
+
+\begin{trapbox}
+A common and dangerous habit is to run a fixed number of Newton iterations and
+\emph{trust the result without checking}. If the start was bad, your final $x_n$ may
+have nothing to do with any root -- it might be drifting toward infinity, or
+oscillating, or have parked itself near a different root than you wanted. Always
+verify by plugging back in: confirm that $f(x_n)$ is genuinely small. The
+iteration's internal confidence is no substitute for evaluating the function.
+\end{trapbox}
+
+\subsection{Failure 3: a cycle that never lands}
+
+The most surprising failure is that the iterates can fall into a \emph{loop},
+bouncing between two values forever, never approaching any root even though one
+exists. The textbook example is
+\[
+  f(x) = x^3 - 2x + 2.
+\]
+Take $x_0 = 0$. Then $f(0) = 2$ and $f'(0) = -2$, so
+\[
+  x_1 = 0 - \frac{2}{-2} = 1.
+\]
+Now from $x_1 = 1$: $f(1) = 1 - 2 + 2 = 1$ and $f'(1) = 3 - 2 = 1$, so
+\[
+  x_2 = 1 - \frac{1}{1} = 0.
+\]
+We are back to $0$. The next step sends us to $1$ again, then back to $0$, forever:
+$0 \to 1 \to 0 \to 1 \to \cdots$. The method has entered a two-cycle and will never
+escape, even though $f$ has a perfectly good real root near $-1.77$. Starting from
+the wrong place locked us into a trap with no exit.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.5cm,
+  axis lines=middle,
+  xlabel={$x$}, ylabel={$y$},
+  xmin=-0.6, xmax=1.6, ymin=-0.6, ymax=3.0,
+  xtick={0,0.5,1}, ytick={\empty}, clip=false,
+]
+\addplot[curveblue, very thick, samples=100, domain=-0.55:1.55] {x^3 - 2*x + 2};
+% tangent at x0=0: y = 2 - 2x -> crosses axis at x=1
+\addplot[tangentred, thick, samples=2, domain=0:1.1] {2 - 2*x};
+% tangent at x1=1: f=1, slope 1: y = 1 + (x-1) = x -> crosses axis at x=0
+\addplot[targetgreen, thick, samples=2, domain=-0.1:1.1] {x};
+\addplot[only marks, mark=*, mark size=1.5pt, black] coordinates {(0,2)(0,0)(1,1)(1,0)};
+\addplot[gray,dashed,samples=2] coordinates {(0,0)(0,2)};
+\addplot[gray,dashed,samples=2] coordinates {(1,0)(1,1)};
+\node[below left] at (axis cs:0,-0.05) {$x_0=0$};
+\node[below] at (axis cs:1,-0.05) {$x_1=1$};
+\end{axis}
+\end{tikzpicture}
+\caption{A two-cycle for $f(x)=x^3-2x+2$ started at $x_0=0$. The red tangent at
+$0$ crosses at $1$; the green tangent at $1$ crosses back at $0$. Newton's method
+ping-pongs $0\to1\to0\to1\to\cdots$ and never finds the actual root near $-1.77$.}
+\label{ch19:fig-cycle}
+\end{figure}
+
+\subsection{Failure 4: a double root slows everything to a crawl}
+
+The final ``failure'' is gentler -- the method still converges, but it loses its
+trademark speed. This happens at a \emph{multiple root}, where $f(r) = 0$ and also
+$f'(r) = 0$, so the curve does not cross the axis cleanly but kisses it tangentially.
+Take
+\[
+  f(x) = (x-1)^2, \qquad r = 1 \text{ (a double root)}.
+\]
+The iteration becomes
+\[
+  x_{n+1} = x_n - \frac{(x_n-1)^2}{2(x_n-1)} = x_n - \frac{x_n - 1}{2}
+          = \frac{x_n + 1}{2}.
+\]
+Starting at $x_0 = 2$ this gives $1.5,\ 1.25,\ 1.125,\ 1.0625,\ \ldots$ -- the error
+is merely \emph{halving} each step. That is steady but slow \textbf{linear}
+convergence: one extra correct bit per step, not a doubling of digits. The
+near-flat crossing starves the denominator $f'(x_n)$, which is heading toward zero
+along with the numerator, and the quadratic magic is lost. (There are repaired
+versions of Newton's method that restore fast convergence at known multiple roots,
+but the plain method crawls.)
+
+\begin{intuitionbox}
+Collect the lesson. Newton's method is a \emph{local} method with a sharp edge to
+its blade: near a simple root, from a good start, it is breathtakingly fast; but a
+flat derivative, a careless start, an unlucky cycle, or a multiple root can stall,
+mislead, or diverge it. The fix in practice is humility: start from a decent guess
+(often found by a crude, slow, but \emph{reliable} method first), then unleash
+Newton to polish that guess to full precision, and \emph{always check the answer}
+by evaluating $f$.
+\end{intuitionbox}
+
+\begin{historybox}
+The method carries Newton's name, but the story is tangled and instructive. Newton,
+around 1669, described a procedure for solving equations like $x^3 - 2x - 5 = 0$ --
+but his version was purely algebraic, organized around expanding in small
+corrections, and it did not mention derivatives or tangent lines at all; it was a
+recipe for polynomials. Joseph Raphson in 1690 simplified it into a cleaner
+iterative scheme, still without calculus, which is why the method is properly called
+\textbf{Newton--Raphson}. It was Thomas Simpson in 1740 who finally cast it in the
+form we use -- with the derivative $f'$ in the denominator -- and extended it beyond
+polynomials to general functions and even to systems of equations. So the elegant
+``follow the tangent'' picture that makes the method \emph{obvious} was the last
+piece to arrive, not the first. And as we saw with $\sqrt2$, the Babylonians were
+running a special case of it three and a half millennia before anyone could explain
+why it worked. The intuition outran the justification by a very long way -- a
+recurring theme in this book.
+\end{historybox}
+
+\section{Why it is so fast: quadratic convergence}
+\label{ch19:quadratic}
+
+We have repeatedly claimed that, in the happy case, the number of correct digits
+\emph{doubles} each step. It is time to prove it, because the proof is short, it is
+beautiful, and it pinpoints exactly which features of $f$ make the method fly.
+
+The tool is Taylor's theorem to second order, which you can think of for now as
+linear approximation \emph{with its error term made honest}. It says: for a function
+with a continuous second derivative, expanding $f$ about the point $x_n$ and
+evaluating at the true root $r$,
+\[
+  f(r) = f(x_n) + f'(x_n)\,(r - x_n) + \tfrac12 f''(\xi)\,(r - x_n)^2,
+\]
+where $\xi$ is some point between $x_n$ and $r$. The left side is $f(r) = 0$,
+because $r$ is the root. So
+\[
+  0 = f(x_n) + f'(x_n)\,(r - x_n) + \tfrac12 f''(\xi)\,(r - x_n)^2.
+\]
+Now divide the whole line by $f'(x_n)$ (legal, since we are assuming a simple root,
+so $f'$ is not zero nearby):
+\[
+  0 = \frac{f(x_n)}{f'(x_n)} + (r - x_n) + \frac{f''(\xi)}{2 f'(x_n)}\,(r - x_n)^2.
+\]
+Here comes the elegant step. Rearrange to isolate the combination $x_n -
+f(x_n)/f'(x_n)$ -- which is precisely $x_{n+1}$:
+\[
+  \underbrace{x_n - \frac{f(x_n)}{f'(x_n)}}_{=\,x_{n+1}} - r
+  = \frac{f''(\xi)}{2 f'(x_n)}\,(r - x_n)^2.
+\]
+Define the error at step $n$ as $e_n = x_n - r$. Then $(r - x_n)^2 = e_n^2$, and the
+left side is exactly $x_{n+1} - r = e_{n+1}$. We have arrived at the master equation
+of Newton's method:
+\[
+  \boxed{\,e_{n+1} = \frac{f''(\xi)}{2 f'(x_n)}\; e_n^{\,2}\,}.
+\]
+
+\begin{focusbox}
+Read this equation slowly, for it contains the whole story. The new error
+$e_{n+1}$ is proportional to the \emph{square} of the old error $e_n$. Once $e_n$ is
+small -- say $0.01$ -- its square is $0.0001$, which is a hundred times smaller. The
+next error is the square of \emph{that}, around $10^{-8}$, and the next around
+$10^{-16}$. Each step roughly doubles the count of accurate digits. That squaring is
+quadratic convergence, and it is built into the geometry: it comes from the fact
+that the tangent line matches the curve's value \emph{and} slope, so the leftover
+disagreement is governed by the next term, the curvature $f''$, multiplying the
+square of the gap.
+\end{focusbox}
+
+Figure~\ref{ch19:fig-convergence} makes the contrast between quadratic and linear
+convergence visible. We plot the number of correct digits against the step number
+for our $\sqrt2$ run (a simple root, quadratic) and for the double-root crawl
+$f(x)=(x-1)^2$ from Section~\ref{ch19:failures} (linear). The quadratic curve
+bends sharply upward -- each step buys roughly twice the digits of the last -- while
+the linear one climbs at a fixed, plodding pace.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.5cm,
+  axis lines=left,
+  xlabel={step $n$}, ylabel={correct decimal digits},
+  xmin=0, xmax=5, ymin=0, ymax=13,
+  xtick={0,1,2,3,4,5}, ytick={0,2,4,6,8,10,12},
+  legend pos=north west, clip=false,
+]
+% quadratic: sqrt2 errors 0.586,0.0858,0.00245,2.1e-6,1.6e-12 -> -log10
+\addplot[tangentred, very thick, mark=*, mark size=1.6pt]
+  coordinates {(0,0.23)(1,1.07)(2,2.61)(3,5.67)(4,11.8)};
+\addlegendentry{quadratic (simple root)}
+% linear: double root (x-1)^2 from x0=2 errors 1,0.5,0.25,...; digits = -log10
+\addplot[curveblue, very thick, mark=square*, mark size=1.4pt]
+  coordinates {(0,0)(1,0.30)(2,0.60)(3,0.90)(4,1.20)};
+\addlegendentry{linear (double root)}
+\end{axis}
+\end{tikzpicture}
+\caption{Correct digits versus step number. For a simple root (red) Newton's method
+gains digits at an accelerating rate -- the signature of quadratic convergence. For a
+double root (blue) it gains a fixed amount per step, the slow march of linear
+convergence. Same algorithm, two radically different speeds, decided entirely by
+whether $f'(r)=0$.}
+\label{ch19:fig-convergence}
+\end{figure}
+
+The master equation also explains every failure mode at a single glance:
+
+\begin{itemize}
+\item \textbf{The constant out front.} The error is multiplied by $C \approx
+  \abs{f''/2f'}$. If the curve has a clean, steep crossing -- $f'$ large, $f''$
+  modest -- then $C$ is small and convergence is ferocious. If $f'$ is near zero
+  (the flat-tangent failure), $C$ blows up and a step can hurl you away. The
+  denominator $f'$ is the method's lifeline.
+\item \textbf{Why ``close enough'' matters.} The relation $e_{n+1} \approx C e_n^2$
+  shrinks the error only if $C\,\abs{e_n} < 1$, i.e.\ only once $\abs{e_n} < 1/C$.
+  Inside that radius each step shrinks the error and the squaring takes over; outside
+  it, squaring a too-large number makes things \emph{worse}. That threshold is the
+  precise meaning of ``start close enough.''
+\item \textbf{Why double roots crawl.} At a double root $f'(r) = 0$, so the
+  derivation above breaks -- you cannot divide by $f'(x_n)$ cleanly, because it too is
+  heading to zero. A more careful analysis (which we leave to the exercises) shows
+  the error then merely \emph{halves} each step: linear, not quadratic. The whole
+  speed advantage came from $f'(r) \ne 0$.
+\end{itemize}
+
+\begin{aestheticbox}
+There is something deeply satisfying here. The very same feature that made the
+tangent line a \emph{good} approximation -- that it matches the curve to first order,
+leaving an error of size $(\Delta x)^2$ -- is what makes Newton's method
+\emph{fast}. The quadratic error of linear approximation, which looked like a
+limitation when we first met it, turns into the quadratic \emph{convergence} that
+doubles your digits. The same $(\,\cdot\,)^2$ appears in both places because it is
+the same fact viewed from two sides. Good approximation and fast iteration are the
+same coin.
+\end{aestheticbox}
+
+\section{Newton's method as fixed-point iteration}
+\label{ch19:fixed-point}
+
+There is a wider world of root-finding algorithms, and Newton's method sits inside
+it as a particularly clever member of the family of \textbf{fixed-point
+iterations}. Seeing this connection explains \emph{why} Newton converges so much
+faster than its cousins, and it ties the method to a beautiful and general theory.
+
+A fixed-point iteration is any rule of the shape
+\[
+  x_{n+1} = g(x_n),
+\]
+for some function $g$. You feed in a number, the function spits out the next number,
+and you keep feeding the output back in. If the sequence settles down to a limit
+$x^\star$, then taking limits on both sides forces $x^\star = g(x^\star)$: the limit
+is a point that $g$ leaves \emph{fixed}. That is what a fixed point is -- an input
+$g$ returns unchanged.
+
+Newton's method is exactly such an iteration with the particular choice
+\[
+  g(x) = x - \frac{f(x)}{f'(x)}.
+\]
+And notice: at a root $r$ of $f$ we have $f(r) = 0$, so $g(r) = r - 0 = r$. The
+roots of $f$ are precisely the fixed points of Newton's $g$. Hunting a root of $f$
+has been quietly converted into hunting a fixed point of $g$.
+
+\begin{connectionbox}
+Fixed points are everywhere in mathematics, and the picture for finding them is the
+\emph{cobweb diagram}: plot $y = g(x)$ and the line $y = x$ on the same axes; a
+fixed point is where the curve meets the diagonal. The iteration is a staircase --
+go vertically to the curve, horizontally to the diagonal, vertically to the curve --
+and whether the staircase spirals \emph{into} the fixed point or \emph{away} from it
+is governed by one number: the slope $g'(x^\star)$ at the fixed point. If
+$\abs{g'(x^\star)} < 1$ the iteration is a contraction near the fixed point and
+homes in; if $\abs{g'(x^\star)} > 1$ it is repelled and flies off. This is the
+contraction-mapping idea, and it reaches far beyond calculus -- into differential
+equations, economics (market equilibria are fixed points), and the convergence
+proofs that underpin much of numerical analysis.
+\end{connectionbox}
+
+Now here is the punchline that elevates Newton above the ordinary fixed-point
+crowd. For a generic $g$, convergence is \emph{linear}: the error shrinks by roughly
+the constant factor $\abs{g'(x^\star)}$ each step -- a fixed fraction, like steadily
+losing half the error every time. That is fine but slow. Newton's particular $g$ is
+engineered so that its derivative is not merely less than $1$ at the root -- it is
+\emph{exactly zero} there. Let us verify this remarkable fact. Differentiate
+$g(x) = x - f(x)/f'(x)$ using the quotient rule on the fraction:
+\[
+  g'(x) = 1 - \frac{f'(x)\,f'(x) - f(x)\,f''(x)}{\bigl(f'(x)\bigr)^2}
+        = 1 - \frac{\bigl(f'(x)\bigr)^2 - f(x)\,f''(x)}{\bigl(f'(x)\bigr)^2}
+        = \frac{f(x)\,f''(x)}{\bigl(f'(x)\bigr)^2}.
+\]
+Evaluate at the root $r$, where $f(r) = 0$:
+\[
+  g'(r) = \frac{f(r)\,f''(r)}{\bigl(f'(r)\bigr)^2} = \frac{0 \cdot f''(r)}{\bigl(f'(r)\bigr)^2} = 0.
+\]
+
+\begin{whybox}
+Why does $g'(r) = 0$ explain the speed? In a fixed-point iteration the error
+multiplies by about $g'(x^\star)$ each step -- so if that slope were, say, $0.5$, you
+would lose half the error per step (linear). Newton arranges $g'(r) = 0$, which kills
+the linear term entirely. With the first-order term gone, the leading behavior of
+the error is governed by the \emph{next} term in the Taylor expansion of $g$, the
+one carrying $g''(r)$ and a factor of $e_n^2$. So $e_{n+1} \approx \tfrac12
+g''(r)\,e_n^2$ -- error proportional to the square of the error, which is exactly the
+quadratic convergence we derived directly. Newton's method is not magic; it is the
+unique tuning of a fixed-point map that zeroes out the derivative at the root, and
+zeroing the derivative is precisely what upgrades linear convergence to quadratic.
+\end{whybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=9.5cm, height=7cm,
+  axis lines=middle,
+  xlabel={$x_n$}, ylabel={$x_{n+1}$},
+  xmin=0.9, xmax=2.1, ymin=0.9, ymax=2.1,
+  xtick={1,1.5,2}, ytick={1,1.5,2}, clip=false,
+]
+% Newton's g for sqrt2: g(x) = (x/2 + 1/x)
+\addplot[curveblue, very thick, samples=100, domain=0.95:2.05] {x/2 + 1/x};
+\addlegendentry{$y=g(x)$}
+\addplot[gray, thick, samples=2, domain=0.9:2.1] {x};
+\addlegendentry{$y=x$}
+% cobweb from x0=2: x1=1.5, x2=1.41667...
+\addplot[tangentred, thick] coordinates {
+  (2,2) (2,1.5) (1.5,1.5) (1.5,1.41667) (1.41667,1.41667) (1.41667,1.41421) (1.41421,1.41421)
+};
+\addplot[only marks, mark=*, mark size=1.4pt, black] coordinates {(1.41421,1.41421)};
+\node[below right] at (axis cs:1.41421,1.41421) {fixed point $=\sqrt2$};
+\end{axis}
+\end{tikzpicture}
+\caption{Cobweb diagram for Newton's iteration on $\sqrt2$, where $g(x)=\tfrac{x}{2}
++\tfrac1x$. The staircase (red) descends from $x_0=2$ to the fixed point where
+$y=g(x)$ meets the diagonal $y=x$. Because the curve $g$ is \emph{flat} (slope $0$)
+right at the fixed point, the staircase collapses onto it with astonishing speed.}
+\label{ch19:fig-cobweb}
+\end{figure}
+
+\section{Newton's method in real computation}
+\label{ch19:computing}
+
+It is worth seeing how the method lives as code, because the gap between the formula
+and a robust program is exactly where the failure modes of
+Section~\ref{ch19:failures} demand respect. Here is the method as a small program,
+written in plain pseudocode that any language would render almost verbatim.
+
+\begin{lstlisting}[language=Python]
+def newton(f, fprime, x0, tol=1e-12, max_iter=50):
+    x = x0
+    for n in range(max_iter):
+        fx = f(x)
+        if abs(fx) < tol:          # close enough: f(x) is essentially zero
+            return x
+        dfx = fprime(x)
+        if dfx == 0:               # flat tangent: bail out, do not divide by zero
+            raise ValueError("zero derivative; Newton stalled")
+        x = x - fx / dfx           # the one line that is the whole method
+    raise ValueError("did not converge in max_iter steps")
+\end{lstlisting}
+
+Three things in this little program encode the wisdom of the chapter. The
+\texttt{tol} test checks the answer by evaluating $f$ -- never trust the iterate
+blindly. The zero-derivative guard refuses to divide by a vanishing slope. And the
+\texttt{max\_iter} cap stops the loop from running forever if the start was bad and
+the iterates are wandering off or cycling. The mathematics is one line; the
+engineering is the safety rail around it.
+
+\begin{applicationbox}
+Newton's method is the beating heart of an enormous amount of modern computation,
+far beyond solving single equations.
+\begin{itemize}
+\item \textbf{Optimization and machine learning.} To minimize a function $F$, you
+  look for where its derivative is zero -- a root of $F'$. Applying Newton's method
+  to $F'$ gives the update $x_{n+1} = x_n - F'(x_n)/F''(x_n)$, ``Newton's method for
+  optimization,'' which uses curvature ($F''$) to take far smarter steps than plain
+  gradient descent. In many variables $F''$ becomes the Hessian matrix, and training
+  large models leans on quasi-Newton methods (BFGS, L-BFGS) that approximate it.
+\item \textbf{Systems of equations.} Replace $f$ by a vector of functions and $f'$ by
+  the Jacobian matrix; the update becomes ``solve a linear system at each step.''
+  This multivariable Newton is how engineers solve the giant nonlinear systems behind
+  circuit simulation, fluid dynamics, and structural analysis.
+\item \textbf{Inside the hardware.} As mentioned, reciprocals, square roots, and
+  divisions are computed by Newton iterations chosen so that each step needs only
+  multiplication -- the operation silicon does fastest.
+\end{itemize}
+The reason it is chosen again and again is the quadratic convergence we proved: when
+each step doubles your digits, you reach full machine precision (about $16$ decimal
+digits) in a mere handful of iterations.
+\end{applicationbox}
+
+\section{A fully worked, non-algebraic example}
+\label{ch19:full-example}
+
+Let us close with an equation that genuinely has no formula, to prove the method
+earns its keep. Solve
+\[
+  \cos x = x.
+\]
+This asks for the place where the cosine curve crosses the diagonal line $y = x$ --
+a number called the \emph{Dottie number}, with no closed form whatsoever. Rewrite it
+as a root problem:
+\[
+  f(x) = \cos x - x = 0, \qquad f'(x) = -\sin x - 1.
+\]
+A quick sketch (or noting $f(0) = 1 > 0$ and $f(1) = \cos 1 - 1 \approx -0.46 < 0$)
+shows the root lies between $0$ and $1$. Start at $x_0 = 1$ (radians throughout).
+
+\begin{labbox}
+The iteration is $x_{n+1} = x_n - \dfrac{\cos x_n - x_n}{-\sin x_n - 1}$. Step
+through it:
+\begin{align*}
+  x_0 &= 1 \\
+  x_1 &= 1 - \frac{\cos 1 - 1}{-\sin 1 - 1}
+       = 1 - \frac{0.540302 - 1}{-0.841471 - 1}
+       = 1 - \frac{-0.459698}{-1.841471}
+       = 0.750364 \\
+  x_2 &= 0.750364 - \frac{\cos(0.750364) - 0.750364}{-\sin(0.750364) - 1}
+       = 0.739113 \\
+  x_3 &= 0.739085 \\
+  x_4 &= 0.739085\ldots
+\end{align*}
+The root is $0.7390851332\ldots$, and we have it to nine places after four steps.
+\end{labbox}
+
+Notice the digits settling: $x_1$ is right to one place, $x_2$ to three, $x_3$ to
+six or seven -- the familiar doubling. From a single crude guess and four lines of
+arithmetic we have pinned down, to nine decimal places, a number that no formula can
+express. That is the quiet power of Newton's method: it turns calculus -- the
+tangent line, the derivative, the second-order error -- into a machine that
+manufactures the solutions algebra cannot reach.
+
+\begin{recoverybox}
+If you take one thing from this chapter, take the master equation $e_{n+1} \approx
+C\, e_n^2$ and the picture behind it: a tangent line, ridden down to the axis, again
+and again. The formula $x_{n+1} = x_n - f(x_n)/f'(x_n)$ is just that picture written
+in symbols, and the squaring of the error is just the price the curve charges for
+not being a straight line -- a price that, near a simple root, is wonderfully small.
+\end{recoverybox}
+
+\section{Exercises}
+\label{ch19:exercises}
+
+\begin{exercise}
+Use Newton's method to estimate $\sqrt5$ by finding the positive root of
+$f(x) = x^2 - 5$. Start at $x_0 = 2$ and carry out three iterations by hand, writing
+each $x_n$ to six decimal places. Compare $x_3$ to the true value $2.2360679\ldots$
+and count how many digits are correct at each step.
+\end{exercise}
+
+\begin{exercise}
+Derive, from the general iteration, the formula for computing the cube root of a
+positive number $a$ by applying Newton's method to $f(x) = x^3 - a$. Simplify your
+update into the form $x_{n+1} = \tfrac13\bigl(2x_n + a/x_n^2\bigr)$, and use it to
+estimate $\sqrt[3]{2}$ starting from $x_0 = 1$ (two iterations).
+\end{exercise}
+
+\begin{exercise}
+Show that applying Newton's method to $f(x) = \dfrac1x - a$ (for a positive constant
+$a$) yields the update $x_{n+1} = x_n(2 - a x_n)$, which computes $1/a$ using only
+multiplication and subtraction -- no division. Test it with $a = 4$ and $x_0 = 0.2$,
+performing two steps, and check that you approach $0.25$.
+\end{exercise}
+
+\begin{exercise}
+The equation $x^3 - 2x + 2 = 0$ produces the two-cycle $0 \to 1 \to 0 \to \cdots$ from
+the start $x_0 = 0$, as shown in the chapter. (a) Verify the cycle by direct
+computation. (b) The equation has a real root near $x = -1.77$. Starting instead from
+$x_0 = -2$, perform three Newton iterations and confirm the iterates head toward that
+root. What does this contrast teach about the choice of starting point?
+\end{exercise}
+
+\begin{exercise}
+Find the unique real root of $x^3 + x - 1 = 0$ to six decimal places using Newton's
+method, starting from $x_0 = 1$. Show your work for at least three iterations and
+verify your answer by plugging it back into the function.
+\end{exercise}
+
+\begin{exercise}[Conceptual]
+Explain in your own words, using a sketch, why Newton's method can fail when the
+starting guess lands near a point where $f'(x) = 0$. Then describe geometrically what
+happens to the next iterate, and why this is a genuine breakdown of the method rather
+than a minor inaccuracy.
+\end{exercise}
+
+\begin{exercise}[Conceptual]
+The function $g(x) = x - f(x)/f'(x)$ is the fixed-point map behind Newton's method. A
+general fixed-point iteration $x_{n+1} = g(x_n)$ converges \emph{linearly} when
+$0 < \abs{g'(x^\star)} < 1$. Using the formula $g'(x) = f(x)f''(x)/(f'(x))^2$ derived
+in the chapter, explain why Newton's method converges \emph{faster} than a typical
+fixed-point iteration, and what specifically goes right at a simple root.
+\end{exercise}
+
+\begin{exercise}[Multiple root]
+For the double root of $f(x) = (x - 3)^2$, show that Newton's iteration simplifies to
+$x_{n+1} = \tfrac12(x_n + 3)$. Starting from $x_0 = 5$, compute the errors
+$\abs{x_n - 3}$ for $n = 0,1,2,3,4$ and confirm that they merely \emph{halve} each
+step (linear convergence) rather than the digits doubling. Explain, referring to the
+master equation $e_{n+1} = \tfrac{f''(\xi)}{2f'(x_n)} e_n^2$, why the quadratic
+behavior is lost at a double root.
+\end{exercise}
+
+\begin{exercise}[Proof]
+Let $f$ have a continuous second derivative and a simple root $r$ (so $f'(r) \ne 0$).
+Starting from the second-order Taylor expansion of $f$ about $x_n$ evaluated at $r$,
+derive the master equation
+\[
+  e_{n+1} = \frac{f''(\xi)}{2 f'(x_n)}\, e_n^2, \qquad e_n = x_n - r,
+\]
+for some $\xi$ between $x_n$ and $r$. Then argue that there exist a constant $M$ and a
+radius $\delta > 0$ such that if $\abs{e_0} < \delta$, the errors satisfy
+$\abs{e_{n+1}} \le M \abs{e_n}^2$, and conclude that the convergence is quadratic.
+\end{exercise}
+
+\begin{exercise}[Application]
+To minimize a smooth function $F(x)$, one seeks a root of $F'(x) = 0$. Write down the
+Newton iteration for this root problem (it will involve $F'$ and $F''$). Apply it to
+$F(x) = x^4 - 3x^2 + x$ starting from $x_0 = 1$, performing two iterations, and
+interpret geometrically what the resulting point represents.
+\end{exercise}
