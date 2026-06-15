@@ -1,0 +1,1112 @@
+\chapter{Graphs, Networks, and Markov Chains}
+
+So far in this book the vectors and matrices have mostly described \emph{geometry}:
+arrows in the plane, stretches of the unit square, rotations of space. In this chapter
+we point the very same machinery at something that does not, at first, look geometric at
+all: a \emph{network}. A web of friendships. A power grid. The links between web pages.
+The way a random walker hops from city to city. A spreadsheet of who emails whom.
+
+The astonishing thing -- and it is genuinely one of the most beautiful facts in applied
+mathematics -- is that the structure of a network is captured \emph{exactly} by a matrix,
+and the deep questions you might ask about the network (Is it connected? Where are its
+natural communities? Which page is the most important? Where does a random walker end up
+in the long run?) turn into questions about the \emph{eigenvalues and eigenvectors} of
+that matrix. The graph is the picture; the matrix is the algebra; the spectrum is the
+hidden geometry. Linear algebra is the bridge.
+
+By the end of this chapter you will be able to look at a graph and write down three
+matrices for it (incidence, adjacency, Laplacian); you will know what each row, column,
+and eigenvalue is telling you; and you will understand PageRank -- the algorithm that
+launched a trillion-dollar company -- as nothing more than finding an eigenvector.
+
+\section{From pictures to matrices}
+\label{ch35:pictures-to-matrices}
+
+A \textbf{graph} is the simplest object in all of mathematics that still has interesting
+structure. It is a set of \emph{nodes} (also called \emph{vertices}) and a set of
+\emph{edges}, where each edge joins two nodes. That is the whole definition. Nodes are
+dots; edges are the lines between them. Draw five dots, connect some of them with lines,
+and you have a graph.
+
+\begin{intuitionbox}
+A graph throws away everything except \emph{who is connected to whom}. Where you place
+the dots on the page does not matter -- only the pattern of connections does. Two drawings
+that look completely different can be the ``same'' graph if the connection pattern matches.
+The job of linear algebra is to turn that bare connection pattern into numbers we can
+compute with, and then to recover meaning from those numbers.
+\end{intuitionbox}
+
+Let us fix a small running example we will use throughout. It has four nodes labeled
+$1,2,3,4$ and five edges. Figure~\ref{ch35:fig-graph4} shows it.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.6,
+  node/.style={circle,draw=sourceblue,very thick,fill=blue!8,minimum size=8mm,inner sep=0pt,font=\small},
+  every edge/.style={draw=spacegray,very thick}]
+  \node[node] (n1) at (0,1.3) {$1$};
+  \node[node] (n2) at (1.5,1.3) {$2$};
+  \node[node] (n3) at (1.5,0) {$3$};
+  \node[node] (n4) at (0,0) {$4$};
+  \draw (n1) edge (n2);
+  \draw (n1) edge (n4);
+  \draw (n2) edge (n3);
+  \draw (n2) edge (n4);
+  \draw (n3) edge (n4);
+\end{tikzpicture}
+\caption{Our running graph $G$: four nodes, five edges. Node $2$ touches three edges
+(it has \emph{degree} $3$); node $1$ touches two. There is no edge between $1$ and $3$.}
+\label{ch35:fig-graph4}
+\end{figure}
+
+The \emph{degree} of a node is the number of edges touching it. In our graph the degrees
+are: node $1$ has degree $2$, node $2$ has degree $3$, node $3$ has degree $2$, node $4$
+has degree $3$. A useful sanity check you should burn into memory: the degrees sum to
+twice the number of edges, because every edge contributes $1$ to the degree of each of its
+two endpoints. Here $2+3+2+3 = 10 = 2 \times 5$. Good.
+
+\subsection{The adjacency matrix}
+\label{ch35:adjacency}
+
+The most direct way to record a graph as numbers is the \textbf{adjacency matrix} $\mat{A}$.
+For a graph with $n$ nodes it is the $n \times n$ matrix whose $(i,j)$ entry is
+
+\[
+A_{ij} =
+\begin{cases}
+1 & \text{if there is an edge between node $i$ and node $j$,}\\
+0 & \text{otherwise.}
+\end{cases}
+\]
+
+For our graph, reading off Figure~\ref{ch35:fig-graph4} row by row:
+
+\[
+\mat{A} =
+\begin{bmatrix}
+0 & 1 & 0 & 1\\
+1 & 0 & 1 & 1\\
+0 & 1 & 0 & 1\\
+1 & 1 & 1 & 0
+\end{bmatrix}.
+\]
+
+Look at row $2$: it reads $1,0,1,1$, meaning node $2$ connects to nodes $1$, $3$, and $4$
+but not to itself. The diagonal is all zeros (no node has an edge to itself), and the
+matrix is \emph{symmetric}, $\mat{A} = \mat{A}\T$, because ``$i$ connects to $j$'' is the
+same statement as ``$j$ connects to $i$.'' That symmetry is not a coincidence we will
+exploit -- it is the algebraic shadow of the edges being \emph{undirected}, and it is what
+will later guarantee real eigenvalues.
+
+\begin{focusbox}
+Three facts about an adjacency matrix of an undirected graph, worth holding onto:
+\begin{itemize}
+\item It is symmetric: $\mat{A} = \mat{A}\T$.
+\item Its diagonal is zero (for a simple graph with no self-loops).
+\item The sum of row $i$ equals the degree of node $i$. Here the row sums are
+$2,3,2,3$ -- exactly the degree sequence.
+\end{itemize}
+\end{focusbox}
+
+Why store a graph this way? Because once it is a matrix, \emph{matrix operations have
+graph meaning}. Here is the first and most charming example.
+
+\begin{intuitionbox}
+\textbf{Powers of $\mat{A}$ count walks.} The entry $(\mat{A}^k)_{ij}$ is exactly the
+number of walks of length $k$ from node $i$ to node $j$ (a walk is a sequence of edges,
+repeats allowed). Multiplying $\mat{A}$ by itself is the same as ``take one more step
+along an edge,'' and matrix multiplication adds up all the ways to do that.
+\end{intuitionbox}
+
+Let us verify the first nontrivial case. The $(i,j)$ entry of $\mat{A}^2$ is
+$\sum_k A_{ik}A_{kj}$. The product $A_{ik}A_{kj}$ is $1$ exactly when there is an edge
+$i\!-\!k$ \emph{and} an edge $k\!-\!j$, i.e. when $k$ is a common neighbor giving a length-2
+walk $i \to k \to j$. Summing over $k$ counts all such intermediate nodes. So
+$(\mat{A}^2)_{ij}$ counts length-$2$ walks. Let us compute it for our graph:
+
+\[
+\mat{A}^2 =
+\begin{bmatrix}
+0&1&0&1\\1&0&1&1\\0&1&0&1\\1&1&1&0
+\end{bmatrix}
+\begin{bmatrix}
+0&1&0&1\\1&0&1&1\\0&1&0&1\\1&1&1&0
+\end{bmatrix}
+=
+\begin{bmatrix}
+2&1&2&1\\1&3&1&2\\2&1&2&1\\1&2&1&3
+\end{bmatrix}.
+\]
+
+Read the diagonal: $(\mat{A}^2)_{22} = 3$. That says there are three length-$2$ walks from
+node $2$ back to node $2$ -- namely out to each of its $3$ neighbors and back. In general
+$(\mat{A}^2)_{ii}$ is just the degree of node $i$. The off-diagonal entry
+$(\mat{A}^2)_{13} = 2$ says there are two length-$2$ paths from $1$ to $3$: through node
+$2$, and through node $4$. Trace your finger over Figure~\ref{ch35:fig-graph4} and confirm
+it.
+
+\begin{labbox}
+Compute $\mat{A}^3$ for the graph above and read off $(\mat{A}^3)_{12}$. It should equal
+the number of length-$3$ walks from node $1$ to node $2$. Then find them by hand on the
+picture (start at $1$, take three edges, end at $2$). Do the two answers agree? This little
+exercise is the whole reason adjacency matrices earn their keep.
+\end{labbox}
+
+\subsection{Directed graphs and the adjacency matrix that is not symmetric}
+
+If edges have a \emph{direction} -- web links, one-way streets, ``follows'' on a social
+network, the flow of money -- we set $A_{ij}=1$ when there is an arrow \emph{from} $i$
+\emph{to} $j$. Now $\mat{A}$ need not be symmetric: page $i$ can link to page $j$ without
+$j$ linking back. We will need exactly this asymmetry for PageRank at the end of the
+chapter. For now, just notice that the language ``$\mat{A}=\mat{A}\T$'' is precisely the
+dividing line between undirected and directed.
+
+\subsection{The incidence matrix: edges meet nodes}
+\label{ch35:incidence}
+
+The adjacency matrix is node-versus-node. There is a second, equally important matrix that
+is \emph{edge}-versus-node, and it is the one electrical engineers and Gil Strang reach for
+first. To build it we must \emph{orient} each edge -- pick an arbitrary ``from'' and ``to''
+for every edge, just to fix signs. (For an undirected graph the orientation is a
+bookkeeping choice; the final physics will not depend on it.)
+
+Number the five edges of our graph and orient them:
+$e_1: 1\!\to\!2$, $\;e_2: 1\!\to\!4$, $\;e_3: 2\!\to\!3$, $\;e_4: 2\!\to\!4$,
+$\;e_5: 3\!\to\!4$. The \textbf{incidence matrix} $\mat{B}$ has one row per edge and one
+column per node. In row $e$, we put $-1$ in the ``from'' column, $+1$ in the ``to''
+column, and $0$ everywhere else:
+
+\[
+\mat{B} =
+\bordermatrix{%
+      & 1 & 2 & 3 & 4 \cr
+e_1\; & -1 & +1 & 0 & 0 \cr
+e_2\; & -1 & 0 & 0 & +1 \cr
+e_3\; & 0 & -1 & +1 & 0 \cr
+e_4\; & 0 & -1 & 0 & +1 \cr
+e_5\; & 0 & 0 & -1 & +1 \cr}.
+\]
+
+Each row has exactly one $-1$ and one $+1$: an edge touches exactly two nodes. This little
+matrix is a difference operator in disguise.
+
+\begin{intuitionbox}
+Think of a column vector $\vec{x} = (x_1,x_2,x_3,x_4)\T$ as assigning a number to each
+node -- a \emph{potential}, a temperature, an elevation. Then $\mat{B}\vec{x}$ assigns to
+each \emph{edge} the difference of the potentials at its two ends. Row $e_1$ of
+$\mat{B}\vec{x}$ is $x_2 - x_1$. So $\mat{B}$ is the discrete ``gradient'': it turns
+node-values into edge-differences. This is the graph version of $\frac{d}{dx}$.
+\end{intuitionbox}
+
+Let us make that concrete. Take $\vec{x} = \colvec{5\\8\\6\\2}$ (an elevation at each node).
+Then
+
+\[
+\mat{B}\vec{x} =
+\begin{bmatrix}
+-1&1&0&0\\-1&0&0&1\\0&-1&1&0\\0&-1&0&1\\0&0&-1&1
+\end{bmatrix}
+\colvec{5\\8\\6\\2}
+=
+\colvec{8-5\\2-5\\6-8\\2-8\\2-6}
+=
+\colvec{3\\-3\\-2\\-6\\-4}.
+\]
+
+Each entry is the rise (or fall) along that edge. If $\vec{x}$ were a voltage, these would
+be the voltage \emph{drops} across each wire -- which, divided by resistance, give the
+currents. The incidence matrix is the bridge between Kirchhoff's laws and linear algebra,
+and that is no accident of notation: it \emph{is} Kirchhoff's laws.
+
+\begin{strangbox}
+If you have read Strang, you will recognize this as his beloved framework
+$\mat{A}\T \mat{C} \mat{A}$ from the chapter on graphs and networks (he calls the incidence
+matrix $\mat{A}$). The four subspaces of the incidence matrix tell the whole story: its
+\emph{nullspace} is the constant vectors (adding the same elevation everywhere changes no
+difference), and its \emph{left nullspace} is the loops in the graph (Kirchhoff's voltage
+law -- drops around any loop sum to zero). If you are reading this \emph{before} Strang,
+just hold the picture ``$\mat{B}$ takes differences across edges''; when you meet his
+$\mat{A}\T \mat{A}$, you will already know it is the Laplacian we are about to build.
+\end{strangbox}
+
+What lives in the nullspace of $\mat{B}$? We need $\mat{B}\vec{x} = \vec{0}$, i.e. every
+edge has zero difference, i.e. $x_i = x_j$ for every edge $i\!-\!j$. If the graph is
+connected, that forces \emph{all} the $x_i$ to be equal: the nullspace is exactly the
+multiples of $\vec{1} = (1,1,1,1)\T$, a one-dimensional space. This is the discrete version
+of ``a function with zero gradient is constant.'' Keep this in your pocket -- it returns in
+two pages with deep meaning.
+
+\section{The graph Laplacian}
+\label{ch35:laplacian}
+
+We now build the single most important matrix attached to a graph. Combine the degrees and
+the adjacency into the \textbf{graph Laplacian}:
+
+\begin{definition}[Graph Laplacian]
+\label{ch35:def-laplacian}
+Let $\mat{D} = \diag(d_1,\dots,d_n)$ be the diagonal \emph{degree matrix}, where $d_i$ is
+the degree of node $i$, and let $\mat{A}$ be the adjacency matrix. The graph Laplacian is
+\[
+\mat{L} = \mat{D} - \mat{A}.
+\]
+Equivalently, $L_{ii} = d_i$, and for $i \ne j$, $L_{ij} = -1$ if $i,j$ are adjacent and
+$0$ otherwise.
+\end{definition}
+
+For our running graph, $\mat{D} = \diag(2,3,2,3)$, so
+
+\[
+\mat{L} = \mat{D} - \mat{A} =
+\begin{bmatrix}2&0&0&0\\0&3&0&0\\0&0&2&0\\0&0&0&3\end{bmatrix}
+-
+\begin{bmatrix}0&1&0&1\\1&0&1&1\\0&1&0&1\\1&1&1&0\end{bmatrix}
+=
+\begin{bmatrix}
+2 & -1 & 0 & -1\\
+-1 & 3 & -1 & -1\\
+0 & -1 & 2 & -1\\
+-1 & -1 & -1 & 3
+\end{bmatrix}.
+\]
+
+Notice the structure: degrees on the diagonal, $-1$ wherever there is an edge, and -- the
+key property -- \textbf{every row sums to zero}. Of course it does: the diagonal is the
+degree, which is exactly how many $-1$'s sit in that row. Zero row sums mean
+
+\[
+\mat{L}\,\vec{1} = \vec{0}, \qquad \vec{1} = (1,1,1,1)\T.
+\]
+
+So the all-ones vector is an eigenvector of $\mat{L}$ with eigenvalue $0$. \emph{Every}
+Laplacian has $0$ as an eigenvalue. That single fact is the seed of everything that
+follows.
+
+\subsection{Why ``Laplacian''? The connection to calculus}
+
+The name is borrowed from the Laplacian operator $\nabla^2 = \partial_{xx} + \partial_{yy}$
+of multivariable calculus, and the borrowing is exact, not loose.
+
+\begin{connectionbox}
+On a grid of points spaced $h$ apart, the second derivative is approximated by
+$f''(x) \approx \frac{f(x-h) - 2f(x) + f(x+h)}{h^2}$. That numerator -- ``twice the value
+here, minus the value at each neighbor'' -- \emph{is} a row of the graph Laplacian of the
+path graph, with the sign flipped. Acting on a vector of node-values,
+\[
+(\mat{L}\vec{x})_i = d_i\, x_i - \sum_{j \sim i} x_j = \sum_{j \sim i} (x_i - x_j),
+\]
+which compares the value at node $i$ to the average of its neighbors. The continuous
+Laplacian measures how much a function at a point exceeds its surrounding average; the
+graph Laplacian does the discrete same. Heat diffusion, $\partial_t u = -\mat{L}u$,
+smooths a function on a graph exactly as the heat equation smooths temperature on a metal
+plate. The whole field of \emph{spectral graph theory} is multivariable calculus done on
+a graph instead of a continuum.
+\end{connectionbox}
+
+There is a second, cleaner way to see the Laplacian, and it explains why it is always
+``nice'' (symmetric, never negative). Recall the incidence matrix $\mat{B}$ from
+\S\ref{ch35:incidence}, whose rows are edge-differences. Form $\mat{B}\T \mat{B}$:
+
+\begin{theorem}[The Laplacian factorization]
+\label{ch35:thm-btb}
+For any orientation of the edges, $\mat{L} = \mat{B}\T \mat{B}$.
+\end{theorem}
+
+\begin{proof}
+The $(i,j)$ entry of $\mat{B}\T \mat{B}$ is the dot product of columns $i$ and $j$ of
+$\mat{B}$ -- equivalently, $\sum_e B_{ei}B_{ej}$, summing over edges. Take the diagonal
+entry $(i,i)$: $\sum_e B_{ei}^2$. Each edge touching node $i$ contributes a $\pm 1$ in that
+column, so $B_{ei}^2 = 1$ for each of the $d_i$ edges at $i$ and $0$ otherwise; the sum is
+$d_i$. Now take $i \ne j$: a term $B_{ei}B_{ej}$ is nonzero only for an edge $e$ touching
+\emph{both} $i$ and $j$, i.e. the edge between them (if it exists). For that edge one
+endpoint carries $+1$ and the other $-1$, so the product is $-1$. Hence the off-diagonal is
+$-1$ for adjacent nodes and $0$ otherwise. That is exactly $\mat{L} = \mat{D}-\mat{A}$.
+\end{proof}
+
+Let us double-check on the running example by computing one entry. Column $2$ of $\mat{B}$
+is $(+1,0,-1,-1,0)\T$ (edges $e_1,e_3,e_4$ touch node $2$). Its own dot product is
+$1+1+1 = 3 = d_2$. Its dot product with column $1$, which is $(-1,-1,0,0,0)\T$, is
+$(1)(-1) + 0 + 0 + 0 + 0 = -1$, matching $L_{12} = -1$. The factorization works.
+
+\begin{aestheticbox}
+The identity $\mat{L} = \mat{B}\T\mat{B}$ is small but it pays enormous dividends. Any
+matrix of the form $\mat{M}\T\mat{M}$ is automatically \emph{symmetric} (so it has a full
+set of orthogonal real eigenvectors) and \emph{positive semidefinite} (so its eigenvalues
+are all $\ge 0$). Without computing a single eigenvalue we now know: the Laplacian's
+spectrum is real, nonnegative, and orthogonally diagonalizable. The graph hands us a
+perfectly behaved symmetric matrix for free. Beauty in applied math often looks exactly
+like this -- a messy object turning out to be $\mat{M}\T\mat{M}$ in disguise.
+\end{aestheticbox}
+
+\subsection{The energy form: what $\vec{x}\T \mat{L}\vec{x}$ measures}
+
+Theorem~\ref{ch35:thm-btb} gives a one-line formula for the quadratic form. For any node
+vector $\vec{x}$,
+\[
+\vec{x}\T \mat{L}\vec{x}
+= \vec{x}\T \mat{B}\T \mat{B}\vec{x}
+= (\mat{B}\vec{x})\T(\mat{B}\vec{x})
+= \norm{\mat{B}\vec{x}}^2
+= \sum_{(i,j)\in E} (x_i - x_j)^2.
+\]
+
+Read the last expression aloud: the Laplacian energy of an assignment $\vec{x}$ is the sum,
+over all edges, of the squared difference between the two endpoints. It is small when
+connected nodes get \emph{similar} values and large when an edge straddles very different
+values.
+
+\begin{focusbox}
+$\vec{x}\T\mat{L}\vec{x} = \sum_{(i,j)\in E}(x_i - x_j)^2 \ge 0$ is the single formula to
+remember about the Laplacian. It is ``how wiggly is $\vec{x}$ along the edges of the
+graph.'' Minimizing it (subject to constraints) is the heart of spectral clustering,
+smoothing, and embedding. Every Laplacian eigenvalue is a value of this energy on a
+unit vector.
+\end{focusbox}
+
+Figure~\ref{ch35:fig-cut} makes the formula visible on our running graph. Label nodes
+$\{1,2\}$ with $+1$ and nodes $\{3,4\}$ with $-1$. An edge inside a group contributes
+$(x_i-x_j)^2 = 0$; an edge \emph{crossing} between the groups contributes
+$(+1-(-1))^2 = 4$. Three edges cross, so the energy is $3 \times 4 = 12$ -- four times the
+number of edges cut.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.6,
+  pnode/.style={circle,draw=sourceblue,very thick,fill=blue!10,minimum size=8mm,inner sep=0pt,font=\small},
+  mnode/.style={circle,draw=trapred,very thick,fill=red!8,minimum size=8mm,inner sep=0pt,font=\small},
+  inedge/.style={draw=spacegray,very thick},
+  cutedge/.style={draw=trapred,very thick}]
+  \node[pnode] (n1) at (0,1.3) {$1^{+}$};
+  \node[pnode] (n2) at (1.5,1.3) {$2^{+}$};
+  \node[mnode] (n3) at (1.5,0) {$3^{-}$};
+  \node[mnode] (n4) at (0,0) {$4^{-}$};
+  \draw[inedge] (n1) -- (n2);
+  \draw[cutedge] (n1) -- (n4);
+  \draw[cutedge] (n2) -- (n3);
+  \draw[cutedge] (n2) -- (n4);
+  \draw[inedge] (n3) -- (n4);
+  % cut line
+  \draw[dashed,trapred,thick] (-0.55,0.65) -- (2.05,0.65);
+  \node[font=\scriptsize,trapred] at (2.45,0.65) {cut};
+\end{tikzpicture}
+\caption{The energy $\vec{x}\T\mat{L}\vec{x}$ as a cut counter. With $\vec{x}=(+1,+1,-1,-1)\T$,
+the two gray edges lie inside a group and cost $0$; the three red edges cross the dashed cut
+and each cost $(+1-(-1))^2 = 4$. Total energy $= 12 = 4 \times (\text{edges cut})$. Low energy
+means few edges straddle the boundary -- the link between the Laplacian and clustering.}
+\label{ch35:fig-cut}
+\end{figure}
+
+Now we can see \emph{why} $0$ is the smallest eigenvalue and what makes it special. The
+energy is zero exactly when $x_i = x_j$ across every edge -- i.e. $\vec{x}$ is constant on
+each connected piece of the graph. We met this in \S\ref{ch35:incidence}: it is the
+nullspace of $\mat{B}$, hence of $\mat{L}$.
+
+\section{Eigenvalues of the Laplacian: hearing connectivity}
+\label{ch35:spectrum}
+
+Because $\mat{L}$ is symmetric positive semidefinite, we can order its eigenvalues:
+\[
+0 = \lambda_1 \le \lambda_2 \le \cdots \le \lambda_n.
+\]
+We always have $\lambda_1 = 0$ (the constant eigenvector). The next theorem is the jewel of
+the subject: the \emph{number of zero eigenvalues counts the connected components}.
+
+\begin{theorem}[Multiplicity of zero $=$ number of components]
+\label{ch35:thm-components}
+The multiplicity of the eigenvalue $0$ of the graph Laplacian equals the number of
+connected components of the graph.
+\end{theorem}
+
+\begin{proof}
+An eigenvector for $0$ is a vector $\vec{x}$ with $\mat{L}\vec{x}=\vec{0}$, equivalently
+$\vec{x}\T\mat{L}\vec{x} = \sum_{(i,j)\in E}(x_i-x_j)^2 = 0$ (using that $\mat{L}$ is
+positive semidefinite, energy zero forces $\mat{L}\vec x = 0$). Every squared term must
+vanish, so $x_i = x_j$ across each edge. Hence $\vec{x}$ is constant on each connected
+component, and free to choose a different constant per component. If there are $c$
+components, the space of such vectors has dimension exactly $c$ -- one indicator vector per
+component, and these are linearly independent. So the eigenspace of $0$ has dimension $c$.
+\end{proof}
+
+\begin{intuitionbox}
+Here is the picture. A connected graph holds together with one ``ground state'' (everybody
+the same), so $0$ appears once. Break the graph into two islands and you get \emph{two}
+independent ground states -- color island A red, island B blue, and there is no edge to
+penalize the jump. Each island contributes its own zero. The eigenvalue $0$ is literally
+counting the islands.
+\end{intuitionbox}
+
+This already tells us something operational: to test whether a network is connected, you do
+not trace paths -- you compute the second-smallest eigenvalue $\lambda_2$. If
+$\lambda_2 > 0$, the graph is connected. If $\lambda_2 = 0$, it has fallen apart.
+
+\subsection{The Fiedler value: connectivity by degree}
+
+The eigenvalue $\lambda_2$ is so important it has a name: the \textbf{algebraic
+connectivity}, or \textbf{Fiedler value}, after Miroslav Fiedler. It does not just say
+\emph{whether} the graph is connected; its \emph{size} measures \emph{how robustly}
+connected the graph is. A large $\lambda_2$ means the graph is hard to cut into pieces; a
+small positive $\lambda_2$ means there is a near-bottleneck -- a thin bridge that almost
+disconnects it.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.1,
+  node/.style={circle,draw=sourceblue,thick,fill=blue!8,minimum size=6mm,inner sep=0pt,font=\scriptsize},
+  every edge/.style={draw=spacegray,thick}]
+  % left cluster
+  \node[node] (a1) at (0,1) {};
+  \node[node] (a2) at (1,1.6) {};
+  \node[node] (a3) at (1,0.4) {};
+  \draw (a1) edge (a2); \draw (a1) edge (a3); \draw (a2) edge (a3);
+  % right cluster
+  \node[node] (b1) at (4,1) {};
+  \node[node] (b2) at (3,1.6) {};
+  \node[node] (b3) at (3,0.4) {};
+  \draw (b1) edge (b2); \draw (b1) edge (b3); \draw (b2) edge (b3);
+  % bridge
+  \draw[trapred,very thick,dashed] (a1.east) -- (b1.west) ;
+  \node[font=\scriptsize,trapred] at (2,1.25) {bridge};
+\end{tikzpicture}
+\caption{Two tight triangles joined by a single ``bridge'' edge. The graph is connected, so
+$\lambda_2 > 0$, but only barely: cutting the one dashed edge splits it. The Fiedler value
+$\lambda_2$ is small, and the Fiedler eigenvector takes one sign on the left cluster and the
+opposite sign on the right -- it \emph{finds} the cut.}
+\label{ch35:fig-bridge}
+\end{figure}
+
+Why does the eigenvector know where to cut? Because of the energy interpretation. The
+Fiedler eigenvector $\vec{v}_2$ minimizes $\vec{x}\T\mat{L}\vec{x} = \sum (x_i-x_j)^2$ over
+all unit vectors \emph{orthogonal to the constant vector} $\vec{1}$ (orthogonality to the
+$\lambda_1$-eigenvector is forced by the spectral theorem). ``Orthogonal to $\vec{1}$''
+means $\sum_i x_i = 0$: the values must be partly positive and partly negative. So $\vec{v}_2$
+is the gentlest possible nonconstant labeling -- it wants neighbors to share a value, but it
+is forced to use both signs. The cheapest way to do that is to make the jump happen across
+\emph{few} edges, i.e. across a bottleneck. Splitting nodes by the \emph{sign} of $\vec{v}_2$
+is the classic \textbf{spectral bisection} heuristic.
+
+\begin{labbox}
+Take the path graph on four nodes in a line, $1\!-\!2\!-\!3\!-\!4$. Its Laplacian is
+\[
+\mat{L} =
+\begin{bmatrix} 1&-1&0&0\\ -1&2&-1&0\\ 0&-1&2&-1\\ 0&0&-1&1 \end{bmatrix}.
+\]
+Verify $\mat{L}\vec{1}=\vec0$. Then test the simple sign pattern $\vec{s} = (1,1,-1,-1)\T$,
+which splits the path in half: compute
+\[
+\mat{L}\,\vec{s} = (0,\,2,\,-2,\,0)\T.
+\]
+This is \emph{not} a scalar multiple of $\vec{s}$, so $\vec{s}$ is not exactly an
+eigenvector -- but notice it already carries the right idea, putting all the ``action'' at
+the two middle nodes where the cut happens. The true Fiedler vector of the $4$-path is
+$\vec{v}_2 = (\cos\tfrac{\pi}{8},\,\cos\tfrac{3\pi}{8},\,-\cos\tfrac{3\pi}{8},\,
+-\cos\tfrac{\pi}{8})\T \approx (0.65,\,0.27,\,-0.27,\,-0.65)\T$: its values decrease smoothly
+from one end to the other, and its sign change happens in the middle, telling you to cut the
+path in half. Its eigenvalue is $\lambda_2 = 2 - 2\cos\tfrac{\pi}{4} = 2 - \sqrt2 \approx
+0.586$. (The exact eigenvalues of the $n$-node path are $2 - 2\cos(\pi k/n)$ for
+$k = 0,1,\dots,n-1$, a fact worth memorizing: it is the discrete cosine transform hiding in
+a graph.)
+\end{labbox}
+
+\begin{applicationbox}
+\textbf{Spectral clustering in machine learning.} Suppose you have a pile of data points
+-- images, customers, documents -- and a notion of similarity between pairs. Build a graph:
+nodes are data points, and you connect similar points with edges (often weighted, see
+below). The communities in your data are the loosely-connected clusters of this graph.
+Spectral clustering computes the bottom few Laplacian eigenvectors $\vec{v}_2,\dots,\vec{v}_k$,
+uses them as new coordinates for each point (the $i$-th point becomes the row
+$(\,v_2(i),\dots,v_k(i)\,)$), and runs plain $k$-means in that low-dimensional space. The
+Laplacian eigenvectors \emph{unfold} the graph so that clusters that were tangled in the
+original feature space become linearly separable blobs. This is the algorithm behind a huge
+amount of image segmentation, community detection in social networks, and unsupervised
+grouping. Its entire justification is Theorem~\ref{ch35:thm-components} and the energy
+formula: small eigenvalues correspond to ``almost components,'' i.e. clusters.
+\end{applicationbox}
+
+\subsection{Weighted graphs}
+
+Real networks rarely have all edges equal. A friendship can be strong or weak; a road can
+be wide or narrow; a similarity can be near or far. Attach a weight $w_{ij} > 0$ to each
+edge. Then the weighted adjacency matrix has $A_{ij} = w_{ij}$, the degree becomes the
+\emph{weighted} degree $d_i = \sum_j w_{ij}$, and the Laplacian $\mat{L} = \mat{D}-\mat{A}$
+keeps every property we proved -- because the energy form is now
+$\vec{x}\T\mat{L}\vec{x} = \sum_{(i,j)\in E} w_{ij}(x_i - x_j)^2$, still a sum of
+nonnegative terms. Heavy edges penalize differences more, so the eigenvectors try harder to
+keep strongly-connected nodes together. Everything in this section runs unchanged with
+weights; we will not belabor it, but it is what makes the machinery useful on real data.
+
+\section{Random walks and Markov chains}
+\label{ch35:markov}
+
+We now change the question. Instead of a fixed labeling of nodes, imagine a \emph{walker}
+hopping around the graph at random, and ask: where is the walker likely to be? This is the
+world of \textbf{Markov chains}, and it is where transition matrices and the dominant
+eigenvector take center stage.
+
+\begin{intuitionbox}
+A Markov chain is a memoryless random walk. The walker sits at some node, looks at the
+outgoing edges, and picks one at random according to fixed probabilities -- then forgets
+how it got there. ``Memoryless'' (the \emph{Markov property}) means the next step depends
+only on \emph{where you are}, never on the history of how you arrived. The entire future is
+encoded in one matrix of one-step probabilities.
+\end{intuitionbox}
+
+Make this precise with a small \emph{directed, weighted} example -- a tiny model of weather,
+say, or of a user browsing three pages.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.5,
+  node/.style={circle,draw=sourceblue,very thick,fill=blue!8,minimum size=10mm,inner sep=0pt,font=\small},
+  every edge/.style={draw=spacegray,thick,-{Stealth[length=2mm]}},
+  lab/.style={font=\scriptsize,fill=white,inner sep=1pt}]
+  \node[node] (s) at (0,0) {$S$};
+  \node[node] (c) at (2.4,0) {$C$};
+  \node[node] (r) at (1.2,-1.8) {$R$};
+  \draw (s) edge[bend left=15] node[lab,above]{$0.5$} (c);
+  \draw (c) edge[bend left=15] node[lab,below]{$0.3$} (s);
+  \draw (s) edge node[lab,left]{$0.3$} (r);
+  \draw (r) edge[bend left=12] node[lab,right]{$0.4$} (c);
+  \draw (c) edge node[lab,right=2pt]{$0.4$} (r);
+  \draw (r) edge[bend left=12] node[lab,left]{$0.4$} (s);
+  \draw (s) edge[loop left] node[lab,left]{$0.2$} (s);
+  \draw (c) edge[loop right] node[lab,right]{$0.3$} (c);
+  \draw (r) edge[loop below] node[lab,below]{$0.2$} (r);
+\end{tikzpicture}
+\caption{A three-state Markov chain: Sunny, Cloudy, Rainy. Arrows are transition
+probabilities for ``tomorrow's weather given today's.'' Every node's outgoing arrows sum to
+$1$ (including the self-loop ``stay the same'').}
+\label{ch35:fig-markov}
+\end{figure}
+
+Collect the transition probabilities into a matrix. We will use the \textbf{row-stochastic}
+convention: $P_{ij}$ is the probability of going \emph{from} state $i$ \emph{to} state $j$,
+so each \emph{row} sums to $1$. From Figure~\ref{ch35:fig-markov}, ordering states
+$S,C,R$:
+
+\[
+\mat{P} =
+\begin{bmatrix}
+P_{SS} & P_{SC} & P_{SR}\\
+P_{CS} & P_{CC} & P_{CR}\\
+P_{RS} & P_{RC} & P_{RR}
+\end{bmatrix}
+=
+\begin{bmatrix}
+0.2 & 0.5 & 0.3\\
+0.3 & 0.3 & 0.4\\
+0.4 & 0.4 & 0.2
+\end{bmatrix}.
+\]
+
+Check the rows: $0.2+0.5+0.3 = 1$, $0.3+0.3+0.4=1$, $0.4+0.4+0.2=1$. A matrix with
+nonnegative entries and rows summing to $1$ is called a \textbf{stochastic matrix} (or
+\emph{transition matrix}). Its rows are probability distributions.
+
+\begin{focusbox}
+A stochastic matrix has nonnegative entries and \emph{rows summing to $1$}. The all-ones
+vector is a \emph{right} eigenvector with eigenvalue $1$: $\mat{P}\vec{1} = \vec{1}$, because
+each row sums to $1$. Hold this thought -- the interesting eigenvector, the stationary
+distribution, will be the \emph{left} eigenvector for the same eigenvalue $1$.
+\end{focusbox}
+
+\subsection{Distributions evolve by matrix multiplication}
+
+Represent the walker's location as a \emph{row} probability vector
+$\vec{\pi} = (\pi_S, \pi_C, \pi_R)$ with $\pi_i \ge 0$ and $\sum_i \pi_i = 1$. Say today we
+are certain it is sunny: $\vec{\pi}^{(0)} = (1,0,0)$. What is the distribution tomorrow?
+The probability of being cloudy tomorrow is the probability we are in each state today times
+the probability that state goes to cloudy -- a dot product with column $C$ of $\mat{P}$.
+Stacked together, \emph{the update is a vector--matrix product}:
+
+\[
+\vec{\pi}^{(1)} = \vec{\pi}^{(0)}\mat{P}.
+\]
+
+With $\vec{\pi}^{(0)} = (1,0,0)$ this just reads off the first row:
+$\vec{\pi}^{(1)} = (0.2, 0.5, 0.3)$. After two days,
+$\vec{\pi}^{(2)} = \vec{\pi}^{(1)}\mat{P}$:
+
+\[
+\vec{\pi}^{(2)} = (0.2,\,0.5,\,0.3)
+\begin{bmatrix}
+0.2 & 0.5 & 0.3\\
+0.3 & 0.3 & 0.4\\
+0.4 & 0.4 & 0.2
+\end{bmatrix}
+= (0.31,\ 0.37,\ 0.32).
+\]
+
+Let us check the first entry: $0.2(0.2) + 0.5(0.3) + 0.3(0.4) = 0.04 + 0.15 + 0.12 = 0.31$.
+Good -- and notice the new vector still sums to $1$ ($0.31+0.37+0.32 = 1$), as it must: a
+stochastic matrix maps probability distributions to probability distributions. In general
+$\vec{\pi}^{(k)} = \vec{\pi}^{(0)}\mat{P}^k$. Evolving the chain $k$ steps is multiplying by
+$\mat{P}$ a total of $k$ times.
+
+\begin{trapbox}
+Mind the convention. With the \emph{row-stochastic} matrix above, distributions are
+\emph{row} vectors and you multiply on the \emph{left}: $\vec\pi \mapsto \vec\pi\mat{P}$.
+Many texts (and most physics writing) instead use \emph{column}-stochastic matrices, where
+columns sum to $1$, distributions are column vectors, and you multiply on the right:
+$\vec\pi \mapsto \mat{P}\vec\pi$. The two are transposes of each other. Pick one and stay
+with it for a whole calculation; mixing them silently transposes your transition
+probabilities and produces nonsense that still sums to $1$, so it is a maddening bug to
+catch. In this chapter: rows sum to $1$, distributions on the left.
+\end{trapbox}
+
+\subsection{The stationary distribution is a left eigenvector}
+
+Run the chain a few more steps and watch:
+
+\[
+\begin{aligned}
+\vec\pi^{(2)} &= (0.310,\ 0.370,\ 0.320),\\
+\vec\pi^{(3)} &= (0.301,\ 0.394,\ 0.305),\\
+\vec\pi^{(4)} &= (0.300,\ 0.391,\ 0.309),\\
+&\ \,\vdots
+\end{aligned}
+\]
+
+The numbers are settling down. Figure~\ref{ch35:fig-converge} plots each coordinate against
+the step number: starting from the spike ``certainly sunny,'' all three probabilities swing
+once and then lock onto fixed levels.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6cm,
+  xlabel={step $k$}, ylabel={probability $\pi^{(k)}$},
+  xmin=0, xmax=7, ymin=0, ymax=1.05,
+  xtick={0,1,2,3,4,5,6,7},
+  legend pos=north east, legend cell align=left,
+  grid=major, grid style={gray!20},
+  every axis plot/.append style={very thick,mark=*,mark size=1.4pt}]
+  \addplot[sourceblue] coordinates
+    {(0,1.0000)(1,0.2000)(2,0.3100)(3,0.3010)(4,0.3004)(5,0.3009)(6,0.3007)(7,0.3008)};
+  \addlegendentry{$\pi_S$ (sunny)}
+  \addplot[targetgreen] coordinates
+    {(0,0.0000)(1,0.5000)(2,0.3700)(3,0.3940)(4,0.3907)(5,0.3910)(6,0.3910)(7,0.3910)};
+  \addlegendentry{$\pi_C$ (cloudy)}
+  \addplot[trapred] coordinates
+    {(0,0.0000)(1,0.3000)(2,0.3200)(3,0.3050)(4,0.3089)(5,0.3082)(6,0.3083)(7,0.3083)};
+  \addlegendentry{$\pi_R$ (rainy)}
+  \draw[gray!60,dashed] (axis cs:0,0.3910) -- (axis cs:7,0.3910);
+\end{axis}
+\end{tikzpicture}
+\caption{The weather chain forgets its start. Each coordinate of $\vec\pi^{(k)}$ converges to
+the stationary value $\vec\pi^\ast \approx (0.301,\,0.391,\,0.308)$ within a handful of steps,
+no matter that we began ``certainly sunny.'' The geometric rate of approach is set by the
+second eigenvalue $|\lambda_2|$ of $\mat{P}$.}
+\label{ch35:fig-converge}
+\end{figure}
+
+They are converging to a vector $\vec\pi^\ast$ that does not
+change when you push it through $\mat{P}$ one more time:
+
+\[
+\vec\pi^\ast \mat{P} = \vec\pi^\ast.
+\]
+
+This is the \textbf{stationary distribution}. Algebraically it says $\vec\pi^\ast$ is a
+\emph{left} eigenvector of $\mat{P}$ with eigenvalue $1$ -- equivalently a right eigenvector
+of $\mat{P}\T$. There is the headline of this section, stated as plainly as it can be:
+
+\begin{focusbox}
+\textbf{The long-run behavior of a Markov chain is an eigenvector problem.} The fraction of
+time the walker spends in each state, after wandering forever, is the left eigenvector of
+the transition matrix $\mat{P}$ for eigenvalue $1$, normalized to sum to $1$. Find that
+eigenvector and you have predicted the future of the whole system.
+\end{focusbox}
+
+Let us actually solve $\vec\pi^\ast\mat{P} = \vec\pi^\ast$ for our weather chain. Writing
+$\vec\pi^\ast = (a,b,c)$, the equation $\vec\pi^\ast(\mat{P}-\mat{I}) = \vec0$ together with
+$a+b+c=1$ gives the system (one equation per column of $\mat P$, dropping one as
+redundant):
+\[
+\begin{aligned}
+0.2a + 0.3b + 0.4c &= a,\\
+0.5a + 0.3b + 0.4c &= b,\\
+a + b + c &= 1.
+\end{aligned}
+\]
+From the first equation, $0.3b + 0.4c = 0.8a$. From the second,
+$0.5a + 0.4c = 0.7b$. Solving this $3\times3$ system (a good by-hand exercise) yields the
+exact answer
+\[
+\vec\pi^\ast = \left(\tfrac{40}{133},\ \tfrac{52}{133},\ \tfrac{41}{133}\right)
+\approx (0.3008,\ 0.3910,\ 0.3083),
+\]
+exactly the vector the iteration was crawling toward. In the long run the weather is sunny
+about $30\%$ of days, cloudy about $39\%$, rainy about $31\%$ -- regardless of today's
+weather. The starting vector washed out completely. That ``forgetting of the start'' is the
+defining feature of a well-behaved chain.
+
+\subsection{When is there a unique stationary distribution it converges to?}
+
+Not every chain settles down to a single answer. Two things can go wrong, and a beautiful
+theorem says they are the only two.
+
+\begin{formalbox}
+\textbf{Perron--Frobenius for stochastic matrices.} If $\mat{P}$ is the transition matrix of
+a finite Markov chain that is \emph{irreducible} (you can get from any state to any other,
+following arrows) and \emph{aperiodic} (it is not locked into a fixed cycle of return
+times), then:
+\begin{enumerate}
+\item $\mat{P}$ has a unique stationary distribution $\vec\pi^\ast$, a positive left
+eigenvector for the eigenvalue $1$;
+\item $1$ is the largest eigenvalue in magnitude, and it is simple (multiplicity one);
+\item for \emph{every} starting distribution, $\vec\pi^{(0)}\mat{P}^k \to \vec\pi^\ast$ as
+$k \to \infty$.
+\end{enumerate}
+The rate of convergence is governed by the \emph{second-largest} eigenvalue $\lambda_2$ in
+magnitude: the distance to $\vec\pi^\ast$ shrinks like $|\lambda_2|^k$. This gap
+$1 - |\lambda_2|$ is the \emph{spectral gap}, the mixing speed of the chain.
+\end{formalbox}
+
+\begin{intuitionbox}
+\emph{Reducible} means the graph splits into pieces a walker can get stuck inside -- then
+the long-run answer depends on where you started, so there is no single stationary
+distribution. \emph{Periodic} means the chain marches in lockstep (think bipartite: odd
+steps here, even steps there); the distribution oscillates forever instead of settling.
+Rule out both -- by making sure every state can reach every other and that there is at least
+one self-loop or odd cycle to break the rhythm -- and the chain is guaranteed to converge to
+one universal distribution. The weather chain has all positive transitions, so it is
+trivially irreducible and aperiodic; that is why it converged so cleanly.
+\end{intuitionbox}
+
+\begin{connectionbox}
+The eigenvalue $\lambda_2$ controlling Markov mixing and the eigenvalue $\lambda_2$
+controlling graph connectivity (the Fiedler value) are \emph{the same idea in two
+costumes}. For a random walk on an undirected graph, the transition matrix is
+$\mat{P} = \mat{D}\inv\mat{A}$, and its eigenvalues are related to the (normalized)
+Laplacian eigenvalues by $\mu_k = 1 - \lambda_k$. A large Laplacian gap means a large
+Markov gap means fast mixing means no bottleneck. A graph that is hard to cut is a graph a
+random walker mixes through quickly. Connectivity, clustering, and mixing time are one
+spectral story told from three angles -- this unity is why spectral methods feel almost
+magical once you see it.
+\end{connectionbox}
+
+\section{PageRank: importance as an eigenvector}
+\label{ch35:pagerank}
+
+We close with the application that put this entire chapter on the front page of the world:
+Google's PageRank. The problem is to rank the pages of the web by ``importance'' using only
+the link structure -- no human judgment, no reading the text, just who links to whom.
+
+\begin{intuitionbox}
+The founding idea is delightfully circular and entirely correct: \emph{a page is important
+if important pages link to it}. A link is a vote, but votes are weighted by the importance
+of the voter, and the voter's importance is decided the same way. That circular definition
+is not a paradox -- it is an eigenvector equation. ``$\vec{x}$ is proportional to the
+incoming weighted votes, which are proportional to $\vec{x}$'' is precisely
+$\mat{M}\vec{x} = \vec{x}$.
+\end{intuitionbox}
+
+Model the web as a directed graph: nodes are pages, an edge $i \to j$ means page $i$ links
+to page $j$. Imagine a \textbf{random surfer} who, at each step, picks uniformly at random
+one of the outgoing links of the current page and clicks it. If page $i$ has $d_i$ outgoing
+links, the transition probability from $i$ to each linked page $j$ is $1/d_i$. This is just
+the Markov chain $\mat{P}$ from the previous section, built from the link graph. PageRank is
+\emph{the stationary distribution of the random surfer}: the fraction of time an
+endlessly-clicking surfer spends on each page. Important pages are the ones the surfer keeps
+landing on.
+
+Take a tiny four-page web. Page $1$ links to $2$ and $3$; page $2$ links to $3$; page $3$
+links to $1$; page $4$ links to $3$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.7,
+  node/.style={circle,draw=sourceblue,very thick,fill=blue!8,minimum size=9mm,inner sep=0pt,font=\small},
+  every edge/.style={draw=spacegray,thick,-{Stealth[length=2mm]}}]
+  \node[node] (p1) at (0,1.2) {$1$};
+  \node[node] (p2) at (1.5,1.2) {$2$};
+  \node[node] (p3) at (1.5,0) {$3$};
+  \node[node] (p4) at (0,0) {$4$};
+  \draw (p1) edge (p2);
+  \draw (p1) edge (p3);
+  \draw (p2) edge (p3);
+  \draw (p3) edge[bend left=15] (p1);
+  \draw (p4) edge (p3);
+\end{tikzpicture}
+\caption{A four-page web. Page $3$ is linked from $1$, $2$, and $4$ -- it should rank
+highest. Page $1$ gets its importance from page $3$, which is itself highly ranked, so $1$
+does well too despite only one inbound link. PageRank captures exactly this ``importance
+flows backward along links'' intuition.}
+\label{ch35:fig-web}
+\end{figure}
+
+Page $1$ has two out-links, so it sends probability $1/2$ to each of $2$ and $3$. Pages $2$,
+$3$, $4$ each have a single out-link and send all their probability along it. The
+row-stochastic transition matrix is
+
+\[
+\mat{P} =
+\begin{bmatrix}
+0 & \tfrac12 & \tfrac12 & 0\\[2pt]
+0 & 0 & 1 & 0\\[2pt]
+1 & 0 & 0 & 0\\[2pt]
+0 & 0 & 1 & 0
+\end{bmatrix}.
+\]
+
+We want the left eigenvector for eigenvalue $1$. But there is a problem lurking, and the fix
+for it is the cleverest part of the whole algorithm.
+
+\subsection{Two snags and the ``teleport'' that fixes both}
+
+\textbf{Dangling nodes.} A page with \emph{no} outgoing links (a PDF, a dead end) gives a
+zero row -- the surfer falls off the edge of the web and probability leaks away; $\mat{P}$
+is no longer stochastic. \textbf{Reducibility and periodicity.} Even with no dead ends, the
+real web has spider-traps and disconnected islands, so Perron--Frobenius does not apply and
+there may be no unique stationary distribution.
+
+Brin and Page fixed both at once with a single idea: \textbf{teleportation}. With
+probability $\alpha$ (the \emph{damping factor}, classically $\alpha = 0.85$) the surfer
+follows a random link as before; with probability $1-\alpha$ the surfer gets bored and jumps
+to a page chosen \emph{uniformly at random} from all $n$ pages. The new transition matrix is
+
+\[
+\mat{G} = \alpha \mat{P} + (1-\alpha)\,\tfrac1n\,\mat{J},
+\]
+
+where $\mat{J}$ is the all-ones $n\times n$ matrix (and dangling rows of $\mat P$ are first
+replaced by uniform rows $\tfrac1n\vec1\T$, so the surfer ``teleports out'' of dead ends).
+This $\mat{G}$ is the \textbf{Google matrix}.
+
+\begin{aestheticbox}
+Look at what teleportation buys, all from one convex combination. Because $\mat{J}/n$ has
+\emph{every} entry positive, $\mat{G}$ has every entry strictly positive: from any page you
+can reach any other in one step (you might teleport there). Strict positivity makes
+$\mat{G}$ irreducible \emph{and} aperiodic in a single stroke, so Perron--Frobenius applies
+with no exceptions: a unique, positive, stationary PageRank vector \emph{always} exists and
+the iteration \emph{always} converges. One small probabilistic tweak turns a fragile,
+ill-defined problem into one with a guaranteed clean answer. That is the kind of move that
+wins the internet.
+\end{aestheticbox}
+
+The PageRank vector $\vec{r}$ is the stationary distribution of $\mat{G}$:
+\[
+\vec{r}\,\mat{G} = \vec{r}, \qquad \sum_i r_i = 1.
+\]
+Equivalently, written as the update each entry must satisfy (this is the form you will see
+in code),
+\[
+r_j = \frac{1-\alpha}{n} + \alpha \sum_{i \to j} \frac{r_i}{d_i},
+\]
+``my rank is a baseline teleport share plus a weighted sum of the ranks flowing in from
+pages that link to me, each split evenly among its out-links.'' Read it twice; it is the
+whole algorithm.
+
+\subsection{The power method: how it is actually computed}
+
+The web has billions of pages; you cannot diagonalize a billion-by-billion matrix. But you
+do not need to. You only need the \emph{dominant} eigenvector, and there is a one-line
+method for that, which you have secretly already been using: just iterate.
+
+\begin{intuitionbox}
+\textbf{The power method.} Start from any distribution $\vec\pi^{(0)}$ (say uniform) and
+repeatedly multiply: $\vec\pi^{(k+1)} = \vec\pi^{(k)}\mat{G}$. Write the start in the
+eigenvector basis; each multiplication multiplies the component along eigenvector
+$\vec{v}_k$ by $\lambda_k$. Since $\lambda_1 = 1$ dominates and every other $|\lambda_k| < 1$
+shrinks toward zero, all the other components die off and what survives is the
+$\lambda_1$-eigenvector -- the PageRank vector. Repeated multiplication is an
+eigenvector-finding machine that automatically keeps the biggest eigenvalue and forgets the
+rest.
+\end{intuitionbox}
+
+This is exactly the ``run the chain forward and watch it settle'' computation from
+\S\ref{ch35:markov}, now recognized as the power method. Each step is one sparse
+matrix--vector product -- cheap, because each page has only a handful of links. Convergence
+is geometric at rate $\alpha = 0.85$ (the spectral gap of $\mat{G}$ is controlled by the
+damping factor; in fact $|\lambda_2| \le \alpha$ for the Google matrix), so a few dozen
+iterations suffice to rank the entire web. That is why the choice $\alpha = 0.85$ is a
+tuning knob: lower $\alpha$ means faster convergence but more weight on random teleporting
+and less on the actual link structure.
+
+\begin{labbox}
+Run three steps of the power method by hand on the four-page web of
+Figure~\ref{ch35:fig-web}, using the \emph{undamped} $\mat{P}$ for simplicity and starting
+from uniform $\vec\pi^{(0)} = (\tfrac14,\tfrac14,\tfrac14,\tfrac14)$. Compute
+$\vec\pi^{(1)} = \vec\pi^{(0)}\mat{P}$, then $\vec\pi^{(2)}$, then $\vec\pi^{(3)}$. Watch
+page $3$'s entry climb and page $4$'s entry collapse toward $0$ (nothing links to page $4$,
+so the surfer never returns to it). You are watching importance flow through the graph in
+real time. Then reflect: with damping, page $4$ would keep a small floor of
+$\tfrac{1-\alpha}{n}$ -- teleportation guarantees no page is ranked exactly zero.
+\end{labbox}
+
+\begin{applicationbox}
+\textbf{PageRank is everywhere now, not just search.} The same ``stationary distribution of
+a smartly-chosen random walk'' template reappears across modern computing:
+\emph{personalized PageRank} (teleport back to one user's pages, not uniformly) powers
+friend and product recommendations; \emph{TextRank} runs PageRank on a graph of sentences to
+do automatic summarization; \emph{citation analysis} ranks scientific papers and journals;
+biologists rank genes and proteins in interaction networks (``GeneRank''); and random-walk
+node embeddings (DeepWalk, node2vec) -- the graph analog of word embeddings -- feed graph
+neural networks. Every one of them is the chapter you just read: build a transition matrix
+from a network, find the eigenvector for eigenvalue $1$. The eigenvector of a giant sparse
+matrix turned out to be one of the most valuable objects of the information age.
+\end{applicationbox}
+
+\begin{walkbox}
+Take this on a walk. You have now seen the eigenvalue $1$ play the starring role twice -- as
+the stationary distribution of a Markov chain, and as PageRank -- and the eigenvalue $0$
+play it twice as well -- counting connected components, and the constant ground state of the
+Laplacian. Why is it that ``the boring eigenvalue'' ($0$ for $\mat{L}$, $1$ for $\mat{P}$)
+carries the most important information? What is the relationship between $\mat{L} =
+\mat{D}-\mat{A}$ and $\mat{P} = \mat{D}\inv\mat{A}$, and how does the eigenvalue $0$ of one
+become the eigenvalue $1$ of the other? (Hint: $\mat{P} = \mat{I} - \mat{D}\inv\mat{L}$.)
+Hold that identity in your head and the two halves of this chapter fuse into one.
+\end{walkbox}
+
+\section{Looking back}
+
+We started with dots and lines and ended at the algorithm that organizes the web, and the
+whole journey was powered by turning a network into a matrix and asking about its spectrum.
+
+\begin{itemize}
+\item The \textbf{adjacency matrix} $\mat{A}$ records connections; its powers count walks.
+\item The \textbf{incidence matrix} $\mat{B}$ takes differences across edges -- a discrete
+gradient -- and factors the Laplacian as $\mat{L} = \mat{B}\T\mat{B}$.
+\item The \textbf{Laplacian} $\mat{L} = \mat{D}-\mat{A}$ is symmetric and positive
+semidefinite; its energy is $\sum_{(i,j)\in E}(x_i-x_j)^2$; the multiplicity of its
+eigenvalue $0$ counts connected components, and the next eigenvalue $\lambda_2$ (the Fiedler
+value) measures connectivity and locates the best cut -- the foundation of spectral
+clustering.
+\item A \textbf{Markov chain} evolves distributions by $\vec\pi \mapsto \vec\pi\mat{P}$; its
+long-run behavior is the left eigenvector of $\mat{P}$ for eigenvalue $1$, the stationary
+distribution, guaranteed unique and reachable by Perron--Frobenius when the chain is
+irreducible and aperiodic.
+\item \textbf{PageRank} is the stationary distribution of a random surfer, made well-posed
+by teleportation, and computed by the power method -- the same ``iterate and watch it
+settle'' calculation, now recognized as eigenvector finding.
+\end{itemize}
+
+The deepest lesson is the unity at the end of the walking question: connectivity, clustering,
+mixing, and importance are all the same spectral story. Learn to read the eigenvalues of a
+network's matrix and you can hear the shape of the network.
+
+\section*{Exercises}
+\addcontentsline{toc}{section}{Exercises}
+
+\begin{exercise}[Build the three matrices]
+\label{ch35:ex-build}
+Consider the path graph on five nodes in a line: $1\!-\!2\!-\!3\!-\!4\!-\!5$.
+\begin{enumerate}
+\item Write down its adjacency matrix $\mat{A}$ and its degree matrix $\mat{D}$.
+\item Write down the Laplacian $\mat{L} = \mat{D}-\mat{A}$ and verify that every row sums to
+zero.
+\item Orient each edge left-to-right and write the $4\times 5$ incidence matrix $\mat{B}$.
+Confirm by direct multiplication that $\mat{B}\T\mat{B} = \mat{L}$.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Walks by hand]
+\label{ch35:ex-walks}
+For the running graph of Figure~\ref{ch35:fig-graph4}, we computed $\mat{A}^2$. Compute
+$\mat{A}^3$ and verify that $(\mat{A}^3)_{11}$ equals the number of length-$3$ closed walks
+from node $1$ back to node $1$. List those walks explicitly on the picture. (Hint: a
+length-$3$ closed walk must use a triangle, or go out-and-back-and-out.)
+\end{exercise}
+
+\begin{exercise}[Counting components by eigenvalue]
+\label{ch35:ex-components}
+A graph on six nodes has two triangles, $\{1,2,3\}$ and $\{4,5,6\}$, with no edges between
+them. Without computing all the eigenvalues, state the multiplicity of the eigenvalue $0$ of
+its Laplacian and write down a basis for the corresponding eigenspace. Then add a single
+edge $3\!-\!4$ joining the triangles; what is the new multiplicity of $0$, and why?
+\end{exercise}
+
+\begin{exercise}[The energy form]
+\label{ch35:ex-energy}
+Let $\mat{L}$ be the Laplacian of the running graph (Figure~\ref{ch35:fig-graph4}) and let
+$\vec{x} = (1,1,-1,-1)\T$ (label nodes $1,2$ ``$+$'' and nodes $3,4$ ``$-$'').
+\begin{enumerate}
+\item Compute $\vec{x}\T\mat{L}\vec{x}$ two ways: directly as a matrix product, and as
+$\sum_{(i,j)\in E}(x_i-x_j)^2$. They must agree.
+\item Which edges contribute to the sum? Interpret the value as ``the number of edges cut''
+by the partition $\{1,2\}$ versus $\{3,4\}$.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Stationary distribution]
+\label{ch35:ex-stationary}
+A frog hops between two lily pads, $A$ and $B$. From $A$ it stays with probability $0.7$ and
+jumps to $B$ with probability $0.3$. From $B$ it stays with probability $0.4$ and jumps to
+$A$ with probability $0.6$.
+\begin{enumerate}
+\item Write the $2\times2$ row-stochastic transition matrix $\mat{P}$.
+\item Find the stationary distribution by solving $\vec\pi\mat{P} = \vec\pi$ with
+$\pi_A + \pi_B = 1$.
+\item Start at $\vec\pi^{(0)} = (1,0)$ and compute $\vec\pi^{(1)}, \vec\pi^{(2)},
+\vec\pi^{(3)}$ to watch the convergence. What are the two eigenvalues of $\mat{P}$, and how
+does the second one predict the speed you observe?
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Why rows summing to one matters]
+\label{ch35:ex-perron}
+Prove that if $\mat{P}$ is row-stochastic (nonnegative entries, each row summing to $1$),
+then $\mat{P}\vec{1} = \vec{1}$, so $1$ is an eigenvalue with right eigenvector $\vec{1}$.
+Then explain why this does \emph{not} immediately give you the stationary distribution --
+which eigenvector (left or right) do you actually need, and why are they different for a
+non-symmetric $\mat{P}$?
+\end{exercise}
+
+\begin{exercise}[A reducible chain]
+\label{ch35:ex-reducible}
+Consider the chain on states $\{1,2,3\}$ with
+\[
+\mat{P} = \begin{bmatrix} 1 & 0 & 0\\ 0.5 & 0 & 0.5\\ 0 & 0 & 1 \end{bmatrix}.
+\]
+\begin{enumerate}
+\item Draw the transition graph. Which states are ``absorbing'' (once entered, never left)?
+\item Show that both $(1,0,0)$ and $(0,0,1)$ are stationary distributions. Why does this not
+contradict Perron--Frobenius?
+\item Starting from $(0,1,0)$, where does the chain end up, and how does the answer depend on
+the coin flips? (This is why reducibility breaks uniqueness.)
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[PageRank by hand]
+\label{ch35:ex-pagerank}
+Use the four-page web of Figure~\ref{ch35:fig-web} with damping factor $\alpha = 0.85$.
+\begin{enumerate}
+\item Replace the dangling-free $\mat{P}$ given in the text and form the Google matrix
+$\mat{G} = \alpha\mat{P} + \tfrac{1-\alpha}{4}\mat{J}$ explicitly (a $4\times4$ matrix).
+\item Starting from uniform $\vec\pi^{(0)} = (\tfrac14,\tfrac14,\tfrac14,\tfrac14)$, run two
+power-method steps $\vec\pi^{(0)}\mat{G}$ and $(\vec\pi^{(0)}\mat{G})\mat{G}$.
+\item Rank the four pages by your $\vec\pi^{(2)}$. Does page $3$ come out on top? Does page
+$4$ retain a small nonzero rank, and why is teleportation responsible?
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[The bridge between the two halves]
+\label{ch35:ex-bridge}
+For an undirected, connected graph let $\mat{L} = \mat{D}-\mat{A}$ be the Laplacian and
+$\mat{P} = \mat{D}\inv\mat{A}$ be the random-walk transition matrix.
+\begin{enumerate}
+\item Verify the identity $\mat{P} = \mat{I} - \mat{D}\inv\mat{L}$.
+\item Deduce that if $\vec{x}$ is an eigenvector of $\mat{D}\inv\mat{L}$ with eigenvalue
+$\mu$, it is an eigenvector of $\mat{P}$ with eigenvalue $1-\mu$. In particular the
+Laplacian's eigenvalue $0$ (constant eigenvector) maps to $\mat{P}$'s eigenvalue $1$. Explain
+in words how this links ``connected $\Rightarrow$ unique constant ground state'' with
+``connected $\Rightarrow$ unique stationary distribution.''
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Fiedler in miniature, a proof]
+\label{ch35:ex-fiedler}
+Let $\mat{L}$ be the Laplacian of a connected graph with eigenvalues
+$0 = \lambda_1 < \lambda_2 \le \cdots \le \lambda_n$. Using the energy form
+$\vec{x}\T\mat{L}\vec{x} = \sum_{(i,j)\in E}(x_i-x_j)^2$ and the fact (from the spectral
+theorem for symmetric matrices) that
+\[
+\lambda_2 = \min_{\substack{\vec{x}\,\perp\,\vec{1}\\ \vec{x}\ne\vec0}}
+\frac{\vec{x}\T\mat{L}\vec{x}}{\vec{x}\T\vec{x}},
+\]
+prove that $\lambda_2 = 0$ \emph{if and only if} the graph is disconnected. (One direction:
+if disconnected, exhibit a nonconstant $\vec{x}\perp\vec1$ with zero energy. Other direction:
+if $\lambda_2 = 0$, build a second independent constant-on-components vector and conclude
+there are $\ge 2$ components.) This is Theorem~\ref{ch35:thm-components} in the
+smallest nontrivial case.
+\end{exercise}

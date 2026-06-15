@@ -1,0 +1,964 @@
+\chapter{Diagonalization}
+
+In the last chapter you learned to find a matrix's eigenvectors: the special
+directions a machine does not turn, only stretch. An eigenvector $\vec{v}$ with
+eigenvalue $\lambda$ satisfies the one equation that this whole chapter rests on,
+\[
+  \mat{A}\vec{v} = \lambda\,\vec{v}.
+\]
+That is a wonderful fact about \emph{one} direction. This chapter asks the
+follow-up question that changes everything: \emph{what if we use the
+eigenvectors as our coordinate axes?} What if, instead of describing space with
+the boring standard grid $\vec{e}_1, \vec{e}_2, \dots$, we lay down a new grid
+built entirely from the directions $\mat{A}$ likes?
+
+In that grid something magical happens. The matrix $\mat{A}$, which mixed up the
+coordinates and looked complicated, suddenly does nothing but scale each axis by
+its own factor. The tangled machine becomes a set of independent dials. This
+``change into the eigenbasis'' is called \textbf{diagonalization}, and it is the
+single most useful idea in all of applied linear algebra. It is how we compute
+$\mat{A}^{100}$ without a hundred multiplications, how we solve recurrences like
+Fibonacci in closed form, how we understand systems of differential equations,
+and -- a few chapters from now -- it is the seed of the singular value
+decomposition that runs modern data science.
+
+We build the picture geometrically first, then write down the formula
+$\mat{A} = \mat{S}\mat{\Lambda}\mat{S}\inv$, then push it hard: powers, the
+geometry of ``working in the eigenbasis,'' the matrices that \emph{refuse} to
+diagonalize, and a closed-form Fibonacci you can check on your fingers.
+
+\section{The Big Idea: Work in the Eigenbasis}
+\label{ch24:big-idea}
+
+Let us start with a feeling before a formula. Suppose a $2\times 2$ matrix
+$\mat{A}$ has two eigenvectors $\vec{v}_1$ and $\vec{v}_2$ pointing in different
+directions, with eigenvalues $\lambda_1$ and $\lambda_2$. Because they point in
+different directions, these two arrows are a \emph{basis}: every vector $\vec{x}$
+in the plane can be written as a combination of them,
+\[
+  \vec{x} = c_1\vec{v}_1 + c_2\vec{v}_2.
+\]
+Now feed $\vec{x}$ to the machine. Linearity does all the work:
+\[
+  \mat{A}\vec{x}
+  = \mat{A}(c_1\vec{v}_1 + c_2\vec{v}_2)
+  = c_1\,\mat{A}\vec{v}_1 + c_2\,\mat{A}\vec{v}_2
+  = c_1\lambda_1\vec{v}_1 + c_2\lambda_2\vec{v}_2.
+\]
+Look at what just happened. In the eigenvector ``coordinates'' $(c_1, c_2)$, the
+matrix did nothing but multiply the first coordinate by $\lambda_1$ and the
+second by $\lambda_2$. No mixing. The complicated machine, viewed in the right
+coordinates, is just two independent stretches.
+
+\begin{intuitionbox}
+A general matrix mixes your coordinates together: the new $x$ depends on the old
+$x$ \emph{and} the old $y$. Its eigenvectors are the directions where this mixing
+stops. If you rebuild space out of eigenvectors -- use them as your axes -- then
+$\mat{A}$ stops being a tangle and becomes a row of separate volume knobs, one
+per axis, each turned to its eigenvalue $\lambda_i$. \textbf{Diagonalization is
+the act of choosing the coordinate system in which the machine is simplest.}
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % Left: standard grid getting sheared/stretched in a confusing way
+  \begin{scope}[shift={(0,0)}]
+    \draw[->,gray!55] (-0.3,0) -- (3.4,0) node[right]{};
+    \draw[->,gray!55] (0,-0.3) -- (0,3.4) node[above]{};
+    % a generic vector and its (mixed-up) image under A
+    \draw[->,vecblue,very thick] (0,0) -- (1.6,0.8) node[above right]{$\vec{x}$};
+    \draw[->,vecblue!55,dashed,very thick] (0,0) -- (2.6,2.2) node[right]{$\mat{A}\vec{x}$};
+    \node[below] at (1.6,-0.3) {\small standard view: $\mat{A}$ mixes axes};
+  \end{scope}
+  % Right: eigen grid, A just scales along each axis
+  \begin{scope}[shift={(6,0)}]
+    \draw[->,vecblue!50,thin] (0,0) -- (3.2,1.6);
+    \draw[->,vecred!50,thin] (0,0) -- (1.28,3.2);
+    \draw[->,vecblue,very thick] (0,0) -- (1.6,0.8) node[midway,below right]{$\vec{v}_1$};
+    \draw[->,vecred,very thick] (0,0) -- (0.8,2.0) node[midway,left]{$\vec{v}_2$};
+    % scaled images along each eigen-axis (dashed)
+    \draw[->,vecblue,dashed,thick] (1.6,0.8) -- (3.2,1.6) node[right]{$\lambda_1\vec{v}_1$};
+    \draw[->,vecred,dashed,thick] (0.8,2.0) -- (1.28,3.2) node[above]{$\lambda_2\vec{v}_2$};
+    \node[below] at (1.7,-0.2) {\small eigen view: each axis just scales};
+  \end{scope}
+\end{tikzpicture}
+\caption{Left: in the standard grid, $\mat{A}$ looks like it stirs the $x$ and
+$y$ coordinates together -- a generic $\vec{x}$ is sent to a tilted, rescaled
+$\mat{A}\vec{x}$ with no obvious pattern. Right: along the eigenvectors
+$\vec{v}_1,\vec{v}_2$ the
+action is pure scaling -- the $\vec{v}_1$ axis stretches by $\lambda_1$, the
+$\vec{v}_2$ axis by $\lambda_2$. Same machine, smarter axes.}
+\label{ch24:fig-eigenview}
+\end{figure}
+
+\begin{focusbox}
+The slogan for the whole chapter: \textbf{eigenvectors are the axes in which a
+matrix is diagonal.} Find those axes and the matrix loses all its complexity.
+\end{focusbox}
+
+\section{The Factorization \texorpdfstring{$\mat{A}=\mat{S}\mat{\Lambda}\mat{S}\inv$}{A = S Lambda S inverse}}
+\label{ch24:factorization}
+
+Let us turn the feeling into algebra. The trick is to package all the
+eigenvectors into the columns of a single matrix and watch what
+$\mat{A}$ does to them all at once.
+
+Suppose $\mat{A}$ is $n\times n$ and has $n$ eigenvectors
+$\vec{v}_1, \dots, \vec{v}_n$ with eigenvalues $\lambda_1, \dots, \lambda_n$.
+Build the \textbf{eigenvector matrix}
+\[
+  \mat{S} = \big[\; \vec{v}_1 \;\big|\; \vec{v}_2 \;\big|\; \cdots \;\big|\; \vec{v}_n \;\big],
+\]
+putting one eigenvector in each column. Now multiply $\mat{A}$ by $\mat{S}$.
+Matrix times matrix works column by column -- the $j$-th column of $\mat{A}\mat{S}$
+is $\mat{A}$ times the $j$-th column of $\mat{S}$, which is $\mat{A}\vec{v}_j$.
+But $\vec{v}_j$ is an eigenvector, so $\mat{A}\vec{v}_j = \lambda_j\vec{v}_j$.
+Therefore
+\[
+  \mat{A}\mat{S}
+  = \big[\; \lambda_1\vec{v}_1 \;\big|\; \lambda_2\vec{v}_2 \;\big|\; \cdots \;\big|\; \lambda_n\vec{v}_n \;\big].
+\]
+Each column got scaled by its own eigenvalue. Now here is the clever observation:
+that right-hand side is exactly $\mat{S}$ with its columns rescaled, and you
+rescale the columns of a matrix by multiplying \emph{on the right} by a diagonal
+matrix. Let
+\[
+  \mat{\Lambda} = \diag(\lambda_1, \dots, \lambda_n)
+  = \begin{bmatrix} \lambda_1 & & \\ & \ddots & \\ & & \lambda_n \end{bmatrix}.
+\]
+Then $\mat{S}\mat{\Lambda}$ takes column $j$ of $\mat{S}$ and multiplies it by
+$\lambda_j$ -- precisely the right-hand side above. So we have proved the central
+identity
+\[
+  \boxed{\;\mat{A}\mat{S} = \mat{S}\mat{\Lambda}.\;}
+\]
+
+\begin{trapbox}
+Order matters. $\mat{S}\mat{\Lambda}$ (diagonal on the \emph{right}) scales the
+\emph{columns} of $\mat{S}$. $\mat{\Lambda}\mat{S}$ (diagonal on the
+\emph{left}) would scale the \emph{rows} -- a different matrix entirely. The
+eigenvalue must multiply the eigenvector it belongs to, so it has to sit on the
+right: $\mat{A}\mat{S} = \mat{S}\mat{\Lambda}$, not $\mat{\Lambda}\mat{S}$.
+\end{trapbox}
+
+So far we needed no inverse. The inverse enters only when we want to
+\emph{solve} for $\mat{A}$. If the eigenvectors are independent, then $\mat{S}$ is
+invertible (its columns are a basis), and we may multiply $\mat{A}\mat{S} =
+\mat{S}\mat{\Lambda}$ on the right by $\mat{S}\inv$ to isolate $\mat{A}$, or on the
+left by $\mat{S}\inv$ to isolate $\mat{\Lambda}$:
+\[
+  \boxed{\;\mat{A} = \mat{S}\,\mat{\Lambda}\,\mat{S}\inv\;}
+  \qquad\text{and}\qquad
+  \boxed{\;\mat{\Lambda} = \mat{S}\inv\,\mat{A}\,\mat{S}.\;}
+\]
+
+\begin{definition}[Diagonalizable matrix]
+\label{ch24:def-diagonalizable}
+An $n\times n$ matrix $\mat{A}$ is \textbf{diagonalizable} if it can be written
+$\mat{A} = \mat{S}\mat{\Lambda}\mat{S}\inv$ for some invertible $\mat{S}$ and
+diagonal $\mat{\Lambda}$. Equivalently, $\mat{A}$ is diagonalizable if and only
+if it has $n$ linearly independent eigenvectors. Those eigenvectors are the
+columns of $\mat{S}$; the eigenvalues are the diagonal entries of
+$\mat{\Lambda}$, in the matching order.
+\end{definition}
+
+\begin{formalbox}
+\textbf{Theorem (Diagonalization).} An $n\times n$ matrix $\mat{A}$ is
+diagonalizable over $\R$ if and only if $\R^n$ has a basis consisting of
+eigenvectors of $\mat{A}$. In that case, writing those basis vectors as the
+columns of $\mat{S}$ and their eigenvalues on the diagonal of $\mat{\Lambda}$,
+\[
+  \mat{A} = \mat{S}\mat{\Lambda}\mat{S}\inv .
+\]
+The factorization is not unique: you may reorder the eigenpairs (permuting
+columns of $\mat{S}$ and the matching diagonal entries of $\mat{\Lambda}$
+together) or rescale any eigenvector, and you still get $\mat{A}$ back.
+\end{formalbox}
+
+\begin{strangbox}
+Strang writes this factorization with the same letters: $\mat{A} =
+\mat{S}\mat{\Lambda}\mat{S}\inv$, with $\mat{S}$ the eigenvector matrix and
+$\mat{\Lambda}$ (capital lambda) the eigenvalue matrix. He stresses, as we will,
+that ``diagonalizing requires $n$ independent eigenvectors.'' If you read this
+\emph{before} Strang, the one thing to carry in: $\mat{S}$'s columns are
+eigenvectors and $\mat{\Lambda}$'s diagonal is eigenvalues, \emph{in the same
+order}. If you read it \emph{after}, notice we are deliberately separating two
+hypotheses Strang sometimes bundles: ``has $n$ eigenvalues'' versus ``has $n$
+independent eigenvectors.'' Only the second is what diagonalization needs.
+\end{strangbox}
+
+\subsection{A first worked example}
+\label{ch24:first-example}
+
+Let us diagonalize a concrete matrix start to finish.
+\[
+  \mat{A} = \begin{bmatrix} 2 & 1 \\ 1 & 2 \end{bmatrix}.
+\]
+\textbf{Step 1: eigenvalues.} Solve $\det(\mat{A} - \lambda\mat{I}) = 0$:
+\[
+  \det\begin{bmatrix} 2-\lambda & 1 \\ 1 & 2-\lambda \end{bmatrix}
+  = (2-\lambda)^2 - 1
+  = \lambda^2 - 4\lambda + 3
+  = (\lambda - 1)(\lambda - 3) = 0,
+\]
+so $\lambda_1 = 1$ and $\lambda_2 = 3$.
+
+\textbf{Step 2: eigenvectors.} For $\lambda_1 = 1$, solve $(\mat{A}-\mat{I})\vec{v}=\vec0$:
+\[
+  \begin{bmatrix} 1 & 1 \\ 1 & 1 \end{bmatrix}\vec{v} = \vec0
+  \;\Longrightarrow\; v_1 + v_2 = 0
+  \;\Longrightarrow\; \vec{v}_1 = \colvec{1\\-1}.
+\]
+For $\lambda_2 = 3$, solve $(\mat{A}-3\mat{I})\vec{v}=\vec0$:
+\[
+  \begin{bmatrix} -1 & 1 \\ 1 & -1 \end{bmatrix}\vec{v} = \vec0
+  \;\Longrightarrow\; -v_1 + v_2 = 0
+  \;\Longrightarrow\; \vec{v}_2 = \colvec{1\\1}.
+\]
+
+\textbf{Step 3: assemble.} Place eigenvectors as columns, eigenvalues on the diagonal:
+\[
+  \mat{S} = \begin{bmatrix} 1 & 1 \\ -1 & 1 \end{bmatrix},
+  \qquad
+  \mat{\Lambda} = \begin{bmatrix} 1 & 0 \\ 0 & 3 \end{bmatrix}.
+\]
+The inverse of a $2\times2$ matrix $\begin{bsmallmatrix} a&b\\c&d\end{bsmallmatrix}$
+is $\frac{1}{ad-bc}\begin{bsmallmatrix} d&-b\\-c&a\end{bsmallmatrix}$, and here
+$ad-bc = (1)(1)-(1)(-1) = 2$, so
+\[
+  \mat{S}\inv = \frac{1}{2}\begin{bmatrix} 1 & -1 \\ 1 & 1 \end{bmatrix}.
+\]
+
+\textbf{Step 4: check.} Multiply $\mat{S}\mat{\Lambda}\mat{S}\inv$ back together
+and confirm we recover $\mat{A}$:
+\[
+  \mat{S}\mat{\Lambda}
+  = \begin{bmatrix} 1 & 1 \\ -1 & 1 \end{bmatrix}\begin{bmatrix} 1 & 0 \\ 0 & 3 \end{bmatrix}
+  = \begin{bmatrix} 1 & 3 \\ -1 & 3 \end{bmatrix},
+\]
+\[
+  \mat{S}\mat{\Lambda}\mat{S}\inv
+  = \begin{bmatrix} 1 & 3 \\ -1 & 3 \end{bmatrix}\cdot\frac{1}{2}\begin{bmatrix} 1 & -1 \\ 1 & 1 \end{bmatrix}
+  = \frac{1}{2}\begin{bmatrix} 4 & 2 \\ 2 & 4 \end{bmatrix}
+  = \begin{bmatrix} 2 & 1 \\ 1 & 2 \end{bmatrix} = \mat{A}.\ \checkmark
+\]
+
+\begin{labbox}
+Diagonalize $\mat{B} = \begin{bsmallmatrix} 3 & 0 \\ 1 & 2 \end{bsmallmatrix}$ by
+hand. It is lower triangular, so read the eigenvalues straight off the diagonal:
+$\lambda = 3$ and $\lambda = 2$. Find one eigenvector for each (you should get
+$\colvec{1\\1}$ for $\lambda=3$ and $\colvec{0\\1}$ for $\lambda=2$), assemble
+$\mat{S}$ and $\mat{\Lambda}$, and multiply $\mat{S}\mat{\Lambda}\mat{S}\inv$
+back to verify. Doing this once by hand cements the recipe forever.
+\end{labbox}
+
+\section{Why Powers Become Easy}
+\label{ch24:powers}
+
+Here is the payoff that makes everyone fall in love with diagonalization. Suppose
+you need $\mat{A}^k$ for large $k$ -- maybe you are iterating a process a thousand
+times. Multiplying $\mat{A}$ by itself a thousand times is miserable and
+numerically dangerous. Diagonalization makes it a one-liner.
+
+Watch the inverses cancel. Square the factorization:
+\[
+  \mat{A}^2
+  = (\mat{S}\mat{\Lambda}\mat{S}\inv)(\mat{S}\mat{\Lambda}\mat{S}\inv)
+  = \mat{S}\mat{\Lambda}\underbrace{(\mat{S}\inv\mat{S})}_{=\,\mat{I}}\mat{\Lambda}\mat{S}\inv
+  = \mat{S}\mat{\Lambda}^2\mat{S}\inv.
+\]
+The interior $\mat{S}\inv\mat{S}$ collapses to the identity. Do it $k$ times and
+every interior pair collapses, leaving
+\[
+  \boxed{\;\mat{A}^k = \mat{S}\,\mat{\Lambda}^k\,\mat{S}\inv.\;}
+\]
+And raising a \emph{diagonal} matrix to a power is trivial -- you just raise each
+diagonal entry to that power, because a diagonal matrix times itself only
+multiplies corresponding entries:
+\[
+  \mat{\Lambda}^k
+  = \begin{bmatrix} \lambda_1^k & & \\ & \ddots & \\ & & \lambda_n^k \end{bmatrix}.
+\]
+No matrix multiplication chain at all -- just $n$ scalar powers, then two matrix
+products to sandwich them back. The hard part (the eigenvectors) is computed once
+and reused for every $k$.
+
+\begin{intuitionbox}
+Think of $\mat{S}\inv$ as ``translate into eigen-language,'' $\mat{\Lambda}^k$ as
+``do the simple thing $k$ times -- just stretch each axis,'' and $\mat{S}$ as
+``translate back to ordinary coordinates.'' Powers are hard in ordinary
+coordinates and trivial in eigen-coordinates, so we step into that language, do
+the easy thing, and step back out.
+\end{intuitionbox}
+
+\begin{example}[A power computed by hand]
+\label{ch24:power-example}
+Use our $\mat{A} = \begin{bsmallmatrix} 2&1\\1&2\end{bsmallmatrix}$ from above to
+find $\mat{A}^{10}$ without ten multiplications. We have $\lambda_1=1$,
+$\lambda_2=3$, so $\mat{\Lambda}^{10} = \begin{bsmallmatrix} 1^{10}&0\\0&3^{10}\end{bsmallmatrix}
+= \begin{bsmallmatrix} 1 & 0 \\ 0 & 59049 \end{bsmallmatrix}$. Then
+\[
+  \mat{A}^{10}
+  = \mat{S}\mat{\Lambda}^{10}\mat{S}\inv
+  = \begin{bmatrix} 1 & 1 \\ -1 & 1 \end{bmatrix}
+    \begin{bmatrix} 1 & 0 \\ 0 & 59049 \end{bmatrix}
+    \frac{1}{2}\begin{bmatrix} 1 & -1 \\ 1 & 1 \end{bmatrix}.
+\]
+Carry it out: $\mat{S}\mat{\Lambda}^{10} = \begin{bsmallmatrix} 1 & 59049 \\ -1 & 59049 \end{bsmallmatrix}$, and
+\[
+  \mat{A}^{10}
+  = \frac{1}{2}\begin{bmatrix} 1 & 59049 \\ -1 & 59049 \end{bmatrix}\begin{bmatrix} 1 & -1 \\ 1 & 1 \end{bmatrix}
+  = \frac{1}{2}\begin{bmatrix} 59050 & 59048 \\ 59048 & 59050 \end{bmatrix}
+  = \begin{bmatrix} 29525 & 29524 \\ 29524 & 29525 \end{bmatrix}.
+\]
+Notice the structure the eigenvalues predicted: the entries are huge (driven by
+$3^{10}$) and the matrix is nearly $\tfrac{3^{10}}{2}$ times the rank-one
+``all-ones'' pattern, because the $\lambda=3$ direction dominates. That dominance
+is the seed of the power method and of the long-run behavior of Markov chains.
+\end{example}
+
+\begin{aestheticbox}
+There is real beauty here. A power $\mat{A}^k$ looks like it should grow in
+complexity with $k$ -- more and more multiplications, entries spiraling out of
+control. Diagonalization reveals that nothing complicated is happening at all:
+the matrix is secretly $n$ independent numbers $\lambda_i$, each quietly raised to
+the $k$. All the apparent complexity lived in the \emph{choice of coordinates},
+not in the matrix's true behavior. Finding the eigenbasis is finding the
+coordinates in which the truth is simple.
+\end{aestheticbox}
+
+\subsection{The long-run behavior you can read off}
+\label{ch24:longrun}
+
+Because $\mat{A}^k$ scales the $\vec{v}_i$ direction by $\lambda_i^k$, the
+\emph{largest} $\abs{\lambda_i}$ wins as $k\to\infty$. If one eigenvalue is
+bigger in magnitude than all the others, then for large $k$ almost every vector,
+when hit repeatedly by $\mat{A}$, lines up with that dominant eigenvector. Write
+any starting vector in the eigenbasis, $\vec{x} = \sum_i c_i\vec{v}_i$; then
+\[
+  \mat{A}^k\vec{x} = \sum_i c_i\,\lambda_i^k\,\vec{v}_i
+  = \lambda_1^k\Big( c_1\vec{v}_1 + \sum_{i\ge 2} c_i\big(\tfrac{\lambda_i}{\lambda_1}\big)^k\vec{v}_i\Big).
+\]
+If $\abs{\lambda_1} > \abs{\lambda_i}$ for all $i\ge2$, every ratio
+$(\lambda_i/\lambda_1)^k \to 0$, and the bracket collapses to $c_1\vec{v}_1$. The
+process forgets where it started and aligns with $\vec{v}_1$
+(Figure~\ref{ch24:fig-dominant}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth,font=\small]
+  % the two eigen-axes
+  \draw[->,vecblue,thick] (0,0) -- (3.2,0.0) node[right]{$\vec{v}_1$ (dominant)};
+  \draw[->,vecred,thick]  (0,0) -- (0.0,2.6) node[above]{$\vec{v}_2$};
+  % successive images of x: each step shrinks the v2 part, grows v1 part
+  % start somewhat off-axis, end nearly on v1
+  \coordinate (p0) at (0.5,2.0);
+  \coordinate (p1) at (1.1,1.2);
+  \coordinate (p2) at (1.9,0.55);
+  \coordinate (p3) at (2.7,0.18);
+  \foreach \p/\lab in {p0/$\vec{x}$,p1/$\mat{A}\vec{x}$,p2/$\mat{A}^2\vec{x}$,p3/$\mat{A}^3\vec{x}$}{
+    \draw[->,structurepurple,thick] (0,0) -- (\p);
+  }
+  \node[above right] at (p0) {$\vec{x}$};
+  \node[above right] at (p1) {$\mat{A}\vec{x}$};
+  \node[above right] at (p2) {$\mat{A}^2\vec{x}$};
+  \node[below right] at (p3) {$\mat{A}^3\vec{x}$};
+  \draw[gray!55,dashed] (p0) to[bend left=12] (p3);
+\end{tikzpicture}
+\caption{Dominant-eigenvalue behavior. Repeatedly applying $\mat{A}$ shrinks the
+$\vec{v}_2$ component (by the factor $\lambda_2/\lambda_1$ each step) while the
+$\vec{v}_1$ component grows fastest, so the images swing toward the dominant
+eigen-direction $\vec{v}_1$. This is the engine behind PageRank, the power
+method, and Markov-chain convergence.}
+\label{ch24:fig-dominant}
+\end{figure}
+
+\begin{applicationbox}
+\textbf{Google's PageRank and Markov chains.} A web-surfing model is a giant
+matrix $\mat{A}$ whose largest eigenvalue is $\lambda_1 = 1$, with all other
+$\abs{\lambda_i} < 1$. The formula above says $\mat{A}^k\vec{x}$ converges, for
+\emph{any} starting distribution $\vec{x}$, to a multiple of the dominant
+eigenvector $\vec{v}_1$ -- the \textbf{stationary distribution}. That eigenvector
+\emph{is} the PageRank vector: the long-run fraction of time a random surfer
+spends on each page. Diagonalization is not just a computational shortcut here;
+it is the explanation of \emph{why} the ranking exists and is unique. The
+``second eigenvalue'' $\abs{\lambda_2}$ controls how fast the algorithm converges
+-- smaller $\abs{\lambda_2}$ means PageRank settles in fewer iterations. The same
+mathematics governs how quickly a shuffled deck becomes random and how fast an
+MCMC sampler in modern Bayesian statistics mixes.
+\end{applicationbox}
+
+\section{The Geometry: Three Honest Steps}
+\label{ch24:geometry}
+
+The formula $\mat{A} = \mat{S}\mat{\Lambda}\mat{S}\inv$ is best understood as a
+\textbf{sentence read right to left}, because matrices act on a vector from the
+right. To compute $\mat{A}\vec{x}$ you first apply $\mat{S}\inv$, then
+$\mat{\Lambda}$, then $\mat{S}$:
+\[
+  \mat{A}\vec{x}
+  = \mat{S}\,\big(\,\mat{\Lambda}\,(\,\mat{S}\inv\vec{x}\,)\,\big).
+\]
+Each factor has a clean geometric job.
+
+\begin{itemize}
+  \item $\mat{S}\inv$: \textbf{change into the eigenbasis.} It rewrites $\vec{x}$
+        in terms of how much of each eigenvector it contains -- it reports the
+        coordinates $(c_1,\dots,c_n)$ where $\vec{x}=\sum c_i\vec{v}_i$.
+  \item $\mat{\Lambda}$: \textbf{stretch each eigen-axis.} In those coordinates,
+        scale the $i$-th by $\lambda_i$. Simple, decoupled, no mixing.
+  \item $\mat{S}$: \textbf{change back to standard coordinates.} It rebuilds the
+        ordinary vector from its (now-stretched) eigen-coordinates.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.92,>=Stealth,font=\small]
+  % stage boxes
+  \tikzstyle{stg}=[draw,rounded corners,minimum width=2.3cm,minimum height=1.3cm,align=center]
+  \node[stg] (a) at (0,0) {standard\\$\vec{x}$};
+  \node[stg] (b) at (3.7,0) {eigen-coords\\$\mat{S}\inv\vec{x}$};
+  \node[stg] (c) at (7.6,0) {stretched\\$\mat{\Lambda}\mat{S}\inv\vec{x}$};
+  \node[stg] (d) at (11.5,0) {standard\\$\mat{A}\vec{x}$};
+  \draw[->,thick,vecblue] (a) -- node[above]{$\mat{S}\inv$} node[below]{\scriptsize translate in} (b);
+  \draw[->,thick,vecred]  (b) -- node[above]{$\mat{\Lambda}$} node[below]{\scriptsize scale axes} (c);
+  \draw[->,thick,vecblue] (c) -- node[above]{$\mat{S}$} node[below]{\scriptsize translate out} (d);
+\end{tikzpicture}
+\caption{Reading $\mat{A}=\mat{S}\mat{\Lambda}\mat{S}\inv$ as a pipeline:
+translate into the eigen-language, do the easy stretching there, translate back.
+Every hard thing $\mat{A}$ does is just easy stretching wearing a disguise.}
+\label{ch24:fig-pipeline}
+\end{figure}
+
+This is exactly the change-of-basis story you will meet again in the chapter on
+linear transformations: $\mat{\Lambda} = \mat{S}\inv\mat{A}\mat{S}$ says
+\emph{the same machine $\mat{A}$, described in the eigenvector coordinate system,
+is the diagonal matrix $\mat{\Lambda}$}. The matrix and its diagonal form are the
+same transformation seen through two different windows.
+
+\begin{connectionbox}
+\textbf{Similar matrices and ``the same map in new clothes.''} Two matrices
+$\mat{A}$ and $\mat{B}$ are called \textbf{similar} if $\mat{B} =
+\mat{P}\inv\mat{A}\mat{P}$ for some invertible $\mat{P}$. Similarity is exactly
+``same linear map, different basis.'' Diagonalization is the special, lucky case
+where one of the two similar matrices happens to be diagonal. Similar matrices
+\emph{share} their eigenvalues, their determinant ($\det\mat{A} = \prod\lambda_i$),
+their trace ($\tr\mat{A} = \sum\lambda_i$), and their rank -- these are
+properties of the underlying transformation, not of the coordinate window you
+view it through. Two chapters from now this idea blossoms into the Jordan form,
+which asks: when a matrix \emph{cannot} be made diagonal, what is the simplest
+form it \emph{can} be made similar to?
+\end{connectionbox}
+
+\begin{walkbox}
+Take a walk and chew on this: the determinant of $\mat{A}$ equals the product of
+its eigenvalues, and the trace equals their sum. From $\mat{A} =
+\mat{S}\mat{\Lambda}\mat{S}\inv$, can you see \emph{why}? Hint: $\det$ turns
+products into products and $\det(\mat{S}\inv)=1/\det(\mat{S})$, so the $\mat{S}$'s
+cancel; for the trace, recall the cyclic property $\tr(\mat{X}\mat{Y}) =
+\tr(\mat{Y}\mat{X})$. Both invariants are reading the diagonal of
+$\mat{\Lambda}$.
+\end{walkbox}
+
+\section{Which Matrices Diagonalize? Independent Eigenvectors}
+\label{ch24:which}
+
+Everything above needed one thing: $\mat{S}$ must be invertible, i.e. the
+eigenvectors must be \emph{linearly independent}. When does that happen? The key
+fact does most of the work for us.
+
+\begin{theorem}[Distinct eigenvalues give independent eigenvectors]
+\label{ch24:thm-distinct}
+Eigenvectors corresponding to \emph{distinct} eigenvalues are linearly
+independent. In particular, if an $n\times n$ matrix has $n$ distinct
+eigenvalues, it has $n$ independent eigenvectors and is therefore
+diagonalizable.
+\end{theorem}
+
+\begin{proof}[Sketch for two eigenvalues]
+Suppose $\vec{v}_1,\vec{v}_2$ have distinct eigenvalues $\lambda_1\neq\lambda_2$
+and some combination vanishes: $c_1\vec{v}_1 + c_2\vec{v}_2 = \vec0$. Apply
+$\mat{A}$ to get $c_1\lambda_1\vec{v}_1 + c_2\lambda_2\vec{v}_2 = \vec0$. Now
+subtract $\lambda_1$ times the first equation: the $\vec{v}_1$ term cancels,
+leaving $c_2(\lambda_2 - \lambda_1)\vec{v}_2 = \vec0$. Since
+$\lambda_2-\lambda_1\neq0$ and $\vec{v}_2\neq\vec0$, we must have $c_2 = 0$, and
+then the first equation forces $c_1 = 0$. No nontrivial combination vanishes, so
+the vectors are independent. The same ``apply $\mat{A}$ and subtract'' argument
+extends to any number of distinct eigenvalues by induction.
+\end{proof}
+
+So \textbf{distinct eigenvalues guarantee diagonalizability}. This is the common,
+comfortable case. But the converse is false, and reading it correctly will save
+you from two classic traps.
+
+\begin{trapbox}
+\textbf{Trap 1: repeated eigenvalues do not doom a matrix.} You can have repeated
+eigenvalues and still be perfectly diagonalizable. The identity matrix $\mat{I}$
+has eigenvalue $1$ repeated $n$ times, yet \emph{every} vector is an eigenvector
+-- it is already diagonal! A repeated eigenvalue is only a \emph{warning} that
+you must go check whether you can find enough independent eigenvectors for it.
+
+\textbf{Trap 2: diagonalizability is about eigenVECTORS, not eigenVALUES.} The
+question is never ``are there $n$ eigenvalues?'' (counted with repetition there
+always are, over $\C$). The question is ``are there $n$ independent
+eigenVECTORS?'' Those are different questions, and the gap between them is the
+whole subject of the next section.
+\end{trapbox}
+
+\subsection{Algebraic versus geometric multiplicity}
+\label{ch24:multiplicity}
+
+To say precisely when a repeated eigenvalue is harmless, we need two counts.
+
+\begin{definition}[Two multiplicities]
+\label{ch24:def-mult}
+For an eigenvalue $\lambda$ of $\mat{A}$:
+\begin{itemize}
+  \item its \textbf{algebraic multiplicity} is how many times $\lambda$ appears
+        as a root of the characteristic polynomial $\det(\mat{A}-\lambda\mat{I})$;
+  \item its \textbf{geometric multiplicity} is the dimension of its eigenspace
+        $\nullsp(\mat{A}-\lambda\mat{I})$ -- the number of independent
+        eigenvectors you can actually find for $\lambda$.
+\end{itemize}
+Always $1 \le (\text{geometric}) \le (\text{algebraic})$.
+\end{definition}
+
+The matrix is diagonalizable exactly when there is no shortfall anywhere -- when
+geometric multiplicity equals algebraic multiplicity for every eigenvalue, so the
+eigenvectors add up to a full basis of $n$.
+
+\begin{formalbox}
+\textbf{Diagonalizability criterion.} $\mat{A}$ is diagonalizable (over a field
+containing all its eigenvalues) if and only if, for every eigenvalue $\lambda$,
+\[
+  \dim\nullsp(\mat{A}-\lambda\mat{I}) \;=\; \text{(algebraic multiplicity of }\lambda).
+\]
+Equivalently, the geometric multiplicities sum to $n$. When some eigenvalue has
+geometric multiplicity strictly less than its algebraic multiplicity, the
+eigenvectors fall short of a basis and the matrix is \textbf{defective} -- it
+cannot be diagonalized.
+\end{formalbox}
+
+\section{Defective Matrices: When Diagonalization Fails}
+\label{ch24:defective}
+
+Some matrices simply do not have enough eigenvectors, and no cleverness can
+manufacture them. The smallest and most important example is the shear.
+
+\begin{example}[The shear that cannot be diagonalized]
+\label{ch24:shear}
+Consider
+\[
+  \mat{A} = \begin{bmatrix} 1 & 1 \\ 0 & 1 \end{bmatrix}.
+\]
+It is upper triangular, so the eigenvalues are on the diagonal: $\lambda = 1$,
+twice. Algebraic multiplicity of $\lambda=1$ is $2$. Now hunt for eigenvectors by
+solving $(\mat{A}-\mat{I})\vec{v} = \vec0$:
+\[
+  \mat{A} - \mat{I} = \begin{bmatrix} 0 & 1 \\ 0 & 0 \end{bmatrix},
+  \qquad
+  \begin{bmatrix} 0 & 1 \\ 0 & 0 \end{bmatrix}\colvec{v_1\\v_2} = \vec0
+  \;\Longrightarrow\; v_2 = 0.
+\]
+The only solutions are multiples of $\colvec{1\\0}$. The eigenspace is a single
+line -- geometric multiplicity $1$, but algebraic multiplicity $2$. There is a
+shortfall of one. We can never assemble two independent eigenvectors, so
+$\mat{S}$ cannot be formed, and $\mat{A}$ is \textbf{defective}: not
+diagonalizable.
+\end{example}
+
+Why does this matrix resist? Geometrically a shear slides the plane sideways: the
+horizontal axis is pinned (that is the one eigenvector), but \emph{no other
+direction is merely scaled} -- every other vector gets tilted toward the
+horizontal. There is no second axis that the machine leaves pointing the same
+way, so there is no second eigenvector, and hence no eigenbasis.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth,font=\small]
+  \draw[->,gray!55] (-0.3,0) -- (4.0,0) node[right]{$x$};
+  \draw[->,gray!55] (0,-0.3) -- (0,2.6) node[above]{$y$};
+  % the pinned eigen-direction (x-axis): a vector and its image coincide in direction
+  \draw[->,vecblue,very thick] (0,0) -- (2.4,0) node[below=2pt]{$\vec{v}=\colvec{1\\0}$ pinned};
+  % a generic vector and its sheared image, tilting toward horizontal
+  \draw[->,vecred,very thick] (0,0) -- (1.0,1.5) node[above left]{$\vec{u}$};
+  \draw[->,vecred!55,very thick,dashed] (0,0) -- (2.5,1.5) node[right]{$\mat{A}\vec{u}$ (tilted, not scaled)};
+  \draw[gray!50,dashed] (1.0,1.5) -- (2.5,1.5);
+  \node[align=center] at (2.6,2.3) {\scriptsize every non-horizontal\\[-2pt]\scriptsize arrow tips over};
+\end{tikzpicture}
+\caption{The shear $\protect\begin{bmatrix}1&1\\0&1\protect\end{bmatrix}$ pins
+the horizontal axis (its one eigenvector) but tilts every other vector toward the
+horizontal -- changing its \emph{direction}, not merely its length. With only one
+eigen-direction there is no eigenbasis, so the matrix is defective.}
+\label{ch24:fig-shear}
+\end{figure}
+
+\begin{intuitionbox}
+A defective matrix is one that does something a diagonal matrix simply cannot:
+it has a direction that gets \emph{rotated into} another, never purely scaled.
+Pure scaling along independent axes is the entire repertoire of a diagonal
+matrix, so any genuine ``tipping over'' that cannot be undone by a change of axes
+is the fingerprint of defectiveness. The repeated-eigenvalue shear is the
+canonical culprit.
+\end{intuitionbox}
+
+\begin{trapbox}
+A repeated eigenvalue \emph{may or may not} be defective -- you must check.
+Compare these two, both with eigenvalue $5$ doubled:
+\[
+  \begin{bmatrix} 5 & 0 \\ 0 & 5 \end{bmatrix}
+  \ \text{(geom.\ mult.\ }2\text{, diagonalizable),}
+  \qquad
+  \begin{bmatrix} 5 & 1 \\ 0 & 5 \end{bmatrix}
+  \ \text{(geom.\ mult.\ }1\text{, defective).}
+\]
+Same characteristic polynomial $(\lambda-5)^2$, opposite fates. The off-diagonal
+$1$ is what kills the second eigenvector. Never judge diagonalizability from the
+eigenvalues alone.
+\end{trapbox}
+
+\begin{remark}[There is still a ``best possible'' form]
+\label{ch24:jordan-preview}
+A defective matrix cannot be diagonalized, but it is not the end of the road. The
+\textbf{Jordan form} (a later chapter) is the nearest substitute: it is
+\emph{almost} diagonal, with the eigenvalues on the diagonal and a few stray
+$1$'s just above it -- exactly one $1$ for each missing eigenvector. The shear
+$\begin{bsmallmatrix}1&1\\0&1\end{bsmallmatrix}$ is its own Jordan form: that
+stray $1$ is the visible scar of the eigenvector it lacks.
+\end{remark}
+
+\begin{connectionbox}
+\textbf{Defectiveness is fragile, and that is a story about calculus.} Defective
+matrices are rare in the sense that an arbitrarily tiny perturbation breaks the
+repeated eigenvalue apart into distinct ones, instantly making the matrix
+diagonalizable. For instance $\begin{bsmallmatrix}1&1\\0&1\end{bsmallmatrix}$ is
+defective, but $\begin{bsmallmatrix}1&1\\0&1+\eps\end{bsmallmatrix}$ has the two
+distinct eigenvalues $1$ and $1+\eps$, hence two eigenvectors, for every
+$\eps\neq0$. As $\eps\to0$ those two eigenvectors swing toward each other and
+\emph{collide}, and $\mat{S}\inv$ blows up. This is why numerical software is
+nervous near defective matrices: the eigenvectors become almost parallel and
+$\mat{S}$ becomes nearly singular. The cure that everyone eventually reaches for
+is the singular value decomposition, which never has this problem -- but that is
+chapters away.
+\end{connectionbox}
+
+\section{Application: Solving the Fibonacci Recurrence}
+\label{ch24:fibonacci}
+
+Diagonalization turns a recurrence -- a rule that builds each term from the last
+ones -- into a matrix power, which we now know how to compute exactly. The most
+famous recurrence in the world is Fibonacci:
+\[
+  F_0 = 0,\quad F_1 = 1,\qquad F_{k+1} = F_k + F_{k-1}.
+\]
+So $0,1,1,2,3,5,8,13,21,\dots$. Can we find a \emph{closed form} for $F_k$ -- a
+formula that jumps straight to the thousandth term without computing the first
+nine hundred ninety-nine?
+
+\textbf{Step 1: make it a matrix.} The trick for any recurrence is to track a
+little \emph{state vector} holding enough recent terms to take the next step.
+Here, two terms suffice. Let $\vec{u}_k = \colvec{F_{k+1}\\ F_k}$. The recurrence
+says
+\[
+  \colvec{F_{k+1}\\F_k} = \begin{bmatrix} 1 & 1 \\ 1 & 0 \end{bmatrix}\colvec{F_k\\F_{k-1}},
+  \qquad\text{i.e.}\qquad
+  \vec{u}_k = \mat{A}\,\vec{u}_{k-1},
+  \quad
+  \mat{A} = \begin{bmatrix} 1 & 1 \\ 1 & 0 \end{bmatrix}.
+\]
+Check the top row: $F_{k+1} = 1\cdot F_k + 1\cdot F_{k-1}$, the recurrence
+itself. The bottom row just copies $F_k$ down so it is ready to be the ``previous
+term'' next time. Iterating from $\vec{u}_0 = \colvec{F_1\\F_0} = \colvec{1\\0}$,
+\[
+  \vec{u}_k = \mat{A}^k\,\vec{u}_0.
+\]
+A closed form for $F_k$ is now a closed form for $\mat{A}^k$ -- and we know
+exactly how to get that.
+
+\textbf{Step 2: diagonalize $\mat{A}$.} Characteristic polynomial:
+\[
+  \det\begin{bmatrix} 1-\lambda & 1 \\ 1 & -\lambda \end{bmatrix}
+  = (1-\lambda)(-\lambda) - 1
+  = \lambda^2 - \lambda - 1 = 0.
+\]
+The roots are the golden ratio and its conjugate:
+\[
+  \lambda_1 = \varphi = \frac{1+\sqrt5}{2} \approx 1.618,
+  \qquad
+  \lambda_2 = \psi = \frac{1-\sqrt5}{2} \approx -0.618.
+\]
+They are distinct, so $\mat{A}$ is diagonalizable. For eigenvectors, from
+$(\mat{A}-\lambda\mat{I})\vec{v}=\vec0$ the bottom row gives $v_1 = \lambda v_2$,
+so an eigenvector for $\lambda$ is $\colvec{\lambda\\1}$. Thus
+\[
+  \mat{S} = \begin{bmatrix} \varphi & \psi \\ 1 & 1 \end{bmatrix},
+  \qquad
+  \mat{\Lambda} = \begin{bmatrix} \varphi & 0 \\ 0 & \psi \end{bmatrix}.
+\]
+
+\textbf{Step 3: extract the formula.} We want $F_k$, the bottom entry of
+$\vec{u}_k = \mat{S}\mat{\Lambda}^k\mat{S}\inv\vec{u}_0$. Rather than grind the
+full product, use the cleaner eigenbasis route: expand the start vector
+$\vec{u}_0 = \colvec{1\\0}$ in eigenvectors, $\vec{u}_0 = c_1\colvec{\varphi\\1} +
+c_2\colvec{\psi\\1}$. The two equations are $c_1\varphi + c_2\psi = 1$ and
+$c_1 + c_2 = 0$, giving $c_2 = -c_1$ and $c_1(\varphi-\psi) = 1$. Since
+$\varphi - \psi = \sqrt5$, we get $c_1 = 1/\sqrt5$ and $c_2 = -1/\sqrt5$. Then
+\[
+  \vec{u}_k = \mat{A}^k\vec{u}_0
+  = c_1\varphi^k\colvec{\varphi\\1} + c_2\psi^k\colvec{\psi\\1}.
+\]
+Reading the bottom entry ($F_k$) gives the celebrated \textbf{Binet formula}:
+\[
+  \boxed{\;F_k = \frac{\varphi^k - \psi^k}{\sqrt5}
+        = \frac{1}{\sqrt5}\!\left[\left(\frac{1+\sqrt5}{2}\right)^{\!k}
+        - \left(\frac{1-\sqrt5}{2}\right)^{\!k}\right].\;}
+\]
+
+\begin{example}[Sanity check on small $k$]
+\label{ch24:binet-check}
+A formula full of irrational $\sqrt5$'s had better produce integers. Test
+$k=5$. With $\varphi^5 \approx 11.0902$ and $\psi^5 \approx -0.0902$,
+\[
+  F_5 = \frac{11.0902 - (-0.0902)}{\sqrt5}
+      = \frac{11.1803}{2.2360} = 5.\ \checkmark
+\]
+Indeed the sequence is $0,1,1,2,3,5,\dots$ and $F_5 = 5$. All the $\sqrt5$
+messiness cancels to leave a whole number every time -- a small miracle that the
+two conjugate eigenvalues conspire to produce.
+\end{example}
+
+\begin{intuitionbox}
+Binet's formula \emph{is} the eigenbasis decomposition $\mat{A}^k\vec{u}_0 =
+\sum_i c_i\lambda_i^k\vec{v}_i$ written out for one specific matrix. The Fibonacci
+numbers are a blend of two pure exponential modes, $\varphi^k$ and $\psi^k$.
+Since $\abs{\psi}\approx0.618<1$, the $\psi^k$ mode shrinks to nothing, so for
+large $k$ the Fibonacci numbers are essentially $\varphi^k/\sqrt5$ -- they grow
+by a factor of $\varphi$ each step (Figure~\ref{ch24:fig-fibmodes}). That is precisely the
+``dominant-eigenvalue'' long-run behavior of
+Section~\ref{ch24:longrun}, and it is why consecutive Fibonacci ratios
+$F_{k+1}/F_k$ march toward the golden ratio.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth,font=\small]
+\begin{axis}[
+  width=10.5cm, height=6cm,
+  xlabel={$k$}, ylabel={value},
+  xmin=0, xmax=8, ymin=-1.5, ymax=22,
+  axis lines=left,
+  legend pos=north west, legend cell align=left,
+  grid=major, grid style={gray!18},
+]
+  % phi^k / sqrt5 mode
+  \addplot[vecblue,thick,domain=0:8,samples=80]{(((1+sqrt(5))/2)^x)/sqrt(5)};
+  \addlegendentry{$\varphi^k/\sqrt5$ (growing mode)}
+  % psi^k / sqrt5 mode (tiny, alternating)
+  \addplot[vecred,thick,domain=0:8,samples=80]{(((1-sqrt(5))/2)^x)/sqrt(5)};
+  \addlegendentry{$\psi^k/\sqrt5$ (shrinking mode)}
+  % actual Fibonacci integers
+  \addplot[only marks,mark=*,mark size=1.6pt,structurepurple]
+    coordinates {(0,0)(1,1)(2,1)(3,2)(4,3)(5,5)(6,8)(7,13)(8,21)};
+  \addlegendentry{$F_k$ (integers)}
+\end{axis}
+\end{tikzpicture}
+\caption{Fibonacci as two eigen-modes. $F_k = \varphi^k/\sqrt5 - \psi^k/\sqrt5$ is
+the difference of a fast-growing mode $\varphi^k/\sqrt5$ (the dominant
+eigenvalue) and a tiny alternating mode $\psi^k/\sqrt5$ that decays to nothing.
+The integers $F_k$ hug the growing mode almost perfectly -- which is why $F_k$ is
+the nearest integer to $\varphi^k/\sqrt5$.}
+\label{ch24:fig-fibmodes}
+\end{figure}
+
+\begin{applicationbox}
+\textbf{Every linear recurrence yields to this.} The Fibonacci move is completely
+general. Any constant-coefficient linear recurrence
+$a_{k+1} = p_1 a_k + p_2 a_{k-1} + \dots + p_d a_{k-d+1}$ becomes
+$\vec{u}_k = \mat{A}\vec{u}_{k-1}$ with a $d\times d$ \emph{companion matrix}
+$\mat{A}$, and diagonalizing $\mat{A}$ produces a closed form as a sum of
+$\lambda_i^k$ modes. This is exactly how engineers analyze the stability of
+discrete-time control systems and digital filters (stable iff every
+$\abs{\lambda_i}<1$), how population biologists project age-structured
+populations with Leslie matrices, and how the runtime of a divide-and-conquer
+algorithm is read off from the roots of its recurrence. One factorization, a
+whole field of consequences.
+\end{applicationbox}
+
+\section{The Recipe and the Cautions}
+\label{ch24:recipe}
+
+Pulling the chapter together, here is the full procedure and the places people
+stumble.
+
+\begin{focusbox}
+\textbf{To diagonalize an $n\times n$ matrix $\mat{A}$:}
+\begin{enumerate}
+  \item Find all eigenvalues: solve $\det(\mat{A}-\lambda\mat{I}) = 0$.
+  \item For each $\lambda$, find a basis of its eigenspace
+        $\nullsp(\mat{A}-\lambda\mat{I})$.
+  \item Count: if the eigenvectors total $n$ (every geometric multiplicity meets
+        its algebraic multiplicity), you can diagonalize. If not, $\mat{A}$ is
+        defective -- stop.
+  \item Put the $n$ eigenvectors as columns of $\mat{S}$, their eigenvalues
+        (same order!) on the diagonal of $\mat{\Lambda}$. Then $\mat{A} =
+        \mat{S}\mat{\Lambda}\mat{S}\inv$, and $\mat{A}^k =
+        \mat{S}\mat{\Lambda}^k\mat{S}\inv$.
+\end{enumerate}
+\end{focusbox}
+
+\begin{trapbox}
+\textbf{Four diagonalization traps, collected.}
+\begin{itemize}
+  \item \textbf{Order mismatch.} The $j$-th column of $\mat{S}$ and the $j$-th
+        diagonal entry of $\mat{\Lambda}$ must be a matched eigenpair. Shuffle
+        one without the other and $\mat{S}\mat{\Lambda}\mat{S}\inv \neq \mat{A}$.
+  \item \textbf{Confusing the two multiplicities.} ``Three eigenvalues'' is not
+        the test; ``three independent eigenvectors'' is.
+  \item \textbf{Forgetting complex eigenvalues.} A rotation like
+        $\begin{bsmallmatrix}0&-1\\1&0\end{bsmallmatrix}$ has \emph{no real}
+        eigenvectors (it turns every real vector), so it is not diagonalizable
+        over $\R$ -- but it \emph{is} diagonalizable over $\C$, with eigenvalues
+        $\pm i$. Always note which field you are working over.
+  \item \textbf{$\mat{\Lambda}^k$ shortcut applies only to diagonal
+        $\mat{\Lambda}$.} You may raise diagonal entries to the $k$ individually
+        \emph{only because} $\mat{\Lambda}$ is diagonal. You cannot do this to
+        $\mat{A}$ directly.
+\end{itemize}
+\end{trapbox}
+
+\begin{strangbox}
+After Strang, the natural next questions are: which matrices are
+\emph{guaranteed} a full set of eigenvectors -- indeed orthogonal ones -- so that
+$\mat{S}\inv$ is just $\mat{S}\T$? That is the \textbf{spectral theorem} for
+symmetric matrices, the cleanest diagonalization of all, coming in a later
+chapter. And what replaces $\mat{S}\mat{\Lambda}\mat{S}\inv$ for rectangular or
+defective matrices, where eigenvectors fail us? That is the \textbf{singular
+value decomposition}, the crown jewel of the second half of this book.
+Diagonalization is the doorway to both.
+\end{strangbox}
+
+\subsection{Cost and intuition recap}
+\label{ch24:recap}
+
+\begin{recoverybox}
+\textbf{The one-line intuition.} Eigenvectors are the axes in which $\mat{A}$ is
+diagonal; $\mat{A} = \mat{S}\mat{\Lambda}\mat{S}\inv$ says ``translate into those
+axes, scale, translate back.''
+
+\textbf{The cost.} Diagonalizing once is real work: forming the characteristic
+polynomial and solving for eigenvalues is the expensive step (for an $n\times n$
+matrix, a full eigendecomposition costs on the order of $n^3$ arithmetic
+operations, the same order as one matrix inversion). But that cost is paid
+\emph{once}. After it,
+\begin{itemize}
+  \item a single power $\mat{A}^k$ costs only $n$ scalar powers $\lambda_i^k$ plus
+        two fixed matrix products to sandwich them -- the price no longer grows
+        with $k$, whereas naive repeated multiplication costs about $k$ matrix
+        products (order $k\,n^3$);
+  \item the inverse is free: $\mat{A}\inv =
+        \mat{S}\mat{\Lambda}\inv\mat{S}\inv$ just reciprocates the eigenvalues;
+  \item the determinant ($\prod_i\lambda_i$) and trace ($\sum_i\lambda_i$) are
+        read straight off $\mat{\Lambda}$.
+\end{itemize}
+
+\textbf{The catch.} You need $n$ independent eigenvectors. Distinct eigenvalues
+guarantee them; repeated eigenvalues require a check (geometric multiplicity must
+meet algebraic multiplicity), and a defective matrix has no eigenbasis at all.
+\end{recoverybox}
+
+\section*{Exercises}
+\addcontentsline{toc}{section}{Exercises}
+
+\begin{exercise}[Warm-up factorization]
+\label{ch24:ex-warmup}
+Let $\mat{A} = \begin{bsmallmatrix} 4 & 0 \\ 1 & 2 \end{bsmallmatrix}$. Find its
+eigenvalues and eigenvectors, write down $\mat{S}$ and $\mat{\Lambda}$, and verify
+by direct multiplication that $\mat{S}\mat{\Lambda}\mat{S}\inv = \mat{A}$.
+\end{exercise}
+
+\begin{exercise}[A power]
+\label{ch24:ex-power}
+Using the diagonalization of $\mat{A} = \begin{bsmallmatrix} 2 & 1 \\ 1 & 2
+\end{bsmallmatrix}$ from Section~\ref{ch24:first-example}, compute $\mat{A}^5$
+exactly via $\mat{S}\mat{\Lambda}^5\mat{S}\inv$. (Check: the diagonal entries
+should be $\tfrac{1+3^5}{2} = 122$.)
+\end{exercise}
+
+\begin{exercise}[Defective or not?]
+\label{ch24:ex-defective}
+For each matrix, decide whether it is diagonalizable over $\R$, giving the
+algebraic and geometric multiplicity of every eigenvalue:
+\[
+  \begin{bmatrix} 3 & 1 \\ 0 & 3 \end{bmatrix},
+  \qquad
+  \begin{bmatrix} 3 & 0 \\ 0 & 3 \end{bmatrix},
+  \qquad
+  \begin{bmatrix} 2 & 0 \\ 0 & 5 \end{bmatrix},
+  \qquad
+  \begin{bmatrix} 0 & -1 \\ 1 & 0 \end{bmatrix}.
+\]
+\end{exercise}
+
+\begin{exercise}[Trace and determinant from $\mat{\Lambda}$]
+\label{ch24:ex-tracedet}
+Using $\mat{A} = \mat{S}\mat{\Lambda}\mat{S}\inv$ together with
+$\tr(\mat{X}\mat{Y}) = \tr(\mat{Y}\mat{X})$ and $\det(\mat{X}\mat{Y}) =
+\det(\mat{X})\det(\mat{Y})$, prove carefully that $\tr\mat{A} = \sum_i\lambda_i$
+and $\det\mat{A} = \prod_i\lambda_i$ for any diagonalizable $\mat{A}$.
+\end{exercise}
+
+\begin{exercise}[A recurrence of your own]
+\label{ch24:ex-recurrence}
+Define $a_0 = 1$, $a_1 = 1$, and $a_{k+1} = 5a_k - 6a_{k-1}$. Write the state
+recurrence $\vec{u}_k = \mat{A}\vec{u}_{k-1}$ with $\vec{u}_k =
+\colvec{a_{k+1}\\a_k}$, diagonalize the $2\times2$ matrix $\mat{A}$ (its
+eigenvalues are nice integers), and derive a closed form $a_k = \alpha\,2^k +
+\beta\,3^k$. Determine $\alpha,\beta$ from the initial conditions.
+\end{exercise}
+
+\begin{exercise}[Inverse from the factorization]
+\label{ch24:ex-inverse}
+Show that if $\mat{A} = \mat{S}\mat{\Lambda}\mat{S}\inv$ is invertible (all
+$\lambda_i\neq0$), then $\mat{A}\inv = \mat{S}\mat{\Lambda}\inv\mat{S}\inv$ with
+$\mat{\Lambda}\inv = \diag(1/\lambda_1,\dots,1/\lambda_n)$. Conclude that
+$\mat{A}$ and $\mat{A}\inv$ share the same eigenvectors, with reciprocal
+eigenvalues.
+\end{exercise}
+
+\begin{exercise}[Commuting matrices, shared eigenvectors]
+\label{ch24:ex-commute}
+Suppose $\mat{A}$ is diagonalizable with \emph{distinct} eigenvalues and
+$\mat{A}\mat{B} = \mat{B}\mat{A}$. Show that every eigenvector of $\mat{A}$ is
+also an eigenvector of $\mat{B}$. (Hint: if $\mat{A}\vec{v} = \lambda\vec{v}$,
+apply $\mat{A}$ to $\mat{B}\vec{v}$ and use commuting to show $\mat{B}\vec{v}$
+lies in the same eigenspace, which is one-dimensional.) This is why commuting
+matrices can be ``simultaneously diagonalized.''
+\end{exercise}
+
+\begin{exercise}[Building a matrix from its spectrum]
+\label{ch24:ex-build}
+Construct a $2\times2$ matrix whose eigenvectors are $\colvec{2\\1}$ (eigenvalue
+$4$) and $\colvec{1\\1}$ (eigenvalue $-1$), by forming
+$\mat{S}\mat{\Lambda}\mat{S}\inv$ explicitly. Then verify your matrix really has
+those eigenpairs.
+\end{exercise}
+
+\begin{exercise}[Why $\psi^k$ is invisible]
+\label{ch24:ex-fib-asymp}
+From Binet's formula, prove that $F_k$ is the \emph{nearest integer} to
+$\varphi^k/\sqrt5$ for all $k\ge0$. (Hint: bound $\abs{\psi^k}/\sqrt5 <
+\tfrac12$.) Use this to argue that $F_{k+1}/F_k \to \varphi$, and connect this to
+the dominant-eigenvalue discussion of Section~\ref{ch24:longrun}.
+\end{exercise}
+
+\begin{exercise}[A $3\times3$ challenge]
+\label{ch24:ex-3x3}
+Diagonalize
+\[
+  \mat{A} = \begin{bmatrix} 2 & 0 & 0 \\ 1 & 2 & 0 \\ 0 & 0 & 3 \end{bmatrix}.
+\]
+Find all eigenvalues and a basis of each eigenspace. Is $\mat{A}$ diagonalizable?
+Identify the algebraic and geometric multiplicities of $\lambda = 2$, and explain
+in one sentence what the off-diagonal $1$ does to your conclusion.
+\end{exercise}

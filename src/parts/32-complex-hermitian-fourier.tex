@@ -1,0 +1,979 @@
+\chapter{Complex Vectors, Hermitian Matrices, and the Fourier Matrix}
+
+Every length we have measured so far has been a real length. Every angle a real
+angle. Our vectors lived in $\R^n$, our matrices had real entries, and the dot
+product $\vec u\cdot\vec v=\sum u_iv_i$ answered every metric question we asked.
+That world is comfortable, and most of this book lives in it happily.
+
+But there is a quiet pressure building. Back in the eigenvalue chapters we kept
+bumping into matrices -- innocent-looking real matrices -- whose eigenvalues
+\emph{refused} to be real. A rotation in the plane has no real eigenvectors at
+all; spin every arrow by ninety degrees and not a single direction survives.
+Yet the characteristic polynomial still factors, just over a bigger number
+system, and out come $\pm i$. The geometry was begging us to enlarge the
+playing field. This chapter is where we finally do it.
+
+We are going to let our vectors have \emph{complex} entries. At first this looks
+like a small bookkeeping change -- swap $\R$ for $\C$ -- but it forces one real
+adjustment to the dot product, and that single adjustment ripples outward into
+two new families of matrices: the \textbf{Hermitian} matrices (the complex cousins
+of symmetric matrices) and the \textbf{unitary} matrices (the complex cousins of
+orthogonal matrices). These are not exotic. They are the matrices of quantum
+mechanics, of signal processing, of every algorithm that touches a frequency.
+
+And then, at the end, we meet the most important unitary matrix in all of applied
+mathematics: the \textbf{Fourier matrix}. It is the machine that turns a signal
+into its frequencies, and the engine underneath it -- the Fast Fourier Transform
+-- is, by some honest accounting, the most-run numerical algorithm in the world.
+Everything in this chapter is built to make that matrix feel inevitable.
+
+Slow down at the very first idea -- the conjugate in the inner product. Get that
+one right and the rest of the chapter is just watching it pay off.
+
+\chapterline
+
+\section{Why real numbers are not enough}
+
+Let us start with the rotation that broke things. The matrix
+\[
+  \mat R = \colvec{0 & -1 \\ 1 & \phantom{-}0}
+\]
+spins every vector in the plane by $90^\circ$ counterclockwise. Geometrically it
+is obvious that \emph{no} nonzero real vector $\vec x$ satisfies $\mat R\vec x =
+\lambda\vec x$: an eigenvector would have to point along the same line after
+rotation, and a quarter turn sends every line to a different line. So over $\R$,
+this matrix has no eigenvectors.
+
+But the algebra does not give up. Its characteristic polynomial is
+\[
+  \det(\mat R - \lambda\mat I) = \det\colvec{-\lambda & -1 \\ 1 & -\lambda}
+  = \lambda^2 + 1,
+\]
+and $\lambda^2+1=0$ has solutions $\lambda = \pm i$, where $i=\sqrt{-1}$. The
+eigenvalues exist; they just live in $\C$. And once we allow complex entries in
+the eigenvector too, honest eigenvectors appear:
+\[
+  \mat R \colvec{1 \\ -i} = \colvec{0 & -1 \\ 1 & 0}\colvec{1\\-i}
+  = \colvec{i \\ 1} = i\colvec{1 \\ -i},
+\]
+so $\colvec{1\\-i}$ is a genuine eigenvector with eigenvalue $i$. The geometry of
+``no fixed direction'' and the algebra of ``complex eigenvalues'' are two faces of
+the same fact. Enlarging to $\C$ does not destroy the geometry; it completes it.
+
+\begin{intuitionbox}
+A real matrix can ``rotate'' inside the plane spanned by two coordinates, and a
+rotation has no real eigen-direction. Complex numbers are exactly the tool for
+talking about rotation algebraically: multiplication by $e^{i\theta}$ \emph{is}
+rotation by $\theta$. So when a real matrix wants to rotate, its eigenvalues come
+out as complex numbers of the form $e^{i\theta}$, encoding the angle of the spin.
+Complex eigenvalues are not a glitch -- they are the matrix telling you it turns.
+\end{intuitionbox}
+
+\subsection{A two-minute refresher on complex numbers}
+
+We will need only a handful of facts; the appendix has the full story. A complex
+number is $z = a + bi$ with $a,b\in\R$ and $i^2=-1$. We call $a=\operatorname{Re}z$
+the real part and $b=\operatorname{Im}z$ the imaginary part. Two operations matter
+enormously for us.
+
+The \textbf{conjugate} flips the sign of the imaginary part:
+\[
+  \bar z = a - bi.
+\]
+The \textbf{modulus} (or absolute value) is the length of $z$ viewed as the point
+$(a,b)$ in the plane:
+\[
+  \abs{z} = \sqrt{a^2+b^2}.
+\]
+The reason these two travel together is one beautiful identity:
+\[
+  z\bar z = (a+bi)(a-bi) = a^2 - (bi)^2 = a^2 + b^2 = \abs{z}^2.
+\]
+Multiplying a number by its own conjugate \emph{kills the imaginary part} and
+leaves a real, nonnegative number -- the squared length. Hold onto that sentence.
+It is the seed of everything in this chapter.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.2,>=Latex]
+  \draw[->,gray!55] (-0.6,0) -- (3.2,0) node[right]{$\operatorname{Re}$};
+  \draw[->,gray!55] (0,-1.8) -- (0,1.9) node[above]{$\operatorname{Im}$};
+  \draw[->,very thick,vecblue] (0,0) -- (2.4,1.4) node[above right]{$z=a+bi$};
+  \draw[->,very thick,vecred] (0,0) -- (2.4,-1.4) node[below right]{$\bar z=a-bi$};
+  \draw[dashed,gray!60] (2.4,1.4) -- (2.4,-1.4);
+  \node[vecblue] at (1.05,0.95) {$\abs{z}$};
+  \draw[gray] (0.55,0) arc (0:30.3:0.55);
+  \node at (0.85,0.18) {\small$\theta$};
+  \draw[gray] (0.55,0) arc (0:-30.3:0.55);
+  \fill[black] (0,0) circle (1pt);
+\end{tikzpicture}
+\caption{A complex number $z$ and its conjugate $\bar z$ are mirror images across
+the real axis. Both have the same modulus $\abs z$; conjugation flips the angle
+from $+\theta$ to $-\theta$. The product $z\bar z=\abs z^2$ is real.}
+\label{ch32:conjugate}
+\end{figure}
+
+Figure~\ref{ch32:conjugate} shows the picture: $z$ and $\bar z$ are mirror images
+across the real axis, sharing a modulus but carrying opposite angles.
+The polar form makes the geometry vivid. Writing $z = r e^{i\theta}$ with
+$r=\abs z$ and $\theta$ the angle, Euler's formula $e^{i\theta}=\cos\theta +
+i\sin\theta$ says $z$ is the point at distance $r$ and angle $\theta$. Then
+$\bar z = r e^{-i\theta}$ (same radius, opposite angle), and multiplication adds
+angles: $(r_1e^{i\theta_1})(r_2e^{i\theta_2}) = r_1r_2\,e^{i(\theta_1+\theta_2)}$.
+Multiplying by a number of modulus $1$ -- a number $e^{i\theta}$ on the unit
+circle -- is a pure rotation. That is the single most important picture to carry
+into the Fourier section.
+
+\section{Complex vectors and the right inner product}
+
+Now stack complex numbers into a vector. A vector in $\C^n$ is just a list of $n$
+complex numbers,
+\[
+  \vec z = \colvec{z_1 \\ z_2 \\ \vdots \\ z_n}, \qquad z_k\in\C.
+\]
+Addition and scalar multiplication work exactly as before, now with complex
+scalars. The trouble -- and it is a productive trouble -- starts when we ask for
+length.
+
+\subsection{The naive dot product fails}
+
+In $\R^n$ we defined $\norm{\vec u}^2 = \vec u\cdot\vec u = \sum u_i^2$, and the
+whole edifice of geometry stood on one fact: $\vec u\cdot\vec u \ge 0$, zero only
+for the zero vector. Try to copy it into $\C^n$ with the obvious formula
+$\sum z_k^2$ and watch it collapse. Take the perfectly fine nonzero vector
+$\vec z = \colvec{1 \\ i}$. Then
+\[
+  \sum z_k^2 = 1^2 + i^2 = 1 + (-1) = 0.
+\]
+A nonzero vector with ``length squared'' equal to zero. And it gets worse: the
+vector $\colvec{1\\1+i}$ gives $1 + (1+i)^2 = 1 + 2i = $ a non-real number, so
+``length squared'' is not even a real number we could take the square root of.
+The naive copy is broken. We need a repair.
+
+\begin{trapbox}
+The number-one mistake when first meeting $\C^n$ is to write $\norm{\vec z}^2 =
+\sum z_k^2$. Squaring a complex number does \emph{not} produce a length; $i^2=-1$,
+not $+1$. Length must come from $\abs{z_k}^2 = z_k\bar z_k$, never from $z_k^2$.
+The conjugate is not optional decoration -- it is the only thing standing between
+you and ``nonzero vectors of length zero.''
+\end{trapbox}
+
+\subsection{The fix: conjugate one side}
+
+We already saw the cure two sections ago. For a single number, the real,
+nonnegative ``length squared'' is $z\bar z = \abs z^2$, not $z^2$. So for a vector
+we should sum $z_k\bar z_k$:
+\[
+  \norm{\vec z}^2 \;=\; \sum_{k=1}^n z_k\bar z_k
+  \;=\; \sum_{k=1}^n \abs{z_k}^2 \;\ge\; 0,
+\]
+and this is zero exactly when every $\abs{z_k}=0$, i.e. when $\vec z = \vec 0$.
+Positivity is restored. Check our broken example: $\vec z=\colvec{1\\i}$ now has
+$\norm{\vec z}^2 = \abs 1^2 + \abs i^2 = 1 + 1 = 2$, a sensible length
+$\sqrt 2$.
+
+Generalizing from $\vec z$ with itself to two different vectors gives the
+\textbf{complex (or Hermitian) inner product}. We conjugate the entries of the
+first vector and pair them with the second:
+\[
+  \boxed{\;\inner{\vec u}{\vec v} \;=\; \sum_{k=1}^n \bar u_k\, v_k
+  \;=\; \bar u_1 v_1 + \bar u_2 v_2 + \cdots + \bar u_n v_n. \;}
+\]
+(Convention warning: physicists often conjugate the second slot instead. We pick
+the first; the appendix notes the swap. Either way, exactly one side is
+conjugated.) With this definition $\inner{\vec z}{\vec z} = \sum\bar z_kz_k =
+\sum\abs{z_k}^2 = \norm{\vec z}^2$ is real and nonnegative -- the whole point.
+
+\begin{definition}\label{ch32:inner}
+For $\vec u,\vec v\in\C^n$, the \textbf{Hermitian inner product} is
+$\inner{\vec u}{\vec v} = \sum_{k=1}^n \bar u_k v_k$, and the \textbf{norm} is
+$\norm{\vec z} = \sqrt{\inner{\vec z}{\vec z}} = \sqrt{\sum_k\abs{z_k}^2}$.
+Two vectors are \textbf{orthogonal} when $\inner{\vec u}{\vec v}=0$.
+\end{definition}
+
+\begin{example}\label{ch32:innerex}
+Let $\vec u = \colvec{1+i \\ 2}$ and $\vec v = \colvec{3 \\ 1-i}$. Conjugate the
+\emph{first} vector's entries: $\bar u_1 = 1-i$, $\bar u_2 = 2$. Then
+\[
+  \inner{\vec u}{\vec v} = (1-i)(3) + (2)(1-i) = (3-3i) + (2-2i) = 5 - 5i.
+\]
+And the squared length of $\vec u$ is
+\[
+  \norm{\vec u}^2 = \inner{\vec u}{\vec u}
+  = (1-i)(1+i) + (2)(2) = (1+1) + 4 = 6,
+\]
+so $\norm{\vec u} = \sqrt 6$. Note how the self inner product came out real and
+positive even though $\vec u$ has complex entries -- the conjugate did its job.
+\end{example}
+
+\subsection{Conjugate symmetry: the price of the fix}
+
+There is one property we must give up, and it is worth seeing exactly which one.
+In $\R^n$ the dot product was symmetric: $\vec u\cdot\vec v = \vec v\cdot\vec u$.
+In $\C^n$ symmetry becomes \textbf{conjugate symmetry}:
+\[
+  \inner{\vec v}{\vec u} \;=\; \overline{\inner{\vec u}{\vec v}}.
+\]
+Swapping the two vectors conjugates the answer. You can read it straight off the
+definition: $\inner{\vec v}{\vec u} = \sum\bar v_k u_k$, and conjugating
+$\inner{\vec u}{\vec v}=\sum\bar u_kv_k$ gives $\sum u_k\bar v_k =
+\sum\bar v_k u_k$, the same thing. In Example~\ref{ch32:innerex} we found
+$\inner{\vec u}{\vec v} = 5-5i$; you can check directly that
+$\inner{\vec v}{\vec u} = (3)(1+i)+(1+i)(2) = 5+5i$, indeed the conjugate.
+
+This is not a defect; it is the only way to keep $\inner{\vec z}{\vec z}$ real.
+Conjugate symmetry \emph{forces} $\inner{\vec z}{\vec z} = \overline{\inner{\vec
+z}{\vec z}}$, and a number equal to its own conjugate is exactly a real number.
+
+\begin{formalbox}
+The Hermitian inner product on $\C^n$ satisfies, for all $\vec u,\vec v,\vec w\in
+\C^n$ and $c\in\C$:
+\begin{enumerate}
+  \item \textbf{Conjugate symmetry:} $\inner{\vec v}{\vec u} =
+        \overline{\inner{\vec u}{\vec v}}$.
+  \item \textbf{Linearity in the second slot:} $\inner{\vec u}{\vec v + \vec w} =
+        \inner{\vec u}{\vec v} + \inner{\vec u}{\vec w}$ and
+        $\inner{\vec u}{c\,\vec v} = c\,\inner{\vec u}{\vec v}$.
+  \item \textbf{Conjugate-linearity in the first slot:}
+        $\inner{c\,\vec u}{\vec v} = \bar c\,\inner{\vec u}{\vec v}$.
+  \item \textbf{Positivity:} $\inner{\vec z}{\vec z} = \sum\abs{z_k}^2 \ge 0$, with
+        equality iff $\vec z = \vec 0$.
+\end{enumerate}
+\end{formalbox}
+
+Property 3 is the one that surprises people: a scalar pulled out of the
+\emph{first} slot comes out conjugated, because that slot is the conjugated one.
+If you scale the first vector by $i$, the inner product scales by $\bar i = -i$.
+Everything else behaves just like the real dot product.
+
+\begin{walkbox}
+Take a walk and convince yourself of this without any formula: ``length must be a
+real, nonnegative number, and it can only be zero for the zero vector.'' Now ask:
+what is the \emph{simplest} change to $\sum u_kv_k$ that guarantees
+$\inner{\vec z}{\vec z}\ge 0$ for every complex vector? You will rediscover the
+conjugate. The mathematics had no choice; the conjugate is the unique repair.
+\end{walkbox}
+
+\section{The conjugate transpose}
+
+We packaged the real dot product as a matrix product: $\vec u\cdot\vec v =
+\vec u\T\vec v$, a row times a column. The complex inner product wants the same
+tidy packaging, but the row has to carry that conjugate. So we bundle ``transpose
+and conjugate'' into a single operation.
+
+\begin{definition}\label{ch32:adjoint}
+The \textbf{conjugate transpose} (or \textbf{Hermitian adjoint}) of a matrix
+$\mat A\in\C^{m\times n}$ is $\mat A^{*}\in\C^{n\times m}$, obtained by transposing
+$\mat A$ and conjugating every entry: $(\mat A^{*})_{jk} = \overline{(\mat A)_{kj}}$.
+For a vector, $\vec u^{*}$ is the conjugated row.
+\end{definition}
+
+Many books write $\mat A^{H}$ (``$H$'' for Hermite) or $\mat A^{\dagger}$ (``dagger,''
+the physics standard) for the same thing. We use the star $\mat A^{*}$. With it,
+the inner product is just a product:
+\[
+  \inner{\vec u}{\vec v} \;=\; \vec u^{*}\vec v
+  \;=\; \begin{bmatrix}\bar u_1 & \cdots & \bar u_n\end{bmatrix}
+        \colvec{v_1\\\vdots\\v_n}.
+\]
+The star \emph{is} the inner product made into matrix algebra. Notice the clean
+analogy: everywhere a real formula had a transpose $\mat A\T$, the complex version
+has a conjugate transpose $\mat A^{*}$. The reversal rule survives unchanged,
+$(\mat A\mat B)^{*} = \mat B^{*}\mat A^{*}$, and $(\mat A^{*})^{*} = \mat A$.
+
+\begin{example}\label{ch32:starex}
+\[
+  \mat A = \colvec{1+i & 2 \\ 0 & 3-i}
+  \quad\Longrightarrow\quad
+  \mat A^{*} = \colvec{1-i & 0 \\ 2 & 3+i}.
+\]
+Transpose (swap across the diagonal), then conjugate every entry. The $2$ and $0$
+are real, so they only move; the $1+i$ and $3-i$ both move \emph{and} flip the sign
+of their imaginary part.
+\end{example}
+
+\begin{focusbox}
+Translate ``real $\to$ complex'' by one rule: \textbf{every transpose becomes a
+conjugate transpose.} Dot product $\vec u\T\vec v\to\vec u^{*}\vec v$. Symmetric
+$\mat A\T=\mat A\to$ Hermitian $\mat A^{*}=\mat A$. Orthogonal
+$\mat Q\T\mat Q=\mat I\to$ unitary $\mat U^{*}\mat U=\mat I$. The geometry is
+identical; only the star changed.
+\end{focusbox}
+
+\section{Hermitian matrices: the complex symmetric}
+
+A real symmetric matrix satisfied $\mat A\T=\mat A$ and gave us the crown jewel of
+the real theory -- the Spectral Theorem: real eigenvalues, orthogonal
+eigenvectors. We now ask which complex matrices deserve the same crown. The answer
+is the matrices that equal their own conjugate transpose.
+
+\begin{definition}\label{ch32:hermdef}
+A square matrix $\mat A\in\C^{n\times n}$ is \textbf{Hermitian} if
+$\mat A^{*} = \mat A$, that is, $a_{jk} = \overline{a_{kj}}$ for every entry.
+\end{definition}
+
+Two consequences are visible immediately from $a_{jk}=\overline{a_{kj}}$. On the
+diagonal, $j=k$ forces $a_{kk}=\overline{a_{kk}}$, so \emph{the diagonal entries
+are real}. Off the diagonal, entries come in conjugate-mirror pairs across the
+diagonal. A real symmetric matrix is the special case where the off-diagonal pairs
+are equal real numbers.
+
+\begin{example}\label{ch32:hermex}
+\[
+  \mat A = \colvec{2 & 3-i \\ 3+i & 5}
+\]
+is Hermitian: the diagonal $2,5$ are real, and the off-diagonal entries $3-i$ and
+$3+i$ are conjugates of each other. Transpose-and-conjugate and you get $\mat A$
+back. By contrast $\colvec{2 & 3-i\\3-i & 5}$ is \emph{not} Hermitian -- the
+off-diagonal pair must be conjugates, not equal.
+\end{example}
+
+\subsection{Real eigenvalues, for free}
+
+The headline property is the same one symmetric matrices enjoyed, and the proof is
+a beautiful two-line argument that shows exactly why we needed the conjugate inner
+product.
+
+\begin{theorem}\label{ch32:realeig}
+Every eigenvalue of a Hermitian matrix is real.
+\end{theorem}
+
+\begin{proof}
+Let $\mat A^{*}=\mat A$ and suppose $\mat A\vec x = \lambda\vec x$ with
+$\vec x\ne\vec 0$. Form the number $\vec x^{*}\mat A\vec x$ and compute it two
+ways. First, using $\mat A\vec x=\lambda\vec x$,
+\[
+  \vec x^{*}\mat A\vec x = \vec x^{*}(\lambda\vec x)
+  = \lambda\,\vec x^{*}\vec x = \lambda\,\norm{\vec x}^2.
+\]
+Second, take the conjugate transpose of the scalar $\vec x^{*}\mat A\vec x$. A
+$1\times 1$ matrix is its own transpose, so applying the star just conjugates the
+number, while on the right it distributes by the reversal rule and uses
+$\mat A^{*}=\mat A$:
+\[
+  \overline{\vec x^{*}\mat A\vec x} = (\vec x^{*}\mat A\vec x)^{*}
+  = \vec x^{*}\mat A^{*}\vec x = \vec x^{*}\mat A\vec x.
+\]
+So $\vec x^{*}\mat A\vec x$ equals its own conjugate, hence is real. But it also
+equals $\lambda\norm{\vec x}^2$, and $\norm{\vec x}^2>0$ is a positive real. A real
+number divided by a positive real is real, so $\lambda$ is real.
+\end{proof}
+
+That argument is worth rereading. It is the complex twin of the symmetric proof,
+and the conjugate inner product is doing all the work: $\norm{\vec x}^2$ is real
+and positive \emph{because} we built the inner product to make it so. Swap in the
+naive $\sum z_k^2$ and the proof falls apart -- another sign that the conjugate was
+the right move.
+
+\begin{aestheticbox}
+There is something almost moral about this theorem. Hermitian matrices are the
+matrices that ``measure'': in quantum mechanics every observable quantity --
+energy, position, momentum, spin -- is a Hermitian operator, and
+Theorem~\ref{ch32:realeig} is the reason a measurement can only return a
+\emph{real} number. The mathematics guarantees, before any experiment, that the
+possible outcomes (the eigenvalues) are real. The universe's insistence on real
+measurements and the algebra's insistence on $\mat A^{*}=\mat A$ are the same
+statement.
+\end{aestheticbox}
+
+\subsection{Orthogonal eigenvectors and the complex spectral theorem}
+
+Just as in the real case, eigenvectors of a Hermitian matrix for \emph{different}
+eigenvalues are orthogonal. The argument is again two lines. If $\mat A\vec x =
+\lambda\vec x$ and $\mat A\vec y = \mu\vec y$ with $\lambda\ne\mu$ (both real, by
+the theorem), then
+\[
+  \lambda\inner{\vec x}{\vec y} = \inner{\lambda\vec x}{\vec y}
+  = \inner{\mat A\vec x}{\vec y} = \vec x^{*}\mat A^{*}\vec y
+  = \vec x^{*}\mat A\vec y = \inner{\vec x}{\mat A\vec y}
+  = \inner{\vec x}{\mu\vec y} = \mu\inner{\vec x}{\vec y}.
+\]
+(We used $\lambda$ real so it comes out of the conjugate slot unchanged, and
+$\mat A^{*}=\mat A$ in the middle.) Thus $(\lambda-\mu)\inner{\vec x}{\vec y}=0$,
+and since $\lambda\ne\mu$ we get $\inner{\vec x}{\vec y}=0$. Distinct eigenvalues
+$\Rightarrow$ orthogonal eigenvectors, exactly as before.
+
+Putting the pieces together gives the complex Spectral Theorem, the destination of
+all this machinery.
+
+\begin{theorem}[Spectral Theorem, complex form]\label{ch32:spectral}
+Every Hermitian matrix $\mat A\in\C^{n\times n}$ can be written
+\[
+  \mat A = \mat U\,\mat\Lambda\,\mat U^{*},
+\]
+where $\mat\Lambda = \diag(\lambda_1,\dots,\lambda_n)$ has the (real) eigenvalues
+on its diagonal and $\mat U$ is unitary, its columns an orthonormal basis of
+eigenvectors. Real eigenvalues, orthonormal eigenvectors -- the same picture as
+the real symmetric case, now over $\C$.
+\end{theorem}
+
+We will not grind out the full induction (it mirrors the real proof exactly), but
+the moral is clean: \textbf{Hermitian is to $\C$ as symmetric is to $\R$.} Every
+good thing symmetric matrices did, Hermitian matrices do, with stars in place of
+transposes.
+
+\begin{strangbox}
+Strang teaches the real Spectral Theorem $\mat A=\mat Q\mat\Lambda\mat Q\T$ as the
+summit of his eigenvalue chapters, then notes -- almost in passing -- that complex
+entries simply replace $\T$ with the conjugate transpose. Reading this chapter
+\emph{before} Strang, you will recognize his $\mat A=\mat Q\Lambda\mat Q\T$ as the
+real shadow of $\mat A=\mat U\Lambda\mat U^{*}$. Reading it \emph{after}, you now
+have the version that actually runs the Fourier transform and quantum mechanics --
+the one his symmetric ``$\mathbf{S}=\mathbf{Q}\Lambda\mathbf{Q}\T$'' was secretly
+pointing at.
+\end{strangbox}
+
+\section{Unitary matrices: the complex orthogonal}
+
+The other star of the real theory was the orthogonal matrix $\mat Q$ with
+$\mat Q\T\mat Q=\mat I$ -- the rotations and reflections, the rigid motions that
+preserve every length and angle. Their complex analog is defined by the same
+equation with a star.
+
+\begin{definition}\label{ch32:unitarydef}
+A square matrix $\mat U\in\C^{n\times n}$ is \textbf{unitary} if
+$\mat U^{*}\mat U = \mat I$, equivalently $\mat U^{-1} = \mat U^{*}$. Its columns
+form an orthonormal set in $\C^n$.
+\end{definition}
+
+Why ``orthonormal columns''? Read off the $(j,k)$ entry of $\mat U^{*}\mat U$: it
+is (row $j$ of $\mat U^{*}$) times (column $k$ of $\mat U$) $=
+\inner{\vec u_j}{\vec u_k}$, the inner product of two columns of $\mat U$.
+Setting $\mat U^{*}\mat U=\mat I$ says $\inner{\vec u_j}{\vec u_k} = \delta_{jk}$:
+each column has length $1$, and different columns are orthogonal. Identical to the
+real story, with the Hermitian inner product.
+
+\subsection{Unitary means length-preserving}
+
+The defining geometric property -- the reason these matrices matter -- is that they
+preserve the complex inner product, hence all lengths and angles.
+
+\begin{theorem}\label{ch32:unitarynorm}
+If $\mat U$ is unitary then $\inner{\mat U\vec x}{\mat U\vec y} =
+\inner{\vec x}{\vec y}$ for all $\vec x,\vec y$, and in particular
+$\norm{\mat U\vec x} = \norm{\vec x}$.
+\end{theorem}
+
+\begin{proof}
+Slide the star across:
+\[
+  \inner{\mat U\vec x}{\mat U\vec y} = (\mat U\vec x)^{*}(\mat U\vec y)
+  = \vec x^{*}\mat U^{*}\mat U\vec y = \vec x^{*}\mat I\vec y
+  = \vec x^{*}\vec y = \inner{\vec x}{\vec y}.
+\]
+Setting $\vec y=\vec x$ gives $\norm{\mat U\vec x}^2 = \norm{\vec x}^2$.
+\end{proof}
+
+So a unitary matrix is a \textbf{rigid motion of $\C^n$}. It can rotate and reflect
+and mix the coordinates as wildly as it likes, but it never stretches, never
+shrinks, never distorts a single length. This is precisely why unitary matrices
+are the ``safe'' transformations of numerical computing and of quantum mechanics:
+applying one cannot amplify errors (it preserves their size) and cannot leak
+probability (it preserves total length). And it explains the next fact in one
+breath.
+
+\begin{corollary}\label{ch32:unitaryeig}
+Every eigenvalue $\lambda$ of a unitary matrix has $\abs\lambda = 1$: the
+eigenvalues live on the unit circle.
+\end{corollary}
+
+\begin{proof}
+If $\mat U\vec x=\lambda\vec x$ with $\vec x\ne\vec 0$, then
+$\norm{\vec x} = \norm{\mat U\vec x} = \norm{\lambda\vec x} =
+\abs\lambda\,\norm{\vec x}$, so $\abs\lambda = 1$.
+\end{proof}
+
+That is the perfect complement to the Hermitian story. Hermitian eigenvalues are
+\emph{real} (they sit on the real line); unitary eigenvalues have \emph{modulus
+one} (they sit on the unit circle). Each is the complex shadow of its real cousin:
+symmetric eigenvalues are real, and orthogonal eigenvalues are $\pm 1$ (the
+modulus-one numbers that happen to be real). Figure~\ref{ch32:eiglocus} puts the
+two loci side by side.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.25,>=Latex]
+  % Hermitian: real line
+  \begin{scope}[xshift=-3cm]
+    \draw[->,gray!55] (-1.4,0) -- (1.4,0) node[right]{$\operatorname{Re}$};
+    \draw[->,gray!55] (0,-1.3) -- (0,1.3) node[above]{$\operatorname{Im}$};
+    \draw[very thick,vecblue] (-1.2,0) -- (1.2,0);
+    \fill[vecblue] (-0.8,0) circle (1.6pt);
+    \fill[vecblue] (0.3,0) circle (1.6pt);
+    \fill[vecblue] (0.95,0) circle (1.6pt);
+    \node[vecblue] at (0,-1.0) {\small Hermitian: real};
+  \end{scope}
+  % Unitary: unit circle
+  \begin{scope}[xshift=2cm]
+    \draw[->,gray!55] (-1.4,0) -- (1.4,0) node[right]{$\operatorname{Re}$};
+    \draw[->,gray!55] (0,-1.3) -- (0,1.3) node[above]{$\operatorname{Im}$};
+    \draw[very thick,vecred] (0,0) circle (1);
+    \fill[vecred] (0.81,0.59) circle (1.6pt);
+    \fill[vecred] (-0.31,0.95) circle (1.6pt);
+    \fill[vecred] (-0.81,-0.59) circle (1.6pt);
+    \node[vecred] at (0,-1.35) {\small unitary: $\abs\lambda=1$};
+  \end{scope}
+\end{tikzpicture}
+\caption{Where the eigenvalues live. Hermitian matrices have real eigenvalues (on
+the real axis); unitary matrices have eigenvalues of modulus one (on the unit
+circle). These are the complex versions of ``symmetric $\Rightarrow$ real
+eigenvalues'' and ``orthogonal $\Rightarrow$ eigenvalues $\pm 1$.''}
+\label{ch32:eiglocus}
+\end{figure}
+
+\begin{example}\label{ch32:unitaryex}
+The matrix
+\[
+  \mat U = \frac{1}{\sqrt 2}\colvec{1 & 1 \\ i & -i}
+\]
+is unitary. Its columns are $\vec u_1=\tfrac1{\sqrt2}\colvec{1\\i}$ and
+$\vec u_2=\tfrac1{\sqrt2}\colvec{1\\-i}$. Check:
+$\inner{\vec u_1}{\vec u_1} = \tfrac12(\bar 1\cdot 1 + \bar i\cdot i)
+= \tfrac12(1 + (-i)(i)) = \tfrac12(1+1)=1$, length one; and
+$\inner{\vec u_1}{\vec u_2} = \tfrac12(\bar 1\cdot 1 + \bar i\cdot(-i))
+= \tfrac12(1 + (-i)(-i)) = \tfrac12(1 + i^2) = \tfrac12(1-1) = 0$, orthogonal.
+Two orthonormal columns, so $\mat U^{*}\mat U=\mat I$. (Watch the conjugate on the
+$i$ in the first slot -- without it you would wrongly get $\inner{\vec u_1}{\vec
+u_1}=\tfrac12(1+i^2)=0$, the same trap as before.)
+\end{example}
+
+\begin{connectionbox}
+Unitary matrices are the gateway to \emph{group theory}. The set of all $n\times n$
+unitary matrices is closed under multiplication and inverse -- a product of rigid
+motions is a rigid motion -- so it forms a group, written $U(n)$, the
+\emph{unitary group}. Its members of determinant $1$ form $SU(n)$, and $SU(2)$,
+$SU(3)$ are the symmetry groups at the heart of the Standard Model of particle
+physics. The single equation $\mat U^{*}\mat U=\mat I$ in this chapter is the front
+door to the symmetry language of modern physics. The real analog
+$\mat Q\T\mat Q=\mat I$ gives the rotation groups $O(n)$ and $SO(n)$ -- the
+symmetries of spheres and rigid bodies.
+\end{connectionbox}
+
+\section{The discrete Fourier matrix}
+
+Now we build the most useful unitary matrix in applied mathematics. The idea is
+old and irresistible: a complicated signal -- a sound wave, a stock price, an image
+row -- can be rebuilt as a \emph{sum of pure oscillations} of different
+frequencies. The Fourier matrix is the change of basis that swaps the ``samples''
+description of a signal for its ``frequencies'' description. The astonishing part
+is that this change of basis is \emph{unitary} -- a rigid rotation of $\C^n$ -- and
+that fact makes everything reversible and stable.
+
+\subsection{Roots of unity: $n$ points evenly on the circle}
+
+Everything is built from one number. Fix a size $n$ and define
+\[
+  \omega = e^{2\pi i/n} = \cos\frac{2\pi}{n} + i\sin\frac{2\pi}{n}.
+\]
+This $\omega$ is the point on the unit circle at angle $2\pi/n$ -- one $n$-th of the
+way around. Its powers $1,\omega,\omega^2,\dots,\omega^{n-1}$ are $n$ points spaced
+evenly around the unit circle, the \textbf{$n$-th roots of unity}: each is a
+solution of $z^n=1$. They close up perfectly, $\omega^n = e^{2\pi i}=1$, so the
+powers cycle with period $n$ ($\omega^{n+1}=\omega$, and so on).
+Figure~\ref{ch32:roots} draws the eight evenly spaced roots for $n=8$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.6,>=Latex]
+  \draw[gray!55] (0,0) circle (1);
+  \draw[->,gray!55] (-1.3,0) -- (1.3,0) node[right]{$\operatorname{Re}$};
+  \draw[->,gray!55] (0,-1.3) -- (0,1.3) node[above]{$\operatorname{Im}$};
+  \foreach \k in {0,1,2,3,4,5,6,7} {
+    \pgfmathsetmacro\ang{45*\k}
+    \fill[vecblue] (\ang:1) circle (1.4pt);
+    \draw[vecblue!40] (0,0) -- (\ang:1);
+  }
+  \node[vecblue,below right] at (0:1) {$\omega^0{=}1$};
+  \node[vecblue,above right] at (45:1) {$\omega$};
+  \node[vecblue,above] at (90:1) {$\omega^2$};
+  \node[vecblue,left] at (180:1) {$\omega^4$};
+  \draw[->,vecred,thick] (8:0.42) arc (8:37:0.42);
+  \node[vecred] at (22:0.62) {\small$\tfrac{2\pi}{n}$};
+\end{tikzpicture}
+\caption{The eighth roots of unity ($n=8$): the powers of $\omega=e^{2\pi i/8}$ step
+around the unit circle in equal jumps of $2\pi/n$. After $n$ steps you return to
+$1$. These rotating numbers are the entire content of the Fourier matrix.}
+\label{ch32:roots}
+\end{figure}
+
+The single fact we will lean on is a geometric one: \textbf{the $n$ roots of unity
+sum to zero} (for $n\ge 2$). Picture $n$ equally spaced arrows from the center of
+the circle -- by symmetry they pull equally in all directions and cancel. (Two
+arrows: $1+(-1)=0$. Three: an equilateral triangle of arrows summing to the
+center.) Algebraically, $1+\omega+\dots+\omega^{n-1}$ is a geometric series equal
+to $\frac{\omega^n - 1}{\omega-1} = \frac{1-1}{\omega-1}=0$, since $\omega^n=1$ and
+$\omega\ne 1$. Remember this cancellation; it is the gear that makes the Fourier
+matrix unitary.
+
+\subsection{Building the matrix}
+
+The \textbf{$n\times n$ Fourier matrix} $\mat F = \mat F_n$ has, in row $j$ and
+column $k$ (indexing from $0$), the entry
+\[
+  (\mat F)_{jk} = \omega^{\,jk}, \qquad j,k = 0,1,\dots,n-1.
+\]
+Row $j$ is the list of powers $1,\omega^j,\omega^{2j},\dots,\omega^{(n-1)j}$ -- a
+single pure oscillation sampled at $n$ points, oscillating $j$ times around the
+circle. Multiplying a signal $\vec x$ by $\mat F$ asks, in each row $j$, ``how much
+of frequency $j$ is in $\vec x$?'' For $n=4$, with $\omega = e^{2\pi i/4} = i$
+(since a quarter turn lands on $i$), the powers cycle $i^0,i^1,i^2,i^3 =
+1,i,-1,-i$, and
+\[
+  \mat F_4 = \colvec{
+    1 & 1 & 1 & 1 \\
+    1 & i & -1 & -i \\
+    1 & -1 & 1 & -1 \\
+    1 & -i & -1 & i }.
+\]
+Each entry is $i^{jk}$ reduced using $i^4=1$. The top row is all $1$'s (frequency
+zero -- it just sums the signal, the average/DC term). The second row $1,i,-1,-i$
+is one full rotation; the bottom row is the same rotation run the other way.
+
+\begin{labbox}
+Compute $\mat F_4\,\vec x$ by hand for $\vec x = \colvec{1\\0\\0\\0}$ (a single
+spike at time $0$) and then for $\vec x=\colvec{1\\1\\1\\1}$ (a constant signal).
+You should find $\mat F_4\colvec{1\\0\\0\\0}=\colvec{1\\1\\1\\1}$ -- a spike
+contains \emph{every} frequency equally -- and $\mat F_4\colvec{1\\1\\1\\1}=
+\colvec{4\\0\\0\\0}$ -- a constant signal is \emph{pure} frequency zero. A spike in
+time spreads across all frequencies; a flat line in time is a spike in frequency.
+That trade-off is the seed of the uncertainty principle.
+\end{labbox}
+
+To see why each row deserves to be called ``a frequency,'' picture its real part
+$\cos(2\pi jm/n)$ as $m$ runs over the $n$ sample points. Row $0$ is flat (no
+oscillation -- the DC term), row $1$ completes one cycle across the samples, row
+$2$ completes two, and so on. Figure~\ref{ch32:fourierrows} traces these sampled
+cosines for $n=8$: the Fourier matrix is just ``all the pure oscillations that fit
+on $n$ points,'' stacked as rows.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Latex,xscale=0.62,yscale=0.85]
+  \foreach \j/\yoff/\lbl in {0/0/{row $0$: flat (DC)}, 1/{-2.2}/{row $1$: one cycle}, 2/{-4.4}/{row $2$: two cycles}, 3/{-6.6}/{row $3$: three cycles}} {
+    % axis line
+    \draw[gray!45] (-0.3,\yoff) -- (8.3,\yoff);
+    \node[anchor=east,font=\small] at (-0.6,\yoff) {\lbl};
+    % continuous cosine
+    \draw[vecblue,thick,domain=0:8,smooth,samples=120,variable=\t]
+      plot ({\t},{\yoff + 0.75*cos(deg(2*pi*\j*\t/8))});
+    % sampled stems at m=0..7
+    \foreach \m in {0,1,2,3,4,5,6,7} {
+      \pgfmathsetmacro\yv{0.75*cos(deg(2*pi*\j*\m/8))}
+      \fill[vecred] (\m,\yoff+\yv) circle (1.6pt);
+      \draw[vecred!55] (\m,\yoff) -- (\m,\yoff+\yv);
+    }
+  }
+\end{tikzpicture}
+\caption{The real parts of the first four rows of $\mat F_8$, read as oscillations
+sampled (red dots) at the eight points $m=0,\dots,7$. Row $j$ completes exactly $j$
+full cycles across the samples, so higher rows mean higher frequency. The Fourier
+matrix bundles every such pure oscillation that fits on $n$ points, and asks how
+much of each is present in a signal.}
+\label{ch32:fourierrows}
+\end{figure}
+
+\subsection{Why $\mat F$ is (almost) unitary}
+
+Here is the payoff. The columns of $\mat F$ are \emph{orthogonal} under the
+Hermitian inner product. Take column $j$ and column $k$; their inner product
+conjugates the first (and $\overline{\omega^{mj}} = \omega^{-mj}$, since
+$\bar\omega = \omega^{-1}$ for a unit-circle number):
+\[
+  \inner{\text{col }j}{\text{col }k}
+  = \sum_{m=0}^{n-1}\overline{\omega^{mj}}\,\omega^{mk}
+  = \sum_{m=0}^{n-1}\omega^{m(k-j)}
+  = \sum_{m=0}^{n-1}\bigl(\omega^{\,k-j}\bigr)^{m}.
+\]
+This is a geometric series in $\omega^{k-j}$. If $j=k$ every term is
+$\omega^0 = 1$, so the sum is $n$. If $j\ne k$ then $\omega^{k-j}$ is itself a
+nontrivial root of unity, and by our cancellation fact the sum is $0$. In one line:
+\[
+  \inner{\text{col }j}{\text{col }k} = \begin{cases} n & j=k,\\[2pt] 0 & j\ne k.
+  \end{cases}
+\]
+Different columns are orthogonal; each column has squared length $n$. So
+$\mat F^{*}\mat F = n\mat I$. The columns are orthogonal but have length $\sqrt n$,
+not $1$ -- so $\mat F$ itself is not quite unitary. Divide by $\sqrt n$ to fix it.
+
+\begin{theorem}\label{ch32:fourierunitary}
+The \textbf{normalized Fourier matrix} $\;\mat U = \dfrac{1}{\sqrt n}\,\mat F\;$ is
+unitary: $\mat U^{*}\mat U = \mat I$, equivalently $\mat F^{*}\mat F = n\mat I$ and
+$\mat F^{-1} = \tfrac1n\mat F^{*}$.
+\end{theorem}
+
+This is the structural heart of the whole subject. The Fourier transform is a
+\emph{rotation of $\C^n$}. It does not distort the signal -- it merely views the
+same vector in a new orthonormal basis, the basis of pure frequencies. And because
+the inverse of a unitary matrix is just its conjugate transpose, the inverse
+Fourier transform costs no more than the forward one:
+\[
+  \mat F^{-1} = \frac1n\,\mat F^{*}, \qquad\text{so}\qquad
+  \vec x = \frac1n\,\mat F^{*}(\mat F\vec x).
+\]
+You can always get your signal back. Going to the frequency world and coming home
+are the same operation up to a conjugate and a factor of $n$.
+
+\begin{example}\label{ch32:invex}
+For $n=4$ we have $\mat F_4^{*}=\overline{\mat F_4\T}$. Since $\mat F_4$ is
+symmetric ($\omega^{jk}=\omega^{kj}$), transposing changes nothing, and
+conjugating sends $i\to-i$:
+\[
+  \mat F_4^{*} = \colvec{
+    1 & 1 & 1 & 1 \\
+    1 & -i & -1 & i \\
+    1 & -1 & 1 & -1 \\
+    1 & i & -1 & -i }, \qquad
+  \tfrac14\mat F_4^{*}\mat F_4 = \mat I.
+\]
+You can verify a single entry: row $0$ of $\mat F_4^{*}$ dotted with column $0$ of
+$\mat F_4$ is $1+1+1+1=4$, and divided by $4$ gives the $1$ on the diagonal of
+$\mat I$. Row $0$ with column $1$ is $1+i-1-i=0$ -- the roots-of-unity
+cancellation, doing its job.
+\end{example}
+
+\begin{trapbox}
+Conventions for the Fourier matrix differ across textbooks and software, and they
+will bite you. Some define $(\mat F)_{jk}=\omega^{-jk}$ (minus sign in the
+exponent), some fold the $\tfrac1{\sqrt n}$ into the forward transform, some into
+the inverse, some split it as $\tfrac1{\sqrt n}$ on each. All are ``the Fourier
+matrix.'' The invariant facts that survive every convention: the columns are
+orthogonal roots-of-unity vectors, and the matrix is unitary after the right
+normalization. Always check which convention your library (NumPy, MATLAB) uses
+before comparing numbers.
+\end{trapbox}
+
+\section{From the matrix to the FFT}
+
+We have a beautiful object; now make it fast. Naively, multiplying $\mat F_n$ by a
+vector $\vec x$ is an $n\times n$ matrix times an $n$-vector: about $n^2$ complex
+multiplications. For a single second of CD-quality audio, $n\approx 44{,}000$, so
+$n^2\approx 2$ billion multiplications -- per second of sound, for one transform.
+That was, for a long time, simply too slow to be practical.
+
+The \textbf{Fast Fourier Transform} (FFT) computes the very same $\mat F_n\vec x$
+in about $n\log_2 n$ operations instead of $n^2$. For $n=44{,}000$ that is the
+difference between $2$ billion and roughly $700{,}000$ -- a speedup of thousands.
+The idea, in one sentence, is \emph{divide and conquer using the structure of the
+roots of unity}.
+
+\subsection{The one identity that makes it work}
+
+Split a length-$n$ signal (with $n$ even) into its even-indexed and odd-indexed
+entries: $\vec x_{\text{even}} = (x_0,x_2,x_4,\dots)$ and $\vec x_{\text{odd}} =
+(x_1,x_3,x_5,\dots)$, each of length $n/2$. The miracle is that the length-$n$
+transform of $\vec x$ can be assembled from two length-$n/2$ transforms -- one of
+the evens, one of the odds. Writing $\omega_n=e^{2\pi i/n}$ and using
+$\omega_n^2=\omega_{n/2}$ (going twice as fast around the circle is the same as one
+step around a half-size circle), one can show
+\[
+  (\mat F_n\vec x)_j \;=\; E_j \;+\; \omega_n^{\,j}\,O_j,
+  \qquad
+  (\mat F_n\vec x)_{j+n/2} \;=\; E_j \;-\; \omega_n^{\,j}\,O_j,
+\]
+for $j=0,\dots,n/2-1$, where $E_j=(\mat F_{n/2}\vec x_{\text{even}})_j$ and
+$O_j=(\mat F_{n/2}\vec x_{\text{odd}})_j$ are the half-size transforms (read
+periodically in $j$). The two outputs $j$ and $j+n/2$ share the very same
+$E_j,O_j$ and differ only by a sign on the twiddle term $\omega_n^{\,j}O_j$ -- the
+sign flip comes from $\omega_n^{\,j+n/2}=-\omega_n^{\,j}$, since stepping a
+further half-circle negates a unit-circle number. That paired $+/-$ combine is the
+famous FFT \emph{butterfly}, and it is why one combine step produces two outputs at
+once. Two half-size problems plus a cheap combine step. Recurse: each half splits
+into
+quarters, and so on, $\log_2 n$ levels deep, each level costing $O(n)$ work to
+combine. Total: $O(n\log n)$. That is the whole algorithm in spirit -- the roots of
+unity were \emph{designed} to factor this way. Figure~\ref{ch32:fft} draws the
+recursion tree for $n=8$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1,>=Latex,
+   fnode/.style={draw,rounded corners,fill=blue!5,minimum width=2.2cm,minimum height=0.7cm,font=\small}]
+  \node[fnode] (top) at (0,2.4) {$\mat F_8$ on $\vec x$ \ ($n=8$)};
+  \node[fnode] (l1) at (-2.6,1.2) {$\mat F_4$ evens};
+  \node[fnode] (r1) at (2.6,1.2) {$\mat F_4$ odds};
+  \node[fnode] (ll) at (-3.9,0) {$\mat F_2$};
+  \node[fnode] (lr) at (-1.3,0) {$\mat F_2$};
+  \node[fnode] (rl) at (1.3,0) {$\mat F_2$};
+  \node[fnode] (rr) at (3.9,0) {$\mat F_2$};
+  \draw[->] (top) -- (l1);  \draw[->] (top) -- (r1);
+  \draw[->] (l1) -- (ll);   \draw[->] (l1) -- (lr);
+  \draw[->] (r1) -- (rl);   \draw[->] (r1) -- (rr);
+  \node[font=\small,gray] at (5.9,2.4) {1 split};
+  \node[font=\small,gray] at (5.9,1.2) {2 splits};
+  \node[font=\small,gray] at (5.9,0) {$\log_2 8=3$};
+\end{tikzpicture}
+\caption{Divide and conquer. One length-$8$ transform splits into two length-$4$
+transforms (evens and odds), each into two length-$2$ transforms. With $\log_2 n$
+levels and $O(n)$ combine work per level, the cost is $O(n\log n)$ instead of
+$O(n^2)$. The structure of the roots of unity is what allows the split.}
+\label{ch32:fft}
+\end{figure}
+
+\begin{applicationbox}
+The FFT is, by most counts, the most-executed numerical algorithm on Earth, and it
+is hiding everywhere:
+\begin{itemize}
+  \item \textbf{Audio and music.} MP3, AAC, and Shazam all transform sound into
+        frequencies; compression throws away the frequencies your ear cannot hear,
+        and recognition matches a song by its frequency fingerprint.
+  \item \textbf{Images.} JPEG splits a photo into $8\times 8$ blocks and applies a
+        cousin of the Fourier transform (the discrete cosine transform), then
+        discards small high-frequency coefficients -- that is where the compression
+        comes from.
+  \item \textbf{Wireless.} Wi-Fi, 4G/5G, and DSL use OFDM, which sends data on many
+        frequency channels at once; the receiver runs an FFT to pull them apart.
+  \item \textbf{Science and ML.} MRI scanners literally measure the Fourier
+        transform of your body and FFT it back to an image; convolutions in signal
+        processing (and fast polynomial multiplication) become cheap pointwise
+        products in the frequency domain, because the Fourier basis diagonalizes
+        convolution.
+\end{itemize}
+Every one of these rides on two facts from this chapter: the transform is unitary
+(so it is invertible and stable), and it is fast (the FFT).
+\end{applicationbox}
+
+\begin{connectionbox}
+The discrete Fourier transform is the finite shadow of the \emph{Fourier series}
+from analysis, where a periodic function $f(t)$ is written as an infinite sum
+$\sum_k c_k e^{ikt}$ of pure waves. The functions $e^{ikt}$ are orthonormal under
+the inner product $\inner{f}{g}=\frac1{2\pi}\int_0^{2\pi}\overline{f(t)}g(t)\,dt$ --
+the \emph{same} conjugate-inner-product idea from earlier, now with an integral in
+place of a sum. Sampling such a function at $n$ equally spaced points turns the
+integral into the finite sum that is our matrix $\mat F_n$, and ``orthonormal
+waves'' becomes ``unitary matrix.'' Hermitian inner products, orthogonal bases of
+oscillations, completeness -- this is the doorway to \emph{Fourier analysis} and
+\emph{functional analysis}, where vectors become functions and matrices become
+operators.
+\end{connectionbox}
+
+\section{A unified picture}
+
+Step back and look at the symmetry between the real world and the complex world we
+just built. The translation is mechanical and total: replace every transpose by a
+conjugate transpose, and every theorem survives.
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Concept} & \textbf{Real ($\R^n$)} & \textbf{Complex ($\C^n$)}\\
+\midrule
+Inner product & $\vec u\T\vec v=\sum u_iv_i$ & $\vec u^{*}\vec v=\sum\bar u_iv_i$\\
+``Transpose'' & $\mat A\T$ & $\mat A^{*}$ (conjugate transpose)\\
+Self-adjoint & symmetric $\mat A\T=\mat A$ & Hermitian $\mat A^{*}=\mat A$\\
+\quad eigenvalues & real & real\\
+Length-preserving & orthogonal $\mat Q\T\mat Q=\mat I$ & unitary $\mat U^{*}\mat U=\mat I$\\
+\quad eigenvalues & $\pm 1$ & on unit circle, $\abs\lambda=1$\\
+Spectral theorem & $\mat A=\mat Q\Lambda\mat Q\T$ & $\mat A=\mat U\Lambda\mat U^{*}$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{focusbox}
+If you remember one thing from this chapter, remember the dictionary above. Complex
+linear algebra is not a new subject -- it is real linear algebra with the conjugate
+inserted at exactly one spot (one side of every inner product), and with the
+transpose upgraded to the conjugate transpose to match. Everything else, including
+the Spectral Theorem and the geometry of rigid motions, carries over word for word.
+\end{focusbox}
+
+\begin{recoverybox}
+\textbf{Cost and intuition recap.} The conjugate inner product
+$\inner{\vec u}{\vec v}=\sum\bar u_kv_k$ costs the same $n$ multiplications as the
+real dot product -- one extra conjugation per entry, no asymptotic change -- and it
+is the one repair that keeps $\norm{\vec z}^2$ real and nonnegative. A Hermitian
+matrix gives \emph{real} eigenvalues; a unitary matrix preserves length and gives
+eigenvalues of modulus one. The dense Fourier matrix-vector product costs $O(n^2)$;
+the FFT exploits the roots-of-unity structure to bring it down to $O(n\log n)$,
+which is the whole reason the frequency domain is practical at scale. One mantra
+carries the chapter: \emph{star replaces transpose, and the conjugate goes on
+exactly one side.}
+\end{recoverybox}
+
+\begin{aestheticbox}
+The Fourier matrix is where three strands of this entire book braid together. It is
+a \emph{change of basis}: from samples to frequencies. It is a \emph{unitary
+matrix}: a rigid rotation of $\C^n$ that loses no information. And it
+\emph{diagonalizes} every circular convolution at once, so the hardest operation in
+signal processing becomes pointwise multiplication. One matrix, built from $n$
+points spinning evenly around a circle, sits at the intersection of geometry,
+algebra, and computation -- and it runs, billions of times a second, inside the
+device you are reading this on.
+\end{aestheticbox}
+
+\section{Exercises}
+
+\begin{exercise}\label{ch32:ex-innerprod}
+Let $\vec u=\colvec{2i\\1}$ and $\vec v=\colvec{1+i\\3i}$ in $\C^2$. Compute
+$\inner{\vec u}{\vec v}$ and $\inner{\vec v}{\vec u}$, and verify that
+$\inner{\vec v}{\vec u}=\overline{\inner{\vec u}{\vec v}}$. Then compute
+$\norm{\vec u}$ and $\norm{\vec v}$.
+\end{exercise}
+
+\begin{exercise}\label{ch32:ex-naivefail}
+Find a nonzero vector $\vec z\in\C^2$ with $\sum z_k^2 = 0$ but
+$\norm{\vec z}^2=\sum\abs{z_k}^2 \ne 0$. Explain in one sentence why this shows the
+naive ``dot product'' $\sum z_k^2$ cannot define a length.
+\end{exercise}
+
+\begin{exercise}\label{ch32:ex-star}
+For $\mat A=\colvec{2 & i\\ -i & 4}$ and $\mat B=\colvec{1 & 1+i\\ 1-i & 0}$,
+compute $\mat A^{*}$ and $\mat B^{*}$. Which of $\mat A,\mat B$ are Hermitian?
+For the Hermitian one(s), confirm by inspection that the diagonal is real and the
+off-diagonal entries are conjugates.
+\end{exercise}
+
+\begin{exercise}\label{ch32:ex-hermeig}
+The matrix $\mat A=\colvec{3 & 2i\\ -2i & 3}$ is Hermitian. Find its eigenvalues
+(they should come out real, by Theorem~\ref{ch32:realeig}) and a pair of orthogonal
+eigenvectors. Verify the orthogonality with the Hermitian inner product.
+\end{exercise}
+
+\begin{exercise}\label{ch32:ex-unitarycheck}
+Show that $\mat Q=\colvec{\cos\theta & -\sin\theta\\ \sin\theta & \cos\theta}$ is
+unitary for every real $\theta$ (it is even orthogonal). Then show that
+$\mat V=\tfrac1{\sqrt2}\colvec{1 & i\\ i & 1}$ is unitary, and find a vector whose
+length it preserves to double-check Theorem~\ref{ch32:unitarynorm}.
+\end{exercise}
+
+\begin{exercise}\label{ch32:ex-rootsum}
+Using $\omega=e^{2\pi i/6}$, list the six sixth-roots of unity in the form
+$e^{2\pi ik/6}$ and plot them on the unit circle. Verify (by the geometric-series
+argument, or numerically) that they sum to zero. What is $\omega^3$?
+\end{exercise}
+
+\begin{exercise}\label{ch32:ex-f4}
+Using $\mat F_4$ from the text, compute $\mat F_4\vec x$ for
+$\vec x=\colvec{1\\-1\\1\\-1}$. Which single frequency does the answer pick out, and
+why does that match the fact that $\vec x$ alternates sign every step (the
+\emph{highest} frequency representable on $4$ points)?
+\end{exercise}
+
+\begin{exercise}\label{ch32:ex-f4unitary}
+Verify directly that $\tfrac14\mat F_4^{*}\mat F_4=\mat I$ by computing the inner
+product of column $1$ with column $1$ (should be $4$) and column $1$ with column $3$
+(should be $0$) of $\mat F_4$. Identify the roots-of-unity cancellation in the
+second computation.
+\end{exercise}
+
+\begin{exercise}\label{ch32:ex-unitarysim}
+\textbf{(Proof.)} Prove that unitary similarity preserves eigenvalues: if $\mat U$
+is unitary and $\mat A=\mat U^{*}\mat A_0\mat U$, then $\mat A$ and $\mat A_0$ have
+the same characteristic polynomial, hence the same eigenvalues. Then prove the
+special case used in the chapter: if $\mat A_0$ is Hermitian, so is $\mat A$.
+\end{exercise}
+
+\begin{exercise}\label{ch32:ex-normalproof}
+\textbf{(Challenge.)} A matrix is called \textbf{normal} if $\mat A^{*}\mat A=
+\mat A\mat A^{*}$. Verify that every Hermitian matrix and every unitary matrix is
+normal. Then explain, in a sentence or two, why ``normal'' is exactly the class of
+matrices to which the complex Spectral Theorem applies (eigenvectors form an
+orthonormal basis) -- making Hermitian and unitary two special cases of one bigger
+truth.
+\end{exercise}
+
+\begin{exercise}\label{ch32:ex-fft-count}
+\textbf{(FFT counting.)} Let $T(n)$ be the number of combine operations the FFT
+uses on a signal of length $n=2^m$. The divide-and-conquer step gives roughly
+$T(n)=2\,T(n/2)+n$ with $T(1)=0$. Unroll this recurrence to show $T(n)=n\log_2 n$,
+and compare $T(1024)$ with the naive $1024^2$.
+\end{exercise}

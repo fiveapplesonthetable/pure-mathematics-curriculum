@@ -1,0 +1,1048 @@
+\chapter{The Singular Value Decomposition}
+
+If this book had a summit, you are standing on it. Every chapter so far has been
+quietly preparing you for one sentence:
+
+\begin{quote}
+\emph{Every matrix -- any matrix at all, square or rectangular, full rank or
+rank one, invertible or hopelessly singular -- can be written as a rotation,
+then a stretch along perpendicular axes, then another rotation.}
+\end{quote}
+
+That is the singular value decomposition, the SVD, and it is the most useful
+factorization in all of applied linear algebra. Eigenvalues are gorgeous but
+fussy: they need square matrices, they can go complex, they can refuse to give
+you a full set of eigenvectors (remember the defective matrices of the Jordan
+chapter). The SVD has none of these moods. It works for the $3\times 7$ matrix
+of pixel intensities, the $10000 \times 50$ matrix of customers and movie
+ratings, the $2 \times 2$ shear that has only one eigenvector. It always exists,
+its pieces are always real, and its geometry is always the same clean story:
+\textbf{rotate, stretch, rotate}.
+
+This is the great ``after Strang'' chapter. By now you have met the four
+fundamental subspaces, orthonormal bases, projections, and the spectral theorem
+for symmetric matrices. The SVD braids all of them together. When you finish
+this chapter you will understand principal component analysis, low-rank
+compression, the pseudoinverse, and a surprising amount of the linear algebra
+that runs underneath modern machine learning -- all from one picture.
+
+\section{The Picture First: What a Matrix Does to a Circle}
+\label{ch29:circle-picture}
+
+Forget formulas for a moment and let us just \emph{watch} a matrix act. Take
+
+\[
+  \mat{A} = \begin{bmatrix} 2 & 1 \\ 0 & 2 \end{bmatrix}.
+\]
+
+Feed it every unit vector in the plane -- the whole unit circle -- and look at
+where the outputs land. A matrix sends straight lines to straight lines and the
+unit circle (which is \emph{not} straight) to an ellipse. Always an ellipse.
+Figure~\ref{ch29:fig-circle-to-ellipse} shows it.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % left: unit circle. For A=[[2,1],[0,2]] the right singular vectors are
+  % v1 at ~52deg and v2 at ~142deg (orthogonal).
+  \begin{scope}[xshift=0cm]
+    \draw[->,gray!60] (-1.6,0) -- (1.8,0) node[right]{$x$};
+    \draw[->,gray!60] (0,-1.6) -- (0,1.8) node[above]{$y$};
+    \draw[vecblue,thick] (0,0) circle (1);
+    % two special input directions (the right singular vectors)
+    \draw[->,vecred,very thick] (0,0) -- (0.615,0.788);
+    \draw[->,structurepurple,very thick] (0,0) -- (-0.788,0.615);
+    \node[vecred] at (0.95,1.0) {$\vec{v}_1$};
+    \node[structurepurple] at (-1.1,0.75) {$\vec{v}_2$};
+    \node at (0,-2.1) {input: unit circle};
+  \end{scope}
+  % arrow
+  \draw[->,thick] (2.3,0) -- (3.5,0) node[midway,above]{$\mat{A}$};
+  % right: ellipse
+  \begin{scope}[xshift=7cm]
+    \draw[->,gray!60] (-2.6,0) -- (3.4,0) node[right]{$x$};
+    \draw[->,gray!60] (0,-2.6) -- (0,2.8) node[above]{$y$};
+    % ellipse: A maps unit circle to ellipse with semi-axes sigma1=2.56, sigma2=1.56
+    % the long axis u1 points at ~38deg.
+    \draw[targetgreen,thick,rotate around={38:(0,0)}] (0,0) ellipse (2.56 and 1.56);
+    \draw[->,vecred,very thick] (0,0) -- ({2.56*cos(38)},{2.56*sin(38)});
+    \draw[->,structurepurple,very thick] (0,0) -- ({-1.56*sin(38)},{1.56*cos(38)});
+    \node[vecred] at (2.6,1.3) {$\sigma_1 \vec{u}_1$};
+    \node[structurepurple] at (-1.4,1.9) {$\sigma_2 \vec{u}_2$};
+    \node at (0,-2.9) {output: an ellipse};
+  \end{scope}
+\end{tikzpicture}
+\caption{Any $2\times 2$ matrix sends the unit circle to an ellipse. The two
+perpendicular input directions (red and purple, the \emph{right singular
+vectors}) are the only ones that come out still perpendicular, landing on the
+ellipse's two axes. Their output lengths $\sigma_1 \ge \sigma_2$ are the
+\emph{singular values}.}
+\label{ch29:fig-circle-to-ellipse}
+\end{figure}
+
+Here is the crucial observation, and it is worth slowing down for. As you sweep
+an input unit vector around the circle, its image sweeps around the ellipse. Most
+input directions get knocked off square -- two perpendicular inputs usually come
+out \emph{not} perpendicular, because the matrix shears as well as stretches. But
+there is always (at least) one special pair of perpendicular input directions
+that stays perpendicular on the way out. Those special inputs land exactly on the
+long axis and short axis of the ellipse.
+
+\begin{intuitionbox}
+The whole SVD lives in this one picture. A matrix turns the unit circle into an
+ellipse. The \textbf{right singular vectors} $\vec{v}_1, \vec{v}_2$ are the
+perpendicular \emph{input} directions that survive as perpendicular. The
+\textbf{left singular vectors} $\vec{u}_1, \vec{u}_2$ are the perpendicular
+\emph{output} directions they land on -- the ellipse's axes. The
+\textbf{singular values} $\sigma_1 \ge \sigma_2 \ge 0$ are how long those output
+axes are. The matrix does nothing more exotic than: line up with the
+$\vec{v}$'s, stretch by the $\sigma$'s, point along the $\vec{u}$'s.
+\end{intuitionbox}
+
+Why must the image always be an ellipse, and why must such a perpendicular pair
+always exist? That is not obvious, and we will prove it. But the geometry should
+already feel inevitable: an ellipse is just a stretched, rotated circle, and a
+matrix is just the machine that stretches and rotates. Let us turn the picture
+into algebra.
+
+\section{From the Picture to the Factorization}
+\label{ch29:to-factorization}
+
+Suppose we have found those magic directions. In the plane: an orthonormal pair
+$\vec{v}_1, \vec{v}_2$ in the input space, an orthonormal pair $\vec{u}_1,
+\vec{u}_2$ in the output space, and nonnegative numbers $\sigma_1, \sigma_2$, all
+linked by
+
+\[
+  \mat{A}\vec{v}_1 = \sigma_1 \vec{u}_1, \qquad
+  \mat{A}\vec{v}_2 = \sigma_2 \vec{u}_2.
+\]
+
+Read that as: ``the input axis $\vec{v}_i$ gets sent to the output axis
+$\vec{u}_i$, stretched by $\sigma_i$.'' Now stack these two equations as columns
+of a single matrix equation. Put the $\vec{v}$'s as columns of a matrix
+$\mat{V}$, the $\vec{u}$'s as columns of $\mat{U}$:
+
+\[
+  \mat{A}\underbrace{\begin{bmatrix} \vec{v}_1 & \vec{v}_2 \end{bmatrix}}_{\mat{V}}
+  = \underbrace{\begin{bmatrix} \vec{u}_1 & \vec{u}_2 \end{bmatrix}}_{\mat{U}}
+    \underbrace{\begin{bmatrix} \sigma_1 & 0 \\ 0 & \sigma_2 \end{bmatrix}}_{\mat{\Sigma}}.
+\]
+
+The right side is correct because $\mat{U}\mat{\Sigma}$ has columns $\sigma_1
+\vec{u}_1$ and $\sigma_2 \vec{u}_2$ -- exactly what $\mat{A}\vec{v}_1$ and
+$\mat{A}\vec{v}_2$ are supposed to equal. So $\mat{A}\mat{V} = \mat{U}\mat{\Sigma}$.
+Because the $\vec{v}$'s are orthonormal, $\mat{V}$ is an orthogonal matrix, so
+$\mat{V}\inv = \mat{V}\T$. Multiply on the right by $\mat{V}\T$ and you have it:
+
+\[
+  \boxed{\;\mat{A} = \mat{U}\,\mat{\Sigma}\,\mat{V}\T.\;}
+\]
+
+\begin{focusbox}
+The SVD is just the equations $\mat{A}\vec{v}_i = \sigma_i \vec{u}_i$ collected
+into matrices. Read $\mat{A} = \mat{U}\mat{\Sigma}\mat{V}\T$ \textbf{right to
+left} as three motions applied to an input vector $\vec{x}$:
+\begin{enumerate}
+  \item $\mat{V}\T$ \textbf{rotates} so the magic input axes line up with the
+        coordinate axes;
+  \item $\mat{\Sigma}$ \textbf{stretches} each coordinate axis by its singular
+        value (and, if rectangular, changes the dimension);
+  \item $\mat{U}$ \textbf{rotates} the stretched result into the output space.
+\end{enumerate}
+Rotate, stretch, rotate. Every matrix, no exceptions.
+\end{focusbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.78,>=Stealth]
+  % stage 0: unit circle with v1,v2
+  \begin{scope}[xshift=0cm]
+    \draw[gray!50] (0,0) circle (1);
+    \draw[->,vecred,thick] (0,0)--(0.7,0.7);
+    \draw[->,structurepurple,thick] (0,0)--(-0.7,0.7);
+    \node[below] at (0,-1.3) {$\vec{x}$ on circle};
+    \node at (0,1.6) {$\vec{v}_1,\vec{v}_2$};
+  \end{scope}
+  \draw[->,thick] (1.6,0)--(2.6,0) node[midway,above]{$\mat{V}\T$};
+  % stage 1: rotated so v's on axes
+  \begin{scope}[xshift=4.2cm]
+    \draw[gray!50] (0,0) circle (1);
+    \draw[->,vecred,thick] (0,0)--(1,0);
+    \draw[->,structurepurple,thick] (0,0)--(0,1);
+    \node[below] at (0,-1.3) {axes aligned};
+  \end{scope}
+  \draw[->,thick] (5.8,0)--(6.8,0) node[midway,above]{$\mat{\Sigma}$};
+  % stage 2: stretched ellipse, axis-aligned
+  \begin{scope}[xshift=9.4cm]
+    \draw[targetgreen!70] (0,0) ellipse (1.7 and 0.8);
+    \draw[->,vecred,thick] (0,0)--(1.7,0);
+    \draw[->,structurepurple,thick] (0,0)--(0,0.8);
+    \node[below] at (0,-1.3) {stretched};
+    \node at (0,1.6) {$\sigma_1,\sigma_2$};
+  \end{scope}
+  \draw[->,thick] (11.4,0)--(12.4,0) node[midway,above]{$\mat{U}$};
+  % stage 3: rotated ellipse
+  \begin{scope}[xshift=15.4cm]
+    \draw[targetgreen,thick,rotate around={25:(0,0)}] (0,0) ellipse (1.7 and 0.8);
+    \draw[->,vecred,thick] (0,0)--({1.7*cos(25)},{1.7*sin(25)});
+    \draw[->,structurepurple,thick] (0,0)--({-0.8*sin(25)},{0.8*cos(25)});
+    \node[below] at (0,-1.3) {$\mat{A}\vec{x}$ on ellipse};
+    \node at (0,1.6) {$\vec{u}_1,\vec{u}_2$};
+  \end{scope}
+\end{tikzpicture}
+\caption{The SVD as rotate--stretch--rotate. Reading $\mat{A} =
+\mat{U}\mat{\Sigma}\mat{V}\T$ from right to left: $\mat{V}\T$ rotates the magic
+input axes onto the coordinate axes, $\mat{\Sigma}$ stretches along those axes by
+$\sigma_1,\sigma_2$, and $\mat{U}$ rotates the result into final position.}
+\label{ch29:fig-rotate-stretch-rotate}
+\end{figure}
+
+Compare this to diagonalization, $\mat{A} = \mat{X}\mat{\Lambda}\mat{X}\inv$. There
+the same basis $\mat{X}$ appears on both sides, but it is generally \emph{not}
+orthogonal, so $\mat{X}\inv \ne \mat{X}\T$, and the picture is a skew stretch
+along oblique eigen-axes. The SVD pays a small price -- it allows \emph{two}
+different orthonormal bases, an input one $\mat{V}$ and an output one $\mat{U}$ --
+and in exchange it buys enormous freedom: the bases are always orthonormal, the
+stretches $\sigma_i$ are always real and nonnegative, and the matrix need not even
+be square.
+
+\begin{strangbox}
+Strang loves to write the SVD as $\mat{A}\vec{v}_i = \sigma_i \vec{u}_i$ and call
+$\mat{V}$ and $\mat{U}$ ``the right and left singular vector bases.'' If you have
+already taken his course, you have seen him insist that the SVD ``completes'' the
+four-subspaces picture: $\mat{V}$ gives orthonormal bases for the row space and
+null space, $\mat{U}$ for the column space and left null space, and $\mat{\Sigma}$
+records exactly how the row space is stretched onto the column space. If you are
+reading this \emph{before} Strang, hold onto the circle-to-ellipse picture; it is
+the one mental image that makes his blackboard derivation feel obvious.
+\end{strangbox}
+
+\section{The Formal Statement}
+\label{ch29:formal-statement}
+
+Let us write down precisely what we are claiming, for a general $m \times n$
+matrix.
+
+\begin{formalbox}
+\begin{theorem}[Singular Value Decomposition]
+\label{ch29:thm-svd}
+Let $\mat{A}$ be any real $m \times n$ matrix. Then there exist
+\begin{itemize}
+  \item an orthogonal $m \times m$ matrix $\mat{U}$ (columns $\vec{u}_1,\dots,\vec{u}_m$),
+  \item an orthogonal $n \times n$ matrix $\mat{V}$ (columns $\vec{v}_1,\dots,\vec{v}_n$),
+  \item an $m \times n$ ``diagonal'' matrix $\mat{\Sigma}$ whose only nonzero
+        entries are $\sigma_1 \ge \sigma_2 \ge \cdots \ge \sigma_r > 0$ in the
+        top-left, where $r = \rank(\mat{A})$,
+\end{itemize}
+such that
+\[
+  \mat{A} = \mat{U}\,\mat{\Sigma}\,\mat{V}\T.
+\]
+The numbers $\sigma_i$ are the \emph{singular values}; the columns of $\mat{V}$
+are the \emph{right singular vectors}; the columns of $\mat{U}$ are the
+\emph{left singular vectors}. The singular values are uniquely determined by
+$\mat{A}$.
+\end{theorem}
+\end{formalbox}
+
+A word on shapes, since rectangular matrices trip everyone up at first. If
+$\mat{A}$ is $m \times n$, then $\mat{\Sigma}$ is also $m \times n$ -- the same
+shape as $\mat{A}$ -- but it is as diagonal as a rectangle can be. For a
+$3 \times 2$ matrix,
+
+\[
+  \mat{\Sigma} = \begin{bmatrix} \sigma_1 & 0 \\ 0 & \sigma_2 \\ 0 & 0 \end{bmatrix},
+\]
+
+and for a $2 \times 3$ matrix,
+
+\[
+  \mat{\Sigma} = \begin{bmatrix} \sigma_1 & 0 & 0 \\ 0 & \sigma_2 & 0 \end{bmatrix}.
+\]
+
+The singular values march down the main diagonal; everything off it is zero.
+
+\begin{trapbox}
+\textbf{Singular values are not eigenvalues.} They are nonnegative by
+definition, even when the matrix has negative or complex eigenvalues, even when
+the matrix is not square (and so has no eigenvalues at all). For the rotation by
+$90^\circ$, $\mat{R} = \begin{bmatrix} 0 & -1 \\ 1 & 0\end{bmatrix}$, the
+eigenvalues are $\pm i$ -- but both singular values are $1$, because a rotation
+stretches nothing: it sends the unit circle to itself. Eigenvalues measure
+``invariant directions and their scaling''; singular values measure ``how much
+the matrix stretches space.'' Do not confuse them.
+\end{trapbox}
+
+\subsection{The economy (thin) SVD}
+
+When $m$ and $n$ are very different -- say a $10000 \times 50$ data matrix -- the
+full $\mat{U}$ would be a gigantic $10000 \times 10000$ matrix, almost all of
+whose columns multiply zeros in $\mat{\Sigma}$. Wasteful. The \textbf{economy
+SVD} keeps only the columns that matter. If $r = \rank(\mat{A})$, write
+
+\[
+  \mat{A} = \mat{U}_r\,\mat{\Sigma}_r\,\mat{V}_r\T,
+\]
+
+where $\mat{U}_r$ is $m \times r$ (its columns the first $r$ left singular
+vectors), $\mat{\Sigma}_r = \diag(\sigma_1,\dots,\sigma_r)$ is $r \times r$ and
+honestly square, and $\mat{V}_r$ is $n \times r$. Even leaner is the
+\textbf{outer-product form}, which we will use constantly:
+
+\[
+  \boxed{\;\mat{A} = \sum_{i=1}^{r} \sigma_i\, \vec{u}_i \vec{v}_i\T.\;}
+\]
+
+Each term $\sigma_i \vec{u}_i \vec{v}_i\T$ is a rank-one matrix -- an output
+direction $\vec{u}_i$ times an input direction $\vec{v}_i\T$, scaled by
+$\sigma_i$. The matrix is literally a \emph{sum of rank-one pieces}, ordered from
+strongest to weakest. Hold onto that; it is the secret of compression.
+
+\section{Where the Pieces Come From: $\mat{A}\T\mat{A}$ and $\mat{A}\mat{A}\T$}
+\label{ch29:ata-aat}
+
+So far we have assumed the magic directions exist. Now we find them, and in doing
+so we \emph{prove} the SVD. The key is a trick you have seen before: when a matrix
+is rectangular or otherwise badly behaved, square it up by multiplying by its
+transpose. Both $\mat{A}\T\mat{A}$ and $\mat{A}\mat{A}\T$ are symmetric, and --
+this is the engine of the whole chapter -- the spectral theorem applies to them.
+
+Suppose for the moment that $\mat{A} = \mat{U}\mat{\Sigma}\mat{V}\T$ really holds.
+Then watch what $\mat{A}\T\mat{A}$ becomes, using $\mat{U}\T\mat{U} = \mat{I}$:
+
+\[
+  \mat{A}\T\mat{A}
+  = (\mat{U}\mat{\Sigma}\mat{V}\T)\T(\mat{U}\mat{\Sigma}\mat{V}\T)
+  = \mat{V}\mat{\Sigma}\T\mat{U}\T\mat{U}\mat{\Sigma}\mat{V}\T
+  = \mat{V}\,(\mat{\Sigma}\T\mat{\Sigma})\,\mat{V}\T.
+\]
+
+But $\mat{\Sigma}\T\mat{\Sigma}$ is the diagonal matrix
+$\diag(\sigma_1^2,\dots,\sigma_n^2)$. So this last line \emph{is} an
+orthogonal diagonalization of $\mat{A}\T\mat{A}$:
+
+\begin{focusbox}
+The right singular vectors $\vec{v}_i$ are the \textbf{eigenvectors of
+$\mat{A}\T\mat{A}$}, and the squared singular values $\sigma_i^2$ are its
+\textbf{eigenvalues}:
+\[
+  \mat{A}\T\mat{A}\,\vec{v}_i = \sigma_i^2\, \vec{v}_i.
+\]
+Symmetrically, the left singular vectors $\vec{u}_i$ are the eigenvectors of
+$\mat{A}\mat{A}\T$ with the \emph{same} eigenvalues $\sigma_i^2$:
+\[
+  \mat{A}\mat{A}\T\,\vec{u}_i = \sigma_i^2\, \vec{u}_i.
+\]
+\end{focusbox}
+
+This is not just a formula -- it is a \emph{recipe and a proof}. Let me show why
+it must work, then turn it into a procedure.
+
+\subsection{Why the recipe is forced (a real proof)}
+
+We build the SVD from scratch, with no prior assumption that it exists. Start with
+$\mat{A}\T\mat{A}$. It is $n\times n$, symmetric, and \emph{positive
+semidefinite}: for any $\vec{x}$,
+\[
+  \vec{x}\T(\mat{A}\T\mat{A})\vec{x} = (\mat{A}\vec{x})\T(\mat{A}\vec{x})
+  = \norm{\mat{A}\vec{x}}^2 \ge 0.
+\]
+By the spectral theorem (the symmetric chapter), $\mat{A}\T\mat{A}$ has an
+orthonormal basis of eigenvectors $\vec{v}_1,\dots,\vec{v}_n$ with real
+eigenvalues $\lambda_1 \ge \cdots \ge \lambda_n$, and because it is positive
+semidefinite, every $\lambda_i \ge 0$. Define the singular values as the
+square roots,
+\[
+  \sigma_i := \sqrt{\lambda_i} \ge 0,
+\]
+and say there are $r$ positive ones: $\sigma_1 \ge \cdots \ge \sigma_r > 0$ and
+$\sigma_{r+1} = \cdots = 0$.
+
+Now \emph{define} the left singular vectors, for $i = 1,\dots,r$, by normalizing
+the images $\mat{A}\vec{v}_i$:
+\[
+  \vec{u}_i := \frac{1}{\sigma_i}\,\mat{A}\vec{v}_i.
+\]
+Two things to check: that these $\vec{u}_i$ are orthonormal, and that the leftover
+directions ($i > r$) really do contribute nothing.
+
+\emph{Orthonormality.} Compute the dot product of two of them:
+\[
+  \vec{u}_i\T\vec{u}_j
+  = \frac{1}{\sigma_i\sigma_j}(\mat{A}\vec{v}_i)\T(\mat{A}\vec{v}_j)
+  = \frac{1}{\sigma_i\sigma_j}\,\vec{v}_i\T(\mat{A}\T\mat{A})\vec{v}_j
+  = \frac{1}{\sigma_i\sigma_j}\,\vec{v}_i\T(\sigma_j^2\,\vec{v}_j)
+  = \frac{\sigma_j}{\sigma_i}\,\vec{v}_i\T\vec{v}_j.
+\]
+Since the $\vec{v}$'s are orthonormal, $\vec{v}_i\T\vec{v}_j$ is $1$ when $i=j$
+and $0$ otherwise. So $\vec{u}_i\T\vec{u}_j = 1$ when $i=j$ (the $\sigma$'s
+cancel) and $0$ otherwise. The $\vec{u}_i$ are orthonormal.
+
+\emph{The leftovers vanish.} For $i > r$ we have $\sigma_i = 0$, meaning
+$\lambda_i = 0$, so
+\[
+  \norm{\mat{A}\vec{v}_i}^2 = \vec{v}_i\T(\mat{A}\T\mat{A})\vec{v}_i
+  = \lambda_i \norm{\vec{v}_i}^2 = 0,
+\]
+hence $\mat{A}\vec{v}_i = \vec{0}$. These directions are crushed to nothing; they
+are the null space of $\mat{A}$.
+
+Finally, extend $\vec{u}_1,\dots,\vec{u}_r$ to a full orthonormal basis
+$\vec{u}_1,\dots,\vec{u}_m$ of $\R^m$ (always possible -- just complete the
+basis). By construction $\mat{A}\vec{v}_i = \sigma_i\vec{u}_i$ holds for
+\emph{every} $i$ (for $i \le r$ by definition of $\vec{u}_i$; for $i > r$ both
+sides are zero). Collect into matrices: $\mat{A}\mat{V} = \mat{U}\mat{\Sigma}$, so
+$\mat{A} = \mat{U}\mat{\Sigma}\mat{V}\T$. \qed
+
+\begin{aestheticbox}
+Look at what just happened. We never assumed $\mat{A}$ was square, never assumed
+it was invertible, never touched a complex number. We only needed one fact: the
+symmetric matrix $\mat{A}\T\mat{A}$ has an orthonormal eigenbasis with
+nonnegative eigenvalues. The spectral theorem -- a statement about the nicest
+matrices in the world -- hands us a decomposition of \emph{every} matrix in the
+world. That is the quiet power of symmetry: square up any matrix and the chaos
+becomes orthogonal.
+\end{aestheticbox}
+
+\begin{trapbox}
+Use $\mat{A}\T\mat{A}$ to get the $\vec{v}$'s, then get the $\vec{u}$'s
+\emph{from} $\vec{u}_i = \mat{A}\vec{v}_i / \sigma_i$ -- do \emph{not} find the
+$\vec{u}$'s independently as eigenvectors of $\mat{A}\mat{A}\T$ and pair them up
+arbitrarily. Eigenvectors are only defined up to sign (and up to rotation within
+a repeated eigenspace). If you compute $\mat{U}$ and $\mat{V}$ separately, you
+can easily get signs that disagree, so that $\mat{U}\mat{\Sigma}\mat{V}\T$ comes
+out as $-\mat{A}$ in some columns. The link $\mat{A}\vec{v}_i = \sigma_i\vec{u}_i$
+fixes the signs consistently.
+\end{trapbox}
+
+\section{A Fully Worked $2 \times 2$ Example}
+\label{ch29:worked-2x2}
+
+Theory is cheap; let us compute one all the way through. Take
+
+\[
+  \mat{A} = \begin{bmatrix} 3 & 0 \\ 4 & 5 \end{bmatrix}.
+\]
+
+\textbf{Step 1: Form $\mat{A}\T\mat{A}$.}
+\[
+  \mat{A}\T\mat{A}
+  = \begin{bmatrix} 3 & 4 \\ 0 & 5 \end{bmatrix}
+    \begin{bmatrix} 3 & 0 \\ 4 & 5 \end{bmatrix}
+  = \begin{bmatrix} 25 & 20 \\ 20 & 25 \end{bmatrix}.
+\]
+
+\textbf{Step 2: Eigenvalues of $\mat{A}\T\mat{A}$.} For the symmetric matrix
+$\begin{bmatrix} 25 & 20 \\ 20 & 25\end{bmatrix}$, the eigenvalues of
+$\begin{bmatrix} a & b \\ b & a\end{bmatrix}$ are $a+b$ and $a-b$ (the vectors
+$\colvec{1\\1}$ and $\colvec{1\\-1}$ are always eigenvectors of such a matrix).
+So
+\[
+  \lambda_1 = 25 + 20 = 45, \qquad \lambda_2 = 25 - 20 = 5.
+\]
+The singular values are the square roots:
+\[
+  \sigma_1 = \sqrt{45} = 3\sqrt{5} \approx 6.708, \qquad
+  \sigma_2 = \sqrt{5} \approx 2.236.
+\]
+
+\textbf{Step 3: Right singular vectors (the $\vec{v}$'s).} The eigenvectors are
+$\colvec{1\\1}$ and $\colvec{1\\-1}$; normalize them:
+\[
+  \vec{v}_1 = \frac{1}{\sqrt2}\colvec{1\\1}, \qquad
+  \vec{v}_2 = \frac{1}{\sqrt2}\colvec{1\\-1}.
+\]
+
+\textbf{Step 4: Left singular vectors (the $\vec{u}$'s)} via $\vec{u}_i =
+\mat{A}\vec{v}_i / \sigma_i$. First
+\[
+  \mat{A}\vec{v}_1 = \frac{1}{\sqrt2}\begin{bmatrix} 3 & 0 \\ 4 & 5 \end{bmatrix}\colvec{1\\1}
+  = \frac{1}{\sqrt2}\colvec{3\\9},
+  \quad\Rightarrow\quad
+  \vec{u}_1 = \frac{1}{\sigma_1}\cdot\frac{1}{\sqrt2}\colvec{3\\9}
+  = \frac{1}{3\sqrt5}\cdot\frac{1}{\sqrt2}\colvec{3\\9}
+  = \frac{1}{\sqrt{10}}\colvec{1\\3}.
+\]
+Check its length: $\frac{1}{\sqrt{10}}\sqrt{1+9} = 1$. Good. Then
+\[
+  \mat{A}\vec{v}_2 = \frac{1}{\sqrt2}\begin{bmatrix} 3 & 0 \\ 4 & 5 \end{bmatrix}\colvec{1\\-1}
+  = \frac{1}{\sqrt2}\colvec{3\\-1},
+  \quad\Rightarrow\quad
+  \vec{u}_2 = \frac{1}{\sqrt5}\cdot\frac{1}{\sqrt2}\colvec{3\\-1}
+  = \frac{1}{\sqrt{10}}\colvec{3\\-1}.
+\]
+Notice $\vec{u}_1\T\vec{u}_2 = \frac{1}{10}(1\cdot 3 + 3\cdot(-1)) = 0$: the
+output axes really are perpendicular, exactly as the picture promised.
+
+\textbf{Step 5: Assemble.}
+\[
+  \mat{A}
+  = \underbrace{\frac{1}{\sqrt{10}}\begin{bmatrix} 1 & 3 \\ 3 & -1 \end{bmatrix}}_{\mat{U}}
+    \underbrace{\begin{bmatrix} 3\sqrt5 & 0 \\ 0 & \sqrt5 \end{bmatrix}}_{\mat{\Sigma}}
+    \underbrace{\frac{1}{\sqrt2}\begin{bmatrix} 1 & 1 \\ 1 & -1 \end{bmatrix}}_{\mat{V}\T}.
+\]
+
+\textbf{Step 6: Sanity check} by multiplying $\mat{U}\mat{\Sigma}$ first:
+\[
+  \mat{U}\mat{\Sigma}
+  = \frac{1}{\sqrt{10}}\begin{bmatrix} 1 & 3 \\ 3 & -1 \end{bmatrix}
+    \begin{bmatrix} 3\sqrt5 & 0 \\ 0 & \sqrt5 \end{bmatrix}
+  = \frac{1}{\sqrt{10}}\begin{bmatrix} 3\sqrt5 & 3\sqrt5 \\ 9\sqrt5 & -\sqrt5 \end{bmatrix}.
+\]
+Then times $\mat{V}\T$, using $\frac{\sqrt5}{\sqrt{10}}\cdot\frac{1}{\sqrt2} =
+\frac{\sqrt5}{\sqrt{20}} = \frac{\sqrt5}{2\sqrt5} = \frac12$:
+\[
+  \mat{U}\mat{\Sigma}\mat{V}\T
+  = \frac12\begin{bmatrix} 3 & 3 \\ 9 & -1 \end{bmatrix}
+           \begin{bmatrix} 1 & 1 \\ 1 & -1 \end{bmatrix}
+  = \frac12\begin{bmatrix} 6 & 0 \\ 8 & 10 \end{bmatrix}
+  = \begin{bmatrix} 3 & 0 \\ 4 & 5 \end{bmatrix} = \mat{A}. \checkmark
+\]
+
+It closes perfectly. Notice also that $\sigma_1\sigma_2 = 3\sqrt5\cdot\sqrt5 = 15
+= \det\mat{A}$ (since $\det\mat{A} = 3\cdot5 - 0\cdot4 = 15$). That is no
+accident -- see the next box.
+
+\begin{labbox}
+Compute the SVD of $\mat{A} = \begin{bmatrix} 4 & 0 \\ 3 & -5\end{bmatrix}$ by
+hand, following the six steps above. You should find $\mat{A}\T\mat{A} =
+\begin{bmatrix} 25 & -15 \\ -15 & 25\end{bmatrix}$, eigenvalues $40$ and $10$, and
+singular values $\sigma_1 = \sqrt{40} = 2\sqrt{10}$, $\sigma_2 = \sqrt{10}$. Find
+the $\vec{v}$'s, push them through $\mat{A}$, and check that the two $\vec{u}$'s
+come out orthogonal. Then verify $\sigma_1\sigma_2 = \abs{\det\mat{A}} = 20$.
+\end{labbox}
+
+\begin{connectionbox}
+\textbf{Singular values, determinant, and volume.} For a square $\mat{A}$,
+\[
+  \abs{\det\mat{A}} = \sigma_1\sigma_2\cdots\sigma_n.
+\]
+Here is the slick reason. Determinants multiply, and orthogonal matrices have
+determinant $\pm 1$ (they preserve volume), so
+$\abs{\det\mat{A}} = \abs{\det\mat{U}}\,\abs{\det\mat{\Sigma}}\,\abs{\det\mat{V}\T}
+= 1\cdot(\sigma_1\cdots\sigma_n)\cdot 1$. Geometrically: the unit cube has
+volume $1$; rotating ($\mat{U}$, $\mat{V}\T$) does not change volume; only the
+stretch $\mat{\Sigma}$ does, multiplying volume by $\sigma_1\cdots\sigma_n$. The
+absolute value of the determinant is exactly the volume of the output box -- and
+the SVD shows you which directions did the stretching. This is the determinant
+chapter and the SVD shaking hands.
+\end{connectionbox}
+
+\section{The SVD and the Four Fundamental Subspaces}
+\label{ch29:four-subspaces}
+
+This is where the SVD stops being a computation and becomes a worldview. Recall
+the four subspaces of an $m\times n$ matrix $\mat{A}$ of rank $r$:
+\begin{itemize}
+  \item the \textbf{column space} $\col(\mat{A}) \subseteq \R^m$, dimension $r$;
+  \item the \textbf{row space} $\row(\mat{A}) = \col(\mat{A}\T) \subseteq \R^n$, dimension $r$;
+  \item the \textbf{null space} $\nullsp(\mat{A}) \subseteq \R^n$, dimension $n-r$;
+  \item the \textbf{left null space} $\nullsp(\mat{A}\T) \subseteq \R^m$, dimension $m-r$.
+\end{itemize}
+The SVD hands you a clean orthonormal basis for all four at once. Split the
+singular vectors at the rank $r$:
+
+\begin{focusbox}
+\begin{itemize}
+  \item $\vec{v}_1,\dots,\vec{v}_r$ (positive singular values) are an orthonormal
+        basis for the \textbf{row space}.
+  \item $\vec{v}_{r+1},\dots,\vec{v}_n$ (zero singular values) are an orthonormal
+        basis for the \textbf{null space}.
+  \item $\vec{u}_1,\dots,\vec{u}_r$ are an orthonormal basis for the
+        \textbf{column space}.
+  \item $\vec{u}_{r+1},\dots,\vec{u}_m$ are an orthonormal basis for the
+        \textbf{left null space}.
+\end{itemize}
+And $\mat{A}$ maps each $\vec{v}_i$ ($i\le r$) onto $\sigma_i \vec{u}_i$: the row
+space gets rotated and stretched cleanly onto the column space.
+\end{focusbox}
+
+Why? We already saw that $\vec{v}_i$ with $\sigma_i = 0$ satisfy $\mat{A}\vec{v}_i
+= \vec{0}$, so they live in the null space; there are $n - r$ of them, which is
+exactly the null space's dimension, so they are a basis for it. The remaining
+$\vec{v}_1,\dots,\vec{v}_r$ are orthogonal to the null space, and the orthogonal
+complement of the null space is the row space (fundamental theorem of linear
+algebra) -- so they are an orthonormal basis for the row space. For the
+$\vec{u}$'s: each $\vec{u}_i = \mat{A}\vec{v}_i/\sigma_i$ ($i\le r$) is a column of
+$\mat{A}$ times a vector, hence in $\col(\mat{A})$; there are $r$ of them and they
+are orthonormal, so they are a basis for the $r$-dimensional column space. The
+leftover $\vec{u}_{r+1},\dots,\vec{u}_m$ are orthogonal to the column space, i.e.
+in the left null space.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.9,>=Stealth]
+  % input space R^n
+  \node at (-2.5,3.6) {\textbf{input space} $\R^n$};
+  \draw[sourceblue,thick,fill=sourceblue!8] (-4.4,1.6) rectangle (-0.6,3.0);
+  \node at (-2.5,2.3) {row space $\;\spn(\vec{v}_1,\dots,\vec{v}_r)$};
+  \draw[trapred,thick,fill=trapred!8] (-4.4,-0.2) rectangle (-0.6,1.2);
+  \node[align=center] at (-2.5,0.5) {null space\\$\spn(\vec{v}_{r+1},\dots,\vec{v}_n)$};
+  % output space R^m
+  \node at (5.0,3.6) {\textbf{output space} $\R^m$};
+  \draw[targetgreen,thick,fill=targetgreen!8] (3.1,1.6) rectangle (6.9,3.0);
+  \node at (5.0,2.3) {column space $\;\spn(\vec{u}_1,\dots,\vec{u}_r)$};
+  \draw[quotientorange,thick,fill=quotientorange!8] (3.1,-0.2) rectangle (6.9,1.2);
+  \node[align=center] at (5.0,0.5) {left null space\\$\spn(\vec{u}_{r+1},\dots,\vec{u}_m)$};
+  % arrows
+  \draw[->,thick] (-0.5,2.3) -- (3.0,2.3) node[midway,above]{$\times\,\sigma_i$};
+  \draw[->,thick,trapred] (-0.5,0.5) .. controls (1.3,-1.0) .. (3.0,0.5)
+        node[midway,below]{$\mapsto \vec{0}$};
+\end{tikzpicture}
+\caption{The SVD completes the four-subspaces picture. The right singular vectors
+split the input space into row space (top, stretched onto the column space
+by $\sigma_i$) and null space (bottom, crushed to $\vec{0}$). The left singular vectors
+split the output space into column space (the image) and left null space (never
+reached).}
+\label{ch29:fig-four-subspaces}
+\end{figure}
+
+\begin{strangbox}
+This is the figure Strang calls ``the big picture of linear algebra,'' now drawn
+with \emph{orthonormal} axes. In his earlier chapters the four subspaces are
+there, but the bases are whatever elimination happened to give you -- not
+orthogonal, not unit length. The SVD is the moment those four rooms get
+perpendicular coordinate axes and the action of $\mat{A}$ becomes a simple
+diagonal stretch from one to the other. Many readers say the four subspaces
+finally ``clicked'' only when they saw the SVD. If that is you, you are in good
+company.
+\end{strangbox}
+
+\section{Best Low-Rank Approximation: Eckart--Young}
+\label{ch29:eckart-young}
+
+Now the payoff that makes the SVD indispensable in the data age. Recall the
+outer-product form,
+\[
+  \mat{A} = \sigma_1 \vec{u}_1\vec{v}_1\T + \sigma_2 \vec{u}_2\vec{v}_2\T
+            + \cdots + \sigma_r \vec{u}_r\vec{v}_r\T.
+\]
+The terms are sorted: $\sigma_1 \ge \sigma_2 \ge \cdots$, so the \emph{first}
+term carries the most ``energy,'' the second the next most, and so on. A natural
+idea: keep only the top $k$ terms and throw away the rest. Define
+\[
+  \mat{A}_k := \sum_{i=1}^{k} \sigma_i\,\vec{u}_i\vec{v}_i\T.
+\]
+This $\mat{A}_k$ has rank $k$ (a sum of $k$ rank-one pieces). It is an
+approximation to $\mat{A}$ built from the $k$ strongest directions. The
+remarkable theorem of Eckart and Young says: \emph{this is the best rank-$k$
+approximation there is}. Nothing of rank $k$ comes closer.
+
+\begin{formalbox}
+\begin{theorem}[Eckart--Young, 1936]
+\label{ch29:thm-eckart-young}
+Let $\mat{A} = \sum_{i=1}^r \sigma_i \vec{u}_i\vec{v}_i\T$ and let $\mat{A}_k$ be
+its truncation to the top $k$ terms. Then for \emph{every} matrix $\mat{B}$ of
+rank at most $k$,
+\[
+  \norm{\mat{A} - \mat{A}_k} \le \norm{\mat{A} - \mat{B}},
+\]
+in both the spectral norm and the Frobenius norm. The error left behind is
+exactly
+\[
+  \norm{\mat{A} - \mat{A}_k}_{2} = \sigma_{k+1}, \qquad
+  \norm{\mat{A} - \mat{A}_k}_{F} = \sqrt{\sigma_{k+1}^2 + \cdots + \sigma_r^2}.
+\]
+\end{theorem}
+\end{formalbox}
+
+Read that error formula slowly, because it is the whole reason the SVD rules data
+science. The error of the best rank-$k$ approximation is governed by the
+\emph{discarded singular values}. If $\sigma_{k+1}, \sigma_{k+2}, \dots$ are tiny,
+then $\mat{A}_k$ is nearly equal to $\mat{A}$ even though it is enormously
+simpler. A $1000\times 1000$ matrix whose singular values plummet after, say,
+$\sigma_{20}$ can be captured almost perfectly by $20$ rank-one pieces -- that is
+$20\cdot(1000 + 1000)$ numbers instead of $1{,}000{,}000$. Compression, denoising,
+and dimensionality reduction are all this one move.
+Figure~\ref{ch29:fig-sv-spectrum} shows the typical shape that makes it work: a
+few dominant singular values and a long, negligible tail.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  \begin{axis}[
+      width=10.5cm, height=5.2cm,
+      xlabel={index $i$}, ylabel={$\sigma_i$},
+      xmin=0.3, xmax=12.7, ymin=0, ymax=10.5,
+      xtick={1,2,...,12}, ytick={0,2,4,6,8,10},
+      ybar, bar width=8pt,
+      axis lines=left, enlarge x limits=0.04,
+      tick label style={font=\small}, label style={font=\small},
+    ]
+    \addplot[draw=sourceblue,fill=sourceblue!55] coordinates {
+      (1,9.8) (2,7.1) (3,4.4) (4,2.7)
+      (5,0.55) (6,0.42) (7,0.34) (8,0.28)
+      (9,0.22) (10,0.18) (11,0.13) (12,0.09) };
+    \draw[trapred,thick,dashed] (axis cs:4.5,0) -- (axis cs:4.5,10.2);
+    \node[trapred,anchor=west,font=\small] at (axis cs:4.6,9.3)
+      {keep $k=4$ $\;\to\;$ tail is the error};
+  \end{axis}
+\end{tikzpicture}
+\caption{A typical singular-value spectrum: a few large values, then a long
+low tail. Truncating at $k=4$ keeps the four big rank-one pieces; by
+Eckart--Young the leftover error is governed entirely by the discarded tail
+$\sigma_5,\sigma_6,\dots$, which here is tiny. This sharp drop-off is why real
+data matrices compress so well.}
+\label{ch29:fig-sv-spectrum}
+\end{figure}
+
+\begin{intuitionbox}
+Think of the singular values as a budget of importance and $\vec{u}_i\vec{v}_i\T$
+as the ``shape'' that importance buys. The SVD spends the matrix's entire budget
+on perpendicular, ranked directions: the most descriptive shape first. Truncating
+keeps the big spenders and fires the small ones. Because the directions are
+orthogonal, dropping the small ones costs you \emph{only} their own energy --
+nothing leaks. That orthogonality is exactly why ``keep the top $k$'' is provably
+optimal and not just a reasonable heuristic.
+\end{intuitionbox}
+
+\subsection{Why the Frobenius error is what it is}
+
+We will not prove full optimality over all $\mat{B}$ (that takes a careful
+argument), but we can see \emph{why the truncation error is the tail of the
+singular values}, which is the part you use in practice. The Frobenius norm
+squared is the sum of squares of all entries, and a beautiful fact (provable by
+expanding $\norm{\mat{M}}_F^2 = \tr(\mat{M}\T\mat{M})$ and using orthonormality)
+is that it equals the sum of squared singular values:
+\[
+  \norm{\mat{A}}_F^2 = \sigma_1^2 + \sigma_2^2 + \cdots + \sigma_r^2.
+\]
+The discarded part $\mat{A} - \mat{A}_k = \sum_{i=k+1}^r \sigma_i\vec{u}_i\vec{v}_i\T$
+is itself a (sub-)SVD with singular values $\sigma_{k+1},\dots,\sigma_r$, so by
+the same fact
+\[
+  \norm{\mat{A} - \mat{A}_k}_F^2 = \sigma_{k+1}^2 + \cdots + \sigma_r^2.
+\]
+The orthogonality of the $\vec{u}$'s and $\vec{v}$'s is what makes the cross terms
+vanish and the energies simply add. \emph{No information overlaps between the
+pieces}, so you can account for them one at a time.
+
+\begin{applicationbox}
+\textbf{Image compression and the data that runs machine learning.} Store a
+grayscale photo as an $m\times n$ matrix of pixel brightnesses and take its SVD.
+Natural images are remarkably low-rank: a few dozen singular values capture nearly
+all of what your eye sees, and the rest are essentially texture noise. Keeping the
+top $k$ terms, $\mat{A}_k = \sum_{i=1}^k \sigma_i\vec{u}_i\vec{v}_i\T$, gives a
+recognizable image stored in $k(m+n+1)$ numbers instead of $mn$ -- often a $10\times$
+or $20\times$ saving with no visible loss.
+
+The same move is everywhere in ML. \textbf{Latent semantic analysis} takes a
+huge term-by-document matrix and truncates its SVD to discover a few dozen
+``topics.'' \textbf{Recommender systems} treat the (mostly empty) user-by-item
+ratings matrix as approximately low rank and use a truncated SVD to fill in the
+blanks -- the famous Netflix-prize approach. \textbf{Modern large language
+models} are compressed and fine-tuned with \emph{low-rank adapters} (LoRA), which
+add a trainable rank-$k$ update $\mat{B}\mat{C}$ -- exactly the
+$\sum \sigma_i \vec{u}_i\vec{v}_i\T$ shape -- to giant weight matrices, cutting the
+number of trainable parameters by orders of magnitude. Eckart--Young is the
+theorem that says: if you must be simple, the SVD tells you the best way to be
+simple.
+\end{applicationbox}
+
+\begin{walkbox}
+Take a walk and turn this over: a rank-one matrix $\sigma\vec{u}\vec{v}\T$ is the
+simplest non-trivial matrix there is -- one output pattern $\vec{u}$, one input
+pattern $\vec{v}$, one gain $\sigma$. The SVD says \emph{every} matrix is a stack
+of these, ranked by importance and mutually perpendicular. Why should rank-one
+pieces, the humblest building blocks, be enough to reconstruct any matrix
+whatsoever? And why is ``perpendicular and ranked'' the arrangement that makes
+truncation optimal rather than merely convenient?
+\end{walkbox}
+
+\section{The Pseudoinverse: Solving the Unsolvable}
+\label{ch29:pseudoinverse}
+
+What does it mean to ``invert'' a matrix that has no inverse -- a rectangular one,
+or a singular one? The SVD gives the honest answer. To invert
+$\mat{A} = \mat{U}\mat{\Sigma}\mat{V}\T$ you would like to undo each step:
+$\mat{U}$ is orthogonal so its inverse is $\mat{U}\T$; same for $\mat{V}$. The only
+trouble is $\mat{\Sigma}$, which you cannot invert if some singular values are
+zero (you cannot divide by zero) or if it is not square. So you do the only
+sensible thing: invert what you can and leave the rest at zero. Define
+$\mat{\Sigma}^+$ by replacing each nonzero $\sigma_i$ with $1/\sigma_i$ and
+transposing the shape. Then the \textbf{Moore--Penrose pseudoinverse} is
+\[
+  \boxed{\;\mat{A}^+ = \mat{V}\,\mat{\Sigma}^+\,\mat{U}\T.\;}
+\]
+
+\begin{focusbox}
+The pseudoinverse $\mat{A}^+$ reverses $\mat{A}$ on the directions it can
+(the row/column spaces, dividing by $\sigma_i$) and sends the unreachable
+directions to zero. When $\mat{A}$ is genuinely invertible, $\mat{A}^+ =
+\mat{A}\inv$ exactly. When it is not, $\mat{A}^+\vec{b}$ delivers the
+\emph{least-squares, minimum-norm} solution of $\mat{A}\vec{x} = \vec{b}$ -- the
+best you could possibly hope for.
+\end{focusbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % input plane R^2
+  \begin{scope}[xshift=0cm]
+    \draw[->,gray!55] (-1.7,0)--(1.9,0) node[right]{};
+    \draw[->,gray!55] (0,-1.7)--(0,1.9) node[above]{};
+    \draw[sourceblue,thick] (0,0) circle (1);
+    \draw[->,vecred,very thick] (0,0)--(1,0) node[below right,vecred]{$\vec{v}_1$};
+    \draw[->,structurepurple,very thick] (0,0)--(0,1) node[above left,structurepurple]{$\vec{v}_2$};
+    \node at (0,-2.2) {input $\R^2$};
+  \end{scope}
+  \draw[->,thick] (2.2,0)--(3.6,0) node[midway,above]{$\mat{A}$};
+  % output: collapsed onto x-axis
+  \begin{scope}[xshift=6.0cm]
+    \draw[->,gray!55] (-1.2,0)--(2.6,0) node[right]{};
+    \draw[->,gray!55] (0,-1.7)--(0,1.9) node[above]{};
+    % image is just the segment along x (sigma1=2)
+    \draw[targetgreen,very thick] (-2,0)--(2,0);
+    \draw[->,vecred,very thick] (0,0)--(2,0) node[below right,vecred]{$\sigma_1\vec{u}_1$};
+    \fill[structurepurple] (0,0) circle (1.6pt);
+    \node[structurepurple,below left] at (0,0) {$\vec{v}_2\mapsto\vec{0}$};
+    \node at (0.7,-2.2) {image = a line};
+  \end{scope}
+  \draw[->,thick] (8.7,0)--(10.1,0) node[midway,above]{$\mat{A}^+$};
+  % recovered input
+  \begin{scope}[xshift=12.5cm]
+    \draw[->,gray!55] (-1.7,0)--(1.9,0) node[right]{};
+    \draw[->,gray!55] (0,-1.7)--(0,1.9) node[above]{};
+    \draw[->,vecred,very thick] (0,0)--(1,0) node[below right,vecred]{$\tfrac{1}{\sigma_1}$ back};
+    \node[structurepurple,above left] at (0,0.0) {};
+    \node[align=center] at (0.1,-2.2) {recovered:\\nothing in $\vec{v}_2$};
+  \end{scope}
+\end{tikzpicture}
+\caption{The pseudoinverse on $\mat{A}=\protect\begin{bmatrix}2&0\\0&0\protect\end{bmatrix}$.
+$\mat{A}$ stretches $\vec{v}_1$ by $\sigma_1=2$ and crushes $\vec{v}_2$ to zero,
+so its image is just a line. $\mat{A}^+$ undoes the stretch on the reachable
+direction (multiply by $1/\sigma_1$) and, having no honest way to recover the
+crushed direction, returns nothing there. That is the least-squares,
+minimum-norm answer.}
+\label{ch29:fig-pseudoinverse}
+\end{figure}
+
+This closes a loop you opened chapters ago. The least-squares solution of an
+overdetermined system, the projection onto a column space, the line of best fit --
+all of them are $\mat{A}^+\vec{b}$ in disguise, and the SVD computes it stably even
+when $\mat{A}\T\mat{A}$ is nearly singular (the case where the normal equations
+quietly blow up). This is why serious numerical software solves least squares
+through the SVD rather than by forming $\mat{A}\T\mat{A}$ directly.
+
+\begin{example}[Pseudoinverse of a rank-deficient matrix]
+\label{ch29:ex-pseudoinverse}
+Let $\mat{A} = \begin{bmatrix} 2 & 0 \\ 0 & 0\end{bmatrix}$, which collapses the
+plane onto the $x$-axis (Figure~\ref{ch29:fig-pseudoinverse}). It has no inverse.
+Its SVD is trivial here:
+$\mat{U} = \mat{V} = \mat{I}$, $\mat{\Sigma} = \diag(2,0)$. So
+\[
+  \mat{\Sigma}^+ = \begin{bmatrix} \tfrac12 & 0 \\ 0 & 0 \end{bmatrix},
+  \qquad
+  \mat{A}^+ = \begin{bmatrix} \tfrac12 & 0 \\ 0 & 0 \end{bmatrix}.
+\]
+Check the spirit of it: $\mat{A}^+$ undoes the doubling on the $x$-axis (multiply
+by $\tfrac12$) and does the only reasonable thing with the crushed $y$-direction
+-- leaves it at zero, since no input could ever have produced a nonzero
+$y$-output.
+\end{example}
+
+\section{Symmetry, Eigenvalues, and the SVD}
+\label{ch29:symmetric-link}
+
+How does the SVD relate to the eigen-decomposition you already know? They coincide
+in the nicest case and diverge instructively otherwise.
+
+If $\mat{A}$ is \textbf{symmetric positive definite}, its spectral decomposition
+$\mat{A} = \mat{Q}\mat{\Lambda}\mat{Q}\T$ \emph{is} its SVD: take $\mat{U} =
+\mat{V} = \mat{Q}$ and $\sigma_i = \lambda_i$. The eigen-axes are already
+orthonormal and the eigenvalues already positive, so there is nothing left to do.
+
+If $\mat{A}$ is \textbf{symmetric but has a negative eigenvalue}, the SVD differs
+by a sign. Suppose $\mat{A}\vec{q} = \lambda\vec{q}$ with $\lambda < 0$. The
+singular value must be positive, $\sigma = \abs{\lambda} = -\lambda$, and to keep
+$\mat{A}\vec{v} = \sigma\vec{u}$ honest we set $\vec{v} = \vec{q}$ but
+$\vec{u} = -\vec{q}$ (or vice versa) so the sign lands in $\mat{U}$ instead of in
+$\sigma$. In general: \textbf{the singular values of a symmetric matrix are the
+absolute values of its eigenvalues}.
+
+\begin{connectionbox}
+\textbf{Polar decomposition.} Group the SVD as
+\[
+  \mat{A} = \underbrace{(\mat{U}\mat{V}\T)}_{\mat{Q}}
+            \underbrace{(\mat{V}\mat{\Sigma}\mat{V}\T)}_{\mat{P}} = \mat{Q}\mat{P}.
+\]
+Then $\mat{Q} = \mat{U}\mat{V}\T$ is orthogonal (a pure rotation/reflection) and
+$\mat{P} = \mat{V}\mat{\Sigma}\mat{V}\T$ is symmetric positive semidefinite (a
+pure stretch along orthogonal axes). This is the matrix analogue of writing a
+complex number as $z = e^{i\theta}\cdot r$: a rotation times a stretch. Engineers
+use the polar decomposition to split a deformation into ``rigid rotation'' plus
+``pure strain,'' and graphics programmers use it to extract the nearest true
+rotation from a slightly corrupted one. It falls out of the SVD in a single line.
+\end{connectionbox}
+
+\begin{historybox}
+The ingredients of the SVD were discovered independently several times. Eugenio
+Beltrami (1873) and Camille Jordan (1874) found it for square real matrices;
+Erhard Schmidt (1907), of Gram--Schmidt fame, rediscovered it for integral
+operators and proved the low-rank approximation property in the infinite-dimensional
+setting. Carl Eckart and Gale Young brought the approximation theorem to matrices
+in 1936. For decades it was a theoretical curiosity; the SVD became a
+\emph{computational} workhorse only after Gene Golub and William Kahan published a
+stable algorithm in 1965. Today it is arguably the single most-run matrix
+factorization on Earth -- inside every statistics package, every recommender, and
+much of the machinery of deep learning.
+\end{historybox}
+
+\section{How It Is Computed (and Why Not the Obvious Way)}
+\label{ch29:computation}
+
+The hand recipe -- diagonalize $\mat{A}\T\mat{A}$, take square roots -- is perfect
+for a $2\times 2$ by hand and a disaster for a serious computation. The reason is
+\emph{conditioning}: forming $\mat{A}\T\mat{A}$ squares the singular values, and
+squaring spreads them out. A matrix whose singular values range from $1$ down to
+$10^{-8}$ becomes, after $\mat{A}\T\mat{A}$, a matrix with eigenvalues from $1$
+down to $10^{-16}$ -- right at the edge of what floating-point can distinguish from
+zero. You can lose half your accuracy before you start.
+
+\begin{trapbox}
+Never compute an SVD (or a least-squares solution) in production by forming
+$\mat{A}\T\mat{A}$ if you can avoid it. The squaring throws away precision exactly
+where you need it most -- in the small singular values that tell you about
+near-rank-deficiency. Real algorithms (Golub--Kahan bidiagonalization and its
+descendants) work on $\mat{A}$ directly, never forming $\mat{A}\T\mat{A}$, and
+keep full accuracy. When you call \texttt{numpy.linalg.svd} or LAPACK's
+\texttt{dgesdd}, this is what is running.
+\end{trapbox}
+
+For a feel of the cost: a full SVD of an $m\times n$ matrix takes on the order of
+$mn\cdot\min(m,n)$ arithmetic operations -- comparable to a few matrix
+multiplications. For the giant, mostly-low-rank matrices of data science, one
+rarely wants the full thing; \emph{randomized} and \emph{truncated} SVD
+algorithms find just the top $k$ singular triples in roughly $O(mnk)$ time, which
+is what makes SVD-based methods feasible on web-scale data.
+
+\section{Summary: One Picture, Many Doors}
+\label{ch29:summary}
+
+\begin{focusbox}
+Everything in this chapter hangs on one sentence and one equation.
+\begin{itemize}
+  \item \textbf{Geometry:} every matrix sends the unit sphere to an ellipsoid;
+        $\mat{A} = \mat{U}\mat{\Sigma}\mat{V}\T$ is \emph{rotate, stretch,
+        rotate}.
+  \item \textbf{Pieces:} $\vec{v}_i$ = eigenvectors of $\mat{A}\T\mat{A}$;
+        $\sigma_i = \sqrt{\lambda_i}$; $\vec{u}_i = \mat{A}\vec{v}_i/\sigma_i$.
+  \item \textbf{Subspaces:} $\vec{v}$'s split into row space / null space;
+        $\vec{u}$'s split into column space / left null space; $\sigma_i$ is the
+        stretch from one to the other.
+  \item \textbf{Approximation (Eckart--Young):} keep the top $k$ terms of
+        $\sum \sigma_i \vec{u}_i\vec{v}_i\T$ for the best rank-$k$ matrix; error
+        is the tail of the singular values.
+  \item \textbf{Inversion:} $\mat{A}^+ = \mat{V}\mat{\Sigma}^+\mat{U}\T$ solves
+        least squares, minimum norm, always.
+\end{itemize}
+\end{focusbox}
+
+The next chapter takes the SVD to data directly: center a data matrix, take its
+SVD, and the right singular vectors become the \emph{principal components} -- the
+directions of greatest variance. Principal component analysis is the SVD wearing a
+statistician's hat. You already have everything you need to understand it.
+
+\section{Exercises}
+\label{ch29:exercises}
+
+\begin{exercise}[Warmup: read off the SVD]
+\label{ch29:ex-readoff}
+Write the SVD $\mat{U}\mat{\Sigma}\mat{V}\T$ of each matrix by inspection (no
+$\mat{A}\T\mat{A}$ needed):
+(a) $\begin{bmatrix} 5 & 0 \\ 0 & 2\end{bmatrix}$;
+(b) $\begin{bmatrix} 0 & 3 \\ 2 & 0\end{bmatrix}$ (hint: it is a scaling
+composed with a swap of axes);
+(c) the rotation $\begin{bmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta\end{bmatrix}$.
+What are the singular values in each case?
+\end{exercise}
+
+\begin{exercise}[A full $2\times 2$ by hand]
+\label{ch29:ex-full2x2}
+Compute the SVD of $\mat{A} = \begin{bmatrix} 1 & 1 \\ 0 & 1\end{bmatrix}$ (the
+unit shear). Form $\mat{A}\T\mat{A}$, find its eigenvalues and eigenvectors, the
+singular values, and the $\vec{u}$'s. Confirm that even though this matrix has
+the single repeated eigenvalue $1$ and only one eigenvector, it has two distinct
+singular values and a complete SVD. What does this say about the difference
+between eigenvalues and singular values?
+\end{exercise}
+
+\begin{exercise}[Rank-one matrices]
+\label{ch29:ex-rankone}
+Let $\mat{A} = \vec{a}\vec{b}\T$ for nonzero vectors $\vec{a}\in\R^m$,
+$\vec{b}\in\R^n$. Show that $\mat{A}$ has exactly one nonzero singular value, and
+find it in terms of $\norm{\vec{a}}$ and $\norm{\vec{b}}$. Identify $\vec{u}_1$
+and $\vec{v}_1$.
+\end{exercise}
+
+\begin{exercise}[Singular values vs.\ eigenvalues]
+\label{ch29:ex-svd-vs-eig}
+Give a $2\times 2$ matrix whose eigenvalues are both $1$ but whose larger
+singular value is greater than $100$. (Hint: a strong shear.) Explain
+geometrically how a matrix can fix the length of two directions yet stretch the
+unit circle enormously.
+\end{exercise}
+
+\begin{exercise}[Determinant and singular values]
+\label{ch29:ex-det}
+Prove that for any square $\mat{A}$, $\abs{\det\mat{A}} = \prod_i \sigma_i$, using
+$\mat{A} = \mat{U}\mat{\Sigma}\mat{V}\T$ and the facts that $\det$ is
+multiplicative and $\abs{\det\mat{U}} = \abs{\det\mat{V}} = 1$. Deduce that
+$\mat{A}$ is invertible if and only if all its singular values are positive.
+\end{exercise}
+
+\begin{exercise}[Frobenius norm and the singular values]
+\label{ch29:ex-frob}
+Using $\norm{\mat{A}}_F^2 = \tr(\mat{A}\T\mat{A})$, the SVD, and the fact that
+trace is unchanged by orthogonal similarity, prove that
+$\norm{\mat{A}}_F^2 = \sigma_1^2 + \cdots + \sigma_r^2$. Then explain why the best
+rank-$k$ approximation leaves Frobenius error
+$\sqrt{\sigma_{k+1}^2 + \cdots + \sigma_r^2}$.
+\end{exercise}
+
+\begin{exercise}[Spectral norm]
+\label{ch29:ex-spectral}
+The spectral norm is $\norm{\mat{A}}_2 = \max_{\norm{\vec{x}}=1}\norm{\mat{A}\vec{x}}$.
+Using the SVD, prove that $\norm{\mat{A}}_2 = \sigma_1$, the largest singular
+value, and that the maximizing $\vec{x}$ is $\vec{v}_1$. (Hint: write $\vec{x}$ in
+the orthonormal basis $\vec{v}_1,\dots,\vec{v}_n$ and compute
+$\norm{\mat{A}\vec{x}}^2$.)
+\end{exercise}
+
+\begin{exercise}[Pseudoinverse and least squares]
+\label{ch29:ex-pinv}
+For $\mat{A} = \begin{bmatrix} 1 & 0 \\ 0 & 0 \\ 0 & 0\end{bmatrix}$ and
+$\vec{b} = \colvec{3\\4\\5}$, write the SVD of $\mat{A}$, form $\mat{A}^+$, and
+compute $\hat{\vec{x}} = \mat{A}^+\vec{b}$. Verify directly that
+$\hat{\vec{x}}$ minimizes $\norm{\mat{A}\vec{x} - \vec{b}}$ and explain
+geometrically why the residual is $\colvec{0\\4\\5}$.
+\end{exercise}
+
+\begin{exercise}[Polar decomposition by hand]
+\label{ch29:ex-polar}
+Using the SVD found in Section~\ref{ch29:worked-2x2} for
+$\mat{A} = \begin{bmatrix} 3 & 0 \\ 4 & 5\end{bmatrix}$, compute the polar
+factors $\mat{Q} = \mat{U}\mat{V}\T$ and $\mat{P} = \mat{V}\mat{\Sigma}\mat{V}\T$.
+Check that $\mat{Q}$ is orthogonal ($\mat{Q}\T\mat{Q} = \mat{I}$), that $\mat{P}$
+is symmetric, and that $\mat{Q}\mat{P} = \mat{A}$.
+\end{exercise}
+
+\begin{exercise}[Why truncation is greedy-optimal]
+\label{ch29:ex-greedy}
+Argue, using the orthogonality of the $\vec{u}_i$ and $\vec{v}_i$, that the
+``energy'' $\norm{\mat{A}}_F^2$ splits additively across the rank-one terms:
+$\norm{\mat{A}}_F^2 = \sum_i \sigma_i^2$ with no cross terms. Explain in one or
+two sentences why this additivity is exactly what makes ``keep the largest
+$\sigma_i$'' the optimal way to spend a rank budget. (This is the intuition behind
+Eckart--Young.)
+\end{exercise}
+
+\begin{exercise}[Challenge: SVD of $\mat{A}$ vs.\ $\mat{A}\T$]
+\label{ch29:ex-transpose}
+If $\mat{A} = \mat{U}\mat{\Sigma}\mat{V}\T$, write down the SVD of $\mat{A}\T$.
+What happens to the singular values, the left singular vectors, and the right
+singular vectors? Use this to explain in one sentence why $\mat{A}$ and
+$\mat{A}\T$ always have the same singular values, the same rank, and why
+$\mat{A}\T\mat{A}$ and $\mat{A}\mat{A}\T$ share their nonzero eigenvalues.
+\end{exercise}

@@ -1,0 +1,1190 @@
+\chapter{The Linear Algebra of Machine Learning}
+
+You have spent a whole book building a toolkit: vectors, matrices, dot products,
+projections, eigenvalues, the SVD. This chapter is the payoff. Almost every idea in
+modern machine learning -- the kind that powers recommendation systems, image
+classifiers, search engines, and the large language models you may have talked to
+today -- is, underneath the marketing, a story about matrices acting on vectors.
+
+That is not a slogan. It is a literal fact about the arithmetic. When a neural network
+``looks at'' a photograph, the photograph is a vector of pixel intensities, and the
+network multiplies it by a matrix. When a search engine decides that ``king'' and
+``queen'' are related, it is computing a dot product. When a model is trained, an
+algorithm called gradient descent is walking downhill on a surface, and the direction
+of steepest descent is a vector you already know how to compute.
+
+So this chapter has a single goal: to let you see the linear algebra under machine
+learning so clearly that the field stops looking like magic and starts looking like
+\emph{geometry you understand}. We will go slowly, build every idea from a picture, and
+keep every example small enough to check by hand.
+
+\begin{focusbox}
+The one sentence to carry through the whole chapter: \textbf{a machine learning model
+is a function from vectors to vectors, built mostly out of matrix multiplications, and
+training is the search for the matrices that make that function fit the data.} Hold onto
+that and everything below is a variation on it.
+\end{focusbox}
+
+\section{Data is a matrix}
+\label{ch34:data-matrix}
+
+Before we can do anything clever, we have to agree on how data even \emph{enters} the
+machinery. The answer is the foundation for everything else, so let us be very concrete.
+
+Suppose you run a small clinic and you have recorded, for each of four patients, their
+age, their resting heart rate, and their systolic blood pressure. You could write this
+as a little table:
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+patient & age & heart rate & blood pressure \\
+\midrule
+Ana   & 30 & 60 & 110 \\
+Ben   & 50 & 72 & 130 \\
+Cleo  & 40 & 68 & 120 \\
+Dev   & 60 & 80 & 145 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Strip away the labels and what remains is a $4\times 3$ array of numbers:
+\[
+\mat{X} =
+\begin{bmatrix}
+30 & 60 & 110 \\
+50 & 72 & 130 \\
+40 & 68 & 120 \\
+60 & 80 & 145
+\end{bmatrix}.
+\]
+This object -- the \emph{data matrix} -- is where machine learning begins. The
+convention almost everyone uses is: \textbf{one row per example, one column per
+feature.} Each patient is a point; each measurement is a coordinate.
+
+\begin{intuitionbox}
+A data matrix has two complementary readings, and you should be able to flip between
+them at will.
+
+\emph{Read it by rows} and each row $\vec{x}_i \in \R^{3}$ is a single patient: a point
+floating in a three-dimensional ``feature space'' whose axes are age, heart rate, and
+blood pressure. Four patients give you a cloud of four points.
+
+\emph{Read it by columns} and each column is one feature measured across the whole
+population: the vector $(30,50,40,60)$ is ``everyone's age.'' Now each column lives in
+$\R^{4}$, the ``sample space,'' and you can ask whether two columns point in similar
+directions -- which, you will see, is exactly asking whether two features are
+correlated.
+\end{intuitionbox}
+
+This double reading is the secret engine of the whole subject. The geometry of the rows
+(points in feature space) drives clustering, classification, and nearest-neighbor
+search. The geometry of the columns (features in sample space) drives correlation,
+covariance, and principal component analysis. \emph{Same matrix, two geometries.}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % axes
+  \draw[->,thick] (0,0) -- (5.6,0) node[right]{feature 1 (age)};
+  \draw[->,thick] (0,0) -- (0,4.4) node[above]{feature 2 (heart rate)};
+  % four data points (rows)
+  \fill[vecblue] (1.2,0.8) circle (2.7pt) node[above right=-1pt]{\small Ana};
+  \fill[vecblue] (3.6,2.4) circle (2.7pt) node[above right=-1pt]{\small Ben};
+  \fill[vecblue] (2.4,1.7) circle (2.7pt) node[above right=-1pt]{\small Cleo};
+  \fill[vecblue] (4.6,3.4) circle (2.7pt) node[above right=-1pt]{\small Dev};
+  % trend
+  \draw[targetgreen,thick,dashed] (0.6,0.3) -- (5.1,3.7);
+\end{tikzpicture}
+\caption{Reading the data matrix by rows: each patient is a point in feature space (only
+two of the three features are drawn). Already you can \emph{see} structure -- the points
+trend upward together, the geometric fingerprint of a correlation between age and heart
+rate.}
+\label{ch34:fig-datacloud}
+\end{figure}
+
+\begin{trapbox}
+The orientation convention bites everyone at least once. In this book and in most ML
+libraries, examples are \emph{rows} and features are \emph{columns}, so $\mat{X}$ is
+$n \times d$ ($n$ examples, $d$ features). Classical statistics and Strang's own
+least-squares chapter often put the \emph{data vector} $\vec{b}$ as a column and stack
+equations as rows -- same math, transposed bookkeeping. Whenever a formula looks
+``backwards,'' the first thing to check is whether someone transposed $\mat{X}$. Write
+the shapes next to every matrix; shapes never lie.
+\end{trapbox}
+
+\subsection{Centering and the mean as a vector}
+
+Almost the first thing you do to a data matrix is \emph{center} it: subtract, from each
+column, that column's average. The column means form a vector $\bar{\vec{x}} \in \R^{d}$,
+and centering replaces every row $\vec{x}_i$ by $\vec{x}_i - \bar{\vec{x}}$. Geometrically
+you are sliding the whole cloud of points so its center of mass sits at the origin.
+
+For our clinic, the column means are $\bar{\vec{x}} = (45,\,70,\,126.25)$, and the
+centered matrix is
+\[
+\mat{X}_c =
+\begin{bmatrix}
+-15 & -10 & -16.25 \\
+\phantom{-}5 & \phantom{-}2 & \phantom{-}3.75 \\
+-5 & -2 & -6.25 \\
+\phantom{-}15 & \phantom{-}10 & \phantom{-}18.75
+\end{bmatrix}.
+\]
+Centering matters because nearly every ``direction'' question -- which way does the data
+vary most? do two features move together? -- only makes sense relative to the center.
+A direction is a difference, and differences are blind to where you put the origin only
+after you have agreed where the origin is.
+
+\begin{labbox}
+Take three points $(1,2),(3,3),(5,7)$ as the rows of a $3\times 2$ matrix. By hand:
+(a) compute the column-mean vector; (b) subtract it from each row to center the data;
+(c) check that the columns of your centered matrix each sum to zero. That last check is
+your safety net -- a centered column \emph{always} sums to zero, so if it does not, you
+made an arithmetic slip.
+\end{labbox}
+
+\subsection{The Gram matrix: all the dot products at once}
+
+Here is the first place the algebra earns its keep. Suppose you want every pairwise dot
+product between rows -- a natural thing, because (as the next sections show) dot products
+measure similarity. You do \emph{not} loop over pairs. You write a single matrix product:
+\[
+\mat{G} = \mat{X}\mat{X}\T, \qquad G_{ij} = \vec{x}_i \cdot \vec{x}_j .
+\]
+The entry in row $i$, column $j$ of $\mat{X}\mat{X}\T$ is the dot product of row $i$ of
+$\mat{X}$ with row $j$ of $\mat{X}$ -- that is just the definition of matrix
+multiplication, read carefully. So $\mat{G}$, the \emph{Gram matrix}, packages all
+$n^2$ similarities into one symmetric matrix.
+
+Flip the order and you get the other geometry. The $d \times d$ matrix
+$\mat{X}\T\mat{X}$ collects all pairwise dot products between \emph{columns} (features),
+and -- once the data is centered and divided by $n$ -- it is exactly the
+\textbf{covariance matrix} you may have met in statistics. We will return to it; for now
+notice the elegant duality: $\mat{X}\mat{X}\T$ compares examples, $\mat{X}\T\mat{X}$
+compares features, and they share the same nonzero eigenvalues. The SVD chapter explains
+why; here just savor that one little matrix product, taken two ways, generates both
+geometries of your data.
+
+\section{Linear regression: the workhorse, seen geometrically}
+\label{ch34:linreg}
+
+The oldest learning algorithm in the book is linear regression, and it is pure linear
+algebra -- in fact it is the least-squares problem you have already studied, wearing a
+data-science hat. Let us rederive it from scratch with ML eyes, because the picture is
+the foundation for the harder models later.
+
+\subsection{The setup}
+
+We have inputs and we want to predict an output. Say we have the ages and heart rates of
+patients and we want to predict blood pressure. We propose the simplest possible model:
+the prediction is a \emph{weighted sum} of the inputs, plus an offset:
+\[
+\hat{y} = w_1 \cdot (\text{age}) + w_2 \cdot (\text{heart rate}) + b.
+\]
+The numbers $w_1, w_2$ are \emph{weights}; $b$ is the \emph{bias} (statisticians call it
+the intercept). Learning means choosing $w_1, w_2, b$ so the predictions $\hat{y}$ match
+the true blood pressures as well as possible.
+
+There is a beautiful bookkeeping trick to absorb the bias. Append a column of ones to the
+data matrix. Then the bias becomes ``just another weight,'' the weight on the constant
+feature $1$:
+\[
+\hat{\vec{y}} = \mat{X}\vec{w}, \qquad
+\mat{X} =
+\begin{bmatrix}
+30 & 60 & 1 \\
+50 & 72 & 1 \\
+40 & 68 & 1 \\
+60 & 80 & 1
+\end{bmatrix},
+\quad
+\vec{w} = \begin{bmatrix} w_1 \\ w_2 \\ b \end{bmatrix}.
+\]
+Now the entire model is one matrix--vector product, $\hat{\vec{y}} = \mat{X}\vec{w}$. The
+vector of all four predictions is $\mat{X}$ acting on the weight vector. \emph{The model
+is a linear map from weight space to prediction space.}
+
+\begin{focusbox}
+A linear regression model \emph{is} the matrix--vector product $\mat{X}\vec{w}$. Training
+it means: given the targets $\vec{y}$, find the $\vec{w}$ that makes $\mat{X}\vec{w}$ as
+close to $\vec{y}$ as possible. That is the least-squares problem, and you already know
+its answer is a \emph{projection}.
+\end{focusbox}
+
+\subsection{Why projection? The column-space picture}
+
+Here is the geometry, and it is the heart of the whole section. As $\vec{w}$ ranges over
+all possible weight vectors, $\hat{\vec{y}} = \mat{X}\vec{w}$ ranges over all linear
+combinations of the columns of $\mat{X}$ -- that is, over the \emph{column space}
+$\col(\mat{X})$. This is a flat subspace (a plane, here a 3-dimensional one) sitting
+inside $\R^{4}$, the space where the target $\vec{y}$ lives.
+
+The target $\vec{y}$ -- the actual blood pressures -- almost never lies exactly in that
+subspace. (If it did, the model would fit perfectly, and real data is never that kind.)
+So the best we can do is find the point \emph{in} the column space that is closest to
+$\vec{y}$. The closest point in a subspace to an outside point is the \textbf{orthogonal
+projection}. The error $\vec{y} - \hat{\vec{y}}$ must be perpendicular to the subspace --
+because if it had any component lying \emph{along} the subspace, you could slide
+$\hat{\vec{y}}$ in that direction and get closer.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % the column-space plane
+  \fill[sourceblue!12] (-0.3,-0.3) -- (5.2,0.4) -- (6.4,2.4) -- (0.9,1.7) -- cycle;
+  \node[sourceblue!70!black] at (5.6,0.7) {\small $\col(\mat{X})$};
+  % projection foot
+  \coordinate (O) at (1.4,0.7);
+  \coordinate (P) at (3.6,1.2);   % yhat in plane
+  \coordinate (Y) at (4.1,3.4);   % y above plane
+  % y vector
+  \draw[->,very thick,vecred] (O) -- (Y) node[above]{\small $\vec{y}$ (target)};
+  % yhat
+  \draw[->,very thick,vecblue] (O) -- (P) node[below right]{\small $\hat{\vec{y}}=\mat{X}\vec{w}$};
+  % residual
+  \draw[->,thick,quotientorange] (P) -- (Y) node[midway,right]{\small $\vec{y}-\hat{\vec{y}}$};
+  % right angle
+  \draw (P) ++(-0.28,0.05) -- ++(0.1,0.26) -- ++(0.26,-0.1);
+\end{tikzpicture}
+\caption{Least squares as projection. The predictions $\mat{X}\vec{w}$ can only reach
+points in the column space (the shaded plane). The best prediction is the foot of the
+perpendicular from the target $\vec{y}$. The residual $\vec{y}-\hat{\vec{y}}$ is
+orthogonal to the column space -- that orthogonality \emph{is} the normal equations.}
+\label{ch34:fig-projection}
+\end{figure}
+
+``The residual is perpendicular to every column of $\mat{X}$'' translates directly into
+algebra. Perpendicular to every column means $\mat{X}\T(\vec{y}-\mat{X}\vec{w}) = \vec{0}$,
+which rearranges to the celebrated \textbf{normal equations}:
+\[
+\boxed{\;\mat{X}\T\mat{X}\,\vec{w} = \mat{X}\T\vec{y}\;}
+\]
+and, when $\mat{X}\T\mat{X}$ is invertible, the closed-form solution
+\[
+\vec{w} = (\mat{X}\T\mat{X})\inv \mat{X}\T \vec{y}.
+\]
+
+\begin{formalbox}
+\textbf{Least-squares regression.} Given $\mat{X}\in\R^{n\times d}$ with linearly
+independent columns and $\vec{y}\in\R^{n}$, the weight vector minimizing the squared
+error $\norm{\vec{y}-\mat{X}\vec{w}}^2$ is the unique solution of
+$\mat{X}\T\mat{X}\,\vec{w}=\mat{X}\T\vec{y}$, namely
+$\vec{w}=(\mat{X}\T\mat{X})\inv\mat{X}\T\vec{y}$. The fitted values are
+$\hat{\vec{y}} = \mat{X}\vec{w} = \mat{X}(\mat{X}\T\mat{X})\inv\mat{X}\T\,\vec{y} =
+\mat{P}\,\vec{y}$, where $\mat{P}$ is the orthogonal projector onto $\col(\mat{X})$.
+\end{formalbox}
+
+\subsection{A fully worked tiny fit}
+
+Let us actually solve one, small enough to do on paper. Fit a line $\hat{y}=w x + b$ to
+three points: $(1,1),(2,2),(3,2)$. With the ones-column trick,
+\[
+\mat{X}=\begin{bmatrix} 1 & 1 \\ 2 & 1 \\ 3 & 1 \end{bmatrix},
+\qquad
+\vec{y}=\begin{bmatrix} 1 \\ 2 \\ 2 \end{bmatrix},
+\qquad
+\vec{w}=\begin{bmatrix} w \\ b \end{bmatrix}.
+\]
+Build the two pieces of the normal equations:
+\[
+\mat{X}\T\mat{X}=\begin{bmatrix} 1&2&3 \\ 1&1&1 \end{bmatrix}
+\begin{bmatrix} 1&1 \\ 2&1 \\ 3&1 \end{bmatrix}
+=\begin{bmatrix} 14 & 6 \\ 6 & 3 \end{bmatrix},
+\qquad
+\mat{X}\T\vec{y}=\begin{bmatrix} 1&2&3 \\ 1&1&1 \end{bmatrix}
+\begin{bmatrix} 1\\2\\2 \end{bmatrix}
+=\begin{bmatrix} 11 \\ 5 \end{bmatrix}.
+\]
+Solve $\begin{bmatrix} 14&6\\6&3 \end{bmatrix}\vec{w}=\begin{bmatrix}11\\5\end{bmatrix}$.
+The determinant is $14\cdot 3 - 6\cdot 6 = 42-36 = 6$, so
+\[
+\vec{w}=\frac{1}{6}\begin{bmatrix} 3 & -6 \\ -6 & 14 \end{bmatrix}
+\begin{bmatrix} 11 \\ 5 \end{bmatrix}
+=\frac{1}{6}\begin{bmatrix} 33-30 \\ -66+70 \end{bmatrix}
+=\frac{1}{6}\begin{bmatrix} 3 \\ 4 \end{bmatrix}
+=\begin{bmatrix} 1/2 \\ 2/3 \end{bmatrix}.
+\]
+So the best-fit line is $\hat{y} = \tfrac12 x + \tfrac23$. Now do the self-check the
+projection picture promises -- compute the residuals and confirm they are orthogonal to
+the column space. Predict at each $x$, being careful with the fractions:
+\[
+\hat y(1)=\tfrac12+\tfrac23=\tfrac76,\qquad
+\hat y(2)=1+\tfrac23=\tfrac53,\qquad
+\hat y(3)=\tfrac32+\tfrac23=\tfrac{13}{6}.
+\]
+The residuals $\vec{y}-\hat{\vec{y}}$ are then
+\[
+1-\tfrac76=-\tfrac16,\qquad
+2-\tfrac53=\tfrac13,\qquad
+2-\tfrac{13}{6}=-\tfrac16,
+\]
+so the residual vector is $\vec{r}=\big(-\tfrac16,\,\tfrac13,\,-\tfrac16\big)$. Two
+orthogonality checks, one per column of $\mat{X}$. Dot with the ones-column:
+$-\tfrac16+\tfrac13-\tfrac16=0$. Dot with the $x$-column $(1,2,3)$:
+$-\tfrac16+\tfrac23-\tfrac12 = -\tfrac16+\tfrac46-\tfrac36 = 0$. Both zero, exactly as the
+projection picture promised: the residual is perpendicular to the whole column space. Get
+into the habit of running this check -- a single nonzero dot product means an arithmetic
+slip is hiding somewhere, and the ``residuals sum to zero'' version (the ones-column
+check) is the fastest tripwire you have.
+
+\begin{trapbox}
+The residual being orthogonal to the column space is a \emph{theorem}, not a hope, so it
+is the perfect self-check. Whenever you finish a least-squares fit, dot the residual with
+each column of $\mat{X}$; every dot product must be (numerically) zero. The
+constant-feature version of this is the familiar fact that least-squares residuals always
+sum to zero when a bias term is included.
+\end{trapbox}
+
+\begin{strangbox}
+This is Strang's least-squares chapter, retold for data. Strang draws the same column
+space, the same perpendicular, the same normal equations $\mat{A}\T\mat{A}\hat{\vec{x}}
+=\mat{A}\T\vec{b}$ -- he just calls the unknown $\hat{\vec{x}}$ and the target $\vec{b}$.
+\emph{Before} Strang, let this convince you that ``fitting a model'' is nothing more
+exotic than dropping a perpendicular onto a subspace. \emph{After} Strang, notice that
+the projector $\mat{P}=\mat{X}(\mat{X}\T\mat{X})\inv\mat{X}\T$ is exactly his hat matrix,
+and that regularization (next box) is what you reach for when $\mat{X}\T\mat{X}$ is too
+close to singular to invert safely.
+\end{strangbox}
+
+\subsection{When the columns nearly collide: regularization}
+
+What if two features are almost the same -- say, temperature in Celsius and temperature
+in Fahrenheit? Then two columns of $\mat{X}$ are nearly parallel, $\mat{X}\T\mat{X}$ is
+nearly singular (a tiny eigenvalue), and $(\mat{X}\T\mat{X})\inv$ blows up: the weights
+become enormous and wildly sensitive to noise. The geometric reading is that the column
+space is nearly degenerate, so the projection is well-defined but the \emph{coordinates}
+of the projection (the weights) are not pinned down.
+
+The standard fix is \textbf{ridge regression}: add a small multiple of the identity
+before inverting,
+\[
+\vec{w} = (\mat{X}\T\mat{X} + \lambda \mat{I})\inv \mat{X}\T\vec{y}, \qquad \lambda > 0.
+\]
+Adding $\lambda\mat{I}$ lifts every eigenvalue of $\mat{X}\T\mat{X}$ by $\lambda$, so the
+smallest eigenvalue can no longer be near zero -- the matrix is comfortably invertible
+and the weights stay bounded. You will recognize this as the same trick that stabilizes
+any ill-conditioned linear system; in ML it doubles as a way to express a \emph{prior}
+that weights should be small.
+
+\section{Vectors that mean something: embeddings and similarity}
+\label{ch34:embeddings}
+
+Linear regression assumed the data already arrived as numbers. But much of the modern
+world is words, images, users, and products -- things that are not numbers at all. The
+central move of modern ML is to \emph{turn those things into vectors}, called
+\textbf{embeddings}, in such a way that geometry encodes meaning. Once a thing is a
+vector, the entire toolkit of this book applies to it.
+
+\subsection{From words to vectors}
+
+Imagine assigning to every word a point in $\R^{d}$ (in practice $d$ might be 300 or
+4096). We want the assignment to have a property: \textbf{words used in similar contexts
+land near each other.} ``King'' and ``queen'' should be close; ``king'' and ``yogurt''
+should be far. We will not derive the training procedure here -- it is itself a learning
+problem -- but we can completely understand how meaning, once embedded, is \emph{read
+off} with linear algebra.
+
+The tool is the dot product, normalized into the \textbf{cosine similarity}:
+\[
+\cos\theta = \frac{\inner{\vec{u}}{\vec{v}}}{\norm{\vec{u}}\,\norm{\vec{v}}}.
+\]
+This is the cosine of the angle between the two vectors. It is $1$ when they point the
+same way, $0$ when perpendicular, $-1$ when opposite. Notice it ignores length entirely
+and cares only about \emph{direction} -- which is exactly right for meaning, since a
+word's importance (often reflected in vector length) should not change what it means.
+
+\begin{intuitionbox}
+Why \emph{cosine} and not plain distance? Because direction is the carrier of meaning.
+Two documents, one short and one long, can be ``about the same thing'' even though their
+raw vectors have very different lengths. Cosine similarity normalizes the lengths away
+and compares only the directions they point -- the topic, not the volume. Geometrically:
+project both vectors onto the unit sphere, then measure the angle between them.
+\end{intuitionbox}
+
+\subsection{A worked similarity}
+
+Take three tiny 2-dimensional ``embeddings'':
+\[
+\vec{u}_{\text{king}}=\colvec{2\\1},\quad
+\vec{u}_{\text{queen}}=\colvec{3\\2},\quad
+\vec{u}_{\text{yogurt}}=\colvec{-1\\3}.
+\]
+Compare king with queen:
+\[
+\cos\theta = \frac{(2)(3)+(1)(2)}{\sqrt{2^2+1^2}\,\sqrt{3^2+2^2}}
+= \frac{8}{\sqrt{5}\,\sqrt{13}} = \frac{8}{\sqrt{65}} \approx \frac{8}{8.06} \approx 0.992.
+\]
+Nearly $1$: very similar, the two arrows almost overlap. Now king with yogurt:
+\[
+\cos\theta = \frac{(2)(-1)+(1)(3)}{\sqrt{5}\,\sqrt{10}}
+= \frac{1}{\sqrt{50}} \approx \frac{1}{7.07}\approx 0.141.
+\]
+Close to $0$: nearly perpendicular, nearly unrelated. The geometry has correctly sorted
+royalty from breakfast.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.8,>=Stealth]
+  \draw[->,thick] (-2.0,0) -- (4,0) node[right]{};
+  \draw[->,thick] (0,-0.3) -- (0,3.8) node[above]{};
+  % vectors drawn to match the embeddings exactly: king (2,1), queen (3,2), yogurt (-1,3)
+  \draw[->,very thick,vecblue]  (0,0) -- (2,1) node[right]{\small king $(2,1)$};
+  \draw[->,very thick,vecblue]  (0,0) -- (3,2) node[above right]{\small queen $(3,2)$};
+  \draw[->,very thick,vecred]   (0,0) -- (-1,3) node[above left]{\small yogurt $(-1,3)$};
+  % angle between king and yogurt (~82 degrees)
+  \draw[quotientorange] (0.62,0.31) arc (26.6:108.4:0.69);
+  \node[quotientorange] at (0.35,1.15) {\small $\approx 82^\circ$};
+\end{tikzpicture}
+\caption{Embeddings make meaning geometric, drawn with the exact vectors above. ``King''
+and ``queen'' point almost the same way (cosine $\approx 0.99$, an angle of about
+$7^\circ$); ``yogurt'' points off at nearly a right angle (cosine $\approx 0.14$, about
+$82^\circ$). Similarity is an angle.}
+\label{ch34:fig-cosine}
+\end{figure}
+
+\subsection{Word arithmetic and the meaning of differences}
+
+The single most famous demonstration that embeddings capture structure is the analogy
+\[
+\vec{u}_{\text{king}} - \vec{u}_{\text{man}} + \vec{u}_{\text{woman}} \approx
+\vec{u}_{\text{queen}}.
+\]
+Read it geometrically. The \emph{difference vector} $\vec{u}_{\text{king}} -
+\vec{u}_{\text{man}}$ is the displacement that, in this learned space, points along the
+``royalty'' axis. Add it to ``woman'' and you arrive near ``queen'' (Figure~\ref{ch34:fig-wordarith}).
+That a consistent
+direction in the embedding space corresponds to a consistent semantic relationship
+(gender, tense, plurality, capital-of-country) is the headline result of word
+embeddings -- and it is nothing but vector addition and the parallelogram rule you met in
+the very first chapter.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.3,>=Stealth]
+  % four word points forming a parallelogram
+  \coordinate (man)   at (1.0,1.0);
+  \coordinate (woman) at (1.0,2.5);
+  \coordinate (king)  at (3.0,1.4);
+  \coordinate (queen) at (3.0,2.9);
+  % the two parallel "royalty" displacements (king-man) and (queen-woman)
+  \draw[->,very thick,vecblue] (man)   -- (king)  node[midway,below]{\small $+\,(\text{king}-\text{man})$};
+  \draw[->,very thick,vecblue] (woman) -- (queen) node[midway,above]{\small same displacement};
+  % the two parallel "gender" displacements (woman-man) and (queen-king)
+  \draw[->,thick,quotientorange] (man)  -- (woman);
+  \draw[->,thick,quotientorange] (king) -- (queen);
+  % points
+  \foreach \p/\lab/\pos in {man/man/below left,woman/woman/above left,king/king/below right,queen/queen/above right}{
+    \fill[black] (\p) circle (1.6pt) node[\pos=1pt]{\small \lab};}
+\end{tikzpicture}
+\caption{Word arithmetic is the parallelogram rule. The displacement
+$\vec{u}_{\text{king}}-\vec{u}_{\text{man}}$ (blue) is a fixed ``royalty'' direction; the
+same blue displacement carries ``woman'' to ``queen.'' Equivalently, the ``gender''
+displacement (orange) is shared by the man$\to$woman and king$\to$queen edges. The four
+words sit at the corners of a parallelogram, so
+$\vec{u}_{\text{king}}-\vec{u}_{\text{man}}+\vec{u}_{\text{woman}}\approx\vec{u}_{\text{queen}}$.}
+\label{ch34:fig-wordarith}
+\end{figure}
+
+\begin{applicationbox}
+\textbf{Semantic search and retrieval.} When you type a question into a modern search
+box, or when a retrieval-augmented language model fetches relevant documents, here is the
+machinery: the query is embedded into a vector $\vec{q}$, every document is pre-embedded
+into a vector $\vec{d}_i$, and the system returns the documents whose embeddings have the
+largest cosine similarity to $\vec{q}$. Stack all document vectors as rows of a matrix
+$\mat{D}$ and the entire search is one matrix--vector product $\mat{D}\vec{q}$ followed by
+``take the largest entries.'' Billions of documents, searched by meaning, reduce to a
+matrix hitting a vector. Specialized ``vector databases'' exist for exactly this and
+nothing more.
+\end{applicationbox}
+
+\begin{connectionbox}
+\textbf{Inner-product geometry.} Cosine similarity is the abstract \emph{inner product}
+of functional analysis brought down to earth. The Cauchy--Schwarz inequality
+$\abs{\inner{\vec{u}}{\vec{v}}} \le \norm{\vec{u}}\norm{\vec{v}}$ is precisely the
+statement that cosine lives in $[-1,1]$ -- the angle is always real. And the
+``orthogonal $=$ unrelated'' intuition is the same one that makes Fourier analysis work:
+there, perpendicular sine waves carry independent information, exactly as perpendicular
+embedding directions carry independent meanings. One geometry, many costumes.
+\end{connectionbox}
+
+\section{A neural network layer is $\mat{W}\vec{x}+\vec{b}$, then a bend}
+\label{ch34:nnlayer}
+
+Now we build the object at the center of modern AI. A neural network is a stack of
+\emph{layers}, and a single layer is almost entirely linear algebra. Understand one
+layer and you understand the whole stack, because a deep network is just layers fed into
+layers.
+
+\subsection{The two-step recipe}
+
+A layer takes an input vector $\vec{x}\in\R^{d}$ and produces an output vector
+$\vec{a}\in\R^{m}$ in two steps:
+\begin{enumerate}
+  \item \textbf{Affine step (linear algebra):} compute $\vec{z} = \mat{W}\vec{x} +
+  \vec{b}$, where $\mat{W}\in\R^{m\times d}$ is a weight matrix and $\vec{b}\in\R^{m}$ a
+  bias vector.
+  \item \textbf{Nonlinear step (the bend):} apply a fixed nonlinear function $\sigma$ to
+  each entry, $\vec{a} = \sigma(\vec{z})$.
+\end{enumerate}
+That is the entire layer: $\vec{a} = \sigma(\mat{W}\vec{x}+\vec{b})$. The matrix $\mat{W}$
+does all the mixing; the function $\sigma$ does all the bending.
+
+The affine step is something you understand deeply by now. $\mat{W}\vec{x}$ takes a
+linear combination of the input features (each output is a weighted vote over the inputs),
+and $+\vec{b}$ shifts the result. Each row of $\mat{W}$ is one ``detector'': it dots the
+input against a stored pattern, large when the input resembles that pattern.
+
+\subsection{Why the bend is non-negotiable}
+
+Here is the most important structural fact about neural networks, and it is a pure linear
+algebra argument. \textbf{Without the nonlinearity, a deep network collapses to a single
+layer.} Suppose you stacked two affine steps with no bend in between:
+\[
+\vec{z}_2 = \mat{W}_2(\mat{W}_1 \vec{x} + \vec{b}_1) + \vec{b}_2
+= (\mat{W}_2\mat{W}_1)\vec{x} + (\mat{W}_2\vec{b}_1 + \vec{b}_2)
+= \mat{W}'\vec{x} + \vec{b}'.
+\]
+The composition of two affine maps is \emph{again one affine map}, with
+$\mat{W}'=\mat{W}_2\mat{W}_1$. Ten layers, a hundred layers -- without bends they all
+multiply out into a single matrix. You would have spent enormous effort to build a glorified
+linear regression. The nonlinearity $\sigma$ is precisely what breaks this collapse and
+lets depth buy you genuinely new, curved decision boundaries.
+
+\begin{focusbox}
+\textbf{Matrices mix; nonlinearities bend.} Stacking matrices alone gets you one bigger
+matrix (composition of linear maps is linear). The nonlinear $\sigma$ between layers is
+the only reason a deep network can do something a single matrix cannot. Linear algebra
+supplies the power; the bend supplies the \emph{novelty}.
+\end{focusbox}
+
+The most common bend today is the \textbf{ReLU}, ``rectified linear unit,''
+$\sigma(z)=\max(0,z)$: it passes positive values through and zeros out negatives. It is
+about as gentle a bend as exists -- piecewise linear, just a single kink at the origin --
+yet stacking many of them lets the network carve input space into many linear pieces and
+fit astonishingly complex functions.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth]
+\begin{axis}[
+  width=11cm, height=5cm,
+  axis lines=middle, xlabel={$z$}, ylabel={$\sigma(z)$},
+  xmin=-4, xmax=4, ymin=-0.4, ymax=3.2,
+  xtick={-4,-2,2,4}, ytick={1,2,3},
+  every axis x label/.style={at={(ticklabel* cs:1)},anchor=west},
+  every axis y label/.style={at={(ticklabel* cs:1)},anchor=south},
+  legend pos=north west, legend cell align=left, samples=100,
+]
+  \addplot[vecblue,very thick,domain=-4:4] {max(0,x)};
+  \addlegendentry{ReLU $\max(0,z)$}
+  \addplot[vecred,very thick,domain=-4:4] {1/(1+exp(-x))};
+  \addlegendentry{sigmoid $1/(1+e^{-z})$}
+\end{axis}
+\end{tikzpicture}
+\caption{The two most common bends. ReLU (blue) is piecewise linear with a single kink at
+the origin: it zeros out negatives and passes positives through unchanged. The sigmoid
+(red) smoothly squashes the whole line into $(0,1)$, which is why it reads a linear score
+as a probability. The \emph{kink} of ReLU and the \emph{curve} of the sigmoid are the
+``novelty'' that pure matrix multiplication cannot supply.}
+\label{ch34:fig-activations}
+\end{figure}
+
+\subsection{A layer computed by hand}
+
+Let the input be $\vec{x}=\colvec{1\\2}$ and the layer have
+\[
+\mat{W}=\begin{bmatrix} 1 & -1 \\ 0 & 2 \\ 3 & 1 \end{bmatrix},
+\qquad
+\vec{b}=\begin{bmatrix} 0 \\ -5 \\ 1 \end{bmatrix},
+\qquad \sigma=\text{ReLU}.
+\]
+First the affine step:
+\[
+\mat{W}\vec{x}=\begin{bmatrix} 1\cdot1+(-1)\cdot2 \\ 0\cdot1+2\cdot2 \\ 3\cdot1+1\cdot2 \end{bmatrix}
+=\begin{bmatrix} -1 \\ 4 \\ 5 \end{bmatrix},
+\qquad
+\vec{z}=\mat{W}\vec{x}+\vec{b}=\begin{bmatrix} -1 \\ -1 \\ 6 \end{bmatrix}.
+\]
+Then the bend, applied entrywise:
+\[
+\vec{a}=\text{ReLU}(\vec{z})=\begin{bmatrix} \max(0,-1) \\ \max(0,-1) \\ \max(0,6) \end{bmatrix}
+=\begin{bmatrix} 0 \\ 0 \\ 6 \end{bmatrix}.
+\]
+Two of the three neurons ``switched off'' (their pre-activations were negative); one
+fired with value $6$. That pattern of on/off across neurons is how a network represents
+``which features are present'' in this particular input.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.9,>=Stealth]
+  % input nodes
+  \foreach \i/\y/\name in {1/2.4/$x_1$,2/0.8/$x_2$}{
+    \node[circle,draw,fill=sourceblue!15,minimum size=20pt] (I\i) at (0,\y) {\small \name};}
+  % output nodes
+  \foreach \j/\y/\name in {1/3.2/$a_1$,2/1.6/$a_2$,3/0/$a_3$}{
+    \node[circle,draw,fill=targetgreen!15,minimum size=20pt] (O\j) at (3.4,\y) {\small \name};}
+  % edges
+  \foreach \i in {1,2}{
+    \foreach \j in {1,2,3}{
+      \draw[gray!60,->] (I\i) -- (O\j);}}
+  \node at (1.7,4.1) {\small $\vec{a}=\sigma(\mat{W}\vec{x}+\vec{b})$};
+  \node[align=center] at (1.7,-1.0) {\small each arrow is one weight $W_{ij}$;\\[-2pt] \small each green node adds its bias then bends};
+\end{tikzpicture}
+\caption{A single fully connected layer. Every input feeds every output through a weight;
+the weight matrix $\mat{W}$ \emph{is} this complete bipartite wiring. The affine step
+$\mat{W}\vec{x}+\vec{b}$ is the wiring; the nonlinearity is applied inside each green
+node.}
+\label{ch34:fig-layer}
+\end{figure}
+
+\subsection{Classification and logistic regression}
+
+For a yes/no decision (spam or not, tumor or not), we want the model to output a
+\emph{probability} in $[0,1]$. The trick is to take a linear score and squash it through
+the \textbf{sigmoid} (logistic) function
+\[
+\sigma(z)=\frac{1}{1+e^{-z}}, \qquad z = \vec{w}\cdot\vec{x}+b.
+\]
+This is \textbf{logistic regression}, and structurally it is exactly one neuron: an
+affine step followed by a bend (the smooth red curve of Figure~\ref{ch34:fig-activations}). The linear part $\vec{w}\cdot\vec{x}+b$ defines a
+\emph{hyperplane} in feature space -- the set where the score is zero -- and the sigmoid
+turns ``how far are you from the plane, and on which side'' into a probability. Points far
+on the positive side get probability near $1$, far on the negative side near $0$, and
+right on the plane exactly $0.5$.
+
+\begin{intuitionbox}
+A linear classifier is a \emph{ruled line} (in 2D), \emph{plane} (in 3D), or
+\emph{hyperplane} (in general) that splits feature space into two half-spaces. The weight
+vector $\vec{w}$ is the \textbf{normal} to that hyperplane -- it points in the direction
+of ``more positive class.'' The bias $b$ slides the hyperplane toward or away from the
+origin. Training a linear classifier is choosing the orientation $\vec{w}$ and the offset
+$b$ of one flat cut through the data.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.95,>=Stealth]
+  % decision line
+  \draw[structurepurple,very thick] (-0.4,2.6) -- (4.4,0.2);
+  \node[structurepurple] at (4.6,0.0) {\small $\vec{w}\cdot\vec{x}+b=0$};
+  % normal vector
+  \draw[->,vecred,very thick] (2,1.4) -- (2.9,2.2) node[above right]{\small $\vec{w}$};
+  % positive class
+  \fill[targetgreen] (3,2.4) circle (2.5pt);
+  \fill[targetgreen] (3.6,2.0) circle (2.5pt);
+  \fill[targetgreen] (2.7,3.0) circle (2.5pt);
+  \fill[targetgreen] (3.9,2.9) circle (2.5pt);
+  \node[targetgreen!60!black] at (4.0,3.4) {\small class $+$};
+  % negative class
+  \fill[vecblue] (0.6,0.6) circle (2.5pt);
+  \fill[vecblue] (1.1,0.3) circle (2.5pt);
+  \fill[vecblue] (0.3,1.3) circle (2.5pt);
+  \fill[vecblue] (1.5,0.9) circle (2.5pt);
+  \node[vecblue!70!black] at (0.2,0.0) {\small class $-$};
+\end{tikzpicture}
+\caption{A linear classifier. The decision boundary is the hyperplane
+$\vec{w}\cdot\vec{x}+b=0$; the weight vector $\vec{w}$ is its normal, pointing toward the
+positive class. Logistic regression wraps the signed distance to this plane in a sigmoid
+to read it as a probability.}
+\label{ch34:fig-classifier}
+\end{figure}
+
+\section{Training: gradient descent and the gradient as a vector}
+\label{ch34:gd}
+
+We have models -- regression, logistic, layers. We have not yet said how the weights
+\emph{get good}, except in the one case (linear regression) where a closed-form
+projection handed us the answer. For everything else, we use the workhorse of all of
+modern ML: \textbf{gradient descent}. And the gradient is, once more, a vector you can
+picture.
+
+\subsection{The loss surface}
+
+Pick a way to measure how wrong the model is -- a \emph{loss} $L(\vec{w})$, a single
+number that depends on all the weights. For regression, the natural loss is the squared
+error $L(\vec{w})=\norm{\vec{y}-\mat{X}\vec{w}}^2$. As $\vec{w}$ ranges over weight space,
+$L$ traces out a surface, a landscape of hills and valleys sitting above weight space.
+Training means \textbf{finding the lowest point of this landscape}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % a bowl (contours)
+  \foreach \r in {0.6,1.2,1.8,2.4}{
+    \draw[gray!50] (2,1.3) ellipse ({\r} and {0.62*\r});}
+  \node[gray!60!black] at (4.7,2.6) {\small contours of $L$};
+  % gradient descent path
+  \coordinate (p0) at (4.0,2.6);
+  \coordinate (p1) at (3.3,1.95);
+  \coordinate (p2) at (2.75,1.6);
+  \coordinate (p3) at (2.35,1.42);
+  \coordinate (p4) at (2.08,1.34);
+  \fill[vecred] (p0) circle (2pt);
+  \draw[->,vecred,thick] (p0)--(p1);
+  \draw[->,vecred,thick] (p1)--(p2);
+  \draw[->,vecred,thick] (p2)--(p3);
+  \draw[->,vecred,thick] (p3)--(p4);
+  \fill[vecblue] (2,1.3) circle (2.3pt) node[below=2pt]{\small minimum};
+  \node[vecred] at (4.5,3.0) {\small start};
+  % a downhill arrow = -gradient
+  \draw[->,structurepurple,very thick] (3.3,1.95) -- ++(-0.55,-0.35);
+  \node[structurepurple] at (2.2,2.25) {\small $-\nabla L$};
+\end{tikzpicture}
+\caption{Gradient descent. The contours are level sets of the loss $L(\vec{w})$. At each
+point the gradient $\nabla L$ points uphill (steepest ascent), so we step in the
+direction $-\nabla L$ and roll toward the minimum. Each red arrow is one update
+$\vec{w}\leftarrow\vec{w}-\eta\nabla L$.}
+\label{ch34:fig-gd}
+\end{figure}
+
+\subsection{The gradient points uphill}
+
+The \textbf{gradient} $\nabla L$ is the vector of partial derivatives, one per weight:
+\[
+\nabla L = \left(\frac{\partial L}{\partial w_1},\,\frac{\partial L}{\partial w_2},\,
+\ldots,\,\frac{\partial L}{\partial w_d}\right).
+\]
+Its defining geometric property is the one to memorize: \textbf{at any point, $\nabla L$
+points in the direction of steepest increase of $L$, and its length is the rate of that
+increase.} So $-\nabla L$ points in the direction of steepest \emph{decrease} -- straight
+downhill. To minimize the loss, repeatedly step a little way downhill:
+\[
+\boxed{\;\vec{w} \leftarrow \vec{w} - \eta\,\nabla L(\vec{w})\;}
+\]
+where $\eta>0$ is the \textbf{learning rate}, the step size. That single update rule,
+iterated, trains essentially every model in deep learning.
+
+\begin{intuitionbox}
+You are standing on a foggy hillside and want to reach the valley. You cannot see far,
+but you can feel the slope under your feet. The gradient is the direction the ground rises
+fastest; turn around and take a step. Repeat. The learning rate is your stride length:
+too small and you crawl; too large and you may overshoot the valley and bounce up the far
+slope. Gradient descent is this blind, downhill walk, made precise.
+\end{intuitionbox}
+
+\subsection{Why $-\nabla L$ is steepest: a one-line derivation}
+
+This is worth deriving, because it ties the gradient to the dot product. The change in
+$L$ when you step a tiny amount $\vec{u}$ (a unit direction) is, to first order, the
+\emph{directional derivative}
+\[
+\frac{d}{dt}\Big|_{t=0} L(\vec{w}+t\vec{u}) = \nabla L \cdot \vec{u}
+= \norm{\nabla L}\,\norm{\vec{u}}\cos\theta = \norm{\nabla L}\cos\theta,
+\]
+using $\norm{\vec{u}}=1$. Among all unit directions $\vec{u}$, this dot product is
+\emph{largest} when $\cos\theta=1$, i.e.\ $\vec{u}$ points along $\nabla L$, and
+\emph{smallest} (most negative) when $\vec{u}$ points along $-\nabla L$. So $-\nabla L$ is
+the steepest-descent direction. The whole justification for gradient descent is one
+application of ``the dot product is maximized when the vectors align.''
+
+\subsection{Gradient descent on our regression}
+
+Let us connect the two methods. For $L(\vec{w})=\norm{\vec{y}-\mat{X}\vec{w}}^2$, the
+gradient works out to
+\[
+\nabla L = -2\,\mat{X}\T(\vec{y}-\mat{X}\vec{w}) = 2\big(\mat{X}\T\mat{X}\,\vec{w}-\mat{X}\T\vec{y}\big).
+\]
+Setting $\nabla L = \vec{0}$ -- the condition for a flat spot, the bottom of the bowl --
+gives back exactly the normal equations $\mat{X}\T\mat{X}\vec{w}=\mat{X}\T\vec{y}$! The
+closed-form projection answer and the gradient-descent answer are the \emph{same point},
+the minimum of the same bowl. Linear regression is the rare case where you can jump to the
+bottom in one step; gradient descent is what you use when no such jump exists.
+
+\begin{labbox}
+Minimize $L(w)=(w-3)^2$ by hand-running gradient descent. Here $\nabla L = 2(w-3)$. Start
+at $w_0=0$ with learning rate $\eta=0.25$. Compute $w_1=w_0-\eta\cdot 2(w_0-3)$, then
+$w_2$, then $w_3$. Watch the iterates march toward $3$. Then try $\eta=1.1$ and watch them
+\emph{diverge} -- a concrete feel for why the learning rate must not be too large.
+\end{labbox}
+
+\section{Backpropagation: the chain rule wearing a Jacobian}
+\label{ch34:backprop}
+
+Gradient descent needs the gradient. For a deep network with millions of weights, how do
+you compute $\partial L / \partial W_{ij}$ for every single weight, efficiently? The
+answer is \textbf{backpropagation}, and -- this is the punchline of the section -- it is
+nothing but the chain rule from calculus, organized as a sequence of matrix
+multiplications by \emph{Jacobians}.
+
+\subsection{The Jacobian: the local linear map}
+
+A neural network is a composition of functions: input $\to$ layer 1 $\to$ layer 2 $\to
+\cdots \to$ loss. Each function maps vectors to vectors. The right object to describe how a
+vector-to-vector function $\vec{f}:\R^{n}\to\R^{m}$ stretches space \emph{near a point} is
+its \textbf{Jacobian matrix} $\mat{J}$, the $m\times n$ matrix of all partial derivatives,
+$J_{ij}=\partial f_i/\partial x_j$.
+
+\begin{intuitionbox}
+Zoom in far enough on any smooth function and it looks linear -- that linear approximation
+is the Jacobian. The Jacobian is the matrix that \emph{is} the derivative of a vector
+function: $\vec{f}(\vec{x}+\Delta\vec{x}) \approx \vec{f}(\vec{x}) + \mat{J}\,\Delta\vec{x}$.
+Every layer of a network has a Jacobian -- the local matrix that says how a small wiggle
+in its input becomes a small wiggle in its output. Notice that for the affine step
+$\vec{z}=\mat{W}\vec{x}+\vec{b}$, the Jacobian with respect to $\vec{x}$ is exactly
+$\mat{W}$ itself, because an affine map \emph{is} its own linear approximation.
+\end{intuitionbox}
+
+\subsection{Chain rule as Jacobian product}
+
+For a composition $\vec{f} = \vec{f}_3 \circ \vec{f}_2 \circ \vec{f}_1$, the multivariable
+chain rule says the Jacobian of the whole is the \emph{product} of the Jacobians of the
+parts:
+\[
+\mat{J}_{\vec{f}} = \mat{J}_{3}\,\mat{J}_{2}\,\mat{J}_{1}.
+\]
+This is the same ``matrices compose by multiplication'' fact that has run through the
+entire book, now applied to derivatives. The loss is a scalar at the end of the chain, so
+its gradient is obtained by multiplying these Jacobians together. Backpropagation is the
+specific, clever \emph{order} in which you do that multiplication.
+
+\subsection{Why multiply starting from the loss (backwards through the net)}
+
+Here is the efficiency insight, and it is purely about matrix-multiplication bookkeeping.
+The chain $\mat{J}_{\vec{f}} = \mat{J}_3\mat{J}_2\mat{J}_1$ has the loss as the last
+function $\vec{f}_3$, so its Jacobian $\mat{J}_3$ is the \emph{leftmost} factor. Because
+the loss is one number, $\mat{J}_3$ is a \emph{row vector} (a $1\times m$ object): the
+gradient of a scalar. You can multiply out the product $\mat{J}_3\mat{J}_2\mat{J}_1$
+either left-to-right (starting from $\mat{J}_3$) or right-to-left (starting from
+$\mat{J}_1$). Multiplying \emph{right-to-left} -- start at the input end and build up a
+running product -- forces you to carry around full $m\times n$ matrices at each stage.
+Multiplying \textbf{left-to-right, starting from the scalar's row vector} $\mat{J}_3$,
+keeps a row vector at every stage:
+\[
+\underbrace{(\text{row})}_{1\times m}\,\underbrace{\mat{J}_3}_{m\times k}
+= (\text{row})_{1\times k}, \quad \text{then} \times \mat{J}_2, \quad \text{then} \times \mat{J}_1.
+\]
+A row vector times a matrix is another row vector -- cheap. \textbf{That} is
+backpropagation: propagate the gradient \emph{backward} through the network, layer by
+layer, as a vector being hit by each layer's Jacobian (in transposed form). The
+``backward'' in the name is just the choice to multiply the Jacobian chain in the order
+that keeps everything a vector instead of a matrix.
+
+\begin{focusbox}
+\textbf{Forward pass:} push the input vector through the layers, computing each
+$\vec{a}=\sigma(\mat{W}\vec{x}+\vec{b})$ and remembering the intermediate values.
+\textbf{Backward pass:} push the gradient (a vector) back through the layers, multiplying
+by each layer's Jacobian, accumulating $\partial L/\partial \mat{W}$ along the way.
+Forward is matrices acting on data; backward is the same matrices (transposed) acting on
+gradients. Same linear algebra, run in reverse.
+\end{focusbox}
+
+\begin{connectionbox}
+\textbf{This is the multivariable chain rule, full stop.} Everything ``deep learning''
+about backprop is engineering -- caching intermediate activations, doing it on a GPU. The
+mathematics is the chain rule $\frac{d}{dx}f(g(x))=f'(g(x))g'(x)$ generalized to vectors,
+where the single-variable derivatives become Jacobian matrices and ordinary
+multiplication becomes matrix multiplication. If you have done a multivariable calculus
+course, you have already proven the hard part. Linear algebra supplies the only new idea:
+that the chain of derivatives is a chain of matrices, so the \emph{order} of multiplication
+is a free choice you can exploit.
+\end{connectionbox}
+
+\section{Attention: scaled dot products in disguise}
+\label{ch34:attention}
+
+The architecture behind the recent wave of language models -- the \emph{transformer} --
+is built on a mechanism called \textbf{attention}. Stripped of the engineering, attention
+is a structure you are now fully equipped to read: it is a pile of dot products, scaled and
+softmaxed, used to take a weighted average. Let us assemble it from parts you know.
+
+\subsection{Queries, keys, values}
+
+Imagine a sequence of tokens (say, words in a sentence), each already an embedding vector.
+Attention lets each token ``look at'' the others and pull in the information it needs. To
+do that, every token is turned into three vectors by three learned matrices:
+\begin{itemize}
+  \item a \textbf{query} $\vec{q}$ -- ``what am I looking for?''
+  \item a \textbf{key} $\vec{k}$ -- ``what do I offer?''
+  \item a \textbf{value} $\vec{v}$ -- ``what will I hand over if chosen?''
+\end{itemize}
+Stack the queries as rows of $\mat{Q}$, the keys as rows of $\mat{K}$, the values as rows
+of $\mat{V}$. Each is just the embedding matrix times a learned weight matrix -- linear
+algebra you have done a dozen times.
+
+\subsection{The core formula, read piece by piece}
+
+The famous formula is
+\[
+\text{Attention}(\mat{Q},\mat{K},\mat{V}) =
+\text{softmax}\!\left(\frac{\mat{Q}\mat{K}\T}{\sqrt{d_k}}\right)\mat{V}.
+\]
+It looks dense; take it apart and every piece is something from this book.
+
+\textbf{Step 1: the scores $\mat{Q}\mat{K}\T$.} This $n\times n$ matrix is, entry by entry,
+$(\mat{Q}\mat{K}\T)_{ij} = \vec{q}_i \cdot \vec{k}_j$ -- the dot product of token $i$'s
+query with token $j$'s key. It measures how much token $i$ should care about token $j$.
+This is the Gram-matrix idea from Section~\ref{ch34:data-matrix} again: \emph{all pairwise
+similarities at once}, as a single matrix product. Large dot product means ``these two are
+relevant to each other.''
+
+\textbf{Step 2: the scaling $1/\sqrt{d_k}$.} Dividing by the square root of the key
+dimension keeps the dot products from growing too large when the vectors are
+high-dimensional (a high-dimensional dot product is a sum of many terms and tends to
+spread out). It is a normalization for numerical stability, nothing deeper.
+
+\textbf{Step 3: softmax, row by row.} The softmax turns each row of scores into a
+probability distribution -- nonnegative numbers that sum to $1$:
+\[
+\text{softmax}(\vec{s})_j = \frac{e^{s_j}}{\sum_k e^{s_k}}.
+\]
+After this, row $i$ holds the \emph{attention weights}: how much of its new representation
+token $i$ should draw from each other token. (This is the same exponential-normalization
+idea as the sigmoid, generalized to many outputs.)
+
+\textbf{Step 4: the weighted sum $(\cdots)\mat{V}$.} Multiplying the attention-weight
+matrix by $\mat{V}$ takes, for each token, a \emph{weighted average of all the value
+vectors}, weighted by relevance. A matrix of probabilities times a matrix of values is a
+matrix of convex combinations -- output row $i$ is a blend of the value vectors, heaviest
+on the tokens token $i$ attended to.
+
+\begin{intuitionbox}
+Attention is ``soft lookup.'' A hard lookup (like a dictionary) takes a key and returns
+exactly one value. Attention instead compares your query to \emph{every} key by dot
+product, turns those similarities into weights that sum to one, and returns a
+\emph{blend} of all the values weighted by how well each key matched. The dot product
+asks ``how relevant?''; the softmax turns relevance into ``how much weight''; the
+multiply by $\mat{V}$ collects the blend. Three operations, all of them linear algebra
+plus one exponential.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.92,>=Stealth]
+  % Q
+  \node at (0,2.6) {\small $\mat{Q}$};
+  \draw[fill=sourceblue!12] (-0.4,0.8) rectangle (0.4,2.2);
+  % times K^T
+  \node at (1.0,1.5) {\small $\times$};
+  \node at (2.0,2.6) {\small $\mat{K}\T$};
+  \draw[fill=targetgreen!12] (1.5,1.2) rectangle (2.9,1.8);
+  % equals scores
+  \node at (3.4,1.5) {\small $=$};
+  \node at (4.6,2.9) {\small scores $\mat{Q}\mat{K}\T$};
+  \draw[fill=quotientorange!15] (3.9,0.9) rectangle (5.3,2.1);
+  % softmax
+  \draw[->,thick] (5.5,1.5) -- (6.5,1.5) node[midway,above]{\small softmax};
+  \draw[fill=structurepurple!15] (6.7,0.9) rectangle (8.1,2.1);
+  \node[align=center] at (7.4,2.7) {\small weights\\[-2pt]\small (rows sum to 1)};
+  % times V
+  \node at (8.4,1.5) {\small $\times\,\mat{V}$};
+  \draw[->,thick] (8.9,1.5) -- (9.7,1.5);
+  \draw[fill=vecblue!15] (9.9,0.9) rectangle (10.7,2.1);
+  \node at (10.3,2.5) {\small output};
+\end{tikzpicture}
+\caption{Attention as a pipeline of familiar operations. Dot products $\mat{Q}\mat{K}\T$
+score every query against every key (a Gram-style similarity matrix); softmax turns each
+row into weights; multiplying by $\mat{V}$ averages the values by those weights. Every box
+is a matrix; every arrow is a matrix product or a row-wise normalization.}
+\label{ch34:fig-attention}
+\end{figure}
+
+\begin{applicationbox}
+\textbf{Why transformers scale.} The reason attention powers today's largest models is
+that its core is dense matrix multiplication -- $\mat{Q}\mat{K}\T$ and then
+$(\cdots)\mat{V}$ -- which is exactly the operation GPUs are built to do astronomically
+fast. A model with hundreds of billions of parameters is, in the inner loop, a long
+sequence of big matrix multiplies. When you read that a language model was ``trained on
+thousands of GPUs,'' the thing those GPUs were multiplying, over and over, were matrices
+of queries, keys, values, and weights. The linear algebra in this book is, quite
+literally, the bottleneck operation of modern AI.
+\end{applicationbox}
+
+\begin{trapbox}
+It is tempting to think attention is ``mostly nonlinear and mysterious.'' It is the
+opposite: the only nonlinearity in the whole formula is the softmax. Everything else --
+forming $\mat{Q},\mat{K},\mat{V}$, scoring with $\mat{Q}\mat{K}\T$, blending with
+$\mat{V}$ -- is matrix multiplication. If you can multiply matrices and you understand the
+dot product as similarity, you understand the skeleton of a transformer.
+\end{trapbox}
+
+\section{Low rank: why a little structure goes a long way}
+\label{ch34:lowrank}
+
+We close with the idea that quietly makes large-scale ML feasible: \textbf{low-rank
+structure.} It is the SVD chapter cashed out as a practical superpower, and it explains
+both why models can be compressed and why they generalize at all.
+
+\subsection{Rank as the number of independent directions}
+
+Recall that the \textbf{rank} of a matrix is the number of independent directions in its
+column space -- the true dimensionality of what it does. A matrix can be huge,
+$1000\times1000$, and yet have rank $5$: its million entries are really controlled by only
+a handful of underlying patterns. The SVD makes this precise. Any matrix factors as
+\[
+\mat{A} = \sum_{i=1}^{r} \sigma_i\,\vec{u}_i\vec{v}_i\T,
+\]
+a sum of rank-one pieces, each a single direction $\vec{u}_i$ scaled by a singular value
+$\sigma_i$. The singular values come in decreasing order, $\sigma_1\ge\sigma_2\ge\cdots$,
+so the first few terms carry most of the action.
+
+\begin{intuitionbox}
+A rank-one matrix $\vec{u}\vec{v}\T$ is the simplest non-trivial matrix there is: every
+row is a multiple of $\vec{v}\T$, every column a multiple of $\vec{u}$. It stores
+$m+n$ numbers but spreads them across $m\times n$ entries -- pure structure, no
+independent detail. The SVD says \emph{every} matrix is a stack of these, and that the
+$\sigma_i$ tell you how much each layer matters. ``Low rank'' means a few layers already
+tell almost the whole story.
+\end{intuitionbox}
+
+\subsection{Low-rank approximation: keep the loud directions}
+
+Here is the payoff theorem, due to Eckart and Young: the \emph{best} rank-$k$
+approximation of any matrix -- best in the least-squares sense -- is obtained by keeping
+the top $k$ terms of the SVD and throwing the rest away:
+\[
+\mat{A} \approx \mat{A}_k = \sum_{i=1}^{k} \sigma_i\,\vec{u}_i\vec{v}_i\T.
+\]
+If the singular values decay quickly (and for real data they almost always do), then a
+small $k$ captures almost all of $\mat{A}$ (Figure~\ref{ch34:fig-svdecay}), and you have
+compressed an $m\times n$ matrix
+($mn$ numbers) down to $k(m+n)$ numbers. For a $1000\times1000$ matrix kept at rank $10$,
+that is a 50-fold compression.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth]
+\begin{axis}[
+  width=11cm, height=5cm,
+  ybar, bar width=7pt,
+  axis lines=left, xlabel={index $i$}, ylabel={singular value $\sigma_i$},
+  xmin=0.3, xmax=10.7, ymin=0, ymax=10.5,
+  xtick={1,2,3,4,5,6,7,8,9,10}, ytick={2,4,6,8,10},
+  enlarge x limits=0.04,
+]
+  \addplot[fill=sourceblue!55,draw=sourceblue!80!black]
+    coordinates {(1,10)(2,6.5)(3,3.2)(4,1.4)(5,0.7)(6,0.4)(7,0.25)(8,0.15)(9,0.1)(10,0.07)};
+\end{axis}
+\draw[targetgreen,very thick,dashed] (3.55,0) -- (3.55,4.1);
+\node[targetgreen!60!black,align=center] at (5.9,3.6)
+  {\small keep these $k=3$ ``loud'' directions;\\[-2pt]\small the rest are near-zero noise};
+\end{tikzpicture}
+\caption{Why low-rank approximation works. For typical data the singular values $\sigma_i$
+fall off fast, so a few leading rank-one pieces $\sigma_i\vec{u}_i\vec{v}_i\T$ carry almost
+all of the matrix. Truncating after $k$ terms (here $k=3$, dashed line) is the Eckart--Young
+best rank-$k$ approximation and discards only the small ``tail.''}
+\label{ch34:fig-svdecay}
+\end{figure}
+
+\begin{applicationbox}
+\textbf{Recommender systems and model compression.} The famous Netflix-style
+recommender is a low-rank story: the giant ``users $\times$ movies'' ratings matrix is
+modeled as a product of a thin ``users $\times$ taste'' matrix and a thin ``taste
+$\times$ movies'' matrix -- a low-rank factorization that fills in the blanks you have
+not rated. The same idea now compresses enormous neural networks: a method called LoRA
+(``low-rank adaptation'') fine-tunes a giant model by adding only a low-rank update
+$\mat{B}\mat{A}$ to its weight matrices, training a few million numbers instead of
+billions. Low rank is how you make the intractable tractable, twice over.
+\end{applicationbox}
+
+\subsection{Principal component analysis, in one breath}
+
+Run the SVD on a centered data matrix and you have \textbf{PCA}, the most-used
+dimensionality-reduction method in all of data science. The top singular directions
+$\vec{v}_i$ are the \emph{principal components} -- the orthogonal directions along which
+your data varies most. Projecting the data onto the first two or three of them is how a
+high-dimensional dataset gets drawn as a 2D scatter plot you can actually look at. The
+directions of greatest variance are exactly the leading eigenvectors of the covariance
+matrix $\mat{X}_c\T\mat{X}_c$ -- the second geometry of your data matrix from
+Section~\ref{ch34:data-matrix}, returning to close the loop.
+
+\begin{aestheticbox}
+Step back and see the unity. The dot product gave us \emph{similarity}. Projection gave us
+\emph{regression}. Matrix multiplication gave us \emph{layers, attention, and the chain
+rule}. The gradient gave us \emph{learning}. The SVD gave us \emph{compression and the
+principal directions of data}. Not one of these required a new mathematical universe --
+each is a facet of the linear algebra you built from the ground up. The astonishing thing
+about modern machine learning is not how much new mathematics it needed, but how
+\emph{little}: it is your toolkit, scaled up and run on fast hardware. That is the deep
+reason this book ends here. You were learning the language of intelligence all along.
+\end{aestheticbox}
+
+\begin{walkbox}
+Take a walk and answer these without paper. (1) A neural network with ten layers but no
+nonlinearities -- what single, simpler model is it secretly equivalent to, and why?
+(2) Cosine similarity ignores vector length; name one situation where that is exactly the
+right thing to ignore, and one where it might throw away something you care about.
+(3) Gradient descent steps in the direction $-\nabla L$. If the loss landscape were a
+perfectly round bowl, would the path to the bottom be straight or curved? What about a
+long, narrow valley?
+\end{walkbox}
+
+\section{Exercises}
+\label{ch34:exercises}
+
+\begin{exercise}
+A data matrix has rows $(2,4),(4,6),(6,8)$.
+(a) Compute the column-mean vector and write the centered matrix $\mat{X}_c$.
+(b) Verify each column of $\mat{X}_c$ sums to zero.
+(c) Compute the $2\times2$ matrix $\mat{X}_c\T\mat{X}_c$. Are the two features perfectly
+correlated? Explain geometrically what you see in the centered points.
+\end{exercise}
+
+\begin{exercise}
+Fit a line $\hat y = wx+b$ by least squares to the points $(0,1),(1,1),(2,3)$.
+(a) Write $\mat{X}$ (with a ones-column) and $\vec{y}$.
+(b) Form and solve the normal equations $\mat{X}\T\mat{X}\vec{w}=\mat{X}\T\vec{y}$.
+(c) Compute the residual vector and verify it is orthogonal to both columns of $\mat{X}$.
+\end{exercise}
+
+\begin{exercise}
+Given the embeddings $\vec{a}=\colvec{1\\0\\1}$, $\vec{b}=\colvec{1\\1\\0}$,
+$\vec{c}=\colvec{0\\0\\2}$, compute all three pairwise cosine similarities. Rank the pairs
+from most to least similar, and say which pair is closest to orthogonal.
+\end{exercise}
+
+\begin{exercise}
+A single neural-network layer has
+$\mat{W}=\begin{bmatrix}2&0\\-1&1\\0&3\end{bmatrix}$, $\vec{b}=\colvec{-3\\0\\-2}$, and
+ReLU activation. Compute the output for input $\vec{x}=\colvec{1\\1}$. Which neurons fire?
+\end{exercise}
+
+\begin{exercise}
+Show that stacking three affine layers $\vec{x}\mapsto\mat{W}_3(\mat{W}_2(\mat{W}_1\vec{x}
++\vec{b}_1)+\vec{b}_2)+\vec{b}_3$ with no nonlinearities equals a \emph{single} affine map
+$\mat{W}'\vec{x}+\vec{b}'$. Give explicit formulas for $\mat{W}'$ and $\vec{b}'$. What does
+this prove about deep linear networks?
+\end{exercise}
+
+\begin{exercise}
+(Gradient descent by hand.) Let $L(w)=w^2-4w+5$.
+(a) Compute $\nabla L = L'(w)$ and find the minimizer analytically.
+(b) Run three steps of gradient descent from $w_0=0$ with learning rate $\eta=0.3$.
+(c) Repeat with $\eta=1.2$ and describe what happens. What property of $\eta$ separates
+convergence from divergence here?
+\end{exercise}
+
+\begin{exercise}
+Prove that for a unit vector $\vec{u}$, the directional derivative $\nabla L\cdot\vec{u}$
+is maximized when $\vec{u}$ points along $\nabla L$ and minimized when it points along
+$-\nabla L$. (Use $\nabla L\cdot\vec{u}=\norm{\nabla L}\cos\theta$.) Explain in one
+sentence why this is the entire justification for the gradient-descent update rule.
+\end{exercise}
+
+\begin{exercise}
+Let $\mat{Q}=\begin{bmatrix}1&0\\0&1\end{bmatrix}$ (two query rows) and
+$\mat{K}=\begin{bmatrix}1&0\\1&1\end{bmatrix}$ (two key rows).
+(a) Compute the score matrix $\mat{Q}\mat{K}\T$.
+(b) Apply softmax to each row (you may leave answers in terms of $e$).
+(c) With $\mat{V}=\begin{bmatrix}2&0\\0&2\end{bmatrix}$, compute the attention output.
+Interpret which token each query attended to most.
+\end{exercise}
+
+\begin{exercise}
+A rank-one matrix is $\mat{A}=\vec{u}\vec{v}\T$ with $\vec{u}=\colvec{1\\2\\1}$ and
+$\vec{v}=\colvec{2\\1}$.
+(a) Write out $\mat{A}$ explicitly (it is $3\times2$).
+(b) Verify by inspection that every column is a multiple of $\vec{u}$ and every row a
+multiple of $\vec{v}\T$.
+(c) How many numbers does it take to store $\mat{A}$ as a rank-one product versus as a
+full $3\times2$ table? Generalize to $m\times n$.
+\end{exercise}
+
+\begin{exercise}
+(Challenge.) The covariance-style matrix $\mat{X}\T\mat{X}$ and the Gram matrix
+$\mat{X}\mat{X}\T$ generally have different sizes. Prove that they nonetheless share the
+same nonzero eigenvalues. (Hint: if $\mat{X}\T\mat{X}\,\vec{v}=\lambda\vec{v}$ with
+$\lambda\neq0$, consider the vector $\mat{X}\vec{v}$ and show it is an eigenvector of
+$\mat{X}\mat{X}\T$ with the same $\lambda$.) Explain why this is exactly why PCA can be
+computed from whichever of the two matrices is smaller.
+\end{exercise}

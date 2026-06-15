@@ -1,0 +1,912 @@
+\chapter{Symmetric Matrices and the Spectral Theorem}
+
+In the last two chapters you learned to take a matrix apart with its
+eigenvectors. You found directions $\vec{x}$ that a matrix $\mat{A}$ only
+\emph{stretches} -- $\mat{A}\vec{x} = \lambda\vec{x}$ -- and, when there were
+enough of them, you wrote $\mat{A} = \mat{P}\,\mat{\Lambda}\,\mat{P}\inv$ and
+saw the machine as ``change to the eigenvector coordinates, stretch each axis,
+change back.'' That was the general story, and it came with caveats: eigenvalues
+could be complex, eigenvectors could be skewed at strange angles, and some
+matrices refused to diagonalize at all.
+
+This chapter is about the most beautiful and most useful special case in all of
+linear algebra, the one where every caveat melts away. When a matrix equals its
+own transpose -- when $\mat{A} = \mat{A}\T$, when it is \textbf{symmetric} -- a
+small miracle happens. Its eigenvalues are guaranteed real. Its eigenvectors can
+always be chosen \emph{perpendicular} to one another. And the change-of-basis
+matrix $\mat{P}$ becomes a clean \textbf{rotation/reflection} $\mat{Q}$ whose
+inverse is just its transpose. The grand factorization collapses to
+\[
+  \boxed{\;\mat{A} = \mat{Q}\,\mat{\Lambda}\,\mat{Q}\T\;}
+\]
+This is the \textbf{Spectral Theorem}, and it is the quiet engine under
+principal component analysis, the geometry of quadratic forms, the stability of
+vibrating systems, the covariance ellipsoids of statistics, and the singular
+value decomposition you will meet soon. We will build it from a picture --
+symmetric matrices stretch along perpendicular axes -- then make every word of it
+precise, and prove the heart of it in a few honest lines.
+
+\section{What Makes a Matrix Symmetric}
+\label{ch26:what-is-symmetric}
+
+A square matrix $\mat{A}$ is \textbf{symmetric} when it is unchanged by
+transposition: $\mat{A}\T = \mat{A}$. Concretely, the entry in row $i$, column
+$j$ equals the entry in row $j$, column $i$ -- the matrix is a mirror image of
+itself across the main diagonal.
+
+\[
+  \mat{A} = \begin{bmatrix} 2 & 5 & -1 \\ 5 & 0 & 3 \\ -1 & 3 & 4 \end{bmatrix}
+  \quad\text{is symmetric:}\quad a_{ij}=a_{ji}.
+\]
+Fold the matrix along the diagonal (the $2,0,4$) and the off-diagonal entries land
+on their twins: the two $5$'s swap, the two $3$'s swap, the two $-1$'s swap. By
+contrast
+\[
+  \mat{B} = \begin{bmatrix} 1 & 2 \\ -2 & 1 \end{bmatrix}
+\]
+is \emph{not} symmetric, because the $2$ above the diagonal faces a $-2$ below it.
+
+\begin{definition}[Symmetric matrix]
+\label{ch26:def-symmetric}
+A real $n\times n$ matrix $\mat{A}$ is \textbf{symmetric} if $\mat{A}\T = \mat{A}$,
+equivalently if $a_{ij} = a_{ji}$ for all $i,j$.
+\end{definition}
+
+\begin{focusbox}
+Symmetry is a statement about the \emph{matrix}, but its real meaning is a
+statement about the \emph{dot product}. The single identity to carry through this
+whole chapter is
+\[
+  \inner{\mat{A}\vec{x}}{\vec{y}} = \inner{\vec{x}}{\mat{A}\vec{y}}
+  \qquad\text{for all } \vec{x},\vec{y}.
+\]
+``You may move $\mat{A}$ from one side of the dot product to the other for free.''
+Every theorem in this chapter falls out of that one sentence.
+\end{focusbox}
+
+Why is that the real meaning? Recall the dot product written with matrices:
+$\inner{\vec{u}}{\vec{v}} = \vec{u}\T\vec{v}$. Then
+\[
+  \inner{\mat{A}\vec{x}}{\vec{y}}
+  = (\mat{A}\vec{x})\T\vec{y}
+  = \vec{x}\T \mat{A}\T \vec{y}
+  = \vec{x}\T(\mat{A}\T\vec{y})
+  = \inner{\vec{x}}{\mat{A}\T\vec{y}}.
+\]
+So $\mat{A}$ can always be moved across the dot product if you transpose it on the
+way. Symmetry, $\mat{A}\T=\mat{A}$, is exactly the condition that it crosses
+\emph{without changing}. Hold onto this; we will use it four times.
+
+\begin{intuitionbox}
+A general matrix can rotate \emph{and} stretch \emph{and} shear, smearing space
+in a lopsided way. A symmetric matrix is much tamer: geometrically it does
+nothing but \textbf{stretch space along a set of perpendicular axes}. No twist,
+no shear, no skew between the axes. If you can picture pulling a sheet of rubber
+harder in one direction than the perpendicular one, you have already pictured
+every symmetric matrix.
+\end{intuitionbox}
+
+\subsection{Where symmetric matrices come from}
+\label{ch26:where-from}
+
+You might worry that symmetric matrices are a rare, hand-picked species. The
+opposite is true -- they are everywhere, and usually for the same structural
+reason: a symmetric matrix records a \emph{relationship between pairs} that does
+not care about order.
+
+\begin{itemize}
+  \item \textbf{Gram matrices.} For \emph{any} matrix $\mat{M}$, the product
+        $\mat{M}\T\mat{M}$ is symmetric, because
+        $(\mat{M}\T\mat{M})\T = \mat{M}\T(\mat{M}\T)\T = \mat{M}\T\mat{M}$.
+        Its $(i,j)$ entry is the dot product of column $i$ with column $j$ of
+        $\mat{M}$ -- and the dot product does not care about order. These appear
+        in least squares as the normal equations $\mat{M}\T\mat{M}\vec{x} =
+        \mat{M}\T\vec{b}$.
+  \item \textbf{Covariance matrices.} The covariance of feature $i$ with feature
+        $j$ equals the covariance of $j$ with $i$. Every covariance matrix in
+        statistics and machine learning is symmetric. (This is a Gram matrix of
+        centered data in disguise.)
+  \item \textbf{Distances and similarities.} The matrix of pairwise distances or
+        similarities between $n$ objects is symmetric: object $i$ is as far from
+        $j$ as $j$ is from $i$.
+  \item \textbf{Second derivatives.} The Hessian of a smooth function,
+        $H_{ij} = \partial^2 f / \partial x_i \partial x_j$, is symmetric because
+        mixed partials commute (Clairaut's theorem). Optimization runs on these.
+  \item \textbf{Graphs and networks.} The adjacency matrix of an undirected graph
+        is symmetric: an edge between $i$ and $j$ is also an edge between $j$ and
+        $i$. So is the graph Laplacian.
+\end{itemize}
+
+Whenever the underlying relationship is undirected -- a pairing with no preferred
+arrow from one party to the other -- the matrix that records it is symmetric.
+That is why this chapter pays off so widely.
+
+\section{The Picture: Stretching Along Perpendicular Axes}
+\label{ch26:picture}
+
+Before any theorem, let us look. Take the symmetric matrix
+\[
+  \mat{A} = \begin{bmatrix} 2 & 1 \\ 1 & 2 \end{bmatrix},
+\]
+and watch what it does to the unit circle. The circle is the set of all arrows of
+length $1$; its image under $\mat{A}$ tells you everything about how $\mat{A}$
+stretches space. Figure~\ref{ch26:fig-ellipse} shows the result: the circle
+becomes an \textbf{ellipse}, and -- this is the whole point -- the long and short
+axes of that ellipse are \emph{perpendicular}, and they line up with the diagonal
+directions $(1,1)$ and $(1,-1)$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.1,>=Stealth]
+  % left: unit circle with the two special directions
+  \begin{scope}[shift={(0,0)}]
+    \draw[->,gray!55] (-1.7,0)--(1.9,0) node[right]{$x$};
+    \draw[->,gray!55] (0,-1.7)--(0,1.9) node[above]{$y$};
+    \draw[vecblue,thick] (0,0) circle (1);
+    \draw[->,vecred,thick] (0,0)--(0.7071,0.7071) node[above right]{$\vec{q}_1$};
+    \draw[->,structurepurple,thick] (0,0)--(0.7071,-0.7071) node[below right]{$\vec{q}_2$};
+    \node at (0,-2.1) {unit circle};
+  \end{scope}
+  % arrow
+  \node at (2.7,0) {\Large $\xrightarrow{\;\mat{A}\;}$};
+  % right: image ellipse, axes scaled by 3 and 1
+  \begin{scope}[shift={(5.6,0)}]
+    \draw[->,gray!55] (-2.4,0)--(3.4,0) node[right]{$x$};
+    \draw[->,gray!55] (0,-2.4)--(0,2.6) node[above]{$y$};
+    % ellipse with semi-axes 3 (along (1,1)) and 1 (along (1,-1)), rotated 45deg
+    \draw[targetgreen,thick,rotate=45] (0,0) ellipse (3 and 1);
+    \draw[->,vecred,thick] (0,0)--(2.1213,2.1213) node[above right]{$3\vec{q}_1$};
+    \draw[->,structurepurple,thick] (0,0)--(0.7071,-0.7071) node[below right]{$1\vec{q}_2$};
+    \node at (0,-2.1) {image: an ellipse};
+  \end{scope}
+\end{tikzpicture}
+\caption{The symmetric matrix $\mat{A}=\protect\begin{bmatrix}2&1\\1&2\protect\end{bmatrix}$
+sends the unit circle to an ellipse. The special directions
+$\vec{q}_1 \propto (1,1)$ and $\vec{q}_2 \propto (1,-1)$ are
+\emph{perpendicular}, and $\mat{A}$ simply stretches them by $\lambda_1 = 3$ and
+$\lambda_2 = 1$. These are the \textbf{principal axes}.}
+\label{ch26:fig-ellipse}
+\end{figure}
+
+Let us verify the picture by hand. Along $(1,1)$:
+\[
+  \mat{A}\colvec{1\\1} = \colvec{2+1\\1+2} = \colvec{3\\3} = 3\colvec{1\\1}.
+\]
+So $(1,1)$ is an eigenvector with eigenvalue $3$ -- $\mat{A}$ stretches it by a
+factor of $3$. Along $(1,-1)$:
+\[
+  \mat{A}\colvec{1\\-1} = \colvec{2-1\\1-2} = \colvec{1\\-1} = 1\cdot\colvec{1\\-1}.
+\]
+So $(1,-1)$ is an eigenvector with eigenvalue $1$ -- $\mat{A}$ leaves its length
+alone. The two eigenvectors are perpendicular: $(1,1)\cdot(1,-1) = 1-1 = 0$.
+
+That perpendicularity is not luck. It is forced by symmetry, and it is the soul
+of the spectral theorem. The long and short axes of the ellipse -- the directions
+along which a symmetric matrix purely stretches -- are called the \textbf{principal
+axes}, and they are always at right angles.
+
+\begin{walkbox}
+Take the matrix $\mat{A}=\begin{bmatrix}2&1\\1&2\end{bmatrix}$ for a walk. We
+found it stretches $(1,1)$ by $3$ and fixes $(1,-1)$. Now picture feeding it a
+\emph{non}-eigenvector like $(1,0)$. It must land somewhere between ``stretched by
+$3$'' and ``stretched by $1$.'' Which way does the output arrow tilt -- toward the
+strong axis or the weak one? Convince yourself, without computing, that the output
+always leans toward the direction of \emph{larger} eigenvalue. (Then check:
+$\mat{A}(1,0)=(2,1)$, which indeed tilts up toward the $(1,1)$ axis.)
+\end{walkbox}
+
+\section{Real Eigenvalues}
+\label{ch26:real-eigenvalues}
+
+A general matrix can have complex eigenvalues -- a rotation matrix has eigenvalues
+$\cos\theta \pm i\sin\theta$, which live off the real line and correspond to no
+real stretching direction at all. Symmetric matrices never do this. Their
+eigenvalues are always real numbers, every time.
+
+\begin{theorem}[Symmetric matrices have real eigenvalues]
+\label{ch26:thm-real}
+If $\mat{A}$ is a real symmetric matrix, then every eigenvalue of $\mat{A}$ is
+real.
+\end{theorem}
+
+The cleanest proof briefly steps into complex numbers, uses the conjugate, and
+steps back out. Don't be intimidated -- it is three lines once you see the trick.
+We use the \emph{conjugate transpose}: for a complex vector $\vec{z}$, write
+$\vec{z}^{*} = \overline{\vec{z}}\T$, the transpose of the entrywise complex
+conjugate. The key fact is that $\vec{z}^{*}\vec{z} = \sum_k |z_k|^2$ is a
+\emph{positive real number} whenever $\vec{z}\neq\vec{0}$.
+
+\begin{proof}
+Let $\lambda$ be an eigenvalue (a priori possibly complex) with eigenvector
+$\vec{z}\neq\vec{0}$, so $\mat{A}\vec{z} = \lambda\vec{z}$. Form the scalar
+$\vec{z}^{*}\mat{A}\vec{z}$ and compute it two ways.
+
+\emph{First way.} Substitute $\mat{A}\vec{z}=\lambda\vec{z}$:
+\[
+  \vec{z}^{*}\mat{A}\vec{z} = \vec{z}^{*}(\lambda\vec{z}) = \lambda\,(\vec{z}^{*}\vec{z}).
+\]
+
+\emph{Second way.} Take the conjugate transpose of the whole scalar. A
+$1\times 1$ number equals its own conjugate transpose, so
+$\vec{z}^{*}\mat{A}\vec{z} = (\vec{z}^{*}\mat{A}\vec{z})^{*}
+= \vec{z}^{*}\mat{A}^{*}\vec{z}$. Because $\mat{A}$ is \emph{real} and
+\emph{symmetric}, $\mat{A}^{*} = \overline{\mat{A}}\T = \mat{A}\T = \mat{A}$.
+Therefore
+\[
+  \vec{z}^{*}\mat{A}\vec{z}
+  = (\mat{A}\vec{z})^{*}\vec{z}
+  = (\lambda\vec{z})^{*}\vec{z}
+  = \overline{\lambda}\,(\vec{z}^{*}\vec{z}).
+\]
+
+Setting the two equal: $\lambda\,(\vec{z}^{*}\vec{z}) = \overline{\lambda}\,(\vec{z}^{*}\vec{z})$.
+Since $\vec{z}^{*}\vec{z} > 0$, we may cancel it to get $\lambda = \overline{\lambda}$.
+A number equal to its own conjugate is real.
+\end{proof}
+
+\begin{intuitionbox}
+Here is the geometric reason behind the algebra. A complex eigenvalue means
+``rotate as you scale'' -- the action twists. But a symmetric matrix preserves the
+dot product structure in a way that leaves \emph{no room to twist}: it can only
+push out or pull in along fixed directions. Real eigenvalues are the algebraic
+fingerprint of ``stretch, never spin.''
+\end{intuitionbox}
+
+\section{Orthogonal Eigenvectors}
+\label{ch26:orthogonal-eigenvectors}
+
+The second gift of symmetry is the one we glimpsed in the picture:
+eigenvectors belonging to \emph{different} eigenvalues are automatically
+perpendicular. This is where the magic ``move $\mat{A}$ across the dot product''
+identity earns its keep.
+
+\begin{theorem}[Eigenvectors for distinct eigenvalues are orthogonal]
+\label{ch26:thm-orthogonal}
+Let $\mat{A}$ be real symmetric. If $\mat{A}\vec{x}=\lambda\vec{x}$ and
+$\mat{A}\vec{y}=\mu\vec{y}$ with $\lambda\neq\mu$, then $\inner{\vec{x}}{\vec{y}}=0$.
+\end{theorem}
+
+\begin{proof}
+Compute the single number $\inner{\mat{A}\vec{x}}{\vec{y}}$ two ways, sliding
+$\mat{A}$ across the dot product using symmetry.
+
+On one hand, $\mat{A}\vec{x}=\lambda\vec{x}$, so
+\[
+  \inner{\mat{A}\vec{x}}{\vec{y}} = \inner{\lambda\vec{x}}{\vec{y}} = \lambda\inner{\vec{x}}{\vec{y}}.
+\]
+On the other hand, by symmetry $\inner{\mat{A}\vec{x}}{\vec{y}}=\inner{\vec{x}}{\mat{A}\vec{y}}$,
+and $\mat{A}\vec{y}=\mu\vec{y}$, so
+\[
+  \inner{\mat{A}\vec{x}}{\vec{y}} = \inner{\vec{x}}{\mat{A}\vec{y}} = \inner{\vec{x}}{\mu\vec{y}} = \mu\inner{\vec{x}}{\vec{y}}.
+\]
+Subtracting, $(\lambda-\mu)\inner{\vec{x}}{\vec{y}} = 0$. Since $\lambda\neq\mu$,
+the factor $\lambda-\mu\neq 0$, so $\inner{\vec{x}}{\vec{y}}=0$.
+\end{proof}
+
+That is the entire argument: push $\mat{A}$ onto the eigenvector on the right, pull
+it onto the eigenvector on the left, and the two eigenvalues must disagree unless
+the vectors are perpendicular. Three lines, and the perpendicular axes of every
+ellipse in the chapter are explained.
+
+\begin{example}[Checking orthogonality numerically]
+\label{ch26:ex-ortho}
+Return to $\mat{A}=\begin{bmatrix}2&1\\1&2\end{bmatrix}$ with eigenvectors
+$\vec{x}=(1,1)$ for $\lambda=3$ and $\vec{y}=(1,-1)$ for $\mu=1$. Indeed
+$\inner{\vec{x}}{\vec{y}} = (1)(1)+(1)(-1) = 0$. Now a $3\times 3$ example: take
+\[
+  \mat{B} = \begin{bmatrix} 1 & 2 & 0 \\ 2 & 1 & 0 \\ 0 & 0 & 5 \end{bmatrix}.
+\]
+The bottom-right block already exposes the eigenvector $\vec{e}_3=(0,0,1)$ with
+$\lambda=5$. The top-left $2\times 2$ block is $\begin{bmatrix}1&2\\2&1\end{bmatrix}$,
+whose eigenvectors are $(1,1,0)$ (eigenvalue $3$) and $(1,-1,0)$ (eigenvalue
+$-1$). All three pairwise dot products vanish:
+\[
+  (1,1,0)\cdot(1,-1,0)=0,\quad (1,1,0)\cdot(0,0,1)=0,\quad (1,-1,0)\cdot(0,0,1)=0.
+\]
+Three mutually perpendicular stretching axes, exactly as promised.
+\end{example}
+
+\begin{trapbox}
+Theorem~\ref{ch26:thm-orthogonal} only guarantees orthogonality across
+\emph{distinct} eigenvalues. If an eigenvalue is repeated -- say a double
+eigenvalue with a whole \emph{plane} of eigenvectors -- two eigenvectors from that
+same plane need not start out perpendicular. The fix is easy and important: within
+a repeated eigenvalue's eigenspace you are free to \emph{choose} an orthonormal
+basis (Gram--Schmidt does it). So you can \emph{always} end up with a full
+orthonormal set; you just may have to pick wisely inside a shared eigenspace. The
+full spectral theorem in the next section asserts this can always be done.
+\end{trapbox}
+
+\section{The Spectral Theorem}
+\label{ch26:spectral-theorem}
+
+Now we collect the gifts. Real eigenvalues (Theorem~\ref{ch26:thm-real}) plus a
+full set of orthonormal eigenvectors give the cleanest factorization in linear
+algebra.
+
+\begin{formalbox}
+\begin{theorem}[Spectral Theorem for real symmetric matrices]
+\label{ch26:thm-spectral}
+Let $\mat{A}$ be a real $n\times n$ symmetric matrix. Then there is an
+\textbf{orthogonal} matrix $\mat{Q}$ (its columns form an orthonormal basis of
+$\R^n$, so $\mat{Q}\T\mat{Q}=\mat{I}$ and $\mat{Q}\inv=\mat{Q}\T$) and a
+\textbf{real diagonal} matrix $\mat{\Lambda}=\diag(\lambda_1,\dots,\lambda_n)$
+such that
+\[
+  \mat{A} = \mat{Q}\,\mat{\Lambda}\,\mat{Q}\T.
+\]
+The columns $\vec{q}_1,\dots,\vec{q}_n$ of $\mat{Q}$ are orthonormal eigenvectors
+of $\mat{A}$, and $\lambda_1,\dots,\lambda_n$ are the corresponding (real)
+eigenvalues. Equivalently, every real symmetric matrix is \textbf{orthogonally
+diagonalizable}.
+\end{theorem}
+\end{formalbox}
+
+The single most important structural change from ordinary diagonalization
+$\mat{A}=\mat{P}\mat{\Lambda}\mat{P}\inv$ is that $\mat{P}\inv$ has become
+$\mat{Q}\T$. The hard, expensive inverse turns into a free transpose, because the
+eigenvector basis is orthonormal. That one swap is what makes the spectral
+theorem so computationally and conceptually pleasant.
+
+\subsection{Reading the factorization as a sum of projections}
+\label{ch26:sum-of-projections}
+
+Multiply $\mat{Q}\mat{\Lambda}\mat{Q}\T$ out column-by-column and a gorgeous form
+appears. Writing $\mat{Q}=[\vec{q}_1\ \cdots\ \vec{q}_n]$, the product expands into
+\[
+  \mat{A} = \mat{Q}\,\mat{\Lambda}\,\mat{Q}\T
+  = \sum_{k=1}^{n} \lambda_k\,\vec{q}_k\vec{q}_k\T.
+\]
+Each term $\vec{q}_k\vec{q}_k\T$ is an $n\times n$ matrix of rank one -- it is the
+\textbf{projection} onto the line through $\vec{q}_k$ (recall the projection onto a
+unit vector $\vec{q}$ is $\vec{q}\vec{q}\T$). So the spectral theorem reads:
+
+\begin{focusbox}
+\[
+  \mat{A} = \lambda_1\,\vec{q}_1\vec{q}_1\T + \lambda_2\,\vec{q}_2\vec{q}_2\T + \cdots + \lambda_n\,\vec{q}_n\vec{q}_n\T.
+\]
+A symmetric matrix is a \textbf{weighted sum of perpendicular projections}. To
+apply $\mat{A}$ to a vector: project onto each principal axis, scale that piece by
+the axis's eigenvalue, and add the pieces back up. That is \emph{all} a symmetric
+matrix does.
+\end{focusbox}
+
+Figure~\ref{ch26:fig-projsum} makes this concrete for
+$\mat{A}=\begin{bmatrix}2&1\\1&2\end{bmatrix}$ acting on $\vec{x}=(1,0)$: split
+$\vec{x}$ into its components along the two perpendicular axes, scale each by its
+eigenvalue, and add the scaled pieces to land exactly on $\mat{A}\vec{x}=(2,1)$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.5,>=Stealth]
+  \draw[->,gray!55] (-0.4,0)--(2.4,0) node[right]{$x$};
+  \draw[->,gray!55] (0,-1.0)--(0,1.9) node[above]{$y$};
+  % faint principal-axis directions
+  \draw[gray!40,dashed] (-0.5,-0.5)--(1.9,1.9);
+  \draw[gray!40,dashed] (-0.7,0.7)--(0.9,-0.9);
+  \node[gray!60] at (1.85,1.6) {\small$\vec{q}_1$};
+  \node[gray!60] at (0.95,-0.78) {\small$\vec{q}_2$};
+  % input x=(1,0)
+  \draw[->,vecblue,very thick] (0,0)--(1,0) node[below right]{\small$\vec{x}=(1,0)$};
+  % components p1=(0.5,0.5), p2=(0.5,-0.5)
+  \draw[->,vecred,thick] (0,0)--(0.5,0.5) node[above left]{\small$\vec{p}_1$};
+  \draw[->,structurepurple,thick] (0,0)--(0.5,-0.5) node[below left]{\small$\vec{p}_2$};
+  % scaled: 3 p1 = (1.5,1.5), 1 p2 = (0.5,-0.5); chain them to Ax=(2,1)
+  \draw[->,vecred,thick,dotted] (0,0)--(1.5,1.5) node[above left]{\small$\lambda_1\vec{p}_1$};
+  \draw[->,structurepurple,thick,dotted] (1.5,1.5)--(2.0,1.0);
+  \draw[->,targetgreen,very thick] (0,0)--(2.0,1.0) node[right]{\small$\mat{A}\vec{x}=(2,1)$};
+\end{tikzpicture}
+\caption{The spectral decomposition in action on
+$\mat{A}=\protect\begin{bmatrix}2&1\\1&2\protect\end{bmatrix}$, $\vec{x}=(1,0)$.
+First split $\vec{x}$ into its perpendicular components
+$\vec{p}_1=\vec{q}_1\vec{q}_1\T\vec{x}=(\tfrac12,\tfrac12)$ along the strong axis
+and $\vec{p}_2=\vec{q}_2\vec{q}_2\T\vec{x}=(\tfrac12,-\tfrac12)$ along the weak
+axis (so $\vec{p}_1+\vec{p}_2=\vec{x}$). Then scale by the eigenvalues
+$\lambda_1=3$ and $\lambda_2=1$ and add: $3\vec{p}_1+1\vec{p}_2=(2,1)=\mat{A}\vec{x}$.
+``Project, scale, add'' is the whole machine.}
+\label{ch26:fig-projsum}
+\end{figure}
+
+This decomposition is called the \textbf{spectral decomposition}, and it is the
+direct ancestor of the singular value decomposition. When you later drop the
+smallest $|\lambda_k|$ terms to compress a matrix, you are doing the linear algebra
+behind PCA and low-rank approximation.
+
+\subsection{The geometry: rotate, stretch, rotate back}
+\label{ch26:rotate-stretch}
+
+Read $\mat{A}\vec{x} = \mat{Q}\mat{\Lambda}\mat{Q}\T\vec{x}$ right-to-left as three
+moves, just as you read ordinary diagonalization -- but now the first and last
+moves are rigid.
+
+\begin{enumerate}
+  \item $\mat{Q}\T\vec{x}$: \textbf{rotate} (or reflect) space so the principal
+        axes line up with the coordinate axes. This step measures how much of
+        $\vec{x}$ points along each $\vec{q}_k$; its $k$-th entry is
+        $\inner{\vec{q}_k}{\vec{x}}$. Because $\mat{Q}$ is orthogonal, lengths and
+        angles are perfectly preserved -- nothing is distorted yet.
+  \item $\mat{\Lambda}(\cdots)$: \textbf{stretch} each coordinate axis by its
+        eigenvalue $\lambda_k$ (a negative $\lambda_k$ flips that axis).
+  \item $\mat{Q}(\cdots)$: \textbf{rotate back} to the original orientation.
+\end{enumerate}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.78,>=Stealth]
+  % stage 1: tilted axes with a unit circle
+  \begin{scope}[shift={(0,0)}]
+    \draw[gray!35] (-1.5,-1.5) grid[step=0.5] (1.5,1.5);
+    \draw[vecblue,thick] (0,0) circle (1);
+    \draw[->,vecred,thick,rotate=30] (0,0)--(1.2,0);
+    \draw[->,structurepurple,thick,rotate=30] (0,0)--(0,1.2);
+    \node at (0,-2.1) {\small original axes $\vec{q}_k$};
+  \end{scope}
+  \node at (3.0,0) {\small$\xrightarrow{\;\mat{Q}\T\;}$};
+  % stage 2: aligned axes, still a circle
+  \begin{scope}[shift={(6.0,0)}]
+    \draw[gray!35] (-1.5,-1.5) grid[step=0.5] (1.5,1.5);
+    \draw[vecblue,thick] (0,0) circle (1);
+    \draw[->,vecred,thick] (0,0)--(1.2,0);
+    \draw[->,structurepurple,thick] (0,0)--(0,1.2);
+    \node at (0,-2.1) {\small axes aligned};
+  \end{scope}
+  \node at (9.0,0) {\small$\xrightarrow{\;\mat{\Lambda}\;}$};
+  % stage 3: stretched ellipse, axis-aligned
+  \begin{scope}[shift={(12.4,0)}]
+    \draw[gray!35] (-1.5,-1.5) grid[step=0.5] (2.3,1.5);
+    \draw[targetgreen,thick] (0,0) ellipse (1.8 and 0.7);
+    \draw[->,vecred,thick] (0,0)--(2.0,0);
+    \draw[->,structurepurple,thick] (0,0)--(0,0.85);
+    \node at (0.3,-2.1) {\small stretched};
+  \end{scope}
+\end{tikzpicture}
+\caption{The action $\mat{A}=\mat{Q}\mat{\Lambda}\mat{Q}\T$ read right to left.
+$\mat{Q}\T$ rigidly rotates the principal axes onto the coordinate axes (lengths
+unchanged), $\mat{\Lambda}$ stretches each coordinate axis by its eigenvalue, and a
+final $\mat{Q}$ rotates back. A symmetric matrix is ``rotate, stretch, rotate
+back'' -- with the \emph{same} rotation undone at the end.}
+\label{ch26:fig-rotate-stretch}
+\end{figure}
+
+\begin{strangbox}
+Strang calls this $\mat{A} = \mat{Q}\mat{\Lambda}\mat{Q}\T$ and sometimes
+``$\mat{S} = \mat{Q}\mat{\Lambda}\mat{Q}\T$,'' reserving $\mat{S}$ for symmetric
+matrices. He summarizes it in three words: \emph{real eigenvalues, orthogonal
+eigenvectors}. \textbf{Before} Strang, the payoff to hold onto is the picture in
+Figure~\ref{ch26:fig-rotate-stretch}: symmetric means perpendicular stretching
+axes. \textbf{After} Strang, notice that the SVD ($\mat{A}=\mat{U}\mat{\Sigma}\mat{V}\T$)
+is the same idea generalized to \emph{rectangular} matrices, where the input
+rotation $\mat{V}$ and the output rotation $\mat{U}$ are allowed to differ. The
+spectral theorem is the SVD's symmetric special case, with $\mat{U}=\mat{V}=\mat{Q}$
+and $\mat{\Sigma}=|\mat{\Lambda}|$.
+\end{strangbox}
+
+\subsection{Why it is true: a proof sketch}
+\label{ch26:proof-sketch}
+
+We have already proved the two pillars: eigenvalues are real
+(Theorem~\ref{ch26:thm-real}) and eigenvectors for distinct eigenvalues are
+orthogonal (Theorem~\ref{ch26:thm-orthogonal}). The only gap is \emph{repeated}
+eigenvalues -- we must be sure there are always enough orthonormal eigenvectors to
+fill an entire orthonormal basis, even when an eigenvalue repeats. Here is the
+honest idea, by induction on the size $n$, often called \emph{deflation}.
+
+\begin{proof}[Proof sketch]
+The case $n=1$ is trivial ($\mat{A}$ is a single real number). Suppose the theorem
+holds for all symmetric matrices of size $n-1$. Given a symmetric $n\times n$
+matrix $\mat{A}$, a real eigenvalue $\lambda_1$ exists (the characteristic
+polynomial has a real root, by Theorem~\ref{ch26:thm-real}), with a \emph{unit}
+eigenvector $\vec{q}_1$: $\mat{A}\vec{q}_1=\lambda_1\vec{q}_1$.
+
+Now look at the \textbf{orthogonal complement} $W = \vec{q}_1^{\perp}$, the
+$(n-1)$-dimensional subspace of all vectors perpendicular to $\vec{q}_1$. The key
+claim is that $\mat{A}$ \emph{maps $W$ into itself}. To check it, take any
+$\vec{w}\in W$, so $\inner{\vec{q}_1}{\vec{w}}=0$, and test whether $\mat{A}\vec{w}$
+is still perpendicular to $\vec{q}_1$:
+\[
+  \inner{\vec{q}_1}{\mat{A}\vec{w}}
+  = \inner{\mat{A}\vec{q}_1}{\vec{w}}
+  = \inner{\lambda_1\vec{q}_1}{\vec{w}}
+  = \lambda_1\inner{\vec{q}_1}{\vec{w}} = 0.
+\]
+(We slid $\mat{A}$ across the dot product using symmetry -- the same move again.)
+So $\mat{A}\vec{w}\in W$. Restricting $\mat{A}$ to the $(n-1)$-dimensional space
+$W$ gives a smaller symmetric operator, which by the induction hypothesis has an
+orthonormal eigenbasis $\vec{q}_2,\dots,\vec{q}_n$ of $W$. Together with
+$\vec{q}_1$, these form an orthonormal eigenbasis of all of $\R^n$. Stacking them
+as columns of $\mat{Q}$ gives $\mat{A}\mat{Q}=\mat{Q}\mat{\Lambda}$, i.e.
+$\mat{A}=\mat{Q}\mat{\Lambda}\mat{Q}\T$.
+\end{proof}
+
+The engine of the whole proof is ``peel off one eigenvector, and symmetry
+guarantees the rest of the matrix still lives cleanly in the perpendicular
+subspace.'' Symmetry is exactly what makes the orthogonal complement
+\emph{invariant}, and that is what lets the induction go through even with repeated
+eigenvalues.
+
+\begin{aestheticbox}
+The spectral theorem is arguably the most consequential single theorem an applied
+mathematician owns. It says: \emph{the messy world of pairwise relationships --
+covariances, energies, distances, couplings -- is secretly a set of independent,
+perpendicular, one-dimensional stories.} Diagonalizing peels apart the coupling
+and reveals the true axes along which a system behaves simply. Vibrating
+structures have normal modes; data clouds have principal components; quantum
+states have energy levels. They are the same theorem wearing different clothes.
+\end{aestheticbox}
+
+\section{Computing the Spectral Decomposition by Hand}
+\label{ch26:computing}
+
+Let us run the full procedure on a concrete matrix so the abstract $\mat{Q}$,
+$\mat{\Lambda}$ become numbers you can hold.
+
+\begin{example}[Full spectral decomposition of a $2\times2$ matrix]
+\label{ch26:ex-full-2x2}
+Take
+\[
+  \mat{A} = \begin{bmatrix} 4 & 2 \\ 2 & 1 \end{bmatrix}.
+\]
+
+\textbf{Step 1: eigenvalues.} Solve $\det(\mat{A}-\lambda\mat{I})=0$:
+\[
+  \det\begin{bmatrix} 4-\lambda & 2 \\ 2 & 1-\lambda \end{bmatrix}
+  = (4-\lambda)(1-\lambda) - 4
+  = \lambda^2 - 5\lambda + 0 = \lambda(\lambda - 5).
+\]
+So $\lambda_1 = 5$ and $\lambda_2 = 0$. Both real, as promised. (A zero
+eigenvalue just means $\mat{A}$ flattens one direction -- it is singular.)
+
+\textbf{Step 2: eigenvectors.} For $\lambda_1 = 5$, solve $(\mat{A}-5\mat{I})\vec{x}=\vec{0}$:
+\[
+  \begin{bmatrix} -1 & 2 \\ 2 & -4 \end{bmatrix}\vec{x}=\vec{0}
+  \;\Rightarrow\; -x_1 + 2x_2 = 0 \;\Rightarrow\; \vec{x}=\colvec{2\\1}.
+\]
+For $\lambda_2 = 0$, solve $\mat{A}\vec{y}=\vec{0}$:
+\[
+  \begin{bmatrix} 4 & 2 \\ 2 & 1 \end{bmatrix}\vec{y}=\vec{0}
+  \;\Rightarrow\; 2y_1 + y_2 = 0 \;\Rightarrow\; \vec{y}=\colvec{1\\-2}.
+\]
+Check orthogonality: $(2,1)\cdot(1,-2) = 2 - 2 = 0$. Perpendicular, as
+Theorem~\ref{ch26:thm-orthogonal} guarantees.
+
+\textbf{Step 3: normalize.} Both eigenvectors have length $\sqrt{5}$, so
+\[
+  \vec{q}_1 = \frac{1}{\sqrt5}\colvec{2\\1},\qquad
+  \vec{q}_2 = \frac{1}{\sqrt5}\colvec{1\\-2}.
+\]
+
+\textbf{Step 4: assemble.}
+\[
+  \mat{Q} = \frac{1}{\sqrt5}\begin{bmatrix} 2 & 1 \\ 1 & -2 \end{bmatrix},
+  \qquad
+  \mat{\Lambda} = \begin{bmatrix} 5 & 0 \\ 0 & 0 \end{bmatrix}.
+\]
+Verify $\mat{Q}\T\mat{Q}=\mat{I}$:
+$\frac15\begin{bmatrix}2&1\\1&-2\end{bmatrix}\begin{bmatrix}2&1\\1&-2\end{bmatrix}
+=\frac15\begin{bmatrix}5&0\\0&5\end{bmatrix}=\mat{I}$. Good -- $\mat{Q}$ is
+orthogonal.
+
+\textbf{Step 5: spectral form.} As a sum of projections,
+\[
+  \mat{A} = 5\,\vec{q}_1\vec{q}_1\T + 0\,\vec{q}_2\vec{q}_2\T
+  = 5\cdot\frac15\begin{bmatrix}2\\1\end{bmatrix}\begin{bmatrix}2&1\end{bmatrix}
+  = \begin{bmatrix}4&2\\2&1\end{bmatrix}.
+\]
+The whole matrix is recovered from a \emph{single} rank-one projection scaled by
+$5$, because the other eigenvalue is $0$. That last picture -- a symmetric matrix
+as a stack of scaled projections -- is the one to remember.
+\end{example}
+
+\begin{labbox}
+Diagonalize $\mat{A}=\begin{bmatrix}3&1\\1&3\end{bmatrix}$ by hand, following the
+five steps above. You should find $\lambda = 4$ and $\lambda = 2$, eigenvectors
+$(1,1)$ and $(1,-1)$, and
+\[
+  \mat{Q}=\frac{1}{\sqrt2}\begin{bmatrix}1&1\\1&-1\end{bmatrix},\quad
+  \mat{\Lambda}=\begin{bmatrix}4&0\\0&2\end{bmatrix}.
+\]
+Then \emph{verify} by multiplying $\mat{Q}\mat{\Lambda}\mat{Q}\T$ back out and
+confirming you recover $\mat{A}$. Finally, write $\mat{A}$ as
+$4\,\vec{q}_1\vec{q}_1\T + 2\,\vec{q}_2\vec{q}_2\T$ and check that too. Feeling the
+transpose do the work of an inverse is the whole point.
+\end{labbox}
+
+\section{The Spectral Theorem and Quadratic Forms}
+\label{ch26:quadratic-forms}
+
+Symmetric matrices are the natural language of \textbf{quadratic forms} --
+expressions like $3x^2 + 4xy + 3y^2$ that are degree-two in the variables. Every
+such form can be written as $q(\vec{x}) = \vec{x}\T\mat{A}\vec{x}$ for a unique
+symmetric $\mat{A}$. For instance
+\[
+  3x^2 + 4xy + 3y^2
+  = \begin{bmatrix}x&y\end{bmatrix}\begin{bmatrix}3&2\\2&3\end{bmatrix}\colvec{x\\y}.
+\]
+The off-diagonal $2$'s are each \emph{half} the cross-term coefficient $4$, split
+evenly so the matrix comes out symmetric. (That even split is exactly why
+quadratic forms force symmetry on us.)
+
+The spectral theorem tells you what such a form ``really'' looks like. Substitute
+$\mat{A}=\mat{Q}\mat{\Lambda}\mat{Q}\T$ and change to the rotated coordinates
+$\vec{y}=\mat{Q}\T\vec{x}$:
+\[
+  q(\vec{x}) = \vec{x}\T\mat{Q}\mat{\Lambda}\mat{Q}\T\vec{x}
+  = (\mat{Q}\T\vec{x})\T\mat{\Lambda}(\mat{Q}\T\vec{x})
+  = \vec{y}\T\mat{\Lambda}\vec{y}
+  = \lambda_1 y_1^2 + \lambda_2 y_2^2 + \cdots + \lambda_n y_n^2.
+\]
+In the right coordinates -- the principal axes -- the cross terms vanish entirely
+and the form is a plain weighted sum of squares. The eigenvalues are the weights.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  \draw[->,gray!55] (-2.6,0)--(2.6,0) node[right]{$x$};
+  \draw[->,gray!55] (0,-2.6)--(0,2.6) node[above]{$y$};
+  % level set of 3x^2+4xy+3y^2 = 1 : tilted ellipse, rotated 45deg.
+  % Semi-axis along q1=(1,1) is 1/sqrt(lambda1)=1/sqrt5~0.447 (SHORT, large eigenvalue);
+  % semi-axis along q2=(1,-1) is 1/sqrt(lambda2)=1 (LONG). With rotate=45 the first
+  % radius sits along (1,1), the second along (1,-1), so order is (0.447 and 1).
+  \draw[targetgreen,thick,rotate=45] (0,0) ellipse (0.447 and 1);
+  % principal axes: draw them to the ellipse boundary so the large eigenvalue (lambda=5)
+  % visibly gives the SHORT semi-axis along q1 and lambda=1 gives the LONG one along q2.
+  \draw[->,vecred,thick] (0,0)--(0.316,0.316) node[above right]{\small$\vec{q}_1\ (\lambda=5)$};
+  \draw[->,structurepurple,thick] (0,0)--(0.707,-0.707) node[below right]{\small$\vec{q}_2\ (\lambda=1)$};
+  \node[targetgreen] at (-1.7,1.7) {\small$q(\vec{x})=1$};
+\end{tikzpicture}
+\caption{The level set $3x^2+4xy+3y^2=1$ of a quadratic form is an ellipse whose
+axes are the eigenvectors of $\protect\begin{bmatrix}3&2\\2&3\protect\end{bmatrix}$
+(here $\lambda_1=5$ along $(1,1)$, $\lambda_2=1$ along $(1,-1)$). A \emph{larger}
+eigenvalue makes the form grow faster, so the ellipse is \emph{shorter} along that
+axis (semi-axis length $1/\sqrt{\lambda}$).}
+\label{ch26:fig-quadform}
+\end{figure}
+
+This is the bridge to the next chapter on \emph{positive definite} matrices: the
+form $q(\vec{x})$ is positive for every nonzero $\vec{x}$ exactly when all the
+eigenvalues $\lambda_k$ are positive -- because in principal coordinates it is a
+sum of positive multiples of squares. Symmetry plus positive eigenvalues is the
+algebra of bowls that curve upward in every direction, which is the geometry of a
+unique minimum, which is why optimization cares so much.
+
+\begin{connectionbox}
+\textbf{Calculus and the second derivative test.} Near a critical point, a smooth
+function of several variables is approximated by a quadratic form whose matrix is
+the symmetric \emph{Hessian} $H$ of second partials. The spectral theorem
+diagonalizes $H$ into independent parabolas along its principal axes. The critical
+point is a \emph{minimum} when all eigenvalues of $H$ are positive (a bowl), a
+\emph{maximum} when all are negative (a dome), and a \emph{saddle} when the signs
+disagree -- up along one principal axis, down along a perpendicular one. The
+familiar single-variable second-derivative test ($f''>0$ means minimum) is just
+the $1\times 1$ case, and the multivariable test is the spectral theorem in
+disguise.
+\end{connectionbox}
+
+\section{Why Symmetry Is Everywhere: A Modern Application}
+\label{ch26:application}
+
+\begin{applicationbox}
+\textbf{Principal Component Analysis (PCA).} Suppose you have a cloud of data --
+say $n$ samples, each a point in $\R^d$ (pixels of a face, genes of a cell,
+features of a customer). Center it so the mean is at the origin and stack the
+samples as rows of a matrix $\mat{X}$. The \textbf{covariance matrix}
+\[
+  \mat{C} = \frac{1}{n-1}\,\mat{X}\T\mat{X}
+\]
+is symmetric (it is a Gram matrix, Section~\ref{ch26:where-from}), so the spectral
+theorem applies: $\mat{C} = \mat{Q}\mat{\Lambda}\mat{Q}\T$ with real eigenvalues
+$\lambda_1 \ge \lambda_2 \ge \cdots \ge 0$ and orthonormal eigenvectors
+$\vec{q}_k$.
+
+Those eigenvectors are the \textbf{principal components}, the perpendicular
+directions along which the data varies. The eigenvalue $\lambda_k$ is the
+\emph{variance} of the data along direction $\vec{q}_k$. The largest eigenvalue
+points along the direction of greatest spread -- the long axis of the data
+ellipsoid in Figure~\ref{ch26:fig-ellipse}, now drawn by real measurements rather
+than a chosen matrix.
+
+\emph{The payoff:} keep only the top few $\vec{q}_k$ (largest variances) and you
+have compressed high-dimensional data onto a few perpendicular axes while losing
+the least information possible. Eigenfaces, topic models, the ``elbow plot'' of
+explained variance, dimensionality reduction before a neural net -- all of it is
+this single computation: \emph{diagonalize a symmetric covariance matrix and read
+its principal axes.} The reason PCA's directions come out conveniently
+perpendicular and its variances come out conveniently real is precisely the
+spectral theorem.
+\end{applicationbox}
+
+\begin{remark}[Symmetric is not just a convenience]
+\label{ch26:rem-not-convenience}
+It is tempting to think symmetry is a tidy assumption we make to get nice theorems.
+The deeper truth is the reverse: the quantities we most want to measure -- energy,
+variance, distance, mutual influence -- are \emph{intrinsically} symmetric,
+because they describe an unordered relationship between two parties. Nature hands
+us symmetric matrices; the spectral theorem is how we read them.
+\end{remark}
+
+\section{A Gallery of Symmetric Behaviors}
+\label{ch26:gallery}
+
+A few small worked cases to anchor the range of what symmetric matrices do.
+
+\begin{example}[Diagonal matrices: the trivial spectral case]
+\label{ch26:ex-diagonal}
+A diagonal matrix $\mat{D}=\diag(d_1,\dots,d_n)$ is already symmetric and already
+diagonalized: $\mat{Q}=\mat{I}$, $\mat{\Lambda}=\mat{D}$. Its principal axes are
+the standard coordinate axes, and it stretches axis $k$ by $d_k$. Every symmetric
+matrix is just a diagonal matrix viewed in a rotated coordinate system. This is
+the entire content of the spectral theorem in one sentence.
+\end{example}
+
+\begin{example}[A reflection is symmetric]
+\label{ch26:ex-reflection}
+The reflection across the line $y=x$ is
+\[
+  \mat{R} = \begin{bmatrix} 0 & 1 \\ 1 & 0 \end{bmatrix},\qquad \mat{R}\T=\mat{R}.
+\]
+It is symmetric, so it has perpendicular eigenvectors with real eigenvalues. Along
+the mirror line $(1,1)$ nothing moves: $\mat{R}(1,1)=(1,1)$, eigenvalue $+1$.
+Perpendicular to the mirror, $(1,-1)$ flips: $\mat{R}(1,-1)=(-1,1)=-(1,-1)$,
+eigenvalue $-1$. So $\mat{\Lambda}=\diag(1,-1)$. The \emph{negative} eigenvalue is
+the algebra of ``this axis got flipped.'' Note a \emph{rotation} (other than by
+$0$ or $\pi$) is \emph{not} symmetric -- consistent with its complex eigenvalues
+and its lack of any real stretching axis.
+\end{example}
+
+\begin{example}[Trace and determinant as quick checks]
+\label{ch26:ex-trace-det}
+Two sanity checks cost nothing. The sum of eigenvalues equals the trace, and the
+product equals the determinant. For $\mat{A}=\begin{bmatrix}4&2\\2&1\end{bmatrix}$
+from Example~\ref{ch26:ex-full-2x2}: $\tr\mat{A}=4+1=5=\lambda_1+\lambda_2=5+0$,
+and $\det\mat{A}=4-4=0=\lambda_1\lambda_2=5\cdot 0$. Both check out. For a
+$2\times 2$ symmetric matrix this lets you read off the eigenvalues almost by
+inspection: they are the two numbers summing to the trace and multiplying to the
+determinant.
+\end{example}
+
+\begin{trapbox}
+A real matrix with real eigenvalues is \emph{not} necessarily symmetric. The shear
+$\begin{bmatrix}1&1\\0&1\end{bmatrix}$ has the real (repeated) eigenvalue $1$ but
+is not symmetric and is not even diagonalizable -- it has only a one-dimensional
+line of eigenvectors. Symmetry is a much stronger condition than ``real
+eigenvalues.'' What symmetry buys you on top of real eigenvalues is the
+\emph{orthonormal basis} of eigenvectors. Do not confuse the two.
+\end{trapbox}
+
+\section{Summary}
+\label{ch26:summary}
+
+A symmetric matrix $\mat{A}=\mat{A}\T$ is, geometrically, nothing but a stretch
+along a set of perpendicular axes. The dot-product identity
+$\inner{\mat{A}\vec{x}}{\vec{y}}=\inner{\vec{x}}{\mat{A}\vec{y}}$ is the engine
+that makes everything work:
+
+\begin{itemize}
+  \item \textbf{Real eigenvalues.} No twisting; only stretching
+        (Theorem~\ref{ch26:thm-real}).
+  \item \textbf{Orthogonal eigenvectors.} Distinct eigenvalues force perpendicular
+        directions, and repeated ones can always be chosen perpendicular
+        (Theorem~\ref{ch26:thm-orthogonal}).
+  \item \textbf{Spectral theorem.} $\mat{A}=\mat{Q}\mat{\Lambda}\mat{Q}\T$ with
+        $\mat{Q}$ orthogonal and $\mat{\Lambda}$ real diagonal
+        (Theorem~\ref{ch26:thm-spectral}); equivalently
+        $\mat{A}=\sum_k \lambda_k\,\vec{q}_k\vec{q}_k\T$, a weighted sum of
+        perpendicular projections.
+  \item \textbf{Geometry.} Rotate the principal axes onto the coordinate axes,
+        stretch by the eigenvalues, rotate back -- with the inverse rotation
+        delivered for free by a transpose.
+  \item \textbf{Cost.} The orthonormal basis is the bargain: $\mat{Q}\inv=\mat{Q}\T$
+        costs nothing, so applying $\mat{A}$ or any function of it
+        ($\mat{A}^k$, $\sqrt{\mat{A}}$, $\mat{A}\inv$) is just ``transpose, scale
+        the eigenvalues, transpose back'' -- no general inverse to compute, and the
+        rigid steps never amplify rounding error.
+  \item \textbf{Why it matters.} Covariances, Hessians, Gram matrices, distances,
+        and undirected networks are all symmetric, so PCA, the second-derivative
+        test, least squares, and the SVD all stand on this theorem.
+\end{itemize}
+
+Next we specialize one notch further: when all the eigenvalues are \emph{positive},
+the matrix is \textbf{positive definite}, the quadratic form is a bowl, and a new
+layer of structure -- Cholesky, energy, unique minima -- comes into view.
+
+\section{Exercises}
+\label{ch26:exercises}
+
+\begin{exercise}[Warmup: spot the symmetric ones]
+\label{ch26:ex-spot}
+Which of these are symmetric? For each symmetric one, state without computing what
+its principal axes will be (perpendicular, real eigenvalues) and whether you can
+predict any eigenvalue by inspection.
+\[
+  \begin{bmatrix}1&3\\3&1\end{bmatrix},\quad
+  \begin{bmatrix}1&3\\-3&1\end{bmatrix},\quad
+  \begin{bmatrix}2&0&0\\0&5&0\\0&0&5\end{bmatrix},\quad
+  \begin{bmatrix}0&1\\1&0\end{bmatrix}.
+\]
+\end{exercise}
+
+\begin{exercise}[Full decomposition by hand]
+\label{ch26:ex-byhand}
+Find the eigenvalues, orthonormal eigenvectors, $\mat{Q}$, and $\mat{\Lambda}$ for
+$\mat{A}=\begin{bmatrix}5&-2\\-2&5\end{bmatrix}$. Verify $\mat{Q}\T\mat{Q}=\mat{I}$
+and that $\mat{Q}\mat{\Lambda}\mat{Q}\T$ reproduces $\mat{A}$. Then write $\mat{A}$
+as a sum $\lambda_1\vec{q}_1\vec{q}_1\T + \lambda_2\vec{q}_2\vec{q}_2\T$.
+\end{exercise}
+
+\begin{exercise}[Gram matrices are always symmetric]
+\label{ch26:ex-gram}
+Let $\mat{M}$ be any (possibly rectangular) real matrix. Prove
+$\mat{M}\T\mat{M}$ is symmetric using only transpose rules. Then compute it for
+$\mat{M}=\begin{bmatrix}1&2\\0&1\\1&0\end{bmatrix}$ and confirm the result is
+symmetric.
+\end{exercise}
+
+\begin{exercise}[The orthogonality proof, in your own hand]
+\label{ch26:ex-ortho-proof}
+Let $\mat{A}$ be symmetric with $\mat{A}\vec{x}=\lambda\vec{x}$ and
+$\mat{A}\vec{y}=\mu\vec{y}$. Starting from the single quantity
+$\inner{\mat{A}\vec{x}}{\vec{y}}$, derive $(\lambda-\mu)\inner{\vec{x}}{\vec{y}}=0$
+and explain in one sentence why $\lambda\neq\mu$ forces orthogonality. Where
+exactly did you use $\mat{A}\T=\mat{A}$?
+\end{exercise}
+
+\begin{exercise}[Quadratic form to matrix and back]
+\label{ch26:ex-quadform}
+Write $q(x,y)=2x^2 - 6xy + 2y^2$ as $\vec{x}\T\mat{A}\vec{x}$ with $\mat{A}$
+symmetric. Diagonalize $\mat{A}$, find its principal axes, and describe the level
+set $q(\vec{x})=1$ (ellipse? hyperbola?). What about the signs of the eigenvalues
+makes it one or the other?
+\end{exercise}
+
+\begin{exercise}[Trace and determinant shortcut]
+\label{ch26:ex-trace}
+A symmetric $2\times 2$ matrix has trace $6$ and determinant $5$. Without finding
+the matrix, give its eigenvalues. Are its eigenvectors guaranteed perpendicular?
+Why?
+\end{exercise}
+
+\begin{exercise}[Reflections and signs]
+\label{ch26:ex-reflection-ex}
+The matrix $\mat{R}=\frac{1}{5}\begin{bmatrix}3&4\\4&-3\end{bmatrix}$ is symmetric.
+Show $\mat{R}\T\mat{R}=\mat{I}$ (so $\mat{R}$ is also orthogonal). Find its
+eigenvalues -- you should get $+1$ and $-1$ -- and interpret $\mat{R}$ geometrically
+as a reflection. Along which line does the $+1$ eigenvector point?
+\end{exercise}
+
+\begin{exercise}[Functions of a symmetric matrix]
+\label{ch26:ex-function}
+Using $\mat{A}=\mat{Q}\mat{\Lambda}\mat{Q}\T$, explain why
+$\mat{A}^k=\mat{Q}\mat{\Lambda}^k\mat{Q}\T$, and why one may sensibly define
+$\sqrt{\mat{A}}=\mat{Q}\sqrt{\mat{\Lambda}}\,\mat{Q}\T$ (taking square roots of the
+eigenvalues) when all $\lambda_k\ge 0$. Compute $\sqrt{\mat{A}}$ for
+$\mat{A}=\begin{bmatrix}2&1\\1&2\end{bmatrix}$ (eigenvalues $3$ and $1$). What goes
+wrong if some eigenvalue is negative?
+\end{exercise}
+
+\begin{exercise}[The invariance step, made concrete]
+\label{ch26:ex-invariance}
+The proof sketch hinged on: if $\vec{q}_1$ is an eigenvector of symmetric
+$\mat{A}$ and $\vec{w}\perp\vec{q}_1$, then $\mat{A}\vec{w}\perp\vec{q}_1$ too.
+Verify this concretely for $\mat{A}=\begin{bmatrix}2&1\\1&2\end{bmatrix}$,
+$\vec{q}_1=(1,1)$, and $\vec{w}=(1,-1)$: check $\vec{w}\perp\vec{q}_1$, compute
+$\mat{A}\vec{w}$, and confirm it is still perpendicular to $\vec{q}_1$.
+\end{exercise}
+
+\begin{exercise}[Challenge: a symmetric matrix from a rotation]
+\label{ch26:ex-challenge}
+Let $\mat{B}=\begin{bmatrix}\cos\theta&-\sin\theta\\\sin\theta&\cos\theta\end{bmatrix}$
+be a rotation. It is \emph{not} symmetric (for generic $\theta$). But
+$\mat{B}\T\mat{B}$ is symmetric -- compute it and identify the result. What are its
+eigenvalues, and what does that say about how a rotation stretches lengths?
+Connect your answer to the fact that rotations are rigid motions.
+\end{exercise}
+
+\begin{exercise}[Challenge: spectral theorem fails without symmetry]
+\label{ch26:ex-fail}
+Give a $2\times 2$ real matrix that has two real eigenvalues but whose
+eigenvectors are \emph{not} perpendicular, demonstrating that orthogonality is a
+genuine consequence of symmetry and not of real eigenvalues alone. (Hint: try an
+upper-triangular matrix with distinct diagonal entries.) Then give a $2\times 2$
+real matrix with \emph{no} real eigenvalues at all, and explain why it cannot be
+symmetric.
+\end{exercise}

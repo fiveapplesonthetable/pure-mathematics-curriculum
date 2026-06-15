@@ -1,0 +1,895 @@
+\chapter{Rank and the Fundamental Theorem of Linear Algebra}
+
+There is a number hiding inside every matrix that tells you, in a single integer,
+how much that matrix really \emph{does}. A matrix can be enormous on the page --
+a thousand rows, a thousand columns, a million numbers -- and yet collapse all of
+space onto a single line. Or it can be small and fill every dimension it touches.
+The page size is a lie about the matrix's true power. The honest measure is
+called the \textbf{rank}, and this chapter is about what it means, why it is the
+same number whether you count it by rows or by columns, and how it organizes the
+four fundamental subspaces into two perfectly perpendicular pairs.
+
+By the end you will be able to look at a matrix and see it as a sum of the
+simplest matrices that exist -- rank-one pieces, each one a single outer product
+-- and that picture is the doorway to the singular value decomposition, the
+crown jewel of the whole subject. We are building that doorway here.
+
+\chapterline
+
+\section{Rank is the true size of a matrix}
+
+Let us start, as always, with a picture and a small machine. Take the matrix
+\[
+  \mat{A} = \begin{bmatrix} 1 & 2 \\ 2 & 4 \end{bmatrix}.
+\]
+It is a $2\times 2$ matrix, so on the page it looks two-dimensional, full,
+respectable. But watch what it does to vectors. Feed it $\colvec{1 \\ 0}$ and you
+get $\colvec{1 \\ 2}$. Feed it $\colvec{0 \\ 1}$ and you get $\colvec{2 \\ 4}$.
+Both outputs sit on the same line through the origin -- the line in the direction
+$\colvec{1 \\ 2}$, because $\colvec{2 \\ 4} = 2\colvec{1 \\ 2}$. In fact
+\emph{every} input comes out on that one line:
+\[
+  \mat{A}\colvec{x \\ y} = \colvec{x + 2y \\ 2x + 4y} = (x + 2y)\colvec{1 \\ 2}.
+\]
+The whole plane gets squashed onto a single line. This matrix is, in the only
+sense that matters, a one-dimensional machine wearing a two-dimensional costume.
+
+\begin{intuitionbox}
+The \textbf{rank} of a matrix is the dimension of the space its outputs fill --
+the dimension of the column space. It is the number of independent directions
+the matrix can actually reach. A $1000 \times 1000$ matrix whose output always
+lands on a single line has rank $1$. The size on the page counts \emph{slots};
+the rank counts \emph{reach}.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % left: input plane with grid
+  \begin{scope}[shift={(-3.6,0)}]
+    \draw[help lines,gray!40] (-1.6,-1.6) grid (1.6,1.6);
+    \draw[->,gray] (-1.8,0)--(1.8,0);
+    \draw[->,gray] (0,-1.8)--(0,1.8);
+    \draw[->,vecblue,very thick] (0,0)--(1,0) node[below right]{$\vec{e}_1$};
+    \draw[->,vecred,very thick] (0,0)--(0,1) node[above left]{$\vec{e}_2$};
+    \node at (0,-2.2) {\small input plane $\R^2$};
+  \end{scope}
+  % arrow
+  \draw[->,thick] (-1.5,0)--(-0.3,0) node[midway,above]{$\mat{A}$};
+  % right: collapsed onto a line
+  \begin{scope}[shift={(2.4,0)}]
+    \draw[->,gray] (-1.8,0)--(1.8,0);
+    \draw[->,gray] (0,-1.8)--(0,1.8);
+    \draw[structurepurple,very thick,dashed] (-0.9,-1.8)--(0.9,1.8);
+    \draw[->,vecblue,very thick] (0,0)--(0.6,1.2) node[right]{$\mat{A}\vec{e}_1$};
+    \draw[->,vecred,very thick] (0,0)--(1.0,2.0) ;
+    \node[structurepurple] at (1.55,-1.5) {\small $\col(\mat{A})$};
+    \node at (0,-2.2) {\small output: one line};
+  \end{scope}
+\end{tikzpicture}
+\caption{The matrix $\protect\mat{A}=\protect\begin{bmatrix}1&2\\2&4\protect\end{bmatrix}$ takes the full
+two-dimensional input plane and crushes it onto a single line. Its rank is $1$.}
+\label{ch16:collapse}
+\end{figure}
+
+Compare this with
+\[
+  \mat{B} = \begin{bmatrix} 1 & 2 \\ 2 & 5 \end{bmatrix}.
+\]
+One number changed -- the bottom-right went from $4$ to $5$ -- and the machine
+woke up. Now $\mat{B}\colvec{1\\0} = \colvec{1\\2}$ and $\mat{B}\colvec{0\\1} =
+\colvec{2\\5}$, and those two outputs do \emph{not} lie on a common line:
+$\colvec{2\\5}$ is not a multiple of $\colvec{1\\2}$. The two columns point in
+genuinely different directions, so together they span all of $\R^2$. The rank is
+$2$. The matrix fills the plane. That single changed entry was the difference
+between a machine that reaches everywhere and one that reaches almost nowhere.
+
+\begin{focusbox}
+Three equivalent ways to say what rank is. Hold all three; they are the same
+fact seen from three sides.
+\begin{itemize}
+  \item \textbf{Column rank:} the number of linearly independent columns, i.e.
+        $\dimn \col(\mat{A})$.
+  \item \textbf{Row rank:} the number of linearly independent rows, i.e.
+        $\dimn \row(\mat{A})$.
+  \item \textbf{Pivot count:} the number of pivots you find when you row-reduce
+        the matrix to echelon form.
+\end{itemize}
+The deep theorem of this chapter is that these three numbers are \emph{always
+equal}. We call the common value $\rank(\mat{A})$.
+\end{focusbox}
+
+\subsection{Reading rank off the echelon form}
+
+You already know elimination. It is the most reliable rank detector we have.
+Reduce a matrix to row echelon form and count the pivots -- the leading nonzero
+entries, one per pivot row. That count is the rank.
+
+\begin{example}\label{ch16:pivot-count}
+Find the rank of
+\[
+  \mat{C} = \begin{bmatrix} 1 & 2 & 3 \\ 2 & 4 & 8 \\ 3 & 6 & 7 \end{bmatrix}.
+\]
+Eliminate below the first pivot. Subtract $2\times$row$_1$ from row$_2$ and
+$3\times$row$_1$ from row$_3$:
+\[
+  \begin{bmatrix} 1 & 2 & 3 \\ 0 & 0 & 2 \\ 0 & 0 & -2 \end{bmatrix}.
+\]
+The second column never produced a pivot -- the $(2,2)$ position is zero and so
+is everything below it. Move to column $3$: there is a pivot in row $2$. Add
+row$_2$ to row$_3$ to clear the last entry:
+\[
+  \begin{bmatrix} 1 & 2 & 3 \\ 0 & 0 & 2 \\ 0 & 0 & 0 \end{bmatrix}.
+\]
+Two pivots (in columns $1$ and $3$). So $\rank(\mat{C}) = 2$. The third row was
+secretly a combination of the first two all along; elimination exposed it as a
+row of zeros.
+\end{example}
+
+\begin{trapbox}
+Rank is \emph{not} ``the number of nonzero rows you started with,'' and it is not
+``the number of columns minus the number of zeros.'' A matrix can have no zero
+entries anywhere and still have rank $1$ (every row a multiple of the first).
+Rank is about \emph{independence}, not about where the zeros are. You must do the
+elimination -- or otherwise check for dependence -- to know it.
+\end{trapbox}
+
+\begin{labbox}
+Compute the rank of each by hand, reducing to echelon form and counting pivots:
+\[
+  \begin{bmatrix} 2 & 4 \\ 1 & 2 \end{bmatrix}, \qquad
+  \begin{bmatrix} 1 & 0 & 1 \\ 0 & 1 & 1 \\ 1 & 1 & 2 \end{bmatrix}, \qquad
+  \begin{bmatrix} 1 & 2 & 1 \\ 1 & 3 & 2 \\ 1 & 4 & 3 \end{bmatrix}.
+\]
+(Answers: $1$, $2$, $2$. In the second, row$_3 = $ row$_1+$row$_2$; in the third,
+row$_3 = 2\,$row$_2 - $row$_1$. Hunt for those dependencies before you reduce --
+seeing them is the whole skill.)
+\end{labbox}
+
+\section{Rank-nullity: the conservation law}
+
+Here is the single most useful counting fact in linear algebra. When a matrix
+acts on $\R^n$, every one of the $n$ input dimensions has to go \emph{somewhere}.
+Some of them survive and become independent output directions -- those are
+counted by the rank. The rest get crushed to zero -- those are counted by the
+dimension of the nullspace, $\dimn\nullsp(\mat{A})$, the number we call the
+\textbf{nullity}. Nothing else can happen to a dimension. So the two counts must
+add up to the number you started with.
+
+\begin{theorem}[Rank--Nullity]\label{ch16:rank-nullity}
+For any $m \times n$ matrix $\mat{A}$ (with real entries),
+\[
+  \rank(\mat{A}) + \dimn\nullsp(\mat{A}) = n,
+\]
+where $n$ is the number of columns -- the dimension of the input space.
+\end{theorem}
+
+\begin{intuitionbox}
+Think of $\mat{A}$ as sorting the $n$ input directions into two bins as it acts:
+\begin{center}
+$\underbrace{n}_{\text{dimensions in}} \;=\;
+ \underbrace{\rank}_{\text{survive as output}} \;+\;
+ \underbrace{\text{nullity}}_{\text{crushed to }\vec 0}.$
+\end{center}
+It is a conservation law. Dimensions are neither created nor destroyed; they are
+only routed -- some kept, some killed. If a matrix reaches more directions (higher
+rank), it must crush fewer (lower nullity), and exactly so.
+\end{intuitionbox}
+
+\subsection{Why it is true, from the echelon form}
+
+The cleanest proof rides on something you already trust: every column of $\mat{A}$
+either holds a pivot or it does not. Reduce $\mat{A}$ to reduced row echelon form
+$\mat{R}$. The columns split into two kinds.
+
+\begin{itemize}
+  \item \textbf{Pivot columns:} there are $r = \rank(\mat{A})$ of them. The
+        corresponding columns of the \emph{original} $\mat{A}$ are linearly
+        independent and form a basis for the column space.
+  \item \textbf{Free columns:} there are $n - r$ of them, one for each free
+        variable. Each free variable produces exactly one special solution of
+        $\mat{A}\vec{x} = \vec{0}$, and those special solutions form a basis for
+        the nullspace.
+\end{itemize}
+
+So the nullspace has dimension $n - r$. That is the entire theorem:
+$r + (n - r) = n$. Let us make the special-solution count airtight, because that
+is the part that does the work.
+
+\begin{proof}
+Row reduction does not change the nullspace: $\mat{A}\vec{x}=\vec0$ and
+$\mat{R}\vec{x}=\vec0$ have exactly the same solutions, because each elimination
+step is a reversible operation on the equations. So it suffices to count the
+nullspace dimension of $\mat{R}$.
+
+Say $\mat{R}$ has $r$ pivots, hence $r$ pivot columns and $n-r$ free columns.
+Each free column corresponds to a free variable that we are allowed to set to
+anything. Form the $j$-th special solution by setting the $j$-th free variable
+to $1$, all other free variables to $0$, and solving for the pivot variables from
+the equations $\mat{R}\vec{x}=\vec0$ (each pivot variable is determined by the
+free ones). This gives $n-r$ vectors $\vec{s}_1,\dots,\vec{s}_{n-r}$.
+
+\emph{They are independent.} Look only at the free-variable positions. There the
+vectors $\vec{s}_1,\dots,\vec{s}_{n-r}$ read off as the standard basis vectors of
+$\R^{n-r}$ -- a single $1$ in distinct slots. A combination
+$c_1\vec{s}_1+\cdots+c_{n-r}\vec{s}_{n-r}=\vec0$ forces every $c_j=0$ just by
+reading those slots. So the special solutions are linearly independent.
+
+\emph{They span the nullspace.} Take any $\vec{x}$ with $\mat{R}\vec{x}=\vec0$.
+Let its free-variable values be $c_1,\dots,c_{n-r}$. The vector
+$\vec{x} - (c_1\vec{s}_1+\cdots+c_{n-r}\vec{s}_{n-r})$ is also in the nullspace
+(the nullspace is closed under combinations), and it has \emph{all} free
+variables equal to zero. But once the free variables are zero, the equations
+$\mat{R}\vec x = \vec 0$ force every pivot variable to zero too. So that
+difference is $\vec0$, meaning $\vec{x}$ \emph{is} the combination. The special
+solutions span.
+
+Independent and spanning: the $n-r$ special solutions are a basis, so
+$\dimn\nullsp(\mat{A}) = n-r$. Adding $r$ to both sides gives $r + (n-r) = n$.
+\end{proof}
+
+\begin{example}\label{ch16:rn-example}
+Take a $2\times 3$ matrix, already in a convenient form:
+\[
+  \mat{A} = \begin{bmatrix} 1 & 0 & 2 \\ 0 & 1 & 3 \end{bmatrix}.
+\]
+Here $n = 3$ columns. Pivots in columns $1$ and $2$, so $r = \rank(\mat{A}) = 2$.
+Column $3$ is free. Rank--nullity predicts $\dimn\nullsp = 3 - 2 = 1$: a single
+line of solutions. Let us find it. Set the free variable $x_3 = 1$; the equations
+$x_1 + 2x_3 = 0$ and $x_2 + 3x_3 = 0$ give $x_1 = -2$, $x_2 = -3$. The one special
+solution is
+\[
+  \vec{s} = \colvec{-2 \\ -3 \\ 1}, \qquad
+  \nullsp(\mat{A}) = \spn\{\vec{s}\}, \quad \dimn = 1. \checkmark
+\]
+Two input dimensions survived as output (the rank), one was crushed (the
+nullity), and $2 + 1 = 3$. The books balance.
+\end{example}
+
+\begin{walkbox}
+A $5\times 5$ matrix has rank $3$. Without computing anything: how many dimensions
+does it crush to zero? How many independent directions can its outputs reach?
+Could a different $5\times 5$ matrix have rank $3$ and crush only one dimension?
+Walk until you are certain the answer to the last question is ``no, never'' --
+and you can say exactly which conservation law forbids it.
+\end{walkbox}
+
+\begin{strangbox}
+Strang calls this ``counting theorem'' the backbone of the whole solvability
+story, and he writes it as $r + (n-r) = n$ so often it becomes a reflex. Before
+Strang: just install the picture -- dimensions in equal dimensions reached plus
+dimensions crushed. After Strang: notice that rank--nullity is the
+\emph{rank theorem} for linear maps, $\dimn(\text{domain}) =
+\dimn(\text{image}) + \dimn(\text{kernel})$, and that it is the finite-dimensional
+shadow of the first isomorphism theorem you may meet in abstract algebra.
+\end{strangbox}
+
+\section{Row rank equals column rank}
+
+We have been quietly assuming the rank is well defined -- that ``number of
+independent columns'' and ``number of independent rows'' give the same answer.
+That is not obvious! The columns live in $\R^m$ and the rows live in $\R^n$;
+they are vectors in different spaces, of different lengths. Why on earth should
+the maximum number of independent columns equal the maximum number of independent
+rows? It is one of those facts that looks like a coincidence until you see the
+mechanism, and then it looks inevitable.
+
+\begin{theorem}[Row rank $=$ Column rank]\label{ch16:row-col}
+For every matrix $\mat{A}$, the dimension of the column space equals the dimension
+of the row space.
+\end{theorem}
+
+\subsection{The decisive picture: $\mat{A}$ as a short product}
+
+Here is the argument I find most convincing, because it is constructive and you
+can see every piece. Let $r$ be the column rank of $\mat{A}$ ($m\times n$). Pick a
+basis $\vec{c}_1,\dots,\vec{c}_r$ for the column space -- $r$ vectors in $\R^m$.
+Gather them as the columns of an $m \times r$ matrix $\mat{C}$.
+
+Every column $\vec{a}_j$ of $\mat{A}$ lives in the column space, so it is some
+combination of the basis: $\vec{a}_j = \mat{C}\vec{f}_j$ for a coefficient vector
+$\vec{f}_j \in \R^r$. Stack those coefficient vectors as columns of an $r\times n$
+matrix $\mat{F}$. Then, column by column,
+\[
+  \mat{A} = \mat{C}\,\mat{F}, \qquad
+  \underbrace{\mat{A}}_{m\times n} =
+  \underbrace{\mat{C}}_{m\times r}\,
+  \underbrace{\mat{F}}_{r\times n}.
+\]
+This is the \textbf{rank factorization}: every matrix of column rank $r$ is a
+``tall times wide'' product through a waist of width $r$. (Figure
+\ref{ch16:rankfac}.) Now read off the rows. In the product $\mat{C}\mat{F}$, every
+row of $\mat{A}$ is a combination of the $r$ rows of $\mat{F}$ -- because row $i$
+of $\mat{A}$ equals (row $i$ of $\mat{C}$) $\times \mat{F}$, a weighted sum of
+$\mat{F}$'s rows. So the row space of $\mat{A}$ is spanned by the $r$ rows of
+$\mat{F}$, which means
+\[
+  \text{row rank of } \mat{A} \;\le\; r \;=\; \text{column rank of } \mat{A}.
+\]
+That is half the theorem. For the other half, apply this same inequality to the
+transpose $\mat{A}\T$. The rows of $\mat{A}$ are the columns of $\mat{A}\T$ and
+vice versa, so the inequality for $\mat{A}\T$ reads
+$\text{column rank of }\mat{A} \le \text{row rank of }\mat{A}$. Two inequalities
+pointing opposite ways force equality. Row rank $=$ column rank. $\qquad\blacksquare$
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.95]
+  \def\mh{2.2} % matrix height
+  % A
+  \draw[fill=sourceblue!12,draw=sourceblue] (0,0) rectangle (2.6,\mh);
+  \node at (1.3,\mh/2) {$\mat{A}$};
+  \node[below] at (1.3,0) {\small $m\times n$};
+  \node at (3.3,\mh/2) {$=$};
+  % C (tall, narrow)
+  \draw[fill=targetgreen!14,draw=targetgreen] (4.0,0) rectangle (4.9,\mh);
+  \node at (4.45,\mh/2) {$\mat{C}$};
+  \node[below] at (4.45,0) {\small $m\times r$};
+  % F (short, wide)
+  \draw[fill=quotientorange!16,draw=quotientorange] (5.3,\mh/2-0.45) rectangle (7.9,\mh/2+0.45);
+  \node at (6.6,\mh/2) {$\mat{F}$};
+  \node[below] at (6.6,\mh/2-0.45) {\small $r\times n$};
+  % waist annotation
+  \draw[<->,structurepurple,thick] (4.0,-0.95)--(4.9,-0.95);
+  \node[structurepurple,below] at (4.45,-1.0) {\small waist $r$};
+\end{tikzpicture}
+\caption{The rank factorization $\protect\mat{A}=\protect\mat{C}\protect\mat{F}$.
+Every column of $\protect\mat{A}$ is built from the $r$ columns of $\protect\mat{C}$
+(so column rank $\le r$); every row of $\protect\mat{A}$ is built from the $r$ rows
+of $\protect\mat{F}$ (so row rank $\le r$). The single number $r$ -- the width of
+the waist -- governs both.}
+\label{ch16:rankfac}
+\end{figure}
+
+\begin{aestheticbox}
+Stand back and admire what just happened. Columns live in $\R^m$, rows live in
+$\R^n$ -- different rooms entirely -- and yet they are forced to agree on a single
+count. The reason is that both counts are really measuring the width of the
+narrowest \emph{waist} a factorization of $\mat{A}$ can pass through. Rank is not a
+property of the rows, nor of the columns; it is a property of the \emph{matrix},
+the bottleneck through which it sends information. That is why the same $r$ shows
+up no matter which side you look from. The two viewpoints were never independent;
+they were always two ends of the same pipe.
+\end{aestheticbox}
+
+\begin{example}\label{ch16:rankfac-num}
+Factor the rank-$1$ matrix from the opening:
+\[
+  \mat{A} = \begin{bmatrix} 1 & 2 \\ 2 & 4 \end{bmatrix}
+  = \underbrace{\colvec{1 \\ 2}}_{\mat{C}}\;
+    \underbrace{\begin{bmatrix} 1 & 2 \end{bmatrix}}_{\mat{F}}.
+\]
+The waist has width $1$. The single column $\colvec{1\\2}$ of $\mat{C}$ spans the
+column space; the single row $\begin{bmatrix}1 & 2\end{bmatrix}$ of $\mat{F}$ spans
+the row space. One number, $r=1$, and it is visibly the same on both sides.
+\end{example}
+
+\begin{connectionbox}
+You have met this ``agree from both sides'' phenomenon before, in calculus,
+without anyone naming it. For a smooth function $f(x,y)$ the mixed partials agree,
+$f_{xy}=f_{yx}$: differentiate in either order and you land on the same number.
+That is the analyst's cousin of row rank $=$ column rank -- an order-independence
+theorem, where a single object (here the Hessian; there the matrix) forces two
+seemingly separate computations to coincide. Symmetric structure underneath
+guarantees the two roads meet.
+\end{connectionbox}
+
+\section{The four subspaces, paired by perpendicularity}
+
+Rank is the hinge that the four fundamental subspaces swing on. Let $\mat{A}$ be
+$m\times n$ with rank $r$. Two subspaces live in the input space $\R^n$ and two
+live in the output space $\R^m$:
+\[
+  \begin{array}{llcl}
+  \text{in } \R^n: & \row(\mat{A}) & \text{dimension} & r,\\[2pt]
+                   & \nullsp(\mat{A}) & \text{dimension} & n-r,\\[6pt]
+  \text{in } \R^m: & \col(\mat{A}) & \text{dimension} & r,\\[2pt]
+                   & \nullsp(\mat{A}\T) & \text{dimension} & m-r.
+  \end{array}
+\]
+The dimensions already obey rank--nullity twice over: in $\R^n$ we have
+$r + (n-r) = n$, and in $\R^m$ we have $r + (m-r) = m$. But the truly beautiful
+fact is \emph{geometric}: inside each space, the two subspaces are not just
+complementary in dimension -- they are \textbf{orthogonal}. Every vector in one is
+perpendicular to every vector in the other.
+
+\begin{theorem}[Orthogonality of the fundamental subspaces]\label{ch16:orthog}
+For any real $m\times n$ matrix $\mat{A}$,
+\[
+  \row(\mat{A}) \perp \nullsp(\mat{A}) \quad\text{in } \R^n,
+  \qquad
+  \col(\mat{A}) \perp \nullsp(\mat{A}\T) \quad\text{in } \R^m.
+\]
+Moreover each pair fills its whole space: $\row(\mat{A})$ and $\nullsp(\mat{A})$
+together span $\R^n$, and $\col(\mat{A})$ and $\nullsp(\mat{A}\T)$ together span
+$\R^m$. Each subspace is the \emph{orthogonal complement} of its partner.
+\end{theorem}
+
+\begin{proof}
+The first orthogonality is almost a restatement of what $\mat{A}\vec{x}=\vec0$
+\emph{means}. Write $\mat{A}$ in terms of its rows
+$\vec{r}_1\T,\dots,\vec{r}_m\T$. The equation $\mat{A}\vec{x}=\vec0$ says
+precisely that every row dotted with $\vec{x}$ is zero:
+\[
+  \mat{A}\vec{x} = \vec0
+  \quad\Longleftrightarrow\quad
+  \inner{\vec{r}_i}{\vec{x}} = 0 \text{ for every } i.
+\]
+So a nullspace vector $\vec{x}$ is perpendicular to every row, and therefore to
+every \emph{combination} of rows -- that is, to all of $\row(\mat{A})$. Hence
+$\nullsp(\mat{A}) \perp \row(\mat{A})$.
+
+For the dimensions: the two subspaces have dimensions $r$ and $n-r$, summing to
+$n$, and orthogonal subspaces meet only at $\vec0$ (a vector perpendicular to
+itself has length zero). Complementary dimension plus trivial intersection means
+they together span $\R^n$, and being orthogonal, each is the orthogonal
+complement of the other.
+
+The second pair is the first pair applied to $\mat{A}\T$: the column space of
+$\mat{A}$ is the row space of $\mat{A}\T$, and the left nullspace of $\mat{A}$ is
+the nullspace of $\mat{A}\T$. Substituting $\mat{A}\T$ for $\mat{A}$ in what we
+just proved gives $\col(\mat{A}) \perp \nullsp(\mat{A}\T)$ filling $\R^m$.
+\end{proof}
+
+\begin{intuitionbox}
+Why must a nullspace vector be perpendicular to every row? Because
+$\mat{A}\vec{x}$ is built out of dot products of $\vec{x}$ with the rows. For
+$\mat{A}\vec{x}$ to be the zero vector, $\vec{x}$ has to give zero against
+\emph{each} row -- it must point in a direction the rows cannot detect at all.
+``Invisible to every row'' is exactly ``perpendicular to the row space.'' The
+nullspace is the blind spot of the rows.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % input space R^n: row space (line) perp nullspace (line)
+  \begin{scope}[shift={(-3.4,0)}]
+    \draw[->,gray!60] (-2,0)--(2,0);
+    \draw[->,gray!60] (0,-2)--(0,2);
+    \draw[sourceblue,very thick] (-1.7,-1.7)--(1.7,1.7);
+    \draw[targetgreen,very thick] (-1.7,1.7)--(1.7,-1.7);
+    \draw[sourceblue,->,very thick] (0,0)--(1.1,1.1);
+    \draw[targetgreen,->,very thick] (0,0)--(1.1,-1.1);
+    % right angle mark
+    \draw (0.78,0.78)--(1.0,0.56)--(0.78,0.34);
+    \node[sourceblue] at (1.9,1.35) {\small $\row$};
+    \node[targetgreen] at (1.9,-1.35) {\small $\nullsp$};
+    \node at (0,-2.45) {\small input space $\R^n$};
+  \end{scope}
+  % map arrow
+  \draw[->,thick] (-1.2,0)--(0.0,0) node[midway,above]{$\mat{A}$};
+  % output space R^m: col space perp left nullspace
+  \begin{scope}[shift={(3.4,0)}]
+    \draw[->,gray!60] (-2,0)--(2,0);
+    \draw[->,gray!60] (0,-2)--(0,2);
+    \draw[structurepurple,very thick] (-1.9,-0.8)--(1.9,0.8);
+    \draw[quotientorange,very thick] (-0.8,1.9)--(0.8,-1.9);
+    \draw[structurepurple,->,very thick] (0,0)--(1.4,0.59);
+    \draw[quotientorange,->,very thick] (0,0)--(0.59,-1.4);
+    \node[structurepurple] at (1.9,1.05) {\small $\col$};
+    \node[quotientorange] at (1.35,-1.7) {\small $\nullsp(\mat{A}\T)$};
+    \node at (0,-2.45) {\small output space $\R^m$};
+  \end{scope}
+\end{tikzpicture}
+\caption{The big picture. In the input space, the row space and the nullspace are
+perpendicular and fill $\R^n$. In the output space, the column space and the left
+nullspace are perpendicular and fill $\R^m$. The matrix $\protect\mat{A}$ maps the
+row space \emph{onto} the column space, and collapses the nullspace to the origin.}
+\label{ch16:bigpicture}
+\end{figure}
+
+There is one more piece that turns these four subspaces into a single moving
+picture, and it is the reason this whole circle of ideas earns the grand name
+\emph{the Fundamental Theorem of Linear Algebra}.
+
+\begin{theorem}[The action on the row space]\label{ch16:rowspace-iso}
+The matrix $\mat{A}$ maps the row space \emph{one-to-one onto} the column space.
+Restricted to the row space, $\mat{A}$ is invertible: distinct row-space vectors
+go to distinct column-space vectors, and every column-space vector is hit exactly
+once.
+\end{theorem}
+
+\begin{proof}
+Both spaces have the same dimension $r$, so we only need that $\mat{A}$ is
+one-to-one on the row space. Suppose two row-space vectors $\vec{u},\vec{v}$
+satisfy $\mat{A}\vec{u}=\mat{A}\vec{v}$. Then $\mat{A}(\vec{u}-\vec{v})=\vec0$, so
+$\vec{u}-\vec{v}$ lies in the nullspace. But $\vec{u}-\vec{v}$ is also a
+difference of row-space vectors, hence in the row space. A vector in both the row
+space and the nullspace is perpendicular to itself (Theorem
+\ref{ch16:orthog}), so it is $\vec0$. Thus $\vec{u}=\vec{v}$: the map is
+one-to-one on the row space. A one-to-one linear map between spaces of equal
+dimension is onto as well.
+\end{proof}
+
+\begin{focusbox}
+\textbf{The Fundamental Theorem of Linear Algebra, in one breath.} Every real
+$m\times n$ matrix splits both its spaces into orthogonal halves and then acts as
+cleanly as possible:
+\begin{itemize}
+  \item $\R^n = \row(\mat{A}) \oplus \nullsp(\mat{A})$, an orthogonal split into
+        dimensions $r$ and $n-r$.
+  \item $\R^m = \col(\mat{A}) \oplus \nullsp(\mat{A}\T)$, an orthogonal split into
+        dimensions $r$ and $m-r$.
+  \item $\mat{A}$ sends the row space \emph{invertibly onto} the column space, and
+        crushes the nullspace to $\vec0$.
+\end{itemize}
+The single number $r=\rank(\mat{A})$ controls every dimension in the diagram. This
+is the structure the singular value decomposition will later make completely
+explicit -- with orthonormal bases for all four subspaces at once.
+\end{focusbox}
+
+\begin{example}\label{ch16:four-numeric}
+Let
+\[
+  \mat{A} = \begin{bmatrix} 1 & 2 & 3 \\ 2 & 4 & 6 \end{bmatrix}.
+\]
+Row $2$ is twice row $1$, so $r=1$ ($m=2$, $n=3$). The dimensions must be:
+\[
+  \dimn\row = 1,\quad \dimn\nullsp = n-r = 2,\quad
+  \dimn\col = 1,\quad \dimn\nullsp(\mat{A}\T) = m-r = 1.
+\]
+\emph{Row space} ($\subset \R^3$): spanned by $\vec{r}=\colvec{1\\2\\3}$.
+\emph{Nullspace} ($\subset \R^3$): solve $x_1 + 2x_2 + 3x_3 = 0$; the two special
+solutions are $\colvec{-2\\1\\0}$ and $\colvec{-3\\0\\1}$. Check perpendicularity
+to $\vec{r}$:
+\[
+  \inner{\vec r}{\colvec{-2\\1\\0}} = -2+2+0 = 0,\qquad
+  \inner{\vec r}{\colvec{-3\\0\\1}} = -3+0+3 = 0. \checkmark
+\]
+\emph{Column space} ($\subset \R^2$): spanned by $\colvec{1\\2}$.
+\emph{Left nullspace} ($\subset \R^2$): solve $\mat{A}\T\vec{y}=\vec0$, i.e.
+$y_1 + 2y_2 = 0$ from every column; one solution direction is $\colvec{2\\-1}$,
+and indeed $\inner{\colvec{1\\2}}{\colvec{2\\-1}} = 2-2 = 0$. \checkmark Both
+perpendicular splits check out, and every dimension is governed by the lone
+$r=1$.
+\end{example}
+
+\begin{trapbox}
+The nullspace and the column space are \emph{not} a perpendicular pair, even
+though both appear in the four-subspace list. The nullspace lives in $\R^n$
+(input side); the column space lives in $\R^m$ (output side). They are in
+different rooms and need not even have the same length vectors. The correct
+partners are $\row \perp \nullsp$ (both in $\R^n$) and
+$\col \perp \nullsp(\mat{A}\T)$ (both in $\R^m$). Pair by \emph{room}, not by name.
+\end{trapbox}
+
+\begin{walkbox}
+A square $3\times 3$ matrix has rank $2$. Picture its four subspaces. The
+nullspace is a line in $\R^3$; the row space is the plane perpendicular to that
+line. On the output side, the column space is a plane in $\R^3$ and the left
+nullspace is the line perpendicular to it. Now ask: is the input nullspace line
+the same as the output left-nullspace line? Walk until you can produce a $3\times3$
+matrix where they differ -- and one (symmetric) where they coincide.
+\end{walkbox}
+
+\section{Rank-one matrices: the atoms}
+
+We have seen that rank measures the width of a matrix's waist. The narrowest
+possible nonzero waist has width $1$. A matrix of rank $1$ is the simplest
+nontrivial matrix there is -- and, remarkably, \emph{every} matrix is a sum of
+rank-one matrices. They are the atoms of the whole subject. Understanding them
+completely is the last step before the SVD.
+
+\begin{definition}\label{ch16:rank-one-def}
+A nonzero matrix $\mat{M}$ has \textbf{rank one} if it can be written as an
+\textbf{outer product}
+\[
+  \mat{M} = \vec{u}\,\vec{v}\T,
+\]
+where $\vec{u}\in\R^m$ and $\vec{v}\in\R^n$ are nonzero column vectors. Its
+$(i,j)$ entry is $u_i v_j$.
+\end{definition}
+
+\begin{example}\label{ch16:outer}
+With $\vec{u}=\colvec{1\\2\\3}$ and $\vec{v}=\colvec{4\\5}$,
+\[
+  \vec{u}\,\vec{v}\T
+  = \colvec{1\\2\\3}\begin{bmatrix}4 & 5\end{bmatrix}
+  = \begin{bmatrix} 4 & 5 \\ 8 & 10 \\ 12 & 15 \end{bmatrix}.
+\]
+Every row is a multiple of $\begin{bmatrix}4 & 5\end{bmatrix}$ (the multipliers
+are $1,2,3$); every column is a multiple of $\colvec{1\\2\\3}$ (the multipliers
+are $4,5$). Row space is a line, column space is a line: rank exactly $1$.
+\end{example}
+
+\begin{intuitionbox}
+A rank-one matrix $\vec{u}\vec{v}\T$ acts in the gentlest imaginable way. Hand it
+any input $\vec{x}$:
+\[
+  (\vec{u}\vec{v}\T)\vec{x} = \vec{u}\,(\vec{v}\T\vec{x})
+  = (\inner{\vec v}{\vec x})\,\vec{u}.
+\]
+It reads off a \emph{single number} from the input -- how much $\vec{x}$ overlaps
+with $\vec{v}$ -- and pours that number into the fixed direction $\vec{u}$. Input
+through one slot, output along one ray. The vector $\vec{v}$ is the ``measuring
+stick'' (what the matrix senses); $\vec{u}$ is the ``response direction'' (where
+it pushes). That is the entire behavior of a rank-one machine. Figure
+\ref{ch16:rankone} draws this two-step ``measure, then point'' action.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % input side: x and the measuring stick v
+  \begin{scope}[shift={(-3.5,0)}]
+    \draw[->,gray!60] (-0.4,0)--(2.2,0);
+    \draw[->,gray!60] (0,-0.4)--(0,2.2);
+    \draw[->,targetgreen,very thick] (0,0)--(1.7,0.6) node[right]{$\vec{v}$};
+    \draw[->,vecblue,very thick] (0,0)--(0.6,1.7) node[above]{$\vec{x}$};
+    % projection drop of x onto v direction
+    \draw[gray,dashed] (0.6,1.7)--(0.945,0.333);
+    \fill[vecblue] (0.945,0.333) circle (1.1pt);
+    \node[gray] at (1.55,-0.35) {\small overlap $\inner{\vec v}{\vec x}$};
+    \node at (1.0,-0.9) {\small input space $\R^n$};
+  \end{scope}
+  % arrow
+  \draw[->,thick] (-0.9,0.6)--(0.3,0.6) node[midway,above]{$\vec u\vec v\T$};
+  % output side: everything lands on the ray through u
+  \begin{scope}[shift={(2.0,0)}]
+    \draw[->,gray!60] (-0.4,0)--(2.2,0);
+    \draw[->,gray!60] (0,-0.4)--(0,2.2);
+    \draw[structurepurple,very thick,dashed] (0,0)--(2.0,1.6);
+    \draw[->,vecred,very thick] (0,0)--(1.25,1.0) node[below right]{$(\inner{\vec v}{\vec x})\,\vec{u}$};
+    \node[structurepurple] at (2.05,1.95) {\small $\spn\{\vec u\}$};
+    \node at (1.0,-0.9) {\small output: one ray};
+  \end{scope}
+\end{tikzpicture}
+\caption{A rank-one matrix $\protect\vec{u}\protect\vec{v}\protect\T$ in two steps.
+\emph{Measure:} read the single number $\protect\inner{\vec v}{\vec x}$, how much the
+input $\protect\vec{x}$ overlaps the measuring stick $\protect\vec{v}$.
+\emph{Point:} pour that number along the fixed response direction
+$\protect\vec{u}$. Every input lands somewhere on the one ray
+$\protect\spn\{\protect\vec{u}\}$.}
+\label{ch16:rankone}
+\end{figure}
+
+\subsection{Every matrix is a sum of rank-one pieces}
+
+Here is the bridge. Multiply $\mat{A}$ by a vector and you compute a linear
+combination of $\mat{A}$'s columns. But there is a second, equally true way to
+read a matrix product, and it changes everything.
+
+Recall the rank factorization $\mat{A}=\mat{C}\mat{F}$ with waist $r$. A product
+of an $m\times r$ matrix and an $r\times n$ matrix can be expanded as a sum over
+the shared index: column $k$ of $\mat{C}$ times row $k$ of $\mat{F}$, summed.
+Writing $\vec{c}_k$ for the columns of $\mat{C}$ and $\vec{f}_k\T$ for the rows
+of $\mat{F}$,
+\[
+  \mat{A} = \mat{C}\mat{F}
+  = \sum_{k=1}^{r} \vec{c}_k\,\vec{f}_k\T.
+\]
+Each term $\vec{c}_k\vec{f}_k\T$ is a rank-one matrix. So:
+
+\begin{theorem}[Rank as a sum of rank-one pieces]\label{ch16:sum-rank-one}
+A matrix has rank $r$ if and only if it can be written as a sum of $r$ rank-one
+matrices, and $r$ is the \emph{smallest} number of rank-one matrices whose sum is
+$\mat{A}$.
+\end{theorem}
+
+\begin{proof}[Why $r$ is the minimum]
+If $\mat{A}=\sum_{k=1}^{p}\vec{u}_k\vec{v}_k\T$, then every column of $\mat{A}$ is
+a combination of the $p$ vectors $\vec{u}_1,\dots,\vec{u}_p$ (each term
+contributes a multiple of its $\vec{u}_k$). So the column space is spanned by
+those $p$ vectors, giving $\rank(\mat{A})\le p$. Hence no sum of fewer than
+$r=\rank(\mat{A})$ rank-one matrices can equal $\mat{A}$. The factorization above
+achieves exactly $r$, so $r$ is the minimum.
+\end{proof}
+
+\begin{example}\label{ch16:sum-numeric}
+Decompose a rank-$2$ matrix into two rank-one atoms. Take
+\[
+  \mat{A} = \begin{bmatrix} 1 & 0 & 2 \\ 0 & 1 & 3 \\ 1 & 1 & 5 \end{bmatrix}.
+\]
+Notice row$_3 = $ row$_1 + $row$_2$, so $r=2$. Columns $1$ and $2$,
+$\vec{c}_1=\colvec{1\\0\\1}$ and $\vec{c}_2=\colvec{0\\1\\1}$, are a basis for the
+column space. Column $3 = 2\vec{c}_1 + 3\vec{c}_2$. So the coefficient matrix
+$\mat{F}$ (each column gives the recipe for the matching column of $\mat{A}$) is
+\[
+  \mat{F} = \begin{bmatrix} 1 & 0 & 2 \\ 0 & 1 & 3 \end{bmatrix},
+  \qquad
+  \mat{C} = \begin{bmatrix} 1 & 0 \\ 0 & 1 \\ 1 & 1 \end{bmatrix}.
+\]
+Now read off the two rank-one pieces -- column $k$ of $\mat C$ times row $k$ of
+$\mat F$:
+\[
+  \mat{A}
+  = \underbrace{\colvec{1\\0\\1}\begin{bmatrix}1 & 0 & 2\end{bmatrix}}_{\text{piece }1}
+  + \underbrace{\colvec{0\\1\\1}\begin{bmatrix}0 & 1 & 3\end{bmatrix}}_{\text{piece }2}
+  = \begin{bmatrix} 1 & 0 & 2 \\ 0 & 0 & 0 \\ 1 & 0 & 2 \end{bmatrix}
+  + \begin{bmatrix} 0 & 0 & 0 \\ 0 & 1 & 3 \\ 0 & 1 & 3 \end{bmatrix}.
+\]
+Add them and you recover $\mat{A}$ exactly. Two atoms, because the rank is two.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.9]
+  % A as a solid block
+  \draw[fill=sourceblue!12,draw=sourceblue] (0,0) rectangle (1.8,1.8);
+  \node at (0.9,0.9) {$\mat{A}$};
+  \node[below] at (0.9,0) {\small rank $r$};
+  \node at (2.5,0.9) {$=$};
+  % layered rank-one atoms, drawn as a stack of thin slabs
+  \begin{scope}[shift={(3.2,0)}]
+    \foreach \i/\op in {0/30, 1/20, 2/12} {
+      \begin{scope}[shift={(0.35*\i,0.35*\i)}]
+        \draw[fill=quotientorange!\op,draw=quotientorange] (0,0) rectangle (1.8,1.8);
+      \end{scope}
+    }
+    \node at (1.25,1.25) {\small $\sigma_1\vec u_1\vec v_1\T$};
+    \node at (0.55,0.55) {\small $+\,\cdots$};
+  \end{scope}
+  \node[below] at (4.6,0) {\small $r$ rank-one atoms};
+  % strength arrow
+  \draw[->,structurepurple,thick] (3.0,2.45)--(4.3,2.45);
+  \node[structurepurple,above] at (3.65,2.4) {\small weaker $\sigma_k$};
+\end{tikzpicture}
+\caption{Every matrix of rank $r$ is an exact stack of $r$ rank-one atoms
+(Theorem \protect\ref{ch16:sum-rank-one}). When the atoms are ordered by strength
+$\protect\sigma_1\ge\protect\sigma_2\ge\cdots$ (the singular value decomposition,
+a later chapter), dropping the faintest layers gives the best low-rank
+approximation -- the engine behind image compression and recommender systems.}
+\label{ch16:atomstack}
+\end{figure}
+
+\begin{labbox}
+By hand, write $\mat{A}=\begin{bmatrix}2 & 6 \\ 1 & 3\end{bmatrix}$ as a single
+outer product $\vec{u}\vec{v}\T$. (Hint: every column is a multiple of
+$\colvec{2\\1}$, so try $\vec{u}=\colvec{2\\1}$ and find the row $\vec{v}\T$ that
+makes the columns $\colvec{2\\1}$ and $\colvec{6\\3}$ come out right. Answer:
+$\vec{v}\T = \begin{bmatrix}1 & 3\end{bmatrix}$.) Then confirm $\rank(\mat A)=1$
+by checking the second column is $3\times$ the first.
+\end{labbox}
+
+\begin{applicationbox}
+\textbf{Low-rank approximation: how data gets compressed.} A grayscale image is a
+matrix of pixel brightnesses -- maybe $1000\times 1000$, a million numbers. Most
+real images are \emph{nearly} low rank: their information concentrates in a few
+dominant directions. The singular value decomposition (covered in a later
+chapter) writes any matrix as a sum of rank-one atoms ordered by importance
+(the strength-ordered version of Figure \ref{ch16:atomstack}),
+\[
+  \mat{A} = \sigma_1 \vec{u}_1\vec{v}_1\T + \sigma_2 \vec{u}_2\vec{v}_2\T
+          + \cdots + \sigma_r \vec{u}_r\vec{v}_r\T,
+  \qquad \sigma_1 \ge \sigma_2 \ge \cdots > 0,
+\]
+and keeping only the first few terms gives the \emph{best} approximation of that
+rank. Keep $50$ atoms of a $1000\times 1000$ image and you store
+$50\,(1000+1000)=100{,}000$ numbers instead of a million -- a $10\times$
+compression -- while the picture stays recognizable. The same trick powers
+recommender systems (a user-by-movie ratings matrix is low rank because tastes
+cluster), latent-semantic analysis of text, and the parameter-efficient
+fine-tuning of large neural networks (LoRA adds a trained low-rank update
+$\mat{B}\mat{A}$ to a frozen weight matrix). Rank-one atoms are not a classroom
+curiosity; they are the unit of currency in modern data compression.
+\end{applicationbox}
+
+\begin{aestheticbox}
+The arc of this chapter is the arc of the whole subject in miniature. We started
+with one integer, the rank, and asked what it measures. It measured reach, then
+the balance of rank--nullity, then the agreement of rows with columns, then the
+perpendicular architecture of four subspaces, and finally it revealed every
+matrix as a stack of rank-one atoms. The singular value decomposition is the
+moment all of this fuses: it hands you orthonormal bases for all four subspaces,
+arranges the rank-one atoms in order of strength, and shows the matrix acting as
+\emph{rotate, stretch along $r$ axes, rotate} -- the cleanest possible picture of
+the cleanest possible decomposition. Everything in this chapter was the ground
+floor of that cathedral.
+\end{aestheticbox}
+
+\begin{recoverybox}
+\textbf{Recap, and what each idea costs you.}
+\begin{itemize}
+  \item \textbf{Rank $=$ true reach.} The dimension the outputs fill -- equally,
+        independent columns, independent rows, or pivots. \emph{Cost:} one
+        elimination, $O(mn\cdot\min\{m,n\})$ arithmetic; then just count pivots.
+  \item \textbf{Rank--nullity} (Theorem \ref{ch16:rank-nullity}):
+        $\rank + \dimn\nullsp = n$. \emph{Cost:} free -- once you know the rank and
+        the number of columns, the nullity needs no further work.
+  \item \textbf{Row rank $=$ column rank} (Theorem \ref{ch16:row-col}): both count
+        the width $r$ of the waist in $\mat{A}=\mat{C}\mat{F}$. \emph{Cost:} the
+        same single elimination tells you both at once.
+  \item \textbf{Four subspaces, two perpendicular pairs} (Theorem
+        \ref{ch16:orthog}): $\row\perp\nullsp$ in $\R^n$,
+        $\col\perp\nullsp(\mat{A}\T)$ in $\R^m$, all dimensions set by $r$.
+        \emph{Cost:} the pivot columns and special solutions you already have hand
+        you bases for all four.
+  \item \textbf{Rank-one atoms} (Theorem \ref{ch16:sum-rank-one}): $\mat{A}$ is a
+        sum of exactly $r$ outer products $\vec{c}_k\vec{f}_k\T$. \emph{Cost:} read
+        them straight off the rank factorization; storing them costs $r(m+n)$
+        numbers instead of $mn$ -- the whole point of low-rank compression.
+\end{itemize}
+One integer, $r$, paid for once, governs everything above.
+\end{recoverybox}
+
+\section{Exercises}
+
+\begin{exercise}\label{ch16:ex-warmup}
+Find the rank of each matrix by reducing to echelon form and counting pivots.
+\[
+  \text{(a) } \begin{bmatrix} 3 & 6 \\ 1 & 2 \end{bmatrix}, \quad
+  \text{(b) } \begin{bmatrix} 1 & 2 & 0 \\ 0 & 0 & 1 \\ 1 & 2 & 1 \end{bmatrix}, \quad
+  \text{(c) } \begin{bmatrix} 1 & 1 & 1 \\ 1 & 2 & 3 \\ 1 & 3 & 5 \end{bmatrix}.
+\]
+For each, state the nullity using rank--nullity, then verify by finding the
+special solutions.
+\end{exercise}
+
+\begin{exercise}\label{ch16:ex-rn-predict}
+A matrix $\mat{A}$ is $4\times 7$ and has rank $3$. Without seeing the entries,
+state: the dimension of the nullspace, the dimension of the column space, the
+dimension of the left nullspace, and the dimension of the row space. Which two of
+these subspaces live in $\R^4$, and which two in $\R^7$?
+\end{exercise}
+
+\begin{exercise}\label{ch16:ex-perp}
+For $\mat{A}=\begin{bmatrix} 1 & 2 & 2 \\ 2 & 4 & 5 \end{bmatrix}$, find a basis
+for the row space and a basis for the nullspace. Verify by direct dot product
+that every nullspace basis vector is perpendicular to every row space basis
+vector. (Determine the dimension of the nullspace from the rank first.)
+\end{exercise}
+
+\begin{exercise}\label{ch16:ex-outer}
+Write $\mat{A}=\begin{bmatrix} 6 & 4 & 2 \\ 9 & 6 & 3 \end{bmatrix}$ as a single
+outer product $\vec{u}\vec{v}\T$. Then write its rank. Could you have known the
+rank just by glancing at the rows? Explain in one sentence.
+\end{exercise}
+
+\begin{exercise}\label{ch16:ex-sum}
+Decompose $\mat{A}=\begin{bmatrix} 1 & 1 & 2 \\ 1 & 2 & 3 \\ 0 & 1 & 1 \end{bmatrix}$
+into a sum of rank-one matrices using a rank factorization $\mat{A}=\mat{C}\mat{F}$.
+First find the rank (look for a column dependency), then build $\mat{C}$ from a
+basis of the column space and $\mat{F}$ from the recipes for each column, and
+finally write $\mat{A}=\sum_k \vec{c}_k\vec{f}_k\T$. Check by adding the pieces.
+\end{exercise}
+
+\begin{exercise}\label{ch16:ex-rankone-property}
+Let $\mat{M}=\vec{u}\vec{v}\T$ be a nonzero rank-one $n\times n$ matrix. Show that
+$\mat{M}^2 = (\inner{\vec v}{\vec u})\,\mat{M}$. Conclude that if
+$\inner{\vec v}{\vec u}=0$ then $\mat{M}^2 = \mat{0}$, even though
+$\mat{M}\ne\mat{0}$. Give a concrete $2\times 2$ example with $\mat{M}^2=\mat0$.
+\end{exercise}
+
+\begin{exercise}\label{ch16:ex-rank-bound}
+Prove that for any matrices $\mat{A}$ (size $m\times k$) and $\mat{B}$ (size
+$k\times n$), $\rank(\mat{A}\mat{B}) \le \min\{\rank(\mat{A}),\rank(\mat{B})\}$.
+(Hint: every column of $\mat{A}\mat{B}$ is a combination of the columns of
+$\mat{A}$; then apply the same idea to rows, or to the transpose.) Where does this
+say the ``waist'' of a product cannot be wider than either factor's waist?
+\end{exercise}
+
+\begin{exercise}\label{ch16:ex-rankone-sum-trap}
+Find two rank-one matrices whose sum has rank $1$, and two whose sum has rank $2$.
+Then find two nonzero rank-one matrices whose sum is the zero matrix (rank $0$).
+What does this show about the claim ``rank of a sum equals sum of ranks''? (It is
+false; show the correct statement is $\rank(\mat{A}+\mat{B})\le
+\rank(\mat{A})+\rank(\mat{B})$ and explain the inequality in one line using column
+spaces.)
+\end{exercise}
+
+\begin{exercise}\label{ch16:ex-rowcol-proof}
+Using the rank factorization $\mat{A}=\mat{C}\mat{F}$ with waist $r=$ column rank,
+explain in your own words why the row space of $\mat{A}$ is spanned by the rows of
+$\mat{F}$, and hence why row rank $\le$ column rank. Then explain why applying the
+same statement to $\mat{A}\T$ closes the loop to equality. (Aim for a paragraph a
+classmate could follow without the figure.)
+\end{exercise}
+
+\begin{exercise}\label{ch16:ex-rowspace-iso}
+Let $\mat{A}=\begin{bmatrix} 1 & 0 & 1 \\ 0 & 1 & 1 \end{bmatrix}$ (rank $2$,
+$n=3$). Take the two row-space basis vectors $\vec{r}_1=\colvec{1\\0\\1}$ and
+$\vec{r}_2=\colvec{0\\1\\1}$ and compute $\mat{A}\vec{r}_1$ and $\mat{A}\vec{r}_2$.
+Verify the outputs are independent (so $\mat{A}$ is one-to-one on the row space,
+as Theorem~\ref{ch16:rowspace-iso} promises). Then take the nullspace vector
+$\vec{n}=\colvec{1\\1\\-1}$, confirm $\mat{A}\vec{n}=\vec0$, and note how the row
+space gets mapped faithfully while the nullspace is annihilated.
+\end{exercise}
+
+\begin{exercise}\label{ch16:ex-challenge}
+(Challenge.) Suppose $\mat{A}$ is $n\times n$ with $\rank(\mat{A})=r<n$. Prove that
+$\mat{A}$ has a nonzero nullspace, and use rank--nullity to say exactly its
+dimension. Then prove the converse direction of the invertibility dictionary: an
+$n\times n$ matrix is invertible if and only if its rank is $n$. (Connect ``rank
+$n$'' to ``trivial nullspace'' to ``columns independent'' to ``invertible.'')
+\end{exercise}

@@ -1,0 +1,917 @@
+\chapter{Orthogonality and Orthogonal Subspaces}
+
+There is a word that runs through every beautiful idea in linear algebra, and that word is
+\emph{orthogonal}. It is the grown-up name for ``at right angles,'' for ``perpendicular,'' for
+``independent in the cleanest possible way.'' When two directions are orthogonal, knowing how
+much of one you have tells you nothing about how much of the other you have. They do not
+interfere. They do not lean on each other. And because of that, problems that look hopelessly
+tangled fall apart into pieces you can solve one at a time.
+
+In this chapter we promote ``perpendicular'' from a fact about two arrows to a fact about whole
+\emph{subspaces} -- entire lines and planes that meet each other at right angles. We will discover
+that the four fundamental subspaces of a matrix are not just four random rooms in a building:
+they come in two perpendicular \emph{pairs}, and that perpendicularity is the geometric heart of
+why least squares, projections, the SVD, and almost everything in the second half of this book
+work. We will meet \emph{orthonormal} sets -- the gold-standard coordinate systems -- and the
+matrices built from them, the \emph{orthogonal matrices}, which rotate and reflect space without
+ever stretching or shearing it. Those matrices preserve length and angle exactly, and that single
+property makes them the safest, most stable objects in all of numerical linear algebra.
+
+As always: picture first, then algebra, then proof.
+
+\section{The dot product remembers the angle}
+
+Everything in this chapter rides on one little number. Given two vectors
+$\vec{u},\vec{v}\in\R^n$ written as columns, their \emph{dot product} (or inner product) is
+\[
+  \inner{\vec{u}}{\vec{v}} \;=\; \vec{u}\T\vec{v}
+  \;=\; u_1 v_1 + u_2 v_2 + \cdots + u_n v_n.
+\]
+It is a sum of products, and the answer is a single scalar. The length of a vector is recovered
+by dotting it with itself:
+\[
+  \norm{\vec{v}}^2 \;=\; \inner{\vec{v}}{\vec{v}} \;=\; v_1^2 + \cdots + v_n^2,
+\]
+which is just the Pythagorean theorem in $n$ dimensions. And the dot product remembers the
+\emph{angle} $\theta$ between the two vectors through the famous identity
+\[
+  \inner{\vec{u}}{\vec{v}} \;=\; \norm{\vec{u}}\,\norm{\vec{v}}\,\cos\theta.
+\]
+
+\begin{intuitionbox}
+The dot product measures \emph{how much two arrows agree}. If they point the same way it is large
+and positive; if they point opposite ways it is large and negative; and if they point along
+completely unrelated, perpendicular directions, the agreement is exactly \emph{zero}. That zero is
+the whole subject of this chapter. ``Orthogonal'' will simply mean ``the dot product is zero,''
+which by the formula above means $\cos\theta = 0$, which means $\theta = 90^\circ$.
+\end{intuitionbox}
+
+We will take that angle formula as known from the dot-product chapter, but it is worth seeing
+\emph{why} a zero dot product means a right angle, because the reason is pure Pythagoras and it
+needs no trigonometry at all.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.2,>=Stealth]
+  \coordinate (O) at (0,0);
+  \coordinate (U) at (2.6,0);
+  \coordinate (V) at (0,1.8);
+  \draw[->,spacegray] (-0.4,0)--(3.2,0);
+  \draw[->,spacegray] (0,-0.4)--(0,2.4);
+  \draw[->,vecblue,very thick] (O)--(U) node[below right]{$\vec{u}$};
+  \draw[->,vecred,very thick]  (O)--(V) node[above left]{$\vec{v}$};
+  \draw[structurepurple,very thick] (U)--(V);
+  \node[structurepurple,right] at (1.5,1.1) {$\vec{u}-\vec{v}$};
+  % right angle mark
+  \draw[spacegray] (0,0.25)--(0.25,0.25)--(0.25,0);
+\end{tikzpicture}
+\caption{When $\vec{u}\perp\vec{v}$, the triangle with legs $\vec{u}$ and $\vec{v}$ and
+hypotenuse $\vec{u}-\vec{v}$ obeys Pythagoras: $\norm{\vec{u}-\vec{v}}^2=\norm{\vec{u}}^2+\norm{\vec{v}}^2$.
+That equation is \emph{equivalent} to $\inner{\vec{u}}{\vec{v}}=0$.}
+\label{ch17:pythagoras}
+\end{figure}
+
+\begin{formalbox}
+\textbf{Orthogonality via Pythagoras.} For any $\vec{u},\vec{v}\in\R^n$,
+\[
+  \norm{\vec{u}-\vec{v}}^2
+  = \inner{\vec{u}-\vec{v}}{\vec{u}-\vec{v}}
+  = \norm{\vec{u}}^2 - 2\inner{\vec{u}}{\vec{v}} + \norm{\vec{v}}^2.
+\]
+The Pythagorean relation $\norm{\vec{u}-\vec{v}}^2 = \norm{\vec{u}}^2 + \norm{\vec{v}}^2$ holds
+\emph{if and only if} the cross term vanishes, that is, if and only if
+$\inner{\vec{u}}{\vec{v}}=0$. So ``right angle'' and ``zero dot product'' are two names for the
+same thing.
+\end{formalbox}
+
+That little derivation is the model for the whole chapter: expand a squared length, watch the
+cross terms, and demand that they vanish. Let us make the definition official.
+
+\begin{definition}\label{ch17:def-orthogonal-vectors}
+Two vectors $\vec{u},\vec{v}\in\R^n$ are \textbf{orthogonal} if $\inner{\vec{u}}{\vec{v}}
+= \vec{u}\T\vec{v} = 0$. We write $\vec{u}\perp\vec{v}$.
+\end{definition}
+
+\begin{remark}
+By this definition the zero vector is orthogonal to \emph{everything}, since $\vec{0}\T\vec{v}=0$
+always. That is not a loophole to be embarrassed about; it is exactly what we want, and it makes
+the algebra below clean. Geometrically, the zero vector has no direction to disagree with, so it
+agrees with nothing and disagrees with nothing.
+\end{remark}
+
+\begin{example}\label{ch17:first-numeric}
+Let $\vec{u}=\colvec{3\\1\\-2}$ and $\vec{v}=\colvec{2\\2\\4}$. Then
+\[
+  \inner{\vec{u}}{\vec{v}} = (3)(2)+(1)(2)+(-2)(4) = 6+2-8 = 0,
+\]
+so $\vec{u}\perp\vec{v}$. They sit at a perfect right angle in $\R^3$, even though neither one is
+along an axis. Check Pythagoras as a sanity test: $\norm{\vec{u}}^2 = 9+1+4 = 14$,
+$\norm{\vec{v}}^2 = 4+4+16 = 24$, and $\vec{u}-\vec{v}=\colvec{1\\-1\\-6}$ has
+$\norm{\vec{u}-\vec{v}}^2 = 1+1+36 = 38 = 14+24$. The cross term is gone.
+\end{example}
+
+\begin{trapbox}
+Orthogonal is not the same as ``looks perpendicular on my poorly drawn picture,'' and it is
+\emph{definitely} not the same as ``one is a multiple of the other.'' Parallel vectors (like
+$\colvec{1\\2}$ and $\colvec{2\\4}$) have a \emph{large} dot product; they are as far from
+orthogonal as you can get. Orthogonal vectors are the opposite extreme: their dot product is the
+smallest it can be in absolute value, namely zero. Do not confuse ``independent'' with
+``orthogonal'' either -- orthogonal vectors are always independent (we prove this soon), but
+independent vectors need not be orthogonal.
+\end{trapbox}
+
+\section{From vectors to subspaces}
+
+Now we lift the idea. So far ``orthogonal'' relates two arrows. But the real power comes when we
+ask a whole \emph{line} to be perpendicular to a whole \emph{plane}, or one subspace to another.
+
+\begin{definition}\label{ch17:def-orthogonal-subspaces}
+Two subspaces $V$ and $W$ of $\R^n$ are \textbf{orthogonal}, written $V\perp W$, if
+\emph{every} vector in $V$ is orthogonal to \emph{every} vector in $W$:
+\[
+  \inner{\vec{v}}{\vec{w}} = 0 \qquad \text{for all } \vec{v}\in V,\ \vec{w}\in W.
+\]
+\end{definition}
+
+This is a strong demand -- it must hold for all pairs at once -- but it is much easier to check
+than it looks, because of a small lemma that says you only have to test \emph{basis} vectors.
+
+\begin{lemma}\label{ch17:basis-suffices}
+Let $V=\spn(\vec{v}_1,\dots,\vec{v}_p)$ and $W=\spn(\vec{w}_1,\dots,\vec{w}_q)$. If every basis
+vector of $V$ is orthogonal to every basis vector of $W$ -- that is, $\inner{\vec{v}_i}{\vec{w}_j}=0$
+for all $i,j$ -- then $V\perp W$.
+\end{lemma}
+
+\begin{proof}
+Take any $\vec{v}\in V$ and $\vec{w}\in W$. Write them in the bases: $\vec{v}=\sum_i a_i\vec{v}_i$
+and $\vec{w}=\sum_j b_j\vec{w}_j$. The dot product is bilinear (it distributes over sums and pulls
+out scalars in each slot), so
+\[
+  \inner{\vec{v}}{\vec{w}}
+  = \Big\langle \textstyle\sum_i a_i\vec{v}_i,\ \sum_j b_j\vec{w}_j\Big\rangle
+  = \sum_i\sum_j a_i b_j \,\inner{\vec{v}_i}{\vec{w}_j}
+  = \sum_i\sum_j a_i b_j \cdot 0 = 0. \qedhere
+\]
+\end{proof}
+
+\begin{example}\label{ch17:line-perp-plane}
+In $\R^3$, let $V$ be the $z$-axis, spanned by $\vec{e}_3=\colvec{0\\0\\1}$, and let $W$ be the
+$xy$-plane, spanned by $\vec{e}_1=\colvec{1\\0\\0}$ and $\vec{e}_2=\colvec{0\\1\\0}$. Each basis
+dot product is zero: $\inner{\vec{e}_3}{\vec{e}_1}=0$ and $\inner{\vec{e}_3}{\vec{e}_2}=0$. By the
+lemma, the whole $z$-axis is orthogonal to the whole $xy$-plane. Good -- that matches the picture
+in your head.
+\end{example}
+
+\begin{trapbox}
+Two \emph{planes} in $\R^3$ can never be orthogonal subspaces in the sense of
+Definition~\ref{ch17:def-orthogonal-subspaces}, even though we casually call the floor and a wall
+``perpendicular.'' Why? Two planes through the origin in $\R^3$ always share a whole line (their
+intersection). Any nonzero vector $\vec{x}$ on that shared line lives in \emph{both} planes, so we
+would need $\inner{\vec{x}}{\vec{x}}=0$, forcing $\vec{x}=\vec{0}$. The everyday ``perpendicular
+walls'' meet along an edge that belongs to both -- so as \emph{subspaces} they are not orthogonal.
+Orthogonal subspaces can share \emph{only} the zero vector.
+\end{trapbox}
+
+That last observation is so important it deserves to be a proposition.
+
+\begin{proposition}\label{ch17:trivial-intersection}
+If $V\perp W$ then $V\cap W = \{\vec{0}\}$.
+\end{proposition}
+
+\begin{proof}
+Suppose $\vec{x}\in V\cap W$. Then $\vec{x}$ is in $V$ and also in $W$, so by orthogonality
+$\inner{\vec{x}}{\vec{x}}=0$. But $\inner{\vec{x}}{\vec{x}}=\norm{\vec{x}}^2$, and the only vector
+with zero length is $\vec{0}$. Hence $\vec{x}=\vec{0}$.
+\end{proof}
+
+\begin{intuitionbox}
+Orthogonal subspaces are subspaces that don't overlap and meet ``as squarely as possible.'' Think
+of the $z$-axis spearing straight up through the floor at the origin: a line and a plane, sharing
+exactly one point, every direction in one perpendicular to every direction in the other. That is
+the cleanest way two subspaces can coexist.
+\end{intuitionbox}
+
+\section{The orthogonal complement}
+
+A line through the origin in $\R^3$ is orthogonal to many things -- but there is one biggest,
+most complete space perpendicular to it: the entire plane at right angles. That ``everything
+perpendicular to $V$'' is so useful it gets its own name and symbol.
+
+\begin{definition}\label{ch17:def-complement}
+The \textbf{orthogonal complement} of a subspace $V\subseteq\R^n$, written $V^{\perp}$ (read
+``$V$ perp''), is the set of all vectors orthogonal to every vector in $V$:
+\[
+  V^{\perp} \;=\; \set{\,\vec{x}\in\R^n : \inner{\vec{x}}{\vec{v}}=0 \text{ for all }\vec{v}\in V\,}.
+\]
+\end{definition}
+
+A few facts are immediate and worth pinning down, because $V^\perp$ is going to do a lot of work.
+
+\begin{proposition}\label{ch17:perp-is-subspace}
+For any subspace $V\subseteq\R^n$, the set $V^{\perp}$ is itself a subspace of $\R^n$.
+\end{proposition}
+
+\begin{proof}
+We check the two closure rules. First, $\vec{0}\in V^\perp$ since $\inner{\vec{0}}{\vec{v}}=0$ for
+all $\vec{v}$. Now suppose $\vec{x},\vec{y}\in V^\perp$ and $c$ is a scalar. For any $\vec{v}\in V$,
+\[
+  \inner{\vec{x}+\vec{y}}{\vec{v}} = \inner{\vec{x}}{\vec{v}} + \inner{\vec{y}}{\vec{v}} = 0+0 = 0,
+  \qquad
+  \inner{c\vec{x}}{\vec{v}} = c\,\inner{\vec{x}}{\vec{v}} = c\cdot 0 = 0.
+\]
+So $\vec{x}+\vec{y}$ and $c\vec{x}$ are again in $V^\perp$. Closed under addition and scaling: it
+is a subspace.
+\end{proof}
+
+\begin{focusbox}
+The two facts to carry with you about $V^\perp$:
+\begin{itemize}
+  \item $V^\perp$ is a subspace, and $V\perp V^\perp$ (they are orthogonal to each other).
+  \item Together they fill the whole space cleanly: $\dimn V + \dimn V^\perp = n$, and
+        $V\cap V^\perp=\{\vec0\}$. We say $\R^n = V \oplus V^\perp$.
+\end{itemize}
+``Complement'' is the right word: $V^\perp$ supplies exactly the dimensions $V$ is missing, with no
+overlap and at right angles.
+\end{focusbox}
+
+We will prove the dimension count $\dimn V + \dimn V^\perp = n$ in a moment, once we connect $V^\perp$
+to a nullspace -- that turns out to be the slick way to see it. First, a hands-on computation so the
+idea is concrete.
+
+\begin{labbox}
+Let $V=\spn\!\left(\colvec{1\\1\\1}\right)$, a line in $\R^3$. To find $V^\perp$ we want all
+$\vec{x}=\colvec{x\\y\\z}$ with $\inner{\vec{x}}{(1,1,1)}=0$, i.e.\ $x+y+z=0$. That single equation
+describes a \emph{plane} through the origin. A basis for it: set the free variables and solve.
+Taking $(y,z)$ free gives $\colvec{-1\\1\\0}$ and $\colvec{-1\\0\\1}$. So $V^\perp$ is the
+2-dimensional plane $x+y+z=0$. Check: we have $\dimn V=1$, $\dimn V^\perp=2$, and
+$1+2=3=n$. The dimensions add up.
+\end{labbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth,line cap=round]
+  % a plane (parallelogram) and a line piercing it
+  \begin{scope}[canvas is xy plane at z=0]
+    \fill[targetgreen!18] (-2,-2) -- (2,-2) -- (2,2) -- (-2,2) -- cycle;
+    \draw[targetgreen!60] (-2,-2) -- (2,-2) -- (2,2) -- (-2,2) -- cycle;
+  \end{scope}
+  \node[targetgreen!60!black] at (1.7,1.6) {$V^{\perp}$};
+  % line V perpendicular to the plane (along z)
+  \draw[->,vecblue,very thick] (0,0,-1.6) -- (0,0,1.9) node[above]{$V$};
+  \fill[black] (0,0,0) circle (1.2pt);
+  % a sample vector in the plane
+  \draw[->,targetgreen!60!black,very thick] (0,0,0) -- (1.6,0.8,0);
+  % right angle hint
+  \draw[spacegray] (0,0,0.4) -- (0.3,0.15,0.4) -- (0.3,0.15,0);
+\end{tikzpicture}
+\caption{A line $V$ and its orthogonal complement $V^{\perp}$, a plane. Every vector in the plane
+is perpendicular to the line; together they account for all three dimensions of $\R^3$ and meet
+only at the origin.}
+\label{ch17:complement-pic}
+\end{figure}
+
+Did you notice the trick in the lab? Finding $V^\perp$ for a line turned into solving a single
+linear equation -- and that equation was exactly ``row vector dotted with $\vec x$ equals zero.''
+That is no accident. It is the bridge to the four subspaces.
+
+\section{The key identity: \texorpdfstring{$\nullsp(\mat A)=\row(\mat A)^\perp$}{null A = row A perp}}
+
+Here is the observation that ties orthogonal complements to matrices and unlocks the whole
+``big picture.'' Look at what it means for $\vec{x}$ to be in the nullspace of a matrix
+$\mat{A}$. The equation $\mat{A}\vec{x}=\vec{0}$, written row by row, says
+\[
+  (\text{row 1 of }\mat{A})\cdot\vec{x}=0,\quad
+  (\text{row 2 of }\mat{A})\cdot\vec{x}=0,\quad\dots,\quad
+  (\text{row }m\text{ of }\mat{A})\cdot\vec{x}=0.
+\]
+Every row of $\mat{A}$ dots to zero with $\vec{x}$. So $\vec{x}$ is orthogonal to every row -- and
+by Lemma~\ref{ch17:basis-suffices}, orthogonal to every \emph{combination} of rows, i.e.\ to the
+entire row space. That is the definition of being in $\row(\mat{A})^\perp$.
+
+\begin{theorem}\label{ch17:null-is-row-perp}
+For any $m\times n$ matrix $\mat{A}$,
+\[
+  \nullsp(\mat{A}) \;=\; \row(\mat{A})^{\perp},
+\]
+as subspaces of the input space $\R^n$. The nullspace and the row space are orthogonal
+complements.
+\end{theorem}
+
+\begin{proof}
+We show each set contains the other.
+
+($\subseteq$) If $\vec{x}\in\nullsp(\mat{A})$ then $\mat{A}\vec{x}=\vec{0}$, so each row dotted
+with $\vec{x}$ is zero. Hence $\vec{x}$ is orthogonal to every row, and by
+Lemma~\ref{ch17:basis-suffices} to all of $\row(\mat{A})$. Thus $\vec{x}\in\row(\mat{A})^\perp$.
+
+($\supseteq$) Conversely, if $\vec{x}\in\row(\mat{A})^\perp$ then $\vec{x}$ is orthogonal to every
+row in particular, so each row dotted with $\vec{x}$ is zero, which says $\mat{A}\vec{x}=\vec{0}$.
+Thus $\vec{x}\in\nullsp(\mat{A})$.
+
+The two inclusions give equality.
+\end{proof}
+
+This little theorem pays for the dimension law we promised. The Rank--Nullity theorem (from the
+rank chapter) says $\dimn\row(\mat A)+\dimn\nullsp(\mat A)=n$, because the row space has dimension
+$r$ (the rank) and the nullspace has dimension $n-r$. Read through Theorem~\ref{ch17:null-is-row-perp},
+that becomes a statement purely about a subspace and its complement.
+
+\begin{theorem}[Dimension of the complement]\label{ch17:dim-complement}
+For any subspace $V\subseteq\R^n$,
+\[
+  \dimn V + \dimn V^{\perp} = n.
+\]
+\end{theorem}
+
+\begin{proof}
+Pick a basis $\vec{v}_1,\dots,\vec{v}_r$ of $V$ and stack these as the \emph{rows} of an
+$r\times n$ matrix $\mat{A}$. Then $V=\row(\mat{A})$ and $\dimn V=r=\rank(\mat A)$. By
+Theorem~\ref{ch17:null-is-row-perp}, $V^\perp=\row(\mat A)^\perp=\nullsp(\mat A)$, whose dimension
+is $n-r$ by Rank--Nullity. So $\dimn V+\dimn V^\perp = r+(n-r)=n$.
+\end{proof}
+
+\begin{corollary}\label{ch17:perp-perp}
+$(V^\perp)^\perp = V$. Taking the complement twice returns you to where you started.
+\end{corollary}
+
+\begin{proof}
+Every vector of $V$ is orthogonal to every vector of $V^\perp$, so $V\subseteq (V^\perp)^\perp$.
+By Theorem~\ref{ch17:dim-complement} applied twice, $\dimn (V^\perp)^\perp = n-\dimn V^\perp
+= n-(n-\dimn V)=\dimn V$. A subspace contained in another of the same dimension must equal it.
+\end{proof}
+
+\begin{strangbox}
+Strang reaches this point and draws his famous ``big picture'': two perpendicular pairs of
+subspaces, the input space $\R^n$ split by the row space and the nullspace, the output space
+$\R^m$ split by the column space and the left nullspace. \emph{Before} Strang, hold onto the
+single sentence ``the nullspace is everything the rows can't see,'' which is exactly
+$\nullsp(\mat A)=\row(\mat A)^\perp$. \emph{After} Strang, recognize this same orthogonality as the
+reason projection onto the column space (next chapter) and least squares both work: the error
+vector lands in the left nullspace, perpendicular to the column space.
+\end{strangbox}
+
+\section{The two orthogonal pairs among the four subspaces}
+
+We now have the first orthogonal pair for free. Apply the identity to $\mat{A}\T$ instead of
+$\mat{A}$, and the second pair drops out, because the row space of $\mat{A}\T$ is the column space
+of $\mat{A}$, and the nullspace of $\mat{A}\T$ is the left nullspace of $\mat A$.
+
+\begin{theorem}[The two orthogonal pairs]\label{ch17:two-pairs}
+Let $\mat{A}$ be $m\times n$ with rank $r$. Then:
+\begin{itemize}
+  \item In the input space $\R^n$:\quad
+        $\nullsp(\mat A) = \row(\mat A)^{\perp}$,\quad and these have dimensions $n-r$ and $r$.
+  \item In the output space $\R^m$:\quad
+        $\nullsp(\mat A\T) = \col(\mat A)^{\perp}$,\quad and these have dimensions $m-r$ and $r$.
+\end{itemize}
+Consequently $\R^n = \row(\mat A)\oplus\nullsp(\mat A)$ and
+$\R^m = \col(\mat A)\oplus\nullsp(\mat A\T)$, each a clean perpendicular split.
+\end{theorem}
+
+\begin{proof}
+The first line is Theorem~\ref{ch17:null-is-row-perp}. For the second, replace $\mat A$ by
+$\mat A\T$ in that theorem: $\nullsp(\mat A\T)=\row(\mat A\T)^\perp$. But the rows of $\mat A\T$
+are the columns of $\mat A$, so $\row(\mat A\T)=\col(\mat A)$. Substituting gives
+$\nullsp(\mat A\T)=\col(\mat A)^\perp$. The dimension counts come from
+Theorem~\ref{ch17:dim-complement} and $\rank(\mat A\T)=\rank(\mat A)=r$.
+\end{proof}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth,
+  spc/.style={draw=spacegray,thick,rounded corners=2pt},
+  sub/.style={font=\small}]
+  % Input space R^n on the left
+  \begin{scope}[shift={(0,0)}]
+    \node[spc,minimum width=3.6cm,minimum height=4.8cm] (Rn) at (0,0) {};
+    \node[above=1pt of Rn,font=\bfseries] {$\R^{n}$ (inputs)};
+    % row space (upper) and nullspace (lower) meeting at origin
+    \fill[sourceblue!18] (-1.5,0.2) rectangle (1.5,2.2);
+    \fill[quotientorange!20] (-1.5,-2.2) rectangle (1.5,-0.2);
+    \node[sub,sourceblue!60!black] at (0,1.2) {$\row(\mat A)$};
+    \node[sub,sourceblue!60!black] at (0,0.75) {$\dim r$};
+    \node[sub,quotientorange!65!black] at (0,-1.1) {$\nullsp(\mat A)$};
+    \node[sub,quotientorange!65!black] at (0,-1.55) {$\dim n-r$};
+    \fill[black] (0,0) circle (1.4pt);
+    \draw[spacegray] (-0.22,0.0)--(-0.22,0.22)--(0,0.22);
+  \end{scope}
+  % arrow A
+  \draw[->,very thick,structurepurple] (2.1,0) -- node[above]{$\mat A$} (4.5,0);
+  % Output space R^m on the right
+  \begin{scope}[shift={(6.6,0)}]
+    \node[spc,minimum width=3.6cm,minimum height=4.8cm] (Rm) at (0,0) {};
+    \node[above=1pt of Rm,font=\bfseries] {$\R^{m}$ (outputs)};
+    \fill[targetgreen!20] (-1.5,0.2) rectangle (1.5,2.2);
+    \fill[trapred!18] (-1.5,-2.2) rectangle (1.5,-0.2);
+    \node[sub,targetgreen!55!black] at (0,1.2) {$\col(\mat A)$};
+    \node[sub,targetgreen!55!black] at (0,0.75) {$\dim r$};
+    \node[sub,trapred!75!black] at (0,-1.05) {$\nullsp(\mat A\T)$};
+    \node[sub,trapred!75!black] at (0,-1.5) {$\dim m-r$};
+    \fill[black] (0,0) circle (1.4pt);
+    \draw[spacegray] (-0.22,0.0)--(-0.22,0.22)--(0,0.22);
+  \end{scope}
+\end{tikzpicture}
+\caption{The big picture. Inside $\R^n$ the row space and the nullspace are orthogonal complements;
+inside $\R^m$ the column space and the left nullspace are orthogonal complements. The matrix
+$\mat A$ maps the row space one-to-one onto the column space, and crushes the nullspace to the
+origin. The little right-angle marks remind you each pair meets at $90^\circ$.}
+\label{ch17:big-picture}
+\end{figure}
+
+\begin{aestheticbox}
+Pause on how much this single diagram organizes. A matrix is, on its face, just a grid of numbers.
+Yet hidden inside every such grid are four subspaces, locked into two perpendicular pairs, with
+dimensions $r$, $n-r$, $r$, $m-r$ that always add correctly. The rank $r$ appears \emph{twice} --
+once on each side -- which is the deep reason ``row rank equals column rank.'' Orthogonality is
+what makes the picture rigid: the complement isn't just some other subspace of the right
+dimension, it is the \emph{unique} one at right angles. This rigidity is what lets us later
+\emph{split} any vector uniquely into a part the matrix sees and a part it ignores -- the
+projection that powers least squares, regression, and the SVD.
+\end{aestheticbox}
+
+\begin{example}\label{ch17:four-spaces-worked}
+Let
+\[
+  \mat A=\begin{bmatrix} 1 & 2 & 2\\ 2 & 4 & 5 \end{bmatrix}.
+\]
+Row reduce: $R_2\to R_2-2R_1$ gives $\begin{bmatrix}1&2&2\\0&0&1\end{bmatrix}$, then clear above the
+second pivot: $R_1\to R_1-2R_2$ gives $\begin{bmatrix}1&2&0\\0&0&1\end{bmatrix}$. So $r=2$.
+
+\textbf{Row space} ($\subseteq\R^3$, dimension $2$): spanned by the pivot rows
+$\colvec{1\\2\\0}$ and $\colvec{0\\0\\1}$.
+
+\textbf{Nullspace} ($\subseteq\R^3$, dimension $1$): the free variable is $x_2$. From
+$x_1+2x_2=0$ and $x_3=0$ we get $\vec n=\colvec{-2\\1\\0}$. Check the orthogonality promised by
+Theorem~\ref{ch17:two-pairs}: $\inner{\vec n}{(1,2,0)}=-2+2+0=0$ and $\inner{\vec n}{(0,0,1)}=0$.
+The nullspace really is perpendicular to the row space.
+
+\textbf{Column space} ($\subseteq\R^2$, dimension $2$): the pivots sit in columns 1 and 3, so a
+basis is $\colvec{1\\2}$ and $\colvec{2\\5}$. These two independent vectors already fill $\R^2$, so
+$\col(\mat A)=\R^2$.
+
+\textbf{Left nullspace} ($\subseteq\R^2$, dimension $m-r=0$): just $\{\vec 0\}$, consistent with
+the column space being all of $\R^2$ (its complement has nothing left to be). Everything checks.
+\end{example}
+
+\begin{walkbox}
+Take a walk and answer this without paper. A matrix $\mat A$ is $4\times 6$ with rank $3$. What are
+the dimensions of all four subspaces, and which two live in $\R^6$, which two in $\R^4$? Then:
+which pair sums to $6$, which pair sums to $4$? If you can recite ``$3$ and $3$ in $\R^6$, $3$ and
+$1$ in $\R^4$'' and say which is the row space and which the nullspace, the big picture has become
+yours.
+\end{walkbox}
+
+\section{Orthonormal sets: the best possible vectors}
+
+Orthogonality already buys us something precious: independence, for free.
+
+\begin{proposition}\label{ch17:orthog-implies-indep}
+A set of nonzero, mutually orthogonal vectors $\vec{q}_1,\dots,\vec{q}_k$ is linearly independent.
+\end{proposition}
+
+\begin{proof}
+Suppose $c_1\vec q_1+\cdots+c_k\vec q_k=\vec 0$. Dot both sides with $\vec q_j$. By orthogonality
+every term $\inner{\vec q_i}{\vec q_j}$ vanishes except $i=j$:
+\[
+  0 = \Big\langle \textstyle\sum_i c_i\vec q_i,\ \vec q_j\Big\rangle
+    = c_j\inner{\vec q_j}{\vec q_j} = c_j\norm{\vec q_j}^2.
+\]
+Since $\vec q_j\neq\vec 0$, $\norm{\vec q_j}^2>0$, so $c_j=0$. This holds for each $j$, so all
+coefficients are zero: the vectors are independent.
+\end{proof}
+
+If on top of being orthogonal each vector also has \emph{length one}, we have struck gold.
+
+\begin{definition}\label{ch17:def-orthonormal}
+Vectors $\vec q_1,\dots,\vec q_k\in\R^n$ form an \textbf{orthonormal set} if they are mutually
+orthogonal \emph{and} each is a unit vector:
+\[
+  \inner{\vec q_i}{\vec q_j} \;=\; \delta_{ij} \;=\;
+  \begin{cases} 1 & i=j,\\ 0 & i\neq j.\end{cases}
+\]
+The symbol $\delta_{ij}$ is the \emph{Kronecker delta}: $1$ on the diagonal, $0$ off it.
+\end{definition}
+
+\begin{intuitionbox}
+An orthonormal set is a set of clean, unit-length, mutually perpendicular directions -- a little
+piece of a perfect coordinate grid, like the corner of a sheet of graph paper, possibly tilted in
+space. The standard axes $\vec e_1,\dots,\vec e_n$ are the most familiar example, but \emph{any}
+rotation of them is just as good. The point of orthonormal is that the directions don't interfere,
+and each carries exactly one unit of measurement.
+\end{intuitionbox}
+
+Why do we love them? Because in an orthonormal basis, finding coordinates stops being a linear
+system to solve and becomes a set of dot products to read off. Suppose $\vec q_1,\dots,\vec q_n$ is
+an orthonormal basis of $\R^n$ and you want to write some vector $\vec v$ in it,
+$\vec v = c_1\vec q_1+\cdots+c_n\vec q_n$. Dot with $\vec q_j$ and watch all but one term die:
+\[
+  \inner{\vec v}{\vec q_j} = \sum_i c_i\inner{\vec q_i}{\vec q_j} = c_j.
+\]
+So $c_j = \inner{\vec v}{\vec q_j}$ -- the $j$th coordinate is just the dot product of $\vec v$ with
+the $j$th basis vector. No elimination, no inverse, no system.
+
+\begin{focusbox}
+\textbf{Orthonormal expansion.} If $\vec q_1,\dots,\vec q_n$ is an orthonormal basis of $\R^n$,
+then every $\vec v$ has the instant formula
+\[
+  \vec v \;=\; \inner{\vec v}{\vec q_1}\,\vec q_1 + \inner{\vec v}{\vec q_2}\,\vec q_2
+            + \cdots + \inner{\vec v}{\vec q_n}\,\vec q_n .
+\]
+Each coefficient is a single dot product. This is the cheapest, most stable way to find
+coordinates, and it is why orthonormal bases are everywhere in computing.
+\end{focusbox}
+
+\begin{example}\label{ch17:rotated-basis}
+The rotated pair
+\[
+  \vec q_1=\tfrac{1}{\sqrt2}\colvec{1\\1},\qquad
+  \vec q_2=\tfrac{1}{\sqrt2}\colvec{-1\\1}
+\]
+is orthonormal: $\inner{\vec q_1}{\vec q_1}=\tfrac12(1+1)=1$, likewise for $\vec q_2$, and
+$\inner{\vec q_1}{\vec q_2}=\tfrac12(-1+1)=0$. To express $\vec v=\colvec{3\\1}$ in this basis,
+just dot:
+\[
+  c_1=\inner{\vec v}{\vec q_1}=\tfrac{1}{\sqrt2}(3+1)=\tfrac{4}{\sqrt2}=2\sqrt2,\qquad
+  c_2=\inner{\vec v}{\vec q_2}=\tfrac{1}{\sqrt2}(-3+1)=-\sqrt2.
+\]
+Sanity check: $2\sqrt2\,\vec q_1 - \sqrt2\,\vec q_2 = \colvec{2\\2}+\colvec{1\\-1}=\colvec{3\\1}
+=\vec v.$ It works, and we never solved a system.
+\end{example}
+
+Figure~\ref{ch17:tilted-grid} shows what this looks like: the orthonormal pair is just a copy of the
+standard graph paper rotated by $45^\circ$, and the coordinates $c_1,c_2$ are the readings of $\vec v$
+along those tilted axes.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.95,>=Stealth,line cap=round]
+  % faint standard grid
+  \draw[help lines,spacegray!30] (-0.6,-0.6) grid (3.4,3.4);
+  \draw[->,spacegray] (-0.6,0)--(3.6,0) node[right]{$x$};
+  \draw[->,spacegray] (0,-0.6)--(0,3.6) node[above]{$y$};
+  % tilted orthonormal axes (q1 along (1,1)/sqrt2, q2 along (-1,1)/sqrt2)
+  \draw[vecblue!55,thick,-{Stealth}] (0,0)--(2.55,2.55);
+  \draw[vecred!55,thick,-{Stealth}] (0,0)--(-1.7,1.7);
+  \node[vecblue!60!black] at (2.7,2.3) {$\vec q_1$};
+  \node[vecred!70!black] at (-1.5,2.0) {$\vec q_2$};
+  % unit basis arrows
+  \draw[->,vecblue,very thick] (0,0)--(0.707,0.707);
+  \draw[->,vecred,very thick]  (0,0)--(-0.707,0.707);
+  % vector v=(3,1)
+  \draw[->,structurepurple,very thick] (0,0)--(3,1) node[right]{$\vec v$};
+  % drop to q1 axis: foot at c1*q1 = 2sqrt2*(.707,.707)=(2,2)
+  \draw[spacegray!70,dashed] (3,1)--(2,2);
+  \fill[black] (2,2) circle (1.0pt);
+  \node[font=\small] at (2.45,1.65) {$c_1\vec q_1$};
+  \fill[black] (0,0) circle (1.1pt);
+\end{tikzpicture}
+\caption{The orthonormal basis $\vec q_1,\vec q_2$ is the standard grid turned $45^\circ$. The
+coordinate $c_1=\inner{\vec v}{\vec q_1}$ is found by dropping $\vec v$ perpendicularly onto the
+$\vec q_1$ axis (dashed line), landing at $c_1\vec q_1=(2,2)$; $c_2=\inner{\vec v}{\vec q_2}$ is the
+matching reading along $\vec q_2$. Coordinates by dot product, no system to solve.}
+\label{ch17:tilted-grid}
+\end{figure}
+
+\begin{connectionbox}
+This expansion is the finite-dimensional ancestor of the \emph{Fourier series}. In a function
+space, the sines and cosines $\{\sin(kx),\cos(kx)\}$ are mutually orthogonal under the inner
+product $\inner{f}{g}=\int f(x)g(x)\,dx$, and the Fourier coefficients are computed by exactly the
+same recipe: $c_k = \inner{f}{\,\text{that basis function}}$, an integral instead of a sum. Whole
+fields -- signal processing, the heat equation, quantum mechanics -- are built on choosing a clever
+orthonormal basis and reading off coordinates by integration. The chapter on Hermitian matrices and
+Fourier makes this precise, but the idea is already in front of you: orthonormal means
+``coordinates by dot product.''
+\end{connectionbox}
+
+\section{Orthogonal matrices: motions that preserve everything}
+
+Collect an orthonormal set into the columns of a matrix and something magical happens to
+$\mat Q\T\mat Q$.
+
+\begin{definition}\label{ch17:def-orthogonal-matrix}
+A square matrix $\mat Q$ is an \textbf{orthogonal matrix} if its columns form an orthonormal set,
+equivalently if
+\[
+  \mat Q\T\mat Q \;=\; \mat I .
+\]
+\end{definition}
+
+Let us see why those two statements are the same. If the columns are $\vec q_1,\dots,\vec q_n$,
+then the $(i,j)$ entry of $\mat Q\T\mat Q$ is (row $i$ of $\mat Q\T$) times (column $j$ of $\mat Q$),
+which is $\vec q_i\T\vec q_j=\inner{\vec q_i}{\vec q_j}$. Orthonormality says that equals
+$\delta_{ij}$, and the matrix of $\delta_{ij}$ entries is precisely $\mat I$. So
+``columns orthonormal'' and ``$\mat Q\T\mat Q=\mat I$'' say the same thing, entry by entry.
+
+\begin{trapbox}
+The name is a historical trap: an ``orthogonal matrix'' has \emph{orthonormal} columns, not merely
+orthogonal ones. Length one is part of the deal. A matrix with orthogonal-but-not-unit columns,
+like $\begin{bmatrix}2&0\\0&3\end{bmatrix}$, is \emph{not} an orthogonal matrix. Blame the
+nineteenth century for the misleading name; just remember the test is $\mat Q\T\mat Q=\mat I$.
+\end{trapbox}
+
+For a \emph{square} $\mat Q$, the equation $\mat Q\T\mat Q=\mat I$ says $\mat Q\T$ is a left inverse,
+and since $\mat Q$ is square a left inverse is the inverse. So we get the cleanest inverse in
+mathematics:
+\[
+  \boxed{\;\mat Q\inv = \mat Q\T\;}
+\]
+To invert an orthogonal matrix you do not solve anything -- you just transpose it. (As a bonus,
+$\mat Q\T$ is then orthogonal too, so the \emph{rows} of an orthogonal matrix are also orthonormal,
+and $\mat Q\mat Q\T=\mat I$ as well.)
+
+\begin{example}\label{ch17:rotation-matrix}
+The plane rotation by angle $\theta$,
+\[
+  \mat Q=\begin{bmatrix}\cos\theta & -\sin\theta\\ \sin\theta & \cos\theta\end{bmatrix},
+\]
+is orthogonal. Its columns each have length $\sqrt{\cos^2\theta+\sin^2\theta}=1$ and dot to
+$-\cos\theta\sin\theta+\sin\theta\cos\theta=0$. Its inverse is the transpose, which is rotation by
+$-\theta$ -- exactly what undoes a rotation. A reflection, e.g.\
+$\begin{bmatrix}1&0\\0&-1\end{bmatrix}$ (flip across the $x$-axis), is orthogonal too. Rotations
+and reflections are the orthogonal matrices of the plane.
+\end{example}
+
+\subsection{What orthogonal matrices preserve}
+
+Here is the property that makes orthogonal matrices the heroes of numerical linear algebra: they
+move space \emph{rigidly}. They never stretch, squash, or shear. Lengths come out unchanged, and so
+do angles.
+
+\begin{theorem}[Orthogonal matrices preserve dot products]\label{ch17:Q-preserves}
+If $\mat Q$ is orthogonal, then for all $\vec x,\vec y\in\R^n$,
+\[
+  \inner{\mat Q\vec x}{\mat Q\vec y} = \inner{\vec x}{\vec y}.
+\]
+In particular $\norm{\mat Q\vec x}=\norm{\vec x}$ (lengths preserved), and the angle between
+$\mat Q\vec x$ and $\mat Q\vec y$ equals the angle between $\vec x$ and $\vec y$ (angles preserved).
+\end{theorem}
+
+\begin{proof}
+Use the transpose rule $(\mat Q\vec x)\T=\vec x\T\mat Q\T$ and the defining identity
+$\mat Q\T\mat Q=\mat I$:
+\[
+  \inner{\mat Q\vec x}{\mat Q\vec y}
+  = (\mat Q\vec x)\T(\mat Q\vec y)
+  = \vec x\T \mat Q\T\mat Q\,\vec y
+  = \vec x\T\mat I\,\vec y
+  = \vec x\T\vec y
+  = \inner{\vec x}{\vec y}.
+\]
+Taking $\vec y=\vec x$ gives $\norm{\mat Q\vec x}^2=\norm{\vec x}^2$, hence equal lengths. Since
+$\cos\theta=\inner{\vec x}{\vec y}/(\norm{\vec x}\norm{\vec y})$ and every quantity in that ratio is
+preserved, the angle is preserved too.
+\end{proof}
+
+\begin{intuitionbox}
+An orthogonal matrix is a \emph{rigid motion} of space that fixes the origin: a rotation, a
+reflection, or a combination. Drop a constellation of points into $\R^n$, hit them all with
+$\mat Q$, and the whole constellation turns or flips as one solid object -- every distance between
+points and every angle is exactly what it was. Nothing is distorted. That is the geometric meaning
+of $\mat Q\T\mat Q=\mat I$.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.05,>=Stealth]
+  % left: unit square with a tilted vector
+  \begin{scope}
+    \draw[->,spacegray](-0.3,0)--(2.1,0); \draw[->,spacegray](0,-0.3)--(0,2.1);
+    \draw[fill=sourceblue!12,draw=sourceblue] (0,0)--(1,0)--(1,1)--(0,1)--cycle;
+    \draw[->,vecblue,very thick] (0,0)--(1,0);
+    \draw[->,vecred,very thick] (0,0)--(0,1);
+    \node at (0.5,-0.55) {before};
+  \end{scope}
+  % arrow
+  \draw[->,very thick,structurepurple] (2.6,0.5)-- node[above]{$\mat Q$} (3.8,0.5);
+  % right: rotated square -- same shape, turned
+  \begin{scope}[shift={(5.6,0)}]
+    \draw[->,spacegray](-0.9,0)--(1.6,0); \draw[->,spacegray](0,-0.3)--(0,2.1);
+    \def\a{35}
+    \draw[fill=sourceblue!12,draw=sourceblue,rotate=\a] (0,0)--(1,0)--(1,1)--(0,1)--cycle;
+    \draw[->,vecblue,very thick,rotate=\a] (0,0)--(1,0);
+    \draw[->,vecred,very thick,rotate=\a] (0,0)--(0,1);
+    \node at (0.2,-0.55) {after};
+  \end{scope}
+\end{tikzpicture}
+\caption{An orthogonal matrix turns (or flips) the unit square without distorting it. The sides
+keep length $1$, the corner keeps its right angle: a rigid motion. Contrast a general matrix, which
+would stretch the square into a slanted parallelogram.}
+\label{ch17:rigid-motion}
+\end{figure}
+
+\begin{labbox}
+Verify rigidity by hand with $\theta=90^\circ$, so $\mat Q=\begin{bmatrix}0&-1\\1&0\end{bmatrix}$.
+Take $\vec x=\colvec{2\\1}$, $\vec y=\colvec{1\\3}$. Then $\mat Q\vec x=\colvec{-1\\2}$ and
+$\mat Q\vec y=\colvec{-3\\1}$. Lengths: $\norm{\vec x}^2=5=\norm{\mat Q\vec x}^2$ and
+$\norm{\vec y}^2=10=\norm{\mat Q\vec y}^2$. Dot products: $\inner{\vec x}{\vec y}=2+3=5$ and
+$\inner{\mat Q\vec x}{\mat Q\vec y}=3+2=5$. Everything is preserved -- the $90^\circ$ turn moved the
+arrows but kept all measurements.
+\end{labbox}
+
+\begin{remark}
+Taking determinants of $\mat Q\T\mat Q=\mat I$ gives $\det(\mat Q)^2=1$, so $\det\mat Q=\pm1$.
+The value $+1$ is a pure rotation (a ``proper'' motion that preserves handedness), and $-1$ is a
+reflection or a rotation-times-reflection (it flips orientation, turning a left hand into a right
+hand). Either way the volume scaling is $|\det\mat Q|=1$: orthogonal matrices preserve volume, as
+a rigid motion must. We will meet determinants properly in a later chapter; for now just enjoy that
+$\pm1$ falling out so cleanly.
+\end{remark}
+
+\begin{applicationbox}
+\textbf{Why machine learning and graphics adore $\mat Q\T\mat Q=\mat I$.}
+\begin{itemize}
+  \item \emph{Numerical stability.} Multiplying by $\mat Q$ never amplifies error, because it
+        never amplifies length ($\norm{\mat Q\vec x}=\norm{\vec x}$). Algorithms like \emph{QR}
+        factorization and the \emph{SVD} are built from orthogonal matrices precisely so that
+        rounding errors don't blow up. A general matrix can magnify a tiny error by a huge factor;
+        an orthogonal one cannot.
+  \item \emph{3D graphics and robotics.} A camera turn or a robot-arm joint is an orthogonal
+        $3\times3$ matrix with $\det=+1$ (a rotation). Storing the inverse is free -- just transpose
+        -- and repeated rotations never silently distort the model, because each one preserves
+        every length and angle.
+  \item \emph{Random projections and PCA.} The principal components found by the SVD are an
+        orthonormal basis; projecting data onto them rotates the cloud onto its natural axes
+        without squashing distances. ``Orthonormal directions'' is the data-science way of saying
+        ``uncorrelated, unit-variance coordinates.''
+  \item \emph{Whitening and decorrelation.} Because $\mat Q$ preserves inner products, it turns one
+        orthonormal frame into another -- the exact operation behind rotating data into a basis
+        where features no longer interfere.
+\end{itemize}
+The thread tying these together is Theorem~\ref{ch17:Q-preserves}: when your transformation
+preserves length and angle, geometry survives the computation intact.
+\end{applicationbox}
+
+\begin{strangbox}
+Strang hammers home that orthogonal matrices are the ``good'' matrices -- the ones you \emph{want}
+to compute with -- and that $\mat Q\inv=\mat Q\T$ is the property to memorize. \emph{After} Strang,
+you will see this same $\mat Q$ in three marquee factorizations: $\mat A=\mat Q\mat R$
+(Gram--Schmidt, next chapters), $\mat A=\mat Q\Lambda\mat Q\T$ for symmetric matrices (the spectral
+theorem), and $\mat A=\mat U\Sigma\mat V\T$ (the SVD), where $\mat U$ and $\mat V$ are both
+orthogonal. In every case the orthogonal factors are doing the rigid turning while a diagonal factor
+does the only stretching. ``Rotate, stretch, rotate'' is the SVD in five words -- and the rotations
+are exactly the orthogonal matrices of this chapter.
+\end{strangbox}
+
+\section{Splitting a vector into perpendicular parts}
+
+We close by cashing in the orthogonal-complement structure, because it leads straight into the next
+chapter on projections. The focus box of the complement section promised that $\R^n = V\oplus V^\perp$
+for \emph{any} subspace $V$ -- and we can now justify it: Theorem~\ref{ch17:dim-complement} makes the
+dimensions add to $n$, while Proposition~\ref{ch17:trivial-intersection} forces $V\cap V^\perp=\{\vec0\}$.
+``$\oplus$'' (direct sum) means every vector splits \emph{uniquely} into a piece in
+$V$ and a piece in $V^\perp$.
+
+\begin{theorem}[Orthogonal decomposition]\label{ch17:orthog-decomp}
+Let $V\subseteq\R^n$ be a subspace. Every $\vec x\in\R^n$ can be written in exactly one way as
+\[
+  \vec x = \vec x_V + \vec x_{V^\perp}, \qquad \vec x_V\in V,\ \ \vec x_{V^\perp}\in V^\perp .
+\]
+\end{theorem}
+
+\begin{proof}
+\emph{Existence.} Choose an orthonormal basis $\vec q_1,\dots,\vec q_r$ of $V$ (one exists; building
+it is the job of Gram--Schmidt, two chapters on). Set $\vec x_V=\sum_{i=1}^r\inner{\vec x}{\vec q_i}\vec q_i$
+and $\vec x_{V^\perp}=\vec x-\vec x_V$. Clearly $\vec x_V\in V$. To see $\vec x_{V^\perp}\in V^\perp$,
+dot it with any basis vector $\vec q_j$:
+\[
+  \inner{\vec x-\vec x_V}{\vec q_j} = \inner{\vec x}{\vec q_j} - \inner{\vec x}{\vec q_j} = 0,
+\]
+so $\vec x_{V^\perp}$ is orthogonal to every $\vec q_j$, hence to all of $V$.
+
+\emph{Uniqueness.} If $\vec x=\vec a+\vec b=\vec a'+\vec b'$ are two such splittings with
+$\vec a,\vec a'\in V$ and $\vec b,\vec b'\in V^\perp$, then $\vec a-\vec a'=\vec b'-\vec b$ lies in
+both $V$ and $V^\perp$. By Proposition~\ref{ch17:trivial-intersection} the only such vector is
+$\vec 0$, so $\vec a=\vec a'$ and $\vec b=\vec b'$.
+\end{proof}
+
+\begin{intuitionbox}
+This is the punchline of the chapter and the seed of the next one. Pick any subspace $V$ -- a line, a
+plane, the column space of a matrix. Then every vector in space casts a unique ``shadow'' onto $V$
+(the piece $\vec x_V$) plus a unique leftover sticking straight out of $V$ (the piece
+$\vec x_{V^\perp}$, the part $V$ cannot explain). The shadow is the \emph{projection}; the leftover
+is the \emph{error}, and it is perpendicular to $V$ by construction. Least squares, in one sentence,
+is ``make the error perpendicular.'' That whole subject is waiting in this single decomposition.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.25,>=Stealth,line cap=round]
+  % subspace V drawn as a slanted line through the origin
+  \coordinate (O) at (0,0);
+  \draw[targetgreen!70,very thick] (-1.6,-0.8) -- (2.4,1.2) node[below right]{$V$};
+  % x and its two pieces
+  \coordinate (X) at (1.6,1.9);
+  \coordinate (XV) at (1.6,0.8);   % shadow on V (foot of perpendicular)
+  \draw[->,vecblue,very thick] (O) -- (X) node[above]{$\vec x$};
+  \draw[->,targetgreen!60!black,very thick] (O) -- (XV) node[below right]{$\vec x_V$};
+  \draw[->,structurepurple,very thick] (XV) -- (X);
+  \node[structurepurple,right] at (1.62,1.38) {$\vec x_{V^{\perp}}$};
+  % right-angle mark where the leftover meets V
+  \draw[spacegray] ($(XV)+(-0.18,-0.09)$) -- ($(XV)+(-0.05,0.16)$) -- ($(XV)+(0.13,0.07)$);
+  \fill[black] (O) circle (1.1pt);
+\end{tikzpicture}
+\caption{The orthogonal decomposition $\vec x=\vec x_V+\vec x_{V^{\perp}}$. The shadow
+$\vec x_V$ lands inside $V$; the leftover $\vec x_{V^{\perp}}$ stands perpendicular to $V$ (note the
+right-angle mark). This split is unique, and it is the seed of projection and least squares.}
+\label{ch17:decomp-pic}
+\end{figure}
+
+\begin{example}\label{ch17:split-example}
+Split $\vec x=\colvec{2\\3}$ along the line $V=\spn\!\left(\colvec{1\\0}\right)$ (the $x$-axis). The
+unit vector is $\vec q_1=\colvec{1\\0}$, so
+\[
+  \vec x_V = \inner{\vec x}{\vec q_1}\,\vec q_1 = 2\colvec{1\\0}=\colvec{2\\0},
+  \qquad
+  \vec x_{V^\perp} = \vec x-\vec x_V = \colvec{0\\3}.
+\]
+Indeed $\vec x_V$ is on the $x$-axis, $\vec x_{V^\perp}$ is on the $y$-axis ($=V^\perp$), they are
+perpendicular, and they reassemble to $\vec x$. The shadow on the axis is $\colvec{2\\0}$; the
+perpendicular leftover is $\colvec{0\\3}$.
+\end{example}
+
+\begin{focusbox}
+\textbf{Chapter in one breath.} Orthogonal means zero dot product. A subspace $V$ has a unique
+orthogonal complement $V^\perp$ at right angles, and $\dim V+\dim V^\perp=n$. The four fundamental
+subspaces form two such complement pairs: $\nullsp(\mat A)=\row(\mat A)^\perp$ in $\R^n$ and
+$\nullsp(\mat A\T)=\col(\mat A)^\perp$ in $\R^m$. Orthonormal vectors give coordinates by dot
+product; packed into a square matrix they make an orthogonal matrix $\mat Q$ with $\mat Q\inv=\mat Q\T$
+that preserves every length and angle. And every vector splits uniquely into a piece in $V$ and a
+perpendicular piece in $V^\perp$ -- the decomposition that becomes projection and least squares.
+\end{focusbox}
+
+\section{Exercises}
+
+\begin{exercise}\label{ch17:ex-basic-dot}
+Decide which of these pairs are orthogonal, by computing the dot product:
+(a) $\colvec{1\\-2\\1}$ and $\colvec{2\\1\\0}$;\quad
+(b) $\colvec{3\\0\\-1}$ and $\colvec{1\\5\\3}$;\quad
+(c) $\colvec{1\\1\\1\\1}$ and $\colvec{1\\1\\-1\\-1}$.
+For each orthogonal pair, confirm Pythagoras: $\norm{\vec u-\vec v}^2=\norm{\vec u}^2+\norm{\vec v}^2$.
+\end{exercise}
+
+\begin{exercise}\label{ch17:ex-complement-line}
+Let $V=\spn\!\left(\colvec{2\\-1\\2}\right)\subseteq\R^3$. Find a basis for $V^\perp$ by solving the
+single equation $2x-y+2z=0$. Confirm that $\dim V+\dim V^\perp=3$, and verify each of your basis
+vectors really is orthogonal to $\colvec{2\\-1\\2}$.
+\end{exercise}
+
+\begin{exercise}\label{ch17:ex-complement-plane}
+Let $W=\spn\!\left(\colvec{1\\0\\1},\colvec{0\\1\\1}\right)\subseteq\R^3$. Find $W^\perp$.
+(Hint: stack the two vectors as rows of a $2\times3$ matrix $\mat A$; then
+$W^\perp=\row(\mat A)^\perp=\nullsp(\mat A)$.) What is $\dim W^\perp$, and does it match
+Theorem~\ref{ch17:dim-complement}?
+\end{exercise}
+
+\begin{exercise}\label{ch17:ex-four-spaces}
+For $\mat A=\begin{bmatrix}1&2&3\\2&4&6\end{bmatrix}$, find the rank and a basis for each of the four
+fundamental subspaces. Then explicitly check the two orthogonality relations of
+Theorem~\ref{ch17:two-pairs}: nullspace $\perp$ row space, and left nullspace $\perp$ column space.
+\end{exercise}
+
+\begin{exercise}\label{ch17:ex-orthonormal-coords}
+The vectors $\vec q_1=\tfrac15\colvec{3\\4}$ and $\vec q_2=\tfrac15\colvec{-4\\3}$ are orthonormal
+(check it). Use the orthonormal expansion formula to write $\vec v=\colvec{5\\10}$ as
+$c_1\vec q_1+c_2\vec q_2$, and verify your answer by recombining.
+\end{exercise}
+
+\begin{exercise}\label{ch17:ex-build-Q}
+Build a $3\times3$ orthogonal matrix whose first column is $\tfrac13\colvec{2\\2\\1}$.
+(Find a second unit vector orthogonal to it, then a third orthogonal to both -- a cross product is a
+fast way to get the third.) Verify $\mat Q\T\mat Q=\mat I$ for your matrix.
+\end{exercise}
+
+\begin{exercise}\label{ch17:ex-preserve-proof}
+Prove directly from $\mat Q\T\mat Q=\mat I$ that the columns of an orthogonal matrix are
+orthonormal, and conversely. Then prove that if $\mat Q_1$ and $\mat Q_2$ are both orthogonal
+$n\times n$ matrices, so is their product $\mat Q_1\mat Q_2$. (Geometrically: composing two rigid
+motions gives a rigid motion.)
+\end{exercise}
+
+\begin{exercise}\label{ch17:ex-split}
+Let $V=\spn\!\left(\colvec{1\\1\\0}\right)$ and $\vec x=\colvec{3\\1\\4}$. Compute the orthogonal
+decomposition $\vec x=\vec x_V+\vec x_{V^\perp}$ from Theorem~\ref{ch17:orthog-decomp}.
+(First normalize the spanning vector to a unit $\vec q_1$.) Confirm that
+$\inner{\vec x_V}{\vec x_{V^\perp}}=0$ and that the two pieces add back to $\vec x$.
+\end{exercise}
+
+\begin{exercise}\label{ch17:ex-perp-perp-proof}
+Prove that for any two subspaces, $V\subseteq W$ implies $W^\perp\subseteq V^\perp$ (taking
+complements reverses inclusion). Use this together with Corollary~\ref{ch17:perp-perp} to give a
+short argument that $(V^\perp)^\perp=V$.
+\end{exercise}
+
+\begin{exercise}\label{ch17:ex-challenge-rotation}
+\textbf{(Challenge.)} Show that \emph{every} $2\times2$ orthogonal matrix is either
+$\begin{bmatrix}\cos\theta&-\sin\theta\\\sin\theta&\cos\theta\end{bmatrix}$ (a rotation, $\det=+1$)
+or $\begin{bmatrix}\cos\theta&\sin\theta\\\sin\theta&-\cos\theta\end{bmatrix}$ (a reflection,
+$\det=-1$) for some angle $\theta$. (Hint: the first column is a unit vector, so it equals
+$\colvec{\cos\theta\\\sin\theta}$ for some $\theta$; the second column is a unit vector orthogonal
+to it, leaving exactly two choices.) Interpret each case geometrically.
+\end{exercise}
+
+\begin{exercise}\label{ch17:ex-proof-distance}
+\textbf{(Proof.)} Use the orthogonal decomposition $\vec x=\vec x_V+\vec x_{V^\perp}$ to prove the
+Pythagorean identity $\norm{\vec x}^2=\norm{\vec x_V}^2+\norm{\vec x_{V^\perp}}^2$. Then explain in
+one sentence why this means the projection $\vec x_V$ is \emph{never longer} than $\vec x$ itself --
+a fact you will use constantly in the projections chapter.
+\end{exercise}

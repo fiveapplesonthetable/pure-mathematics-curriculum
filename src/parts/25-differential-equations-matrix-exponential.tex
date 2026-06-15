@@ -1,0 +1,1127 @@
+\chapter{Differential Equations and the Matrix Exponential}
+
+Here is a sentence that sounds like it belongs in a calculus book, not a linear
+algebra book: \emph{the rate of change of a quantity is proportional to the
+quantity itself.} Out of that one sentence falls the exponential function, the
+shape of a cooling cup of coffee, the swing of a frictionless pendulum, the
+growth of a population, the decay of a radioactive sample, and -- it turns out --
+almost everything linear algebra has been building toward.
+
+The reason linear algebra cares is that nature rarely tracks just one quantity.
+A predator population depends on a prey population, which depends back on the
+predator. A mixing tank's salt concentration depends on its neighbor's. A
+circuit's voltages and currents push on each other. The position and velocity of
+a vibrating mass feed each other. In every one of these, you have a \emph{vector}
+of quantities $\vec{u}(t)$, and the rule for how it changes is a \emph{matrix}:
+\[
+  \frac{d\vec{u}}{dt} = \mat{A}\,\vec{u}.
+\]
+That single equation is the entire chapter. The astonishing payoff is that
+\emph{eigenvalues and eigenvectors solve it completely}. Everything you learned
+about $\mat{A}\vec{x} = \lambda\vec{x}$ -- which directions $\mat{A}$ leaves
+alone, how much it stretches along each -- comes back transformed into the
+language of motion through time. The eigenvectors become the natural ``modes''
+of the system; the eigenvalues become growth rates and oscillation frequencies.
+Stability -- whether the system settles, blows up, or spins forever -- is read
+straight off the signs of the eigenvalues.
+
+And hovering over all of it is one beautiful object, the \textbf{matrix
+exponential} $e^{\mat{A}t}$. It is the honest matrix generalization of the scalar
+$e^{at}$, it packages the whole solution into a single propagator, and it is
+where diagonalization, calculus, and geometry meet. By the end of the chapter you
+will see $e^{\mat{A}t}$ not as a scary formula but as the most natural thing in
+the world.
+
+\section{The One-Dimensional Story First}
+\label{ch25:scalar}
+
+Before any matrices, let us be sure we own the scalar case, because every later
+formula is a dressed-up version of it.
+
+Suppose a single number $u(t)$ changes at a rate proportional to its current
+size:
+\[
+  \frac{du}{dt} = a\,u, \qquad u(0) = u_0.
+\]
+Read it out loud: the bigger $u$ is, the faster it grows (if $a > 0$) or the
+faster it shrinks (if $a < 0$). What function has this self-reinforcing property?
+You already know it. The exponential. We can even \emph{derive} it instead of
+guessing. Separate the variables:
+\[
+  \frac{du}{u} = a\,dt
+  \;\Longrightarrow\;
+  \int \frac{du}{u} = \int a\,dt
+  \;\Longrightarrow\;
+  \ln|u| = a t + C.
+\]
+Exponentiate both sides and absorb the constant into $u_0$:
+\[
+  \boxed{\,u(t) = u_0\, e^{a t}.\,}
+\]
+
+\begin{intuitionbox}
+The number $a$ is a \textbf{growth rate}. If $a > 0$, $u$ runs away to infinity.
+If $a < 0$, $u$ decays to zero. If $a = 0$, $u$ just sits at $u_0$ forever. The
+sign of $a$ alone decides the long-term fate; the size of $|a|$ only decides how
+fast. Hold onto ``the sign of $a$ decides the fate'' -- in the matrix case it
+becomes ``the sign of the real part of each eigenvalue decides the fate.''
+\end{intuitionbox}
+
+There is a second way to write $e^{at}$ that will matter enormously in a moment.
+Forget the antiderivative and ask: what power series, when you differentiate it,
+reproduces itself times $a$? Try
+\[
+  e^{at} = 1 + at + \frac{(at)^2}{2!} + \frac{(at)^3}{3!} + \cdots
+         = \sum_{k=0}^{\infty} \frac{(at)^k}{k!}.
+\]
+Differentiate term by term:
+\[
+  \frac{d}{dt}\!\left[\sum_{k=0}^\infty \frac{a^k t^k}{k!}\right]
+  = \sum_{k=1}^\infty \frac{a^k\, k\, t^{k-1}}{k!}
+  = \sum_{k=1}^\infty \frac{a^k t^{k-1}}{(k-1)!}
+  = a\sum_{j=0}^\infty \frac{a^j t^{j}}{j!}
+  = a\, e^{at}.
+\]
+So the power series \emph{is} the solution, and it satisfies $\frac{d}{dt}e^{at}
+= a\,e^{at}$ with $e^{a\cdot 0} = 1$. Remember this trick. When $a$ becomes a
+matrix $\mat{A}$, we cannot ``separate variables'' anymore -- but we \emph{can}
+still write down a power series, and it will still differentiate to itself times
+$\mat{A}$. That is the matrix exponential, already visible on the horizon.
+
+\begin{focusbox}
+Two faces of the same function:
+\[
+  \frac{du}{dt} = a u,\ u(0)=u_0
+  \quad\Longleftrightarrow\quad
+  u(t) = u_0 e^{at} = u_0\sum_{k=0}^\infty \frac{(at)^k}{k!}.
+\]
+The differential equation \emph{defines} the behavior; the exponential
+\emph{is} the behavior. Everything in this chapter promotes $a$ to a matrix and
+keeps both faces.
+\end{focusbox}
+
+\section{Coupled Equations: Why a Matrix Appears}
+\label{ch25:coupled}
+
+Now let two quantities interact. Here is the smallest honest example.
+
+\begin{example}[Two tanks trading salt]
+\label{ch25:tanks}
+Two tanks hold brine. Salt flows between them: tank~1 loses salt to tank~2 and
+gains some back. Suppose the amounts $u_1(t)$ and $u_2(t)$ obey
+\[
+  \frac{du_1}{dt} = -2u_1 + u_2, \qquad
+  \frac{du_2}{dt} = \phantom{-}u_1 - 2u_2.
+\]
+You cannot solve the first equation alone, because $u_2$ is in it; you cannot
+solve the second alone, because $u_1$ is in it. They are \textbf{coupled}. But
+stack them into a vector $\vec{u} = \colvec{u_1\\u_2}$ and the coupling becomes a
+single matrix:
+\[
+  \frac{d}{dt}\colvec{u_1\\u_2}
+  = \begin{bmatrix} -2 & 1 \\ 1 & -2 \end{bmatrix}\colvec{u_1\\u_2},
+  \qquad\text{i.e.}\qquad
+  \frac{d\vec{u}}{dt} = \mat{A}\vec{u},
+  \quad \mat{A} = \begin{bmatrix} -2 & 1 \\ 1 & -2 \end{bmatrix}.
+\]
+The derivative of a vector just means ``differentiate each component.'' The
+matrix $\mat{A}$ encodes \emph{who pushes on whom}: row $i$ tells you how the
+rate of $u_i$ depends on every $u_j$.
+\end{example}
+
+This is the general setup. A \textbf{linear system of first-order ordinary
+differential equations} with constant coefficients is
+\[
+  \frac{d\vec{u}}{dt} = \mat{A}\,\vec{u},
+  \qquad \vec{u}(0) = \vec{u}_0,
+  \qquad \vec{u}(t)\in\R^n,\ \mat{A}\in\R^{n\times n}.
+\]
+We want a formula for $\vec{u}(t)$: where is the state at every future (and past)
+time, given where it starts?
+
+\begin{intuitionbox}
+Think of $\mat{A}\vec{u}$ as a \textbf{velocity field}. At every point $\vec{u}$
+of the plane (or of $\R^n$), the matrix hands you an arrow $\mat{A}\vec{u}$ that
+says ``if you are here, move \emph{this} way, \emph{this} fast.'' A solution
+$\vec{u}(t)$ is a path that, at every instant, flows along the arrow it is
+standing on. Solving the system means: drop a particle at $\vec{u}_0$ and let the
+arrows carry it. The whole picture is a river, and $\mat{A}$ is its current.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  \draw[->,gray!55] (-2.4,0)--(2.4,0) node[right]{$u_1$};
+  \draw[->,gray!55] (0,-2.4)--(0,2.4) node[above]{$u_2$};
+  % velocity field for A = [[-2,1],[1,-2]]
+  \foreach \x in {-2,-1,...,2}{
+    \foreach \y in {-2,-1,...,2}{
+      \pgfmathsetmacro{\vx}{-2*\x + 1*\y}
+      \pgfmathsetmacro{\vy}{1*\x - 2*\y}
+      \pgfmathsetmacro{\len}{sqrt(\vx*\vx+\vy*\vy)+0.0001}
+      \pgfmathsetmacro{\sx}{0.32*\vx/\len}
+      \pgfmathsetmacro{\sy}{0.32*\vy/\len}
+      \draw[->,sourceblue!70] (\x,\y)--($(\x,\y)+(\sx,\sy)$);
+    }
+  }
+  \fill[vecred] (0,0) circle (2.2pt);
+  \node[vecred,below left] at (0,0) {origin (sink)};
+\end{tikzpicture}
+\caption{The velocity field $\mat{A}\vec{u}$ for the two-tank matrix
+$\mat{A}=\protect\begin{bmatrix}-2&1\\1&-2\protect\end{bmatrix}$. Every arrow
+points roughly inward: every starting state drifts toward the origin. This is a
+\emph{stable} system, and the chapter will explain exactly why from the
+eigenvalues.}
+\label{ch25:fig-field}
+\end{figure}
+
+\section{One Eigenvector at a Time: the Magic Substitution}
+\label{ch25:onemode}
+
+Here is the idea that cracks the whole problem open. We do not know how to solve
+$\frac{d\vec{u}}{dt} = \mat{A}\vec{u}$ for a general starting vector. But suppose
+we are lucky and the system starts \emph{exactly along an eigenvector}. Then the
+matrix has nothing to do but stretch, and the vector equation collapses back into
+the scalar equation we already solved.
+
+Let $\mat{A}\vec{x} = \lambda\vec{x}$, with $\vec{x}\neq\vec{0}$. Guess a solution
+that stays pointed along $\vec{x}$ for all time, only changing its length:
+\[
+  \vec{u}(t) = e^{\lambda t}\,\vec{x}.
+\]
+Test it. The left side:
+\[
+  \frac{d\vec{u}}{dt} = \frac{d}{dt}\!\left(e^{\lambda t}\right)\vec{x}
+  = \lambda\, e^{\lambda t}\,\vec{x}.
+\]
+The right side:
+\[
+  \mat{A}\vec{u} = \mat{A}\!\left(e^{\lambda t}\vec{x}\right)
+  = e^{\lambda t}\,(\mat{A}\vec{x})
+  = e^{\lambda t}\,\lambda\vec{x}
+  = \lambda\,e^{\lambda t}\,\vec{x}.
+\]
+They match. So $\vec{u}(t) = e^{\lambda t}\vec{x}$ is a genuine solution. Along an
+eigendirection, the matrix system behaves \emph{exactly} like the one-dimensional
+$\frac{du}{dt} = \lambda u$: the eigenvalue $\lambda$ is the growth rate, the
+eigenvector $\vec{x}$ is the fixed direction.
+
+\begin{focusbox}
+Each eigenpair $(\lambda,\vec{x})$ of $\mat{A}$ gives one pure solution -- a
+\textbf{mode} -- of $\frac{d\vec{u}}{dt}=\mat{A}\vec{u}$:
+\[
+  \vec{u}(t) = e^{\lambda t}\,\vec{x}.
+\]
+It marches along the fixed line $\spn\{\vec{x}\}$, growing like $e^{\lambda t}$.
+The eigenvector picks the \emph{direction}; the eigenvalue picks the \emph{tempo}.
+\end{focusbox}
+
+\begin{intuitionbox}
+This is the deep reason eigenvectors deserve their name (\emph{eigen} =
+``own/characteristic''). They are the directions in which the dynamical system
+does not mix anything -- it just scales. A general state is a blend of these pure
+notes, each ringing at its own rate $e^{\lambda t}$. Solving the system is
+nothing more than \emph{decomposing into modes, letting each evolve, and adding
+them back up.}
+\end{intuitionbox}
+
+\subsection{Adding modes: the general solution by superposition}
+\label{ch25:superposition}
+
+One mode is not enough -- we need to start anywhere, not just on an eigenvector.
+Here linearity rescues us. The equation $\frac{d\vec{u}}{dt} = \mat{A}\vec{u}$ is
+linear: if $\vec{u}(t)$ and $\vec{w}(t)$ are both solutions, so is any combination
+$c_1\vec{u}(t) + c_2\vec{w}(t)$, because differentiation and multiplication by
+$\mat{A}$ both distribute over sums. (Check: $\frac{d}{dt}(c_1\vec{u}+c_2\vec{w})
+= c_1\mat{A}\vec{u} + c_2\mat{A}\vec{w} = \mat{A}(c_1\vec{u}+c_2\vec{w})$.)
+
+So if $\mat{A}$ ($n\times n$) has $n$ independent eigenvectors $\vec{x}_1,\dots,
+\vec{x}_n$ with eigenvalues $\lambda_1,\dots,\lambda_n$, the general solution is
+the superposition of all $n$ modes:
+\[
+  \boxed{\,
+  \vec{u}(t) = c_1 e^{\lambda_1 t}\vec{x}_1
+             + c_2 e^{\lambda_2 t}\vec{x}_2
+             + \cdots
+             + c_n e^{\lambda_n t}\vec{x}_n.
+  \,}
+\]
+The constants $c_1,\dots,c_n$ are fixed by the initial condition. Set $t=0$
+(every exponential becomes $1$):
+\[
+  \vec{u}(0) = c_1\vec{x}_1 + \cdots + c_n\vec{x}_n = \vec{u}_0.
+\]
+That is just ``write $\vec{u}_0$ in the eigenvector basis.'' In matrix form, with
+$\mat{X} = [\,\vec{x}_1\ \cdots\ \vec{x}_n\,]$ and $\vec{c}=\colvec{c_1\\\vdots\\c_n}$,
+\[
+  \mat{X}\vec{c} = \vec{u}_0
+  \quad\Longrightarrow\quad
+  \vec{c} = \mat{X}\inv\vec{u}_0.
+\]
+
+\begin{focusbox}
+\textbf{Recipe to solve $\dfrac{d\vec{u}}{dt}=\mat{A}\vec{u},\ \vec{u}(0)=\vec{u}_0$
+(diagonalizable case):}
+\begin{enumerate}
+  \item Find eigenvalues $\lambda_i$ and eigenvectors $\vec{x}_i$ of $\mat{A}$.
+  \item Expand the start in that basis: solve $\mat{X}\vec{c}=\vec{u}_0$ for the
+        coefficients $c_i$.
+  \item Let each coefficient ride its own exponential:
+        $\;\vec{u}(t)=\sum_i c_i e^{\lambda_i t}\vec{x}_i.$
+\end{enumerate}
+\end{focusbox}
+
+\subsection{A fully worked example}
+\label{ch25:tanks-solved}
+
+Let us actually solve the two-tank system of Example~\ref{ch25:tanks},
+\[
+  \mat{A} = \begin{bmatrix} -2 & 1 \\ 1 & -2 \end{bmatrix},
+  \qquad
+  \vec{u}(0) = \colvec{3\\1}.
+\]
+
+\emph{Step 1: eigenvalues.} The characteristic polynomial:
+\[
+  \det(\mat{A}-\lambda\mat{I})
+  = \det\!\begin{bmatrix} -2-\lambda & 1 \\ 1 & -2-\lambda \end{bmatrix}
+  = (-2-\lambda)^2 - 1
+  = \lambda^2 + 4\lambda + 3
+  = (\lambda+1)(\lambda+3).
+\]
+So $\lambda_1 = -1$ and $\lambda_2 = -3$. Both negative -- the system is stable,
+as the velocity field in Figure~\ref{ch25:fig-field} already suggested.
+
+\emph{Step 2: eigenvectors.} For $\lambda_1=-1$, solve $(\mat{A}+\mat{I})\vec{x}=0$:
+\[
+  \begin{bmatrix} -1 & 1 \\ 1 & -1 \end{bmatrix}\vec{x} = \vec{0}
+  \;\Longrightarrow\; x_1 = x_2
+  \;\Longrightarrow\; \vec{x}_1 = \colvec{1\\1}.
+\]
+For $\lambda_2=-3$, solve $(\mat{A}+3\mat{I})\vec{x}=0$:
+\[
+  \begin{bmatrix} 1 & 1 \\ 1 & 1 \end{bmatrix}\vec{x} = \vec{0}
+  \;\Longrightarrow\; x_1 = -x_2
+  \;\Longrightarrow\; \vec{x}_2 = \colvec{1\\-1}.
+\]
+(These are orthogonal, which is no accident: $\mat{A}$ is symmetric -- a preview
+of the spectral theorem in a later chapter.)
+
+\emph{Step 3: match the start.} We need $c_1\colvec{1\\1} + c_2\colvec{1\\-1} =
+\colvec{3\\1}$, i.e.
+\[
+  c_1 + c_2 = 3, \qquad c_1 - c_2 = 1
+  \;\Longrightarrow\; c_1 = 2,\ c_2 = 1.
+\]
+
+\emph{Answer.} Letting each coefficient ride its exponential,
+\[
+  \vec{u}(t)
+  = 2\,e^{-t}\colvec{1\\1} + 1\,e^{-3t}\colvec{1\\-1}
+  = \colvec{2e^{-t} + e^{-3t}\\[2pt] 2e^{-t} - e^{-3t}}.
+\]
+Sanity checks: at $t=0$ this is $\colvec{2+1\\2-1}=\colvec{3\\1}$, correct. As
+$t\to\infty$, both exponentials vanish, so $\vec{u}\to\vec{0}$: all the salt
+equalizes and drains to the steady state, exactly as the picture promised. The
+$e^{-3t}$ part (the imbalance between the tanks) dies fast; the $e^{-t}$ part (the
+total amount, along $\colvec{1\\1}$) lingers longest. The \emph{slowest} mode --
+the eigenvalue closest to zero -- dominates the late-time behavior.
+
+\begin{labbox}
+Take $\mat{A}=\begin{bmatrix}1&1\\0&2\end{bmatrix}$ and $\vec{u}(0)=\colvec{2\\1}$.
+Its eigenvalues are $1$ and $2$ with eigenvectors $\colvec{1\\0}$ and
+$\colvec{1\\1}$. Find $c_1,c_2$ (you should get $c_1=1,\ c_2=1$, so both modes are
+genuinely present), write $\vec{u}(t)=e^{t}\colvec{1\\0}+e^{2t}\colvec{1\\1}$, and
+confirm both components blow up like $e^{2t}$ for large $t$. Which mode wins the
+race here -- and why is it the \emph{largest} eigenvalue this time, not the
+smallest? (Answer: when eigenvalues are positive, the biggest one dominates
+growth; when negative, the one nearest zero dominates the slow decay. Either way
+it is the \emph{rightmost} eigenvalue -- largest real part -- that sets the
+late-time behavior.)
+\end{labbox}
+
+\begin{strangbox}
+Strang teaches this as ``$\vec{u}(t) = \sum c_i e^{\lambda_i t}\vec{x}_i$,'' and he
+loves it because it is eigenvalues doing visible work. \emph{Before} Strang, the
+takeaway is simply: a system of differential equations is solved by finding the
+directions that do not mix (eigenvectors) and the rates they grow (eigenvalues).
+\emph{After} Strang, notice this is literally diagonalization wearing a clock --
+which is exactly where we head next, and which leads to $e^{\mat{A}t}$.
+\end{strangbox}
+
+\section{Stability: Reading the Future from the Eigenvalues}
+\label{ch25:stability}
+
+The superposition formula makes the long-term fate of the system transparent.
+Each mode carries a factor $e^{\lambda_i t}$. As $t\to\infty$:
+\begin{itemize}
+  \item if $\lambda_i < 0$, that mode \textbf{decays} to zero;
+  \item if $\lambda_i > 0$, that mode \textbf{blows up};
+  \item if $\lambda_i = 0$, that mode \textbf{persists} at constant size.
+\end{itemize}
+The whole solution is a sum of such terms, so its fate is decided by the
+\emph{worst} mode -- the one with the largest real part (since, as we are about
+to see, eigenvalues may be complex and it is $\operatorname{Re}\lambda$ that sets
+growth or decay).
+
+\begin{formalbox}
+Consider $\dfrac{d\vec{u}}{dt}=\mat{A}\vec{u}$ with $\mat{A}$ having eigenvalues
+$\lambda_1,\dots,\lambda_n$.
+\begin{itemize}
+  \item The system is \textbf{stable} (every solution $\to\vec{0}$) iff
+        $\operatorname{Re}\lambda_i < 0$ for \emph{all} $i$.
+  \item It is \textbf{neutrally stable} (solutions stay bounded) iff
+        $\operatorname{Re}\lambda_i \le 0$ for all $i$, with the
+        zero-real-part eigenvalues not defective.
+  \item It is \textbf{unstable} (some solution $\to\infty$) iff
+        $\operatorname{Re}\lambda_i > 0$ for some $i$.
+\end{itemize}
+\end{formalbox}
+
+Why ``real part''? Because eigenvalues can be complex, and that is where
+oscillation hides. Recall Euler's formula. If $\lambda = \sigma + i\omega$, then
+\[
+  e^{\lambda t} = e^{(\sigma + i\omega)t}
+  = e^{\sigma t}\,\bigl(\cos\omega t + i\sin\omega t\bigr).
+\]
+The \emph{real part} $\sigma$ controls the envelope $e^{\sigma t}$ -- growth or
+decay -- and the \emph{imaginary part} $\omega$ controls the spinning
+$\cos\omega t + i\sin\omega t$ -- oscillation. So:
+
+\begin{intuitionbox}
+Split each eigenvalue $\lambda = \sigma + i\omega$ into two jobs:
+\begin{center}
+\begin{tabular}{ll}
+$\sigma = \operatorname{Re}\lambda$ & sets the \textbf{envelope}: $e^{\sigma t}$ grows ($\sigma>0$) or shrinks ($\sigma<0$).\\
+$\omega = \operatorname{Im}\lambda$ & sets the \textbf{frequency}: how fast the solution rotates.
+\end{tabular}
+\end{center}
+A pure imaginary eigenvalue ($\sigma=0$) means \emph{undamped oscillation} -- a
+frictionless pendulum circling forever. A complex eigenvalue with $\sigma<0$ means
+a \emph{damped spiral} into the origin. With $\sigma>0$, a spiral flying out.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.78,>=Stealth]
+  % Three phase portraits: sink, spiral sink, center
+  % SINK (both real negative)
+  \begin{scope}[shift={(0,0)}]
+    \draw[->,gray!50] (-1.7,0)--(1.7,0); \draw[->,gray!50] (0,-1.7)--(0,1.7);
+    \foreach \a in {0.2,0.55,0.9}{
+      \draw[sourceblue,thick,->] plot[domain=0:1.4,samples=30,variable=\t]
+        ({\a*1.5*exp(-1.0*\t)},{\a*1.3*exp(-2.2*\t)});
+      \draw[sourceblue,thick,->] plot[domain=0:1.4,samples=30,variable=\t]
+        ({-\a*1.5*exp(-1.0*\t)},{-\a*1.3*exp(-2.2*\t)});
+    }
+    \fill[vecred] (0,0) circle (1.6pt);
+    \node at (0,-2.2) {\small sink: $\sigma<0$, real};
+  \end{scope}
+  % SPIRAL SINK (complex, neg real part)
+  \begin{scope}[shift={(5,0)}]
+    \draw[->,gray!50] (-1.7,0)--(1.7,0); \draw[->,gray!50] (0,-1.7)--(0,1.7);
+    \draw[structurepurple,thick,->] plot[domain=0:6.2,samples=120,variable=\t]
+      ({1.4*exp(-0.30*\t)*cos(\t r)},{1.4*exp(-0.30*\t)*sin(\t r)});
+    \fill[vecred] (0,0) circle (1.6pt);
+    \node at (0,-2.2) {\small spiral sink: $\sigma<0$, $\omega\neq0$};
+  \end{scope}
+  % CENTER (pure imaginary)
+  \begin{scope}[shift={(10,0)}]
+    \draw[->,gray!50] (-1.7,0)--(1.7,0); \draw[->,gray!50] (0,-1.7)--(0,1.7);
+    \foreach \r in {0.5,1.0,1.4}{
+      \draw[targetgreen,thick] (0,0) circle (\r);
+    }
+    \draw[targetgreen,->] (1.4,0)--(1.4,0.25);
+    \fill[vecred] (0,0) circle (1.6pt);
+    \node at (0,-2.2) {\small center: $\sigma=0$, $\omega\neq0$};
+  \end{scope}
+\end{tikzpicture}
+\caption{Phase portraits keyed to the eigenvalues. Real negative eigenvalues give
+a \emph{sink} (paths slide straight in). Complex eigenvalues with negative real
+part give a \emph{spiral sink}. Pure imaginary eigenvalues give a \emph{center}
+of closed orbits -- perpetual, undamped oscillation. Flip the sign of $\sigma$ and
+every arrow reverses: sinks become sources, spirals fly outward.}
+\label{ch25:fig-portraits}
+\end{figure}
+
+\begin{example}[A rotation in disguise: complex eigenvalues]
+\label{ch25:complex}
+Take
+\[
+  \mat{A} = \begin{bmatrix} 0 & -1 \\ 1 & 0 \end{bmatrix},
+  \qquad \frac{d\vec{u}}{dt}=\mat{A}\vec{u}.
+\]
+Written out, $u_1' = -u_2$ and $u_2' = u_1$. The eigenvalues satisfy
+$\lambda^2 + 1 = 0$, so $\lambda = \pm i$: pure imaginary, $\sigma=0$. The theory
+predicts a \emph{center} -- closed circular orbits, no growth, no decay. Indeed,
+the solution starting at $\colvec{1\\0}$ is
+\[
+  \vec{u}(t) = \colvec{\cos t\\ \sin t},
+\]
+which you can verify directly: $\vec{u}'=\colvec{-\sin t\\\cos t}
+=\colvec{-u_2\\u_1}=\mat{A}\vec{u}$. The state runs around the unit circle
+forever. Notice that $\mat{A}$ is exactly the velocity field whose flow is
+rotation -- the matrix that ``generates'' turning. That is not a coincidence; we
+will see $e^{\mat{A}t}$ is the rotation matrix by angle $t$.
+\end{example}
+
+\begin{trapbox}
+\textbf{Sign confusion.} The condition for \emph{stable} continuous dynamics is
+$\operatorname{Re}\lambda < 0$, eigenvalues in the \emph{left} half-plane. This is
+\emph{not} the same as the rule for discrete iterations $\vec{u}_{k+1} =
+\mat{A}\vec{u}_k$, where stability means $|\lambda| < 1$ (eigenvalues inside the
+unit \emph{circle}). Continuous time cares about left/right; discrete time cares
+about inside/outside the circle. Mixing them up is the classic exam mistake. The
+bridge between them is $z = e^{\lambda t}$: the left half-plane maps exactly to
+the inside of the unit disk (Figure~\ref{ch25:fig-eigenplane}).
+\end{trapbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % left: complex eigenvalue plane, stable = left half
+  \begin{scope}
+    \fill[sourceblue!12] (-2.1,-1.8) rectangle (0,1.8);
+    \draw[->,gray!60] (-2.2,0)--(2.2,0) node[right]{$\operatorname{Re}\lambda$};
+    \draw[->,gray!60] (0,-1.9)--(0,1.9) node[above]{$\operatorname{Im}\lambda$};
+    \node[sourceblue!70!black,scale=0.8,align=center] at (-1.15,1.45)
+      {stable\\(decay)};
+    \node[trapred,scale=0.8,align=center] at (1.15,1.45)
+      {unstable\\(growth)};
+    % sample eigenvalues
+    \fill[sourceblue] (-1.4,0.7) circle (1.6pt);
+    \fill[sourceblue] (-1.4,-0.7) circle (1.6pt);
+    \fill[targetgreen] (0,0.9) circle (1.6pt);
+    \fill[targetgreen] (0,-0.9) circle (1.6pt);
+    \fill[trapred] (1.0,0.5) circle (1.6pt);
+    \node[targetgreen!60!black,scale=0.72,right] at (0.08,0.9) {center};
+    \node at (0,-2.4) {\small continuous: stable iff in left half};
+  \end{scope}
+  % right: discrete eigenvalue plane, stable = inside unit circle
+  \begin{scope}[shift={(6.2,0)}]
+    \fill[sourceblue!12] (0,0) circle (1.0);
+    \draw[->,gray!60] (-2.2,0)--(2.2,0) node[right]{$\operatorname{Re}z$};
+    \draw[->,gray!60] (0,-1.9)--(0,1.9) node[above]{$\operatorname{Im}z$};
+    \draw[gray!70,thick] (0,0) circle (1.0);
+    \fill[sourceblue] (-0.5,0.3) circle (1.6pt);
+    \fill[targetgreen] (0.71,0.71) circle (1.6pt);
+    \fill[trapred] (1.35,0.5) circle (1.6pt);
+    \node[sourceblue!70!black,scale=0.8] at (0,0.0) {$|z|<1$};
+    \node at (0,-2.4) {\small discrete: stable iff inside unit circle};
+  \end{scope}
+  % the bridge
+  \draw[->,quotientorange,thick] (2.4,0.0) .. controls (2.9,1.0) and (3.3,1.0) .. (3.8,0.0)
+    node[midway,above,quotientorange,scale=0.8] {$z=e^{\lambda t}$};
+\end{tikzpicture}
+\caption{Two stability regions, and the map between them. \emph{Left:} for
+continuous dynamics $\frac{d\vec{u}}{dt}=\mat{A}\vec{u}$, an eigenvalue is
+stabilizing when it sits in the \emph{left half-plane} ($\operatorname{Re}\lambda<0$);
+on the imaginary axis it gives a neutral center. \emph{Right:} for discrete
+iterations $\vec{u}_{k+1}=\mat{A}\vec{u}_k$, the stable region is the \emph{inside
+of the unit circle} ($|\lambda|<1$). The exponential map $z=e^{\lambda t}$
+carries the left half-plane exactly onto the open unit disk, which is why the two
+rules are really one rule seen through $e^{\lambda t}$.}
+\label{ch25:fig-eigenplane}
+\end{figure}
+
+\begin{walkbox}
+A system has eigenvalues $-5$ and $-0.1$. Both decay, so it is stable -- but if
+you watched it, what would you \emph{see}? One piece vanishes almost instantly;
+the other lingers fifty times longer. The long-term shape of \emph{every}
+trajectory is therefore nearly the eigenvector of $-0.1$. Think on your walk: in a
+stable system, does the smallest or the largest $|\lambda|$ shape what you actually
+observe after a while? (This is exactly why the ``slow mode'' governs the
+relaxation time of springs, circuits, and chemical reactions.)
+\end{walkbox}
+
+\section{The Matrix Exponential: One Object for the Whole Flow}
+\label{ch25:matexp}
+
+We solved the system mode by mode. That is concrete and computational, but it
+hides a cleaner truth. In one dimension we never said ``decompose and add'' -- we
+just wrote $u(t) = e^{at}u_0$. We want the same compact statement for vectors:
+\[
+  \vec{u}(t) = \,?\, \cdot \vec{u}_0,
+\]
+where the ``?'' is a single matrix that takes \emph{any} start $\vec{u}_0$ and
+slides it forward to time $t$. That matrix is the \textbf{matrix exponential}
+$e^{\mat{A}t}$, and we define it by the very power series we rehearsed in
+Section~\ref{ch25:scalar}, with the scalar $a$ replaced by the matrix $\mat{A}$.
+
+\begin{definition}[Matrix exponential]
+\label{ch25:def-matexp}
+For a square matrix $\mat{M}\in\R^{n\times n}$, define
+\[
+  e^{\mat{M}}
+  \;=\;
+  \sum_{k=0}^{\infty}\frac{\mat{M}^k}{k!}
+  \;=\;
+  \mat{I} + \mat{M} + \frac{\mat{M}^2}{2!} + \frac{\mat{M}^3}{3!} + \cdots .
+\]
+Here $\mat{M}^0 = \mat{I}$. The series converges (entrywise, absolutely) for
+every square matrix, so $e^{\mat{M}}$ is a well-defined $n\times n$ matrix. In
+particular $e^{\mat{A}t} = \sum_{k\ge 0}\mat{A}^k t^k/k!$.
+\end{definition}
+
+\begin{focusbox}
+$e^{\mat{A}t}$ is a \emph{matrix}, not a number. It is the ``time-$t$ flow
+map'': feed it where you are now, it returns where you will be at time $t$. The
+solution of $\frac{d\vec{u}}{dt}=\mat{A}\vec{u}$, $\vec{u}(0)=\vec{u}_0$, is
+\[
+  \boxed{\ \vec{u}(t) = e^{\mat{A}t}\,\vec{u}_0.\ }
+\]
+\end{focusbox}
+
+Let us prove that boxed claim, and prove it the same way we did for scalars:
+differentiate the series term by term and watch it reproduce $\mat{A}$ times
+itself.
+
+\begin{theorem}[The matrix exponential solves the system]
+\label{ch25:thm-solves}
+The matrix-valued function $\Phi(t) = e^{\mat{A}t}$ satisfies
+\[
+  \frac{d}{dt}\,e^{\mat{A}t} = \mat{A}\,e^{\mat{A}t} = e^{\mat{A}t}\,\mat{A},
+  \qquad e^{\mat{A}\cdot 0} = \mat{I}.
+\]
+Consequently $\vec{u}(t) = e^{\mat{A}t}\vec{u}_0$ solves
+$\frac{d\vec{u}}{dt}=\mat{A}\vec{u}$ with $\vec{u}(0)=\vec{u}_0$.
+\end{theorem}
+
+\begin{proof}
+At $t=0$ every term but the first vanishes, leaving $e^{\mat{A}\cdot 0}=\mat{I}$.
+Differentiate the series term by term (legal because it converges absolutely and
+uniformly on bounded $t$-intervals):
+\[
+  \frac{d}{dt}\sum_{k=0}^\infty \frac{\mat{A}^k t^k}{k!}
+  = \sum_{k=1}^\infty \frac{\mat{A}^k\, k\, t^{k-1}}{k!}
+  = \sum_{k=1}^\infty \frac{\mat{A}^k t^{k-1}}{(k-1)!}.
+\]
+Factor one $\mat{A}$ out of the front (it commutes with every $\mat{A}^{k-1}$) and
+reindex $j=k-1$:
+\[
+  = \mat{A}\sum_{j=0}^\infty \frac{\mat{A}^j t^j}{j!}
+  = \mat{A}\,e^{\mat{A}t}.
+\]
+Pulling the $\mat{A}$ out on the right instead gives $e^{\mat{A}t}\mat{A}$; the
+two agree because $\mat{A}$ commutes with its own powers. Finally, with
+$\vec{u}(t) = e^{\mat{A}t}\vec{u}_0$,
+\[
+  \frac{d\vec{u}}{dt} = \Bigl(\tfrac{d}{dt}e^{\mat{A}t}\Bigr)\vec{u}_0
+  = \mat{A}e^{\mat{A}t}\vec{u}_0 = \mat{A}\vec{u}(t),
+\]
+and $\vec{u}(0)=\mat{I}\vec{u}_0=\vec{u}_0$.
+\end{proof}
+
+\begin{connectionbox}
+This is the same proof, letter for letter, as the calculus proof that
+$\frac{d}{dt}e^{at} = a\,e^{at}$. We literally replaced the number $a$ by the
+matrix $\mat{A}$ and changed nothing else. That is the recurring miracle of this
+subject: a one-line scalar fact, promoted to matrices, becomes a theorem about
+\emph{whole flowing systems}. Calculus supplies the power series and term-by-term
+differentiation; linear algebra supplies the meaning of $\mat{A}^k$. The matrix
+exponential is exactly where the two subjects shake hands.
+\end{connectionbox}
+
+\subsection{Properties, and the one trap}
+\label{ch25:props}
+
+The matrix exponential keeps most of the algebra you expect, with one sharp
+exception you must respect.
+
+\begin{proposition}[Algebra of $e^{\mat{A}}$]
+\label{ch25:prop-algebra}
+For square $\mat{A},\mat{B}$ of the same size:
+\begin{enumerate}
+  \item $e^{\mat{0}} = \mat{I}$.
+  \item $\bigl(e^{\mat{A}t}\bigr)\inv = e^{-\mat{A}t}$; in particular
+        $e^{\mat{A}t}$ is \emph{always invertible}.
+  \item $e^{\mat{A}(s+t)} = e^{\mat{A}s}\,e^{\mat{A}t}$ (the flow composes:
+        evolving $s$ then $t$ equals evolving $s+t$).
+  \item \textbf{If $\mat{A}\mat{B}=\mat{B}\mat{A}$,} then
+        $e^{\mat{A}+\mat{B}} = e^{\mat{A}}e^{\mat{B}}$.
+        If they do \emph{not} commute, this is generally \emph{false}.
+\end{enumerate}
+\end{proposition}
+
+Property~(2) is worth a pause: $\det(e^{\mat{A}t}) = e^{t\,\tr\mat{A}}$, which is
+never zero, so the flow map can never collapse space -- trajectories never merge,
+the river never tears. That is the matrix face of ``solutions of linear ODEs are
+unique.''
+
+\begin{trapbox}
+\textbf{$e^{\mat{A}+\mat{B}} \neq e^{\mat{A}}e^{\mat{B}}$ when $\mat{A}$ and
+$\mat{B}$ do not commute.} The familiar law $e^{x+y}=e^xe^y$ leans secretly on
+$xy=yx$, which is automatic for numbers but not for matrices. The cleanest way to
+see the failure: expand both sides to second order. The cross term in
+$e^{\mat{A}+\mat{B}}$ is $\tfrac12(\mat{A}+\mat{B})^2 = \tfrac12(\mat{A}^2 +
+\mat{A}\mat{B} + \mat{B}\mat{A} + \mat{B}^2)$, while in $e^{\mat{A}}e^{\mat{B}}$ it
+is $\tfrac12\mat{A}^2 + \mat{A}\mat{B} + \tfrac12\mat{B}^2$. They differ by
+$\tfrac12(\mat{A}\mat{B}-\mat{B}\mat{A})$ -- the \emph{commutator}. No commuting,
+no clean splitting. This single fact launches Lie theory.
+\end{trapbox}
+
+\section{Computing $e^{\mat{A}t}$ by Diagonalization}
+\label{ch25:diag}
+
+The power-series definition is beautiful but you would not want to sum it by hand.
+Diagonalization turns it into something you can compute in a minute -- and reveals
+that the matrix exponential is just the mode picture from
+Section~\ref{ch25:superposition} written in one breath.
+
+Suppose $\mat{A}$ is diagonalizable: $\mat{A} = \mat{X}\mat{\Lambda}\mat{X}\inv$,
+where $\mat{\Lambda} = \diag(\lambda_1,\dots,\lambda_n)$ holds the eigenvalues and
+$\mat{X}$ holds the eigenvectors as columns. The key observation is that powers
+of $\mat{A}$ telescope:
+\[
+  \mat{A}^k
+  = (\mat{X}\mat{\Lambda}\mat{X}\inv)^k
+  = \mat{X}\mat{\Lambda}^k\mat{X}\inv,
+\]
+because the inner $\mat{X}\inv\mat{X}$ pairs cancel. Feed this into the series:
+\[
+  e^{\mat{A}t}
+  = \sum_{k=0}^\infty \frac{\mat{A}^k t^k}{k!}
+  = \sum_{k=0}^\infty \frac{\mat{X}\mat{\Lambda}^k\mat{X}\inv t^k}{k!}
+  = \mat{X}\!\left(\sum_{k=0}^\infty \frac{\mat{\Lambda}^k t^k}{k!}\right)\!\mat{X}\inv
+  = \mat{X}\, e^{\mat{\Lambda}t}\,\mat{X}\inv.
+\]
+And a diagonal matrix exponentiates entrywise -- because powers of a diagonal
+matrix are just the powers of its entries:
+\[
+  e^{\mat{\Lambda}t}
+  = \diag\!\bigl(e^{\lambda_1 t}, e^{\lambda_2 t}, \dots, e^{\lambda_n t}\bigr).
+\]
+
+\begin{focusbox}
+\textbf{The master formula.} If $\mat{A}=\mat{X}\mat{\Lambda}\mat{X}\inv$, then
+\[
+  e^{\mat{A}t}
+  = \mat{X}
+    \begin{bmatrix}
+      e^{\lambda_1 t} & & \\
+      & \ddots & \\
+      & & e^{\lambda_n t}
+    \end{bmatrix}
+    \mat{X}\inv.
+\]
+Read it as a sentence: \emph{change to eigen-coordinates ($\mat{X}\inv$),
+exponentiate each one-dimensional flow ($e^{\lambda_i t}$), change back
+($\mat{X}$).} The hard matrix problem became $n$ trivial scalar problems.
+\end{focusbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth,
+    box/.style={draw,rounded corners=2pt,minimum width=2.2cm,minimum height=0.95cm,align=center,font=\small}]
+  \node[box,fill=sourceblue!8] (u0) at (0,1.6) {start $\vec{u}_0$\\(real coords)};
+  \node[box,fill=sourceblue!8] (ut) at (6.4,1.6) {answer $\vec{u}(t)$\\(real coords)};
+  \node[box,fill=targetgreen!10] (c) at (0,-1.0) {$\vec{c}=\mat{X}\inv\vec{u}_0$\\(eigen-coords)};
+  \node[box,fill=targetgreen!10] (ct) at (6.4,-1.0) {$e^{\mat{\Lambda}t}\vec{c}$\\(eigen-coords)};
+  \draw[->,gray!70,dashed] (u0) -- node[above,font=\small]{$e^{\mat{A}t}$ (hard, coupled)} (ut);
+  \draw[->,quotientorange,thick] (u0) -- node[left,font=\small]{$\mat{X}\inv$} (c);
+  \draw[->,structurepurple,thick] (c) -- node[below,align=center,font=\small]{multiply each entry by $e^{\lambda_i t}$\\(easy, uncoupled)} (ct);
+  \draw[->,quotientorange,thick] (ct) -- node[right,font=\small]{$\mat{X}$} (ut);
+\end{tikzpicture}
+\caption{The master formula as a detour. Going straight across the top
+($e^{\mat{A}t}$) means solving a coupled system. Instead drop down into
+eigen-coordinates with $\mat{X}\inv$, where the system splits into $n$
+independent scalar flows, scale each by its own $e^{\lambda_i t}$, then ride
+$\mat{X}$ back up. The two routes give the same $\vec{u}(t)$ -- that equality
+\emph{is} $e^{\mat{A}t}=\mat{X}\,e^{\mat{\Lambda}t}\,\mat{X}\inv$.}
+\label{ch25:fig-detour}
+\end{figure}
+
+\begin{intuitionbox}
+This is diagonalization \emph{wearing a clock} (Figure~\ref{ch25:fig-detour}). In
+the eigenbasis, the coupled system uncouples completely: each eigen-coordinate
+$w_i = (\mat{X}\inv\vec{u})_i$ obeys its own scalar law $w_i' = \lambda_i w_i$, so
+$w_i(t) = e^{\lambda_i t} w_i(0)$. The matrices $\mat{X}\inv$ and $\mat{X}$ are
+merely the translator into and out of the language where the system speaks
+plainly.
+\end{intuitionbox}
+
+And the connection back to modes is immediate. Multiply the master formula by
+$\vec{u}_0$ and write $\mat{X}\inv\vec{u}_0 = \vec{c}$:
+\[
+  \vec{u}(t) = e^{\mat{A}t}\vec{u}_0
+  = \mat{X}\,e^{\mat{\Lambda}t}\,\vec{c}
+  = \sum_{i=1}^n c_i\, e^{\lambda_i t}\,\vec{x}_i.
+\]
+There it is -- the superposition formula falls out of $e^{\mat{A}t}$ with no extra
+work. The two stories are one story.
+
+\begin{example}[Exponentiating the two-tank matrix]
+\label{ch25:tanks-exp}
+For $\mat{A} = \begin{bmatrix}-2&1\\1&-2\end{bmatrix}$ we found
+$\lambda_1=-1,\lambda_2=-3$ with $\vec{x}_1=\colvec{1\\1},\vec{x}_2=\colvec{1\\-1}$.
+So
+\[
+  \mat{X} = \begin{bmatrix}1&1\\1&-1\end{bmatrix},
+  \qquad
+  \mat{X}\inv = \frac12\begin{bmatrix}1&1\\1&-1\end{bmatrix}.
+\]
+Then
+\[
+  e^{\mat{A}t}
+  = \mat{X}
+    \begin{bmatrix}e^{-t}&0\\0&e^{-3t}\end{bmatrix}
+    \mat{X}\inv
+  = \frac12
+    \begin{bmatrix}
+      e^{-t}+e^{-3t} & e^{-t}-e^{-3t}\\[2pt]
+      e^{-t}-e^{-3t} & e^{-t}+e^{-3t}
+    \end{bmatrix}.
+\]
+Apply it to $\vec{u}_0=\colvec{3\\1}$:
+\[
+  e^{\mat{A}t}\colvec{3\\1}
+  = \frac12\colvec{3(e^{-t}+e^{-3t}) + (e^{-t}-e^{-3t})\\[2pt]
+                   3(e^{-t}-e^{-3t}) + (e^{-t}+e^{-3t})}
+  = \colvec{2e^{-t}+e^{-3t}\\[2pt] 2e^{-t}-e^{-3t}},
+\]
+matching Section~\ref{ch25:tanks-solved} exactly. The single matrix $e^{\mat{A}t}$
+carries the whole solution for \emph{every} starting vector at once.
+\end{example}
+
+\begin{labbox}
+Compute $e^{\mat{A}t}$ by hand for the rotation generator
+$\mat{A}=\begin{bmatrix}0&-1\\1&0\end{bmatrix}$ of Example~\ref{ch25:complex}, but
+\emph{without} diagonalizing -- use the series. Show $\mat{A}^2=-\mat{I}$, hence
+$\mat{A}^3=-\mat{A}$, $\mat{A}^4=\mat{I}$, and the powers cycle. Group the series
+into even and odd terms and recognize the Taylor series of cosine and sine to get
+\[
+  e^{\mat{A}t} = \begin{bmatrix}\cos t & -\sin t\\ \sin t & \cos t\end{bmatrix}.
+\]
+The matrix exponential of the ``turning'' matrix is the rotation by angle $t$.
+Beautiful, and a perfect mirror of $e^{i t} = \cos t + i\sin t$.
+\end{labbox}
+
+\begin{aestheticbox}
+Look at what the last lab just said. The scalar identity $e^{it}=\cos t + i\sin t$
+-- Euler's formula, often called the most beautiful in mathematics -- is the
+\emph{exact same statement} as ``the exponential of the rotation generator is the
+rotation matrix.'' The number $i$ is the $2\times2$ matrix
+$\begin{bmatrix}0&-1\\1&0\end{bmatrix}$ in disguise; squaring it gives $-\mat{I}$,
+just as $i^2=-1$. Complex numbers, rotations, oscillation, and the matrix
+exponential are four windows onto one room. This is the kind of unity that makes
+people fall in love with linear algebra.
+\end{aestheticbox}
+
+\section{When You Cannot Diagonalize}
+\label{ch25:defective}
+
+The master formula assumed $n$ independent eigenvectors. What if $\mat{A}$ is
+\emph{defective} -- an eigenvalue short of a full set, like
+$\mat{A}=\begin{bmatrix}\lambda&1\\0&\lambda\end{bmatrix}$? The mode recipe stalls
+(too few eigenvectors to expand $\vec{u}_0$), but the matrix exponential never
+blinks: the power series is defined for \emph{every} square matrix. You just sum
+it directly, splitting $\mat{A}$ into a part you understand plus a nilpotent
+remainder.
+
+Write $\mat{A} = \lambda\mat{I} + \mat{N}$ with $\mat{N}=\begin{bmatrix}0&1\\0&0
+\end{bmatrix}$. These commute (anything commutes with $\lambda\mat{I}$), so by
+Proposition~\ref{ch25:prop-algebra}(4),
+\[
+  e^{\mat{A}t} = e^{\lambda t\mat{I}}\, e^{\mat{N}t}
+  = e^{\lambda t}\, e^{\mat{N}t}.
+\]
+Now $\mat{N}^2 = \mat{0}$ (nilpotent!), so its series stops after two terms:
+\[
+  e^{\mat{N}t} = \mat{I} + \mat{N}t = \begin{bmatrix}1 & t\\ 0 & 1\end{bmatrix}.
+\]
+Therefore
+\[
+  e^{\mat{A}t} = e^{\lambda t}\begin{bmatrix}1 & t\\ 0 & 1\end{bmatrix}
+  = \begin{bmatrix}e^{\lambda t} & t\,e^{\lambda t}\\ 0 & e^{\lambda t}\end{bmatrix}.
+\]
+Notice the brand-new ingredient: a factor of $t$ multiplying an exponential. A
+defective eigenvalue produces solutions like $t\,e^{\lambda t}$, not just
+$e^{\lambda t}$. Geometrically, the deficient direction ``leaks'' polynomial
+growth on top of the exponential.
+
+\begin{remark}
+The general structure behind this is the \emph{Jordan form} -- every matrix is
+$\mat{X}(\mat{\Lambda}+\mat{N})\mat{X}\inv$ with $\mat{N}$ nilpotent and
+commuting with the right pieces, so $e^{\mat{A}t}$ always reduces to an
+exponential times a polynomial in $t$. You will meet Jordan form in its own
+chapter; for now, keep the headline: the flow map $e^{\mat{A}t}$ \emph{exists and
+is computable for every matrix $\mat{A}$}, diagonalizable or not.
+\end{remark}
+
+\begin{connectionbox}
+Higher-order scalar ODEs are secretly matrix systems, and this is where the
+$t\,e^{\lambda t}$ terms you saw in calculus come from. The equation
+$y'' + 2y' + y = 0$ has the repeated root $\lambda=-1$, and its solutions are
+$e^{-t}$ \emph{and} $t\,e^{-t}$ -- exactly the defective pattern above. Setting
+$\vec{u}=\colvec{y\\y'}$ turns the second-order equation into
+$\vec{u}'=\begin{bmatrix}0&1\\-1&-2\end{bmatrix}\vec{u}$, a defective $2\times2$
+system. The mysterious ``multiply by $t$ for repeated roots'' rule from your
+differential-equations class is just nilpotency wearing a costume.
+\end{connectionbox}
+
+\section{A Modern Application}
+\label{ch25:application}
+
+\begin{applicationbox}
+\textbf{Continuous-time Markov chains and the engines behind search,
+epidemics, and chemistry.} Many real systems hop between states at random rates:
+which web page a surfer visits next, whether a person is Susceptible /
+Infected / Recovered, which conformation a protein is in. The probability
+distribution $\vec{p}(t)$ over states evolves by a linear ODE,
+\[
+  \frac{d\vec{p}}{dt} = \mat{Q}\T\vec{p},
+\]
+where $\mat{Q}$ is the \emph{generator} (rate) matrix: off-diagonal $Q_{ij}\ge0$
+is the rate of jumping $i\to j$, and each row sums to zero so probability is
+conserved. The solution is exactly the matrix exponential,
+\[
+  \vec{p}(t) = e^{\mat{Q}\T t}\,\vec{p}(0).
+\]
+The eigenvalue $\lambda=0$ (every generator has one, because rows sum to zero)
+carries the \emph{steady-state distribution} -- the mode that never decays, the
+long-run behavior of the chain. Every other eigenvalue has negative real part, and
+the one closest to zero sets the \emph{mixing time}: how long until the chain
+forgets where it started. Search ranking, disease forecasting, queueing theory,
+and molecular kinetics all run on $e^{\mat{Q}t}$. The signs and sizes of
+$\mat{Q}$'s eigenvalues are literally the question ``does it settle, and how
+fast?'' -- the stability story of this chapter, deployed at planet scale.
+\end{applicationbox}
+
+\begin{applicationbox}
+\textbf{The exponential of a network.} In graph theory and neuroscience, if
+$\mat{A}$ is the adjacency matrix of a network, then $(e^{\mat{A}})_{ij}$ -- the
+$ij$ entry of the matrix exponential -- is a weighted count of \emph{all} walks
+from node $i$ to node $j$, with longer walks down-weighted by $1/k!$. This
+``communicability'' is a standard centrality measure: it scores how easily
+influence (signals, rumors, current) spreads between nodes. Because
+$e^{\mat{A}}=\sum \mat{A}^k/k!$ and $(\mat{A}^k)_{ij}$ counts length-$k$ walks, the
+matrix exponential of a graph is, quite literally, a generating function for its
+connectivity.
+\end{applicationbox}
+
+\section{The Geometry of the Flow}
+\label{ch25:geometry}
+
+Let us close by collecting the pictures, because the geometry is the point. The
+matrix $\mat{A}$ defines a velocity field; the family $\{e^{\mat{A}t}\}_{t\in\R}$
+is the \emph{flow} it generates -- a one-parameter family of matrices, starting
+at $\mat{I}$ when $t=0$, sliding every point of space along the river as $t$
+increases.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.05,>=Stealth]
+  % node1: sink with two straight eigendirections (the two-tank system)
+  \begin{scope}
+    \draw[->,gray!50] (-2.2,0)--(2.2,0) node[right]{$u_1$};
+    \draw[->,gray!50] (0,-2.2)--(0,2.2) node[above]{$u_2$};
+    % eigen-lines
+    \draw[gray!45,dashed] (-2,-2)--(2,2);
+    \draw[gray!45,dashed] (-2,2)--(2,-2);
+    \node[gray!60,scale=0.8] at (1.9,1.7) {$\vec{x}_1$};
+    \node[gray!60,scale=0.8] at (-1.9,1.7) {$\vec{x}_2$};
+    % a few trajectories bending toward slow eigendirection x1
+    \foreach \s in {-1,1}{
+      \draw[sourceblue,thick,->] plot[domain=0:1.5,samples=40,variable=\t]
+        ({\s*(1.0*exp(-1*\t) + 1.4*exp(-3*\t))},
+         {\s*(1.0*exp(-1*\t) - 1.4*exp(-3*\t))});
+      \draw[sourceblue,thick,->] plot[domain=0:1.5,samples=40,variable=\t]
+        ({\s*(1.4*exp(-1*\t) - 1.0*exp(-3*\t))},
+         {\s*(1.4*exp(-1*\t) + 1.0*exp(-3*\t))});
+    }
+    \fill[vecred] (0,0) circle (1.8pt);
+    \node at (0,-2.6) {\small stable node: $\lambda=-1,-3$};
+  \end{scope}
+  % node2: saddle (one positive, one negative eigenvalue)
+  \begin{scope}[shift={(6.2,0)}]
+    \draw[->,gray!50] (-2.2,0)--(2.2,0) node[right]{$u_1$};
+    \draw[->,gray!50] (0,-2.2)--(0,2.2) node[above]{$u_2$};
+    % stable manifold (vertical), unstable (horizontal)
+    \draw[targetgreen,thick,<->] (0,-2)--(0,2);
+    \draw[vecred,thick,<->] (-2,0)--(2,0);
+    \foreach \c in {0.5,1.0}{
+      \draw[structurepurple,thick,->] plot[domain=-1.2:1.2,samples=40,variable=\t]
+        ({\c*exp(\t)},{\c*exp(-\t)});
+      \draw[structurepurple,thick,->] plot[domain=-1.2:1.2,samples=40,variable=\t]
+        ({-\c*exp(\t)},{-\c*exp(-\t)});
+    }
+    \fill[vecred] (0,0) circle (1.8pt);
+    \node at (0,-2.6) {\small saddle: $\lambda=+1,-1$};
+  \end{scope}
+\end{tikzpicture}
+\caption{Two phase portraits. \emph{Left:} both eigenvalues negative -- a stable
+node. Every trajectory slides into the origin, hugging the slow eigendirection
+$\vec{x}_1$ (eigenvalue $-1$) on its way in, because the fast mode ($-3$) dies
+first. \emph{Right:} one positive, one negative eigenvalue -- a \emph{saddle}.
+Along the green axis (stable, $\lambda=-1$) points fall in; along the red axis
+(unstable, $\lambda=+1$) they fly out; generic trajectories swoop in, turn, and
+escape. A single positive eigenvalue is enough to make a system unstable.}
+\label{ch25:fig-node-saddle}
+\end{figure}
+
+\begin{intuitionbox}
+The full zoo of $2\times2$ behaviors is organized entirely by the two
+eigenvalues:
+\begin{itemize}
+  \item both real, same sign $\to$ \textbf{node} (in if negative, out if positive);
+  \item real, opposite signs $\to$ \textbf{saddle} (always unstable);
+  \item complex, nonzero real part $\to$ \textbf{spiral} (in if $\sigma<0$);
+  \item pure imaginary $\to$ \textbf{center} (closed orbits, neutrally stable).
+\end{itemize}
+Two numbers -- the eigenvalues -- and you know the qualitative shape of every
+trajectory before computing a single point. That is the power the spectrum gives
+you over a dynamical system.
+\end{intuitionbox}
+
+\begin{strangbox}
+Strang frames the climax as: \emph{the eigenvalues of $\mat{A}$ control
+$e^{\mat{A}t}$}, and the four fundamental questions (does it grow, decay,
+oscillate, blow up?) are answered by the locations of the $\lambda$'s. \emph{After}
+Strang, the natural next step is to ask what happens when $\mat{A}$ is symmetric
+(real eigenvalues, orthogonal eigenvectors, no spirals -- the spectral theorem,
+next chapter) and what $e^{\mat{A}t}$ means when $\mat{A}$ is skew-symmetric
+(pure rotation, energy conserved). The matrix exponential is the doorway from
+static linear algebra into the dynamics of the world.
+\end{strangbox}
+
+\begin{recoverybox}
+\textbf{Cost and intuition recap.} What did solving
+$\frac{d\vec{u}}{dt}=\mat{A}\vec{u}$ actually cost, and what is the one idea to
+keep?
+\begin{itemize}
+  \item \textbf{Intuition:} eigenvectors are the directions the flow does not
+        mix; along each, the system is just the scalar law $w'=\lambda w$ with
+        solution $e^{\lambda t}$. Solve, then superpose.
+  \item \textbf{Cost (diagonalizable case):} one eigendecomposition of $\mat{A}$,
+        which is $O(n^3)$ work, then \emph{each} value $\vec{u}(t)$ is one
+        change of basis, a diagonal scaling, and a change back -- $O(n^2)$ per
+        time, for as many times $t$ as you like. You pay the $O(n^3)$ once and
+        reuse it forever.
+  \item \textbf{Cost (general $\mat{A}$):} the matrix exponential $e^{\mat{A}t}$
+        still exists and is computable (scaling-and-squaring of the power series,
+        or via Jordan/Schur form); it never needs eigenvectors to be defined.
+  \item \textbf{The headline:} the signs of $\operatorname{Re}\lambda_i$ decide
+        the fate of \emph{every} trajectory before you compute a single point.
+\end{itemize}
+\end{recoverybox}
+
+\section*{Summary}
+\addcontentsline{toc}{section}{Summary}
+
+\begin{itemize}
+  \item A linear system $\frac{d\vec{u}}{dt}=\mat{A}\vec{u}$ is a velocity field;
+        its solution is a path flowing along the arrows.
+  \item Each eigenpair gives a pure mode $\vec{u}(t)=e^{\lambda t}\vec{x}$. By
+        superposition the general (diagonalizable) solution is
+        $\vec{u}(t)=\sum_i c_i e^{\lambda_i t}\vec{x}_i$, with $\vec{c}=
+        \mat{X}\inv\vec{u}_0$.
+  \item \textbf{Stability} is read from the eigenvalues: stable iff every
+        $\operatorname{Re}\lambda_i < 0$. The real part is growth/decay; the
+        imaginary part is oscillation frequency.
+  \item The \textbf{matrix exponential} $e^{\mat{A}t}=\sum_k \mat{A}^kt^k/k!$ is
+        the time-$t$ flow map; $\vec{u}(t)=e^{\mat{A}t}\vec{u}_0$ solves the
+        system, proved by the same term-by-term differentiation as the scalar
+        case.
+  \item When $\mat{A}=\mat{X}\mat{\Lambda}\mat{X}\inv$,
+        $e^{\mat{A}t}=\mat{X}\,e^{\mat{\Lambda}t}\,\mat{X}\inv$ with
+        $e^{\mat{\Lambda}t}=\diag(e^{\lambda_i t})$ -- diagonalization wearing a
+        clock. Defective matrices add polynomial-in-$t$ factors.
+  \item Beware: $e^{\mat{A}+\mat{B}}=e^{\mat{A}}e^{\mat{B}}$ only when
+        $\mat{A}\mat{B}=\mat{B}\mat{A}$; and continuous stability ($\operatorname{Re}
+        \lambda<0$) is not discrete stability ($|\lambda|<1$).
+\end{itemize}
+
+\section{Exercises}
+\label{ch25:exercises}
+
+\begin{exercise}[Warmup: scalar fate]
+\label{ch25:ex-scalar}
+For each, state whether $u(t)\to0$, stays constant, or blows up, and give $u(t)$:
+(a) $u'=3u,\ u(0)=2$; (b) $u'=-\tfrac12 u,\ u(0)=5$; (c) $u'=0\cdot u,\ u(0)=7$.
+\end{exercise}
+
+\begin{exercise}[Solve a $2\times2$ system]
+\label{ch25:ex-solve}
+Solve $\frac{d\vec{u}}{dt}=\mat{A}\vec{u}$ with
+$\mat{A}=\begin{bmatrix}1&2\\0&-1\end{bmatrix}$ and $\vec{u}(0)=\colvec{1\\1}$.
+(Find eigenvalues/eigenvectors, expand the start, write
+$\vec{u}(t)$.) Is the system stable? What is the fate of each component as
+$t\to\infty$?
+\end{exercise}
+
+\begin{exercise}[Read the portrait]
+\label{ch25:ex-portrait}
+Classify the origin (node/saddle/spiral/center, stable or not) for each:
+(a) $\begin{bmatrix}-3&0\\0&-1\end{bmatrix}$;
+(b) $\begin{bmatrix}2&0\\0&-1\end{bmatrix}$;
+(c) $\begin{bmatrix}-1&-4\\4&-1\end{bmatrix}$;
+(d) $\begin{bmatrix}0&3\\-3&0\end{bmatrix}$.
+For (c) and (d), find the eigenvalues and identify the real and imaginary parts.
+\end{exercise}
+
+\begin{exercise}[Matrix exponential by series]
+\label{ch25:ex-series}
+Let $\mat{N}=\begin{bmatrix}0&2\\0&0\end{bmatrix}$. Compute $\mat{N}^2$, then sum
+the series to find $e^{\mat{N}t}$ exactly. Verify by checking
+$\frac{d}{dt}e^{\mat{N}t}=\mat{N}e^{\mat{N}t}$.
+\end{exercise}
+
+\begin{exercise}[Diagonalize, then exponentiate]
+\label{ch25:ex-diag}
+For $\mat{A}=\begin{bmatrix}0&1\\-2&-3\end{bmatrix}$, find $\mat{X}$ and
+$\mat{\Lambda}$, then assemble $e^{\mat{A}t}=\mat{X}e^{\mat{\Lambda}t}\mat{X}\inv$
+as an explicit $2\times2$ matrix of exponentials. (Eigenvalues are $-1$ and $-2$.)
+\end{exercise}
+
+\begin{exercise}[Rotation generator]
+\label{ch25:ex-rotation}
+Let $\mat{A}=\begin{bmatrix}0&-\omega\\\omega&0\end{bmatrix}$. Using
+$\mat{A}^2=-\omega^2\mat{I}$, sum the even and odd parts of the series to show
+$e^{\mat{A}t}=\begin{bmatrix}\cos\omega t&-\sin\omega t\\\sin\omega t&\cos\omega t
+\end{bmatrix}$. What is the period of the resulting motion?
+\end{exercise}
+
+\begin{exercise}[Higher-order ODE as a system]
+\label{ch25:ex-secondorder}
+The damped oscillator is $y''+3y'+2y=0$. Set $\vec{u}=\colvec{y\\y'}$ and write
+the equivalent first-order system $\vec{u}'=\mat{A}\vec{u}$. Find the eigenvalues
+of $\mat{A}$ and confirm they are the roots of $\lambda^2+3\lambda+2=0$. Conclude
+the general solution $y(t)=c_1 e^{-t}+c_2 e^{-2t}$, and explain why the system is
+stable.
+\end{exercise}
+
+\begin{exercise}[The commutator obstruction]
+\label{ch25:ex-commutator}
+Let $\mat{A}=\begin{bmatrix}0&1\\0&0\end{bmatrix}$ and
+$\mat{B}=\begin{bmatrix}0&0\\1&0\end{bmatrix}$. Show $\mat{A}\mat{B}\neq
+\mat{B}\mat{A}$. Compute $e^{\mat{A}}$ and $e^{\mat{B}}$ (each series is short),
+form $e^{\mat{A}}e^{\mat{B}}$, and compare with $e^{\mat{A}+\mat{B}}$ where
+$\mat{A}+\mat{B}=\begin{bmatrix}0&1\\1&0\end{bmatrix}$ (this one has eigenvalues
+$\pm1$). Confirm they are different, and identify the source of the discrepancy.
+\end{exercise}
+
+\begin{exercise}[Trace and determinant of the flow]
+\label{ch25:ex-trace}
+Prove that $\det\!\bigl(e^{\mat{A}t}\bigr)=e^{t\,\tr\mat{A}}$ for diagonalizable
+$\mat{A}$. (Hint: use $e^{\mat{A}t}=\mat{X}e^{\mat{\Lambda}t}\mat{X}\inv$ and that
+$\det$ is multiplicative.) Interpret: when is the flow volume-preserving?
+\end{exercise}
+
+\begin{exercise}[Proof: stability]
+\label{ch25:ex-stability}
+Suppose $\mat{A}$ is diagonalizable with all eigenvalues satisfying
+$\operatorname{Re}\lambda_i<0$. Using $\vec{u}(t)=\sum_i c_i e^{\lambda_i t}
+\vec{x}_i$, prove that $\norm{\vec{u}(t)}\to0$ as $t\to\infty$ for \emph{every}
+initial condition. Where exactly does the negativity of the real parts enter?
+\end{exercise}
+
+\begin{exercise}[Challenge: the slow mode]
+\label{ch25:ex-slowmode}
+A stable system has eigenvalues $\lambda_1=-0.2$ and $\lambda_2=-5$ with
+eigenvectors $\vec{x}_1,\vec{x}_2$. Argue that for large $t$, \emph{every}
+nonzero trajectory $\vec{u}(t)$ becomes nearly parallel to $\vec{x}_1$, regardless
+of the start (assuming $c_1\neq0$). Quantify ``large'': roughly how big must $t$
+be before the $\vec{x}_2$ contribution is under $1\%$ of the $\vec{x}_1$
+contribution, if they start with equal coefficients? (Use $e^{-5t}/e^{-0.2t}=
+e^{-4.8t}<0.01$.)
+\end{exercise}

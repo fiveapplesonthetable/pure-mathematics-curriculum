@@ -1,0 +1,1070 @@
+\chapter{Gaussian Elimination}
+
+There is a moment in everyone's first algebra class where they learn to solve
+two equations in two unknowns. You add a multiple of one equation to the other
+so that one variable disappears, you solve for what is left, and you substitute
+back. It feels like a trick -- a clever bit of bookkeeping that happens to work.
+
+This chapter is about taking that trick seriously. It turns out that the little
+maneuver you learned at fourteen is, almost without modification, the single
+most important algorithm in computational linear algebra. It is how your laptop
+solves a system of a thousand equations in a thousand unknowns. It is the engine
+under the hood of curve fitting, circuit analysis, structural engineering, and
+the first half of every linear algebra course ever taught. Carl Friedrich Gauss
+used it to compute the orbit of an asteroid. We call it \emph{Gaussian
+elimination}, and by the end of this chapter you will understand not just how to
+turn the crank, but \emph{why} the crank turns -- geometrically, algebraically,
+and as a statement about matrices multiplying matrices.
+
+We begin where the book always begins: with a picture.
+
+\section{The picture: collapsing planes onto a corner}
+
+In the previous chapter you saw that a system of linear equations is a geometric
+object. Each equation in two unknowns is a line in the plane; a solution is a
+point where the lines cross. Each equation in three unknowns is a plane in
+space; a solution is a point shared by all the planes. Solving the system means
+\emph{finding that shared point}.
+
+Gaussian elimination is a procedure for finding it. Here is the whole idea in
+one sentence: \textbf{we replace the messy, tilted equations with simpler,
+straighter ones that have exactly the same solution, until the answer is so
+obvious we can read it off.}
+
+\begin{intuitionbox}
+Imagine three tilted planes in space crossing at a single hidden point. You
+cannot see where they meet because the planes are at awkward angles. Gaussian
+elimination gently rotates and tilts the equations -- without ever moving the
+crossing point -- until one plane becomes perfectly horizontal (it fixes $z$),
+the next pins down $y$ once $z$ is known, and the last pins down $x$ once $y$ and
+$z$ are known. The crossing point never budges. We have only changed our
+\emph{description} of it, from three vague clues into three sharp ones.
+\end{intuitionbox}
+
+The crucial promise is that the crossing point never moves. Everything we do
+will be a \emph{solution-preserving} operation: it changes the equations but not
+their common solution. Let us make that precise, because it is the foundation
+everything else rests on.
+
+Figure~\ref{ch07:two-lines} shows the simplest case -- two lines in the plane --
+before and after one elimination step. The replacement move swings the second
+line into a horizontal one (it now constrains only $y$), and the crossing point
+stays exactly where it was.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.9]
+\begin{scope}
+  \draw[->,gray] (-0.4,-0.4)--(3.4,-0.4) node[right]{\small$x$};
+  \draw[->,gray] (-0.4,-0.4)--(-0.4,3.0) node[above]{\small$y$};
+  % two tilted lines crossing near (1.5,1.2)
+  \draw[thick,vecblue] (-0.2,2.4)--(3.2,0.05);
+  \draw[thick,vecred] (0.0,-0.3)--(2.7,2.4);
+  \fill[black] (1.5,1.2) circle (2pt);
+  \node[below right] at (1.5,1.2){\small solution};
+  \node[below] at (1.4,-0.9){\small two tilted lines};
+\end{scope}
+\begin{scope}[xshift=6cm]
+  \draw[->,gray] (-0.4,-0.4)--(3.4,-0.4) node[right]{\small$x$};
+  \draw[->,gray] (-0.4,-0.4)--(-0.4,3.0) node[above]{\small$y$};
+  \draw[thick,vecblue] (-0.2,2.4)--(3.2,0.05);
+  % second line now horizontal through y=1.2 (pins y)
+  \draw[thick,vecred] (-0.3,1.2)--(3.2,1.2);
+  \fill[black] (1.5,1.2) circle (2pt);
+  \node[below right] at (1.5,1.2){\small same solution};
+  \draw[->,vecred!70] (3.0,2.4) to[bend right=20] (2.6,1.35);
+  \node[below] at (1.4,-0.9){\small after elimination: red pins $y$};
+\end{scope}
+\end{tikzpicture}
+\caption{Elimination in the plane. One replacement step swings the red line into
+a horizontal one that fixes $y$ outright, while the crossing point (the solution)
+does not move. Back-substitution then reads $x$ off the blue line.}
+\label{ch07:two-lines}
+\end{figure}
+
+\subsection{The three legal moves}
+
+We are allowed exactly three operations on the equations of a system. Each one
+is reversible, and each one leaves the set of solutions completely unchanged.
+
+\begin{focusbox}
+\textbf{The three elementary row operations.}
+\begin{enumerate}
+  \item \textbf{Scaling:} multiply an equation by a nonzero number.
+  \item \textbf{Replacement:} add a multiple of one equation to another equation.
+  \item \textbf{Exchange:} swap the positions of two equations.
+\end{enumerate}
+Every one of these is reversible, so none of them can lose or invent solutions.
+\end{focusbox}
+
+Why do these preserve the solution set? Take replacement, the workhorse. Suppose
+a point $(x,y,z)$ satisfies equation $E_1$ and equation $E_2$. Then it certainly
+satisfies $E_2 + cE_1$ for any number $c$, because both sides of $E_1$ are equal
+at that point, so adding $c$ times a true equation to another true equation
+keeps it true. Conversely, if a point satisfies $E_1$ and $E_2 + cE_1$, we can
+\emph{recover} $E_2$ as $(E_2 + cE_1) - cE_1$, so the point satisfies $E_2$ too.
+The two systems have identical solution sets. Scaling by a nonzero number and
+swapping are reversible for the obvious reasons. (Scaling by zero is forbidden
+precisely because it is \emph{not} reversible -- it would erase an equation.)
+
+\begin{trapbox}
+The forbidden move is multiplying an equation by \textbf{zero}. ``$0 = 0$'' is
+true everywhere, so it throws away the information that equation carried, and you
+can never get it back. Every legal move must be undoable. Keep that test in your
+head: if you could not reverse it, you may not do it.
+\end{trapbox}
+
+\subsection{From equations to a grid of numbers}
+
+Writing $x$, $y$, $z$ and plus signs over and over is a waste of ink. The
+variables just hold places; what matters are the coefficients. So we strip the
+system down to its numbers and stack them in a rectangular grid. The system
+\[
+\begin{aligned}
+2x + 1y + 1z &= 5\\
+4x + 1y + 0z &= 6\\
+-2x + 2y + 1z &= 1
+\end{aligned}
+\qquad\longleftrightarrow\qquad
+\left[\begin{array}{ccc|c}
+2 & 1 & 1 & 5\\
+4 & 1 & 0 & 6\\
+-2 & 2 & 1 & 1
+\end{array}\right].
+\]
+The vertical bar separates the coefficient matrix $\mat{A}$ from the right-hand
+side $\vec{b}$. The whole grid is the \emph{augmented matrix}, written
+$[\,\mat{A}\mid\vec{b}\,]$. Each row is one equation; each of the first three
+columns belongs to one variable. The three row operations now become operations
+on rows of numbers -- which is exactly what a computer wants.
+
+\section{Elimination to upper-triangular form}
+
+The goal of the elimination phase is to make the coefficient matrix
+\emph{upper triangular}: every entry below the main diagonal becomes zero. Why
+that shape? Because an upper-triangular system is a staircase you can climb from
+the bottom. The last equation involves only the last variable, so you solve it
+immediately. The second-to-last involves only the last two, and you already know
+one of them. And so on up to the top. This climb is called
+\emph{back-substitution}, and it is trivially easy once the triangle is built.
+Figure~\ref{ch07:triangle} shows the shape we are driving toward: zeros below the
+diagonal, pivots on it.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.62]
+  % full matrix
+  \draw[thick,sourceblue] (0,0) rectangle (3,3);
+  \foreach \i in {1,2} \draw[gray!40] (0,\i)--(3,\i);
+  \foreach \i in {1,2} \draw[gray!40] (\i,0)--(\i,3);
+  \node at (0.5,2.5){$*$}; \node at (1.5,2.5){$*$}; \node at (2.5,2.5){$*$};
+  \node at (0.5,1.5){$*$}; \node at (1.5,1.5){$*$}; \node at (2.5,1.5){$*$};
+  \node at (0.5,0.5){$*$}; \node at (1.5,0.5){$*$}; \node at (2.5,0.5){$*$};
+  \node[below] at (1.5,-0.3){full matrix $\mat{A}$};
+  % arrow
+  \draw[-{Stealth[length=3mm]},thick] (3.6,1.5)--(5.1,1.5);
+  \node[above] at (4.35,1.6){\small eliminate};
+  % triangular
+  \begin{scope}[xshift=5.7cm]
+  \draw[thick,targetgreen] (0,0) rectangle (3,3);
+  \foreach \i in {1,2} \draw[gray!40] (0,\i)--(3,\i);
+  \foreach \i in {1,2} \draw[gray!40] (\i,0)--(\i,3);
+  \fill[red!10] (0,0) -- (1,0) -- (1,1) -- (2,1) -- (2,2) -- (0,2) -- cycle;
+  \node[structurepurple] at (0.5,2.5){$p$}; \node at (1.5,2.5){$*$}; \node at (2.5,2.5){$*$};
+  \node[trapred] at (0.5,1.5){$0$}; \node[structurepurple] at (1.5,1.5){$p$}; \node at (2.5,1.5){$*$};
+  \node[trapred] at (0.5,0.5){$0$}; \node[trapred] at (1.5,0.5){$0$}; \node[structurepurple] at (2.5,0.5){$p$};
+  \node[below] at (1.5,-0.3){upper triangular $\mat{U}$};
+  \end{scope}
+\end{tikzpicture}
+\caption{Elimination drives every entry below the diagonal to zero (shaded
+region). The surviving diagonal entries marked $p$ are the \emph{pivots}.}
+\label{ch07:triangle}
+\end{figure}
+
+\subsection{Pivots and multipliers}
+
+The mechanics are simple. We work column by column, left to right. In each
+column we pick a \emph{pivot}: the diagonal entry we will use to knock out
+everything below it. To clear an entry below the pivot, we subtract the right
+multiple of the pivot's row.
+
+\begin{focusbox}
+To eliminate the entry in row $i$, column $j$, using the pivot in row $j$,
+column $j$, the \textbf{multiplier} is
+\[
+\ell_{ij} \;=\; \frac{\text{entry to kill}}{\text{pivot}}
+\;=\; \frac{a_{ij}}{a_{jj}},
+\]
+and the operation is: \emph{new row $i$} $=$ \emph{old row $i$}
+$-\;\ell_{ij}\times(\text{pivot row } j)$. Choosing $\ell_{ij}$ this way makes
+the target entry become exactly $a_{ij} - \ell_{ij}\,a_{jj} = a_{ij} - a_{ij} =
+0$. Hold onto these multipliers; in the next chapter they become the matrix
+$\mat{L}$.
+\end{focusbox}
+
+\subsection{A 3x3 traced fully}
+
+Let us run the example above all the way through. Watch every multiplier.
+\[
+\left[\begin{array}{ccc|c}
+2 & 1 & 1 & 5\\
+4 & 1 & 0 & 6\\
+-2 & 2 & 1 & 1
+\end{array}\right].
+\]
+The first pivot is the $2$ in the top-left corner. We use it to clear the rest of
+column 1.
+
+\textbf{Step 1.} Kill the $4$ in row 2. Multiplier $\ell_{21} = 4/2 = 2$.
+Replace row 2 with (row 2) $- 2\cdot$(row 1):
+\[
+[\,4,\;1,\;0\mid 6\,] - 2[\,2,\;1,\;1\mid 5\,]
+= [\,0,\;-1,\;-2\mid -4\,].
+\]
+\[
+\left[\begin{array}{ccc|c}
+2 & 1 & 1 & 5\\
+0 & -1 & -2 & -4\\
+-2 & 2 & 1 & 1
+\end{array}\right].
+\]
+
+\textbf{Step 2.} Kill the $-2$ in row 3. Multiplier $\ell_{31} = -2/2 = -1$.
+Replace row 3 with (row 3) $-(-1)\cdot$(row 1) $=$ (row 3) $+$ (row 1):
+\[
+[\,-2,\;2,\;1\mid 1\,] + [\,2,\;1,\;1\mid 5\,] = [\,0,\;3,\;2\mid 6\,].
+\]
+\[
+\left[\begin{array}{ccc|c}
+2 & 1 & 1 & 5\\
+0 & -1 & -2 & -4\\
+0 & 3 & 2 & 6
+\end{array}\right].
+\]
+Column 1 is clean. Now we move to the second pivot, the $-1$ now sitting in row
+2, column 2, and use it to clear column 2 below.
+
+\textbf{Step 3.} Kill the $3$ in row 3. Multiplier $\ell_{32} = 3/(-1) = -3$.
+Replace row 3 with (row 3) $-(-3)\cdot$(row 2) $=$ (row 3) $+ 3\cdot$(row 2):
+\[
+[\,0,\;3,\;2\mid 6\,] + 3[\,0,\;-1,\;-2\mid -4\,] = [\,0,\;0,\;-4\mid -6\,].
+\]
+\[
+\mat{U}=\left[\begin{array}{ccc|c}
+2 & 1 & 1 & 5\\
+0 & -1 & -2 & -4\\
+0 & 0 & -4 & -6
+\end{array}\right].
+\]
+We have reached upper-triangular form. The three pivots are $2,\,-1,\,-4$, all
+sitting on the diagonal. The forward sweep is done.
+
+\subsection{Back-substitution: climbing the staircase}
+
+Now read the triangle from the bottom up. The last row says
+\[
+-4z = -6 \quad\Longrightarrow\quad z = \tfrac{3}{2}.
+\]
+The middle row says $-y - 2z = -4$. Plug in $z = 3/2$:
+\[
+-y - 2\cdot\tfrac{3}{2} = -4 \;\Longrightarrow\; -y - 3 = -4 \;\Longrightarrow\;
+-y = -1 \;\Longrightarrow\; y = 1.
+\]
+The top row says $2x + y + z = 5$. Plug in $y = 1$ and $z = 3/2$:
+\[
+2x + 1 + \tfrac{3}{2} = 5 \;\Longrightarrow\; 2x = \tfrac{5}{2}
+\;\Longrightarrow\; x = \tfrac{5}{4}.
+\]
+So the three tilted planes meet at the single point
+$\bigl(\tfrac54,\,1,\,\tfrac32\bigr)$. You should always sanity-check the
+original equations. The first: $2\cdot\frac54 + 1 + \frac32 = \frac52 + 1 +
+\frac32 = 5$. Good. The second: $4\cdot\frac54 + 1 + 0 = 5 + 1 = 6$. Good. The
+third: $-2\cdot\frac54 + 2\cdot 1 + \frac32 = -\frac52 + 2 + \frac32 = 1$. Good.
+
+\begin{focusbox}
+\textbf{The two phases.} \emph{Forward elimination} grinds the matrix down to an
+upper triangle $\mat{U}$, recording multipliers as it goes. \emph{Back-
+substitution} then climbs the triangle from the bottom, solving one variable at
+each step. Together they solve the system. Forward elimination is the expensive
+part; the climb is cheap.
+\end{focusbox}
+
+\begin{strangbox}
+Strang opens his course with exactly this: ``the geometry of linear equations''
+followed immediately by ``elimination with matrices.'' If you are reading this
+\emph{before} Strang, you now have the mental movie -- planes pinned down one
+coordinate at a time -- that makes his board work feel inevitable rather than
+magical. If you are reading \emph{after} Strang, notice that we are being
+deliberate about the multipliers $\ell_{ij}$; they are not throwaway arithmetic.
+They are the seed of the $\mat{A}=\mat{LU}$ factorization that the next chapter
+makes precise, and they encode the entire elimination as a single matrix.
+\end{strangbox}
+
+\begin{labbox}
+Solve this $2\times 2$ system by hand, tracing both phases:
+\[
+\begin{aligned}
+3x + 2y &= 7\\
+6x + 5y &= 16.
+\end{aligned}
+\]
+Pivot on the $3$, find the multiplier $6/3 = 2$, eliminate, then back-substitute.
+You should get $y = 2$, $x = 1$. Check it against both original equations before
+moving on -- the checking habit is half the skill.
+\end{labbox}
+
+\section{Counting the work, and why triangles are cheap}
+
+Before going further it is worth pausing on \emph{why} this algorithm is the one
+the world actually uses. The reason is cost. For an $n\times n$ system, forward
+elimination does on the order of $\tfrac13 n^3$ arithmetic operations -- one
+nested loop over rows, columns, and the entries to update. Back-substitution
+does only about $\tfrac12 n^2$. The forward sweep dominates completely, as
+Figure~\ref{ch07:cost} makes vivid.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.95]
+\begin{axis}[
+  width=10.5cm, height=6.6cm,
+  xlabel={system size $n$}, ylabel={arithmetic operations},
+  domain=1:50, samples=80,
+  legend pos=north west, legend cell align=left,
+  grid=both, grid style={gray!18},
+  xmin=0, xmax=50, ymin=0,
+  axis lines=left, tick align=outside,
+  every axis plot/.append style={very thick},
+]
+  \addplot[sourceblue]{(1/3)*x^3};
+  \addlegendentry{forward elimination $\sim\tfrac13 n^3$}
+  \addplot[targetgreen]{(1/2)*x^2};
+  \addlegendentry{back-substitution $\sim\tfrac12 n^2$}
+\end{axis}
+\end{tikzpicture}
+\caption{The two phases compared. The cubic forward sweep (blue) outruns the
+quadratic back-substitution (green) so fast that for any sizeable system the
+climb down the triangle is essentially free. Doubling $n$ multiplies the blue
+curve by eight.}
+\label{ch07:cost}
+\end{figure}
+
+\begin{aestheticbox}
+That $\tfrac13 n^3$ is one of the most consequential numbers in computing.
+Doubling the size of your system makes elimination eight times slower, not twice
+-- which is why huge sparse systems (where most coefficients are zero) get
+special algorithms that avoid filling in those zeros. But for dense systems,
+nobody has found anything dramatically better in practice for general use.
+The simple schoolroom trick is, asymptotically, close to the best we have. There
+is a quiet beauty in that: the obvious method is also the right method.
+\end{aestheticbox}
+
+\begin{connectionbox}
+The $n^3$ scaling is the same wall you hit when multiplying two matrices the
+naive way, and it is no coincidence. Solving $\mat{A}\vec{x}=\vec{b}$,
+inverting $\mat{A}$, and multiplying matrices are all $O(n^3)$ problems that turn
+out to be equivalent in difficulty up to constants -- a fact from the theory of
+algorithmic complexity. Calculus students will recognize the family resemblance
+to how the cost of a triple integral grows with resolution: each new dimension
+multiplies the work. Elimination is what high-dimensional bookkeeping costs.
+\end{connectionbox}
+
+\section{Row exchanges: when the pivot is in the wrong place}
+
+So far every pivot we needed was conveniently nonzero and sitting on the
+diagonal. Reality is not always so kind. Sometimes a zero shows up exactly where
+we wanted a pivot. Consider
+\[
+\left[\begin{array}{ccc|c}
+0 & 2 & 1 & 4\\
+1 & 1 & 1 & 6\\
+2 & 1 & 3 & 11
+\end{array}\right].
+\]
+The top-left entry is $0$. We cannot use it as a pivot -- the multiplier would
+be ``something divided by zero,'' which is meaningless. But this is no
+catastrophe. The equations are just listed in an unlucky order. We simply
+\emph{swap} two rows to bring a nonzero number into the pivot position. Exchange
+row 1 and row 2:
+\[
+\left[\begin{array}{ccc|c}
+1 & 1 & 1 & 6\\
+0 & 2 & 1 & 4\\
+2 & 1 & 3 & 11
+\end{array}\right].
+\]
+Now the pivot is $1$, and elimination proceeds. Clear column 1: row 3 already
+has a $2$ to remove, multiplier $\ell_{31}=2/1=2$, so row 3 becomes (row 3)
+$-2\cdot$(row 1) $= [\,0,\,-1,\,1\mid -1\,]$. Row 2 already starts with $0$, so
+nothing to do there.
+\[
+\left[\begin{array}{ccc|c}
+1 & 1 & 1 & 6\\
+0 & 2 & 1 & 4\\
+0 & -1 & 1 & -1
+\end{array}\right].
+\]
+Second pivot is $2$ in row 2. Clear below: multiplier $\ell_{32}=-1/2$, so row 3
+becomes (row 3) $-(-\tfrac12)\cdot$(row 2) $=$ (row 3) $+\tfrac12\cdot$(row 2)
+$= [\,0,\,0,\,\tfrac32\mid 1\,]$.
+\[
+\left[\begin{array}{ccc|c}
+1 & 1 & 1 & 6\\
+0 & 2 & 1 & 4\\
+0 & 0 & \tfrac32 & 1
+\end{array}\right].
+\]
+Back-substitution: $\tfrac32 z = 1$ gives $z = \tfrac23$; then $2y + \tfrac23 =
+4$ gives $y = \tfrac53$; then $x + \tfrac53 + \tfrac23 = 6$ gives $x = \tfrac{11}{3}$.
+
+\begin{focusbox}
+A zero in the pivot position is \textbf{not} necessarily a sign of trouble. If
+there is a nonzero entry \emph{below} it in the same column, just swap rows to
+bring that entry up, and carry on. The swap costs nothing and changes no
+solution -- you are only reordering the equations.
+\end{focusbox}
+
+\begin{applicationbox}
+Computers exchange rows even when they do not strictly have to, and the reason is
+\emph{numerical stability}. Dividing by a pivot that is tiny -- say
+$0.0001$ -- multiplies any rounding error in that row by ten thousand, and the
+error can swamp the answer. So practical solvers use \emph{partial pivoting}:
+before clearing a column, scan it and swap the row with the largest-magnitude
+entry into the pivot seat. This keeps every multiplier $|\ell_{ij}| \le 1$ and
+holds rounding error in check. Every time \texttt{numpy.linalg.solve},
+MATLAB's backslash, or a LAPACK routine solves a system, partial pivoting is
+running underneath. It is the difference between a textbook that gives the right
+answer and a library that gives the right answer \emph{in floating point}.
+\end{applicationbox}
+
+\section{What goes wrong: zero pivots that will not move}
+
+Row exchange rescues us when a pivot position holds a zero but the column below
+has something nonzero to swap in. What if the \emph{entire} column below (and
+including) the pivot position is zero? Then no swap can produce a pivot. This is
+not a bookkeeping nuisance -- it is the algorithm \emph{detecting} that something
+deep is true about the system. The geometry has changed.
+
+\subsection{Case one: no solution (an inconsistent system)}
+
+Consider
+\[
+\begin{aligned}
+x + 2y &= 3\\
+2x + 4y &= 7.
+\end{aligned}
+\qquad
+\left[\begin{array}{cc|c}
+1 & 2 & 3\\
+2 & 4 & 7
+\end{array}\right].
+\]
+Pivot on the $1$. Multiplier $\ell_{21}=2$. Row 2 becomes (row 2) $-2\cdot$(row
+1) $= [\,0,\,0\mid 1\,]$.
+\[
+\left[\begin{array}{cc|c}
+1 & 2 & 3\\
+0 & 0 & 1
+\end{array}\right].
+\]
+The second row now reads $0x + 0y = 1$, that is, $0 = 1$. There is no point in
+the plane where $0$ equals $1$. The system has \textbf{no solution}.
+Geometrically the two lines $x+2y=3$ and $2x+4y=7$ are \emph{parallel}: same
+slope, different intercepts, never crossing. Elimination found this for us
+automatically -- a row of zeros on the left with a nonzero on the right is the
+algebraic fingerprint of parallel, non-intersecting geometry. The left panel of
+Figure~\ref{ch07:singular-lines} shows the two parallel lines.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.9]
+\begin{scope}
+  \draw[->,gray] (-0.4,0)--(3.4,0) node[right]{\small$x$};
+  \draw[->,gray] (0,-0.4)--(0,3.4) node[above]{\small$y$};
+  \draw[thick,vecblue] (-0.2,1.6)--(3.2,-0.1) node[right,black]{};
+  \draw[thick,vecred] (-0.2,2.1)--(3.2,0.4);
+  \node[vecblue] at (2.6,1.2){\small$x{+}2y{=}3$};
+  \node[vecred] at (2.6,2.2){\small$2x{+}4y{=}7$};
+  \node[below] at (1.5,-0.7){\small no solution (parallel)};
+\end{scope}
+\begin{scope}[xshift=5.5cm]
+  \draw[->,gray] (-0.4,0)--(3.4,0) node[right]{\small$x$};
+  \draw[->,gray] (0,-0.4)--(0,3.4) node[above]{\small$y$};
+  \draw[thick,vecblue] (-0.2,1.6)--(3.2,-0.1);
+  \draw[thick,vecred,dashed] (-0.2,1.6)--(3.2,-0.1);
+  \node at (2.7,1.5){\small same line};
+  \node[below] at (1.5,-0.7){\small infinitely many};
+\end{scope}
+\end{tikzpicture}
+\caption{Two ways a $2\times 2$ system fails to have one neat solution. Left:
+parallel lines, no solution ($0=1$ appears). Right: the same line twice,
+infinitely many solutions (a free variable appears).}
+\label{ch07:singular-lines}
+\end{figure}
+
+\subsection{Case two: infinitely many solutions}
+
+Now change just the right-hand side:
+\[
+\begin{aligned}
+x + 2y &= 3\\
+2x + 4y &= 6.
+\end{aligned}
+\qquad
+\left[\begin{array}{cc|c}
+1 & 2 & 3\\
+2 & 4 & 6
+\end{array}\right]
+\;\xrightarrow{\,R_2 - 2R_1\,}\;
+\left[\begin{array}{cc|c}
+1 & 2 & 3\\
+0 & 0 & 0
+\end{array}\right].
+\]
+This time the last row is $0 = 0$ -- true, but empty. It tells us nothing. The
+two equations were secretly the same line (the second is just twice the first),
+so every point on $x + 2y = 3$ is a solution (the right panel of
+Figure~\ref{ch07:singular-lines}). There are \textbf{infinitely
+many}. We say $y$ is a \emph{free variable}: it can be anything, and then $x =
+3 - 2y$ follows. The solution is a whole line's worth of points.
+
+\begin{focusbox}
+A zeroed-out pivot column forces a fork in the road. Read off the right-hand
+side of that dead row:
+\begin{itemize}
+  \item left side all zero, right side \textbf{nonzero} $\Rightarrow$ ``$0 =
+  c$'' with $c\neq 0$: \textbf{no solution} (inconsistent).
+  \item left side all zero, right side \textbf{zero} $\Rightarrow$ ``$0 = 0$'':
+  a \textbf{free variable} and \textbf{infinitely many} solutions.
+\end{itemize}
+A square matrix that produces fewer than $n$ pivots is called \textbf{singular}:
+it has no inverse, and the system either fails or has a whole family of answers.
+A full set of $n$ nonzero pivots means $\mat{A}$ is \textbf{invertible} and the
+solution is unique.
+\end{focusbox}
+
+\begin{trapbox}
+Do not confuse the two failure modes. \emph{Both} produce a row whose left side
+is all zeros. The whole story is in the augmented entry on the right. ``$0=5$''
+screams \emph{no solution}; ``$0=0$'' whispers \emph{free variable}. Students who
+ignore the augmented column report ``no solution'' for systems that actually have
+infinitely many, and vice versa. Always look right of the bar.
+\end{trapbox}
+
+\begin{walkbox}
+Take a walk and picture three planes in space. List, in your head, all the ways
+they can fail to meet at one point: all three parallel; two parallel and one
+crossing; three planes meeting pairwise in three parallel lines (like the three
+pages near a book's spine); all three sharing a whole line; all three being the
+same plane. Which of these give \emph{no} solution and which give
+\emph{infinitely many}? Elimination will sort every one of these cases into the
+two boxes above. Try to feel which picture each box corresponds to.
+\end{walkbox}
+
+\section{Reduced row echelon form: the cleanest possible answer}
+
+Upper-triangular form plus back-substitution is enough to \emph{solve} a system.
+But there is a tidier endpoint that is worth knowing, because it makes the answer
+machine-readable and is the natural language for the deeper structure coming in
+later chapters. We do not stop when the matrix is triangular; we keep going until
+it is as clean as algebra allows. The result is the \emph{reduced row echelon
+form}, almost always abbreviated \textbf{RREF}.
+
+First, the looser notion. A matrix is in \emph{row echelon form} when:
+\begin{enumerate}
+  \item all-zero rows (if any) sit at the bottom, and
+  \item each row's leading nonzero entry (its \emph{pivot}) is strictly to the
+  right of the pivot in the row above -- so the pivots march down and to the
+  right in a staircase.
+\end{enumerate}
+That is just upper-triangular generalized to non-square and rank-deficient
+matrices. To reach the \emph{reduced} form we ask for two more things:
+\begin{enumerate}
+  \setcounter{enumi}{2}
+  \item every pivot equals $1$ (scale each pivot row), and
+  \item each pivot is the \emph{only} nonzero entry in its column -- we clear
+  \emph{upward} as well as downward.
+\end{enumerate}
+Figure~\ref{ch07:rref-staircase} shows the resulting staircase, with leading
+$1$s stepping down and to the right and free columns in between.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.6]
+  \draw[thick,structurepurple] (0,0) rectangle (5,4);
+  \foreach \i in {1,2,3} \draw[gray!30] (0,\i)--(5,\i);
+  \foreach \i in {1,2,3,4} \draw[gray!30] (\i,0)--(\i,4);
+  % staircase of pivots (leading ones) marching down-right
+  \fill[targetgreen!18] (0,3) rectangle (1,4);
+  \fill[targetgreen!18] (1,2) rectangle (2,3);
+  \fill[targetgreen!18] (3,1) rectangle (4,2);
+  \node[structurepurple] at (0.5,3.5){$1$};
+  \node[structurepurple] at (1.5,2.5){$1$};
+  \node[structurepurple] at (3.5,1.5){$1$};
+  % free / above-pivot entries marked *, zeros below
+  \node at (1.5,3.5){$*$}; \node at (2.5,3.5){$0$}; \node at (3.5,3.5){$0$}; \node at (4.5,3.5){$*$};
+  \node[trapred] at (0.5,2.5){$0$};
+  \node at (2.5,2.5){$*$}; \node at (3.5,2.5){$0$}; \node at (4.5,2.5){$*$};
+  \node[trapred] at (0.5,1.5){$0$}; \node[trapred] at (1.5,1.5){$0$};
+  \node at (2.5,1.5){$0$}; \node at (4.5,1.5){$*$};
+  \node[trapred] at (0.5,0.5){$0$}; \node[trapred] at (1.5,0.5){$0$};
+  \node[trapred] at (2.5,0.5){$0$}; \node[trapred] at (3.5,0.5){$0$}; \node[trapred] at (4.5,0.5){$0$};
+  % staircase line tracing the pivots
+  \draw[thick,sourceblue,dashed] (0,4)--(1,4)--(1,3)--(2,3)--(2,2)--(4,2)--(4,1)--(5,1)--(5,0);
+  \node[below] at (2.5,-0.4){\small RREF: leading $1$s (purple) step down-right; columns 3 and 5 are free};
+\end{tikzpicture}
+\caption{The staircase of a reduced row echelon form. Each leading $1$ (a pivot,
+purple) sits strictly right of the one above; everything directly below a pivot
+is forced to zero (red), and clearing upward makes each pivot the lone nonzero in
+its column. Columns without a pivot ($*$ entries) belong to free variables.}
+\label{ch07:rref-staircase}
+\end{figure}
+
+\begin{formalbox}
+A matrix $\mat{R}$ is in \textbf{reduced row echelon form} when (i) every zero
+row is below every nonzero row, (ii) the leading entry of each nonzero row is a
+$1$ (a \emph{pivot} / leading $1$), (iii) each leading $1$ is to the right of the
+leading $1$ above it, and (iv) each leading $1$ is the only nonzero entry in its
+column. For a given matrix this form is \textbf{unique} -- you reach the same
+$\mat{R}$ no matter which legal moves you choose along the way.
+\end{formalbox}
+
+That uniqueness is a genuinely useful fact. Two people running elimination on this
+matrix by hand, making different choices of which row to subtract when, will nonetheless
+arrive at exactly the same RREF. It is a fingerprint of the matrix.
+
+\subsection{From triangle to RREF, traced}
+
+Take our very first result and finish the job. We had
+\[
+\mat{U}=\left[\begin{array}{ccc|c}
+2 & 1 & 1 & 5\\
+0 & -1 & -2 & -4\\
+0 & 0 & -4 & -6
+\end{array}\right].
+\]
+\textbf{Scale each pivot to $1$.} Divide row 1 by $2$, row 2 by $-1$, row 3 by
+$-4$:
+\[
+\left[\begin{array}{ccc|c}
+1 & \tfrac12 & \tfrac12 & \tfrac52\\[2pt]
+0 & 1 & 2 & 4\\[2pt]
+0 & 0 & 1 & \tfrac32
+\end{array}\right].
+\]
+\textbf{Clear upward in column 3.} Row 2 becomes (row 2) $-2\cdot$(row 3); row 1
+becomes (row 1) $-\tfrac12\cdot$(row 3):
+\[
+\left[\begin{array}{ccc|c}
+1 & \tfrac12 & 0 & \tfrac74\\[2pt]
+0 & 1 & 0 & 1\\[2pt]
+0 & 0 & 1 & \tfrac32
+\end{array}\right].
+\]
+\textbf{Clear upward in column 2.} Row 1 becomes (row 1) $-\tfrac12\cdot$(row 2):
+\[
+\mat{R}=\left[\begin{array}{ccc|c}
+1 & 0 & 0 & \tfrac54\\[2pt]
+0 & 1 & 0 & 1\\[2pt]
+0 & 0 & 1 & \tfrac32
+\end{array}\right].
+\]
+Now look at what RREF hands us. The left block is the identity matrix, and the
+solution is sitting in plain sight in the augmented column: $x=\tfrac54$,
+$y=1$, $z=\tfrac32$ -- the same point we found by back-substitution, no climbing
+required. \emph{RREF does the back-substitution for you, baked into the row
+operations.}
+
+\begin{intuitionbox}
+Think of the difference like this. Upper-triangular form is a tidy staircase you
+still have to walk down. RREF is the elevator: it deposits you at the answer with
+the doors already open. The trade is a little more arithmetic up front (clearing
+upward) for a readout that needs no further thought. For solving one system by
+hand, the staircase is usually less work. For \emph{understanding} the matrix --
+its rank, its free variables, its null space -- RREF is the form you want, and it
+is where the next several chapters live.
+\end{intuitionbox}
+
+\begin{labbox}
+Drive this matrix all the way to RREF by hand. It has a free variable, so the
+identity will \emph{not} appear -- watch where the staircase breaks.
+\[
+\left[\begin{array}{ccc|c}
+1 & 2 & 1 & 2\\
+2 & 4 & 0 & 6\\
+1 & 2 & 3 & 0
+\end{array}\right].
+\]
+(Hint: column 2 will never get a pivot, so $y$ is free. You should find that
+$z$ is pinned to a single value while $x$ depends on $y$. You will get
+$z=-1$ and $x=3-2y$.)
+\end{labbox}
+
+\section{Elimination is matrix multiplication}
+
+Here is the idea that lifts elimination from ``a procedure'' to ``a piece of
+linear algebra,'' and it is the bridge to everything that follows. \textbf{Every
+single row operation is the same as multiplying on the left by a special
+matrix.} These special matrices are called \emph{elementary matrices}, and once
+you see them, the whole algorithm becomes a product of matrices.
+
+The trick to building an elementary matrix is almost too simple: \emph{do the row
+operation to the identity matrix}, and the result is the matrix that performs
+that operation on \emph{anything} when you left-multiply by it.
+
+\subsection{The replacement matrix}
+
+Recall our very first step: row 2 $\leftarrow$ row 2 $- 2\cdot$row 1, on a
+$3$-row matrix. Apply that operation to $\mat{I}_3$. Start from
+\[
+\mat{I}=\begin{bmatrix}1&0&0\\0&1&0\\0&0&1\end{bmatrix},
+\quad\text{do row 2}\leftarrow\text{row 2}-2\cdot\text{row 1}, \quad
+\mat{E}_{21}=\begin{bmatrix}1&0&0\\-2&1&0\\0&0&1\end{bmatrix}.
+\]
+The only change from the identity is the $-2$ sitting in position $(2,1)$ -- the
+multiplier, with a minus sign, parked exactly where the entry it kills used to
+be. Now multiply $\mat{E}_{21}$ against the original augmented matrix and watch
+it perform the operation:
+\[
+\begin{bmatrix}1&0&0\\-2&1&0\\0&0&1\end{bmatrix}
+\left[\begin{array}{ccc|c}
+2 & 1 & 1 & 5\\
+4 & 1 & 0 & 6\\
+-2 & 2 & 1 & 1
+\end{array}\right]
+=
+\left[\begin{array}{ccc|c}
+2 & 1 & 1 & 5\\
+0 & -1 & -2 & -4\\
+-2 & 2 & 1 & 1
+\end{array}\right].
+\]
+Row 1 and row 3 pass through untouched (the identity rows copy them); row 2 comes
+out as old-row-2 minus twice row-1. Exactly Step 1 from before. Let us verify the
+new row 2 by hand: its first entry is $(-2)(2) + (1)(4) + (0)(-2) = -4 + 4 = 0$;
+its second is $(-2)(1)+(1)(1) = -1$; its third $(-2)(1)+(1)(0)=-2$; the augmented
+entry $(-2)(5)+(1)(6) = -4$. The $-2$ in $\mat{E}_{21}$ \emph{is} the multiplier.
+
+\begin{focusbox}
+The elementary matrix for ``row $i$ $\leftarrow$ row $i$ $-\ell\cdot$ row $j$''
+is the identity with the single extra entry $-\ell$ placed at position
+$(i,j)$. Left-multiplying by it performs the operation. To \emph{undo} it, flip
+the sign: $\mat{E}\inv$ is the identity with $+\ell$ at $(i,j)$. (Subtracting
+$\ell\cdot$row $j$ and then adding it back is the identity.)
+\end{focusbox}
+
+\subsection{The other two as matrices}
+
+A \textbf{scaling} of row $i$ by $c$ is the identity with $c$ in place of the
+$1$ at position $(i,i)$. A \textbf{row exchange} of rows $i$ and $j$ is the
+identity with rows $i$ and $j$ swapped; such a matrix is called a
+\emph{permutation matrix}, written $\mat{P}$. For example, swapping rows 1 and 2
+of a $3$-row matrix is done by
+\[
+\mat{P}=\begin{bmatrix}0&1&0\\1&0&0\\0&0&1\end{bmatrix},
+\qquad
+\mat{P}\begin{bmatrix}a\\b\\c\end{bmatrix}
+=\begin{bmatrix}b\\a\\c\end{bmatrix}.
+\]
+Each of these is invertible (scaling by $c$ undoes with $1/c$; a swap undoes with
+the same swap), which is the matrix incarnation of ``every legal move is
+reversible.''
+
+\subsection{The whole elimination as one product}
+
+Now string the steps together. Our full forward sweep was three replacement
+operations: $\mat{E}_{21}$, then $\mat{E}_{31}$, then $\mat{E}_{32}$. Applying
+them in order to $\mat{A}$ means left-multiplying one after another:
+\[
+\mat{E}_{32}\,\mat{E}_{31}\,\mat{E}_{21}\,\mat{A} = \mat{U}.
+\]
+Read it right to left, the order the operations actually happened. A single
+matrix $\mat{E}=\mat{E}_{32}\mat{E}_{31}\mat{E}_{21}$ captures the entire forward
+elimination. And because each $\mat{E}$ is invertible, we can move them to the
+other side:
+\[
+\mat{A} = \mat{E}_{21}\inv\,\mat{E}_{31}\inv\,\mat{E}_{32}\inv\,\mat{U}
+= \mat{L}\,\mat{U}.
+\]
+That product of inverse-elementary matrices is lower triangular, and it is the
+matrix $\mat{L}$ -- whose entries, beautifully, are just the multipliers
+$\ell_{ij}$ themselves, sign restored. We have stumbled onto the
+$\mat{A}=\mat{LU}$ factorization. The next chapter is devoted to it; for now,
+simply absorb the headline.
+
+\begin{aestheticbox}
+This is the moment elimination stops being arithmetic and becomes \emph{algebra}.
+A scribbled sequence of ``subtract twice this row from that one'' is revealed to
+be a clean matrix equation $\mat{EA}=\mat{U}$. Procedures become objects;
+objects can be inverted, composed, factored, and reasoned about. The same
+mental move -- ``this process is secretly a matrix'' -- recurs throughout the
+book: rotations are matrices, projections are matrices, derivatives on a space of
+polynomials are matrices. Seeing a \emph{verb} (eliminate!) as a \emph{noun} (the
+matrix $\mat{E}$) is one of the great unlocks of the subject.
+\end{aestheticbox}
+
+\begin{strangbox}
+``Elimination $=$ left-multiplication by elementary matrices, and undoing it
+gives $\mat{A}=\mat{LU}$'' is the exact hinge on which Strang's first weeks turn.
+If you are heading into his course, you are now ahead: you have already met
+$\mat{E}$, $\mat{P}$, and $\mat{L}$ as concrete grids of numbers. If you are
+revisiting after Strang, notice we got $\mat{L}$ for \emph{free} -- the
+multipliers we were already computing \emph{are} its entries, no extra work.
+That is why elimination and factorization are two views of one act.
+\end{strangbox}
+
+\subsection{Where permutations land: $\mat{PA}=\mat{LU}$}
+
+When the elimination needs a row swap, a permutation matrix $\mat{P}$ joins the
+product. Collecting all the needed swaps into a single $\mat{P}$ and applying
+them first, one can show every square matrix satisfies $\mat{PA}=\mat{LU}$ for
+some permutation $\mat{P}$, lower-triangular $\mat{L}$, and upper-triangular
+$\mat{U}$. That is the fully general statement of what Gaussian elimination
+produces, and it is exactly what a real solver computes and stores. We will prove
+and exploit it in the chapter on $\mat{LU}$; the point here is that nothing about
+row exchanges breaks the ``elimination is matrix multiplication'' story -- swaps
+are just more elementary matrices.
+
+\section{The full algorithm, in one place}
+
+Let us collect everything into a clean recipe you can run on any system.
+
+\begin{focusbox}
+\textbf{Gaussian elimination, end to end.}
+\begin{enumerate}
+  \item Form the augmented matrix $[\,\mat{A}\mid\vec{b}\,]$.
+  \item \emph{Forward sweep.} For each column $j$ from left to right:
+  \begin{itemize}
+    \item If the pivot position $(j,j)$ is zero, swap in a nonzero entry from
+    below. If the whole column below is zero, move on -- this column has no
+    pivot (a free variable lives here).
+    \item For each row $i$ below the pivot, compute $\ell_{ij}=a_{ij}/a_{jj}$ and
+    replace row $i$ by row $i$ $-\ell_{ij}\cdot$ (pivot row).
+  \end{itemize}
+  \item Inspect the result. A row ``$0\;\cdots\;0\mid c$'' with $c\neq 0$ means
+  \emph{no solution}. Otherwise, a column without a pivot means a \emph{free
+  variable} and infinitely many solutions.
+  \item \emph{Solve.} Back-substitute up the triangle; or, for the cleanest
+  readout, continue to RREF and read the answer off directly.
+\end{enumerate}
+\end{focusbox}
+
+\subsection{One more 3x3, with a twist}
+
+Here is a system where a swap is forced \emph{mid-stream}, not just at the start.
+This is the case students most often fumble, so trace it slowly.
+\[
+\left[\begin{array}{ccc|c}
+1 & 1 & 1 & 6\\
+2 & 2 & 5 & 12\\
+1 & 3 & 0 & 8
+\end{array}\right].
+\]
+Pivot on the top-left $1$. Clear column 1. Row 2 $\leftarrow$ row 2 $-2\cdot$row
+1 $= [\,0,\,0,\,3\mid 0\,]$; row 3 $\leftarrow$ row 3 $-1\cdot$row 1 $=
+[\,0,\,2,\,-1\mid 2\,]$.
+\[
+\left[\begin{array}{ccc|c}
+1 & 1 & 1 & 6\\
+0 & 0 & 3 & 0\\
+0 & 2 & -1 & 2
+\end{array}\right].
+\]
+Now the second pivot position $(2,2)$ holds a $0$. But the column below it has a
+$2$ in row 3 -- so we swap rows 2 and 3:
+\[
+\left[\begin{array}{ccc|c}
+1 & 1 & 1 & 6\\
+0 & 2 & -1 & 2\\
+0 & 0 & 3 & 0
+\end{array}\right].
+\]
+And we are already upper triangular -- the swap handed us a clean triangle.
+Back-substitute: $3z = 0$ so $z = 0$; then $2y - 0 = 2$ so $y = 1$; then
+$x + 1 + 0 = 6$ so $x = 5$. Check the original middle equation:
+$2\cdot 5 + 2\cdot 1 + 5\cdot 0 = 12$. Good. Notice the pivots ended up being
+$1,2,3$ -- three of them, all nonzero -- so this matrix is invertible and the
+solution is the unique point $(5,1,0)$.
+
+\begin{trapbox}
+When a pivot position is zero, do \emph{not} divide by it and do \emph{not} give
+up. First look down the column. Nonzero entry below? Swap. Nothing below? That
+column simply has no pivot; slide your attention right to the next column while
+staying in the same row, and keep going. Dividing by the zero is the single most
+common fatal error -- it produces nonsense and corrupts everything downstream.
+\end{trapbox}
+
+\begin{connectionbox}
+Gaussian elimination is not confined to the real numbers. The only thing the
+algorithm ever does is add, subtract, multiply, and divide by nonzero pivots --
+so it runs verbatim over \emph{any field}: the rationals, the complex numbers,
+or the finite field of integers modulo a prime. That last case is the engine of
+modern coding theory and cryptography: solving linear systems over
+$\mathbb{F}_2$ (arithmetic mod $2$, where $1+1=0$) decodes error-correcting
+codes and breaks linear ciphers. The schoolroom trick, run over a two-element
+number system, is doing real work inside your hard drive's error correction and
+your phone's signal decoder. Same algorithm, different field.
+\end{connectionbox}
+
+\section{What elimination is really telling you}
+
+Step back from the arithmetic. The number of pivots a matrix produces -- counted
+across the whole forward sweep, swaps and all -- is one of the most important
+numbers attached to it. It is called the \emph{rank}, and it answers questions
+the original grid of numbers hid from view:
+
+\begin{itemize}
+  \item \textbf{How many genuinely independent equations are there?} Exactly the
+  number of pivots. Rows that elimination flattens to zero were redundant -- they
+  carried no new information.
+  \item \textbf{Is the square system uniquely solvable?} Yes if and only if
+  every diagonal position earns a pivot -- $n$ pivots for an $n\times n$ matrix.
+  That is the same as $\mat{A}$ being invertible.
+  \item \textbf{How many free variables are there?} The number of columns minus
+  the number of pivots. Each free variable is a direction you can slide along
+  without leaving the solution set -- the dimension of the family of answers.
+\end{itemize}
+
+Every one of these ideas -- rank, invertibility, free variables, the dimension of
+the solution set -- gets its own full chapter later. Gaussian elimination is the
+computational microscope through which we will see all of them. You do not just
+\emph{solve} systems with it; you \emph{diagnose} them. The pivots are the vital
+signs.
+
+\begin{aestheticbox}
+A matrix arrives as an opaque block of numbers. You run elimination, and out
+comes a diagnosis: how many independent constraints it really imposes, whether it
+can be inverted, how big its family of solutions is, and -- once you keep the
+multipliers -- a factorization that lets you re-solve for a new right-hand side
+almost for free. One humble loop of subtractions, and the matrix has confessed
+nearly everything structural about itself. The rest of this book is, in large
+part, learning to read that confession.
+\end{aestheticbox}
+
+\section{Exercises}
+
+\begin{exercise}[Warm-up, fully traced]
+Solve by Gaussian elimination, showing the multiplier at every step and then
+back-substituting:
+\[
+\begin{aligned}
+x + 2y + z &= 4\\
+2x + 5y + 3z &= 11\\
+2x + 3y + 2z &= 8.
+\end{aligned}
+\]
+Verify your answer in all three original equations.
+\end{exercise}
+
+\begin{exercise}[A forced swap]
+Run elimination on
+\[
+\left[\begin{array}{ccc|c}
+0 & 1 & 2 & 3\\
+1 & 2 & 1 & 4\\
+3 & 1 & 0 & 5
+\end{array}\right].
+\]
+You must exchange rows before you can begin. Identify which swap, reach
+upper-triangular form, and back-substitute. State the three pivots.
+\end{exercise}
+
+\begin{exercise}[Diagnose the failure]
+For each system, run elimination far enough to decide whether it has no solution,
+exactly one, or infinitely many. If infinitely many, describe the solution set
+(name the free variable and write the others in terms of it).
+\[
+\text{(a)}\;\;
+\begin{aligned}
+x + y &= 2\\
+3x + 3y &= 5,
+\end{aligned}
+\qquad
+\text{(b)}\;\;
+\begin{aligned}
+x - y &= 1\\
+-2x + 2y &= -2.
+\end{aligned}
+\]
+\end{exercise}
+
+\begin{exercise}[All the way to RREF]
+Take the upper-triangular matrix
+\[
+\left[\begin{array}{ccc|c}
+3 & 6 & 1 & 0\\
+0 & 2 & 4 & 8\\
+0 & 0 & 5 & 10
+\end{array}\right]
+\]
+and reduce it to RREF: scale each pivot to $1$ and clear upward. Read off
+$x,y,z$ from the final augmented column.
+\end{exercise}
+
+\begin{exercise}[Elementary matrices by hand]
+Write down the $3\times 3$ elementary matrix $\mat{E}$ that performs ``row 3
+$\leftarrow$ row 3 $-4\cdot$ row 1.'' Multiply it against
+$\mat{A}=\colvec{1&0&2\\0&1&1\\4&2&0}$ and confirm by direct multiplication that
+the product has a zero in position $(3,1)$. Then write $\mat{E}\inv$ and verify
+$\mat{E}\inv\mat{E}=\mat{I}$.
+\end{exercise}
+
+\begin{exercise}[A free variable in 3D]
+Solve
+\[
+\begin{aligned}
+x + y + z &= 3\\
+2x + 2y + 3z &= 8\\
+x + y + 2z &= 5,
+\end{aligned}
+\]
+and notice that column 2 never produces a pivot. Identify the free variable and
+write the full family of solutions as a point plus a multiple of a direction
+vector. (Geometrically, the three planes share a whole line.)
+\end{exercise}
+
+\begin{exercise}[Tiny-pivot instability]
+Consider, with exact arithmetic,
+\[
+\begin{aligned}
+0.001\,x + y &= 1\\
+x + y &= 2.
+\end{aligned}
+\]
+(a) Solve exactly. (b) Now pretend your calculator keeps only $3$ significant
+digits and eliminate \emph{without} swapping -- using $0.001$ as the pivot.
+Watch the answer for $x$ degrade. (c) Swap the two rows first (partial pivoting)
+and redo with $3$ digits. Explain why the swapped version is far more accurate.
+\end{exercise}
+
+\begin{exercise}[Counting operations]
+Argue that clearing column $1$ of an $n\times n$ matrix costs about $n^2$
+multiply-add operations (you touch each of the $n-1$ rows below the pivot, and
+each touched row has about $n$ entries). Summing the shrinking columns, explain
+informally why the whole forward sweep costs on the order of $\tfrac13 n^3$.
+(Hint: $\sum_{k=1}^{n} k^2 \approx \tfrac13 n^3$.)
+\end{exercise}
+
+\begin{exercise}[Uniqueness of RREF -- a proof]
+Suppose two different sequences of legal row operations turn the same matrix
+$\mat{A}$ into row echelon forms $\mat{R}_1$ and $\mat{R}_2$. Argue that
+$\mat{R}_1$ and $\mat{R}_2$ have their pivots in exactly the same columns.
+(Hint: a column is a pivot column precisely when it is \emph{not} a linear
+combination of the columns to its left, and row operations do not change which
+columns are combinations of which earlier columns. You may take this last fact
+as given for now -- we prove it carefully in the chapter on the column space.)
+\end{exercise}
+
+\begin{exercise}[Elimination over a tiny field]
+Work over $\mathbb{F}_2$, where the only numbers are $0$ and $1$ and $1+1=0$.
+Solve
+\[
+\begin{aligned}
+x + y \phantom{{}+ z} &= 1\\
+x \phantom{{}+ y} + z &= 0\\
+y + z &= 1,
+\end{aligned}
+\]
+using exactly the same elimination, but with mod-$2$ arithmetic (so subtracting
+equals adding). Find all solutions. This is a baby version of decoding an
+error-correcting code.
+\end{exercise}
