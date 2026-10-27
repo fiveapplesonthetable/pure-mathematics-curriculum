@@ -208,6 +208,9 @@ export function handle(
   ro.observe(svgEl);
 
   let dragging = false;
+  // SVG children do not reliably honour touch-action, so stop the page from
+  // panning when a drag starts on the handle itself.
+  g.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
   g.addEventListener('pointerdown', (e) => {
     dragging = true;
     g.setPointerCapture(e.pointerId);
