@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Epsilon band</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<style>
+:root{--bg:#f6f3ee;--fg:#22201c;--muted:#6d675e;--acc:#D2553C}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#171614;--fg:#eeeae3;--muted:#a39d93}}
+:root[data-theme=dark]{--bg:#171614;--fg:#eeeae3;--muted:#a39d93}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:18px/1.65 system-ui,-apple-system,sans-serif}
+main{max-width:65ch;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.3rem;font-weight:600;margin:0 0 .5rem}
+p{margin:.6rem 0}.muted{color:var(--muted);font-size:.9rem}
+svg{width:100%;height:auto;display:block;touch-action:pan-y;margin:.5rem 0}
+.ax{stroke:var(--muted);stroke-width:1;opacity:.5}
+.pt{fill:var(--fg)}.pt.out{fill:var(--muted);opacity:.5}
+.band{fill:var(--acc);opacity:.14}.edge{stroke:var(--acc);stroke-width:1.5;stroke-dasharray:5 4}
+.lim{stroke:var(--fg);stroke-width:1.5}
+.nline{stroke:var(--acc);stroke-width:1.5}
+.h{fill:var(--acc);cursor:ns-resize;stroke:var(--bg);stroke-width:3}
+.h:focus{outline:none;stroke:var(--fg)}
+button{font:inherit;font-size:.9rem;color:var(--fg);background:none;border:1px solid var(--muted);border-radius:6px;padding:4px 12px;cursor:pointer}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+</style></head><body><main>
+<h1>Epsilon as a contract</h1>
+<p>The sequence <span class="m">a_n = 1 + \tfrac{(-1)^n}{n}</span> converges to <span class="m">L = 1</span>.</p>
+<svg id="s" viewBox="0 0 640 300" role="img" aria-label="Sequence terms with a draggable tolerance band around the limit"></svg>
+<div class="row"><p class="muted" style="margin:0">Drag the handle to choose a tolerance.</p><button id="reset">Reset</button></div>
+<p id="f"></p>
+</main>
+<script>
+const NS="http://www.w3.org/2000/svg",$=document.getElementById.bind(document),svg=$("s");
+const N=40,X0=40,X1=620,Y0=150,SC=300,E0=0.5; // y = Y0 - (a-1)*SC
+const a=n=>1+(n%2?-1:1)/n, xs=n=>X0+(n-1)*(X1-X0)/(N-1), ys=v=>Y0-(v-1)*SC;
+let eps=E0;
+const el=(t,at,p=svg)=>{const e=document.createElementNS(NS,t);for(const k in at)e.setAttribute(k,at[k]);p.appendChild(e);return e};
+const band=el("rect",{class:"band",x:X0-10,width:X1-X0+20});
+const e1=el("line",{class:"edge",x1:X0-10,x2:X1+10}),e2=el("line",{class:"edge",x1:X0-10,x2:X1+10});
+el("line",{class:"lim",x1:X0-10,x2:X1+10,y1:Y0,y2:Y0});
+const nl=el("line",{class:"nline",y1:20,y2:280});
+const dots=[];for(let n=1;n<=N;n++)dots.push(el("circle",{class:"pt",r:4,cx:xs(n),cy:ys(a(n))}));
+const h=el("circle",{class:"h",r:11,cx:X1+4,tabindex:0,role:"slider","aria-label":"Tolerance epsilon","aria-valuemin":0.05,"aria-valuemax":0.6});
+const tick=(x,t)=>{const e=el("text",{x,y:296,"text-anchor":"middle","font-size":12,fill:"currentColor"});e.textContent=t;e.style.fill="var(--muted)"};
+tick(xs(1),"n=1");tick(xs(N),"n="+N);
+function draw(){
+  const yt=ys(1+eps),yb=ys(1-eps);
+  band.setAttribute("y",yt);band.setAttribute("height",yb-yt);
+  e1.setAttribute("y1",yt);e1.setAttribute("y2",yt);e2.setAttribute("y1",yb);e2.setAttribute("y2",yb);
+  h.setAttribute("cy",yt);h.setAttribute("aria-valuenow",eps.toFixed(2));
+  let Nn=1;for(let n=1;n<=N;n++)if(Math.abs(a(n)-1)>=eps)Nn=n+1;
+  dots.forEach((d,i)=>d.setAttribute("class","pt"+(i+1<Nn?" out":"")));
+  nl.setAttribute("x1",xs(Nn));nl.setAttribute("x2",xs(Nn));
+  $("f").innerHTML=katex.renderToString(`\\varepsilon=${eps.toFixed(2)}\\ \\Rightarrow\\ N=${Nn}:\\quad n\\ge ${Nn}\\implies |a_n-1|<${eps.toFixed(2)}`,{throwOnError:false});
+}
+function set(v){eps=Math.min(0.6,Math.max(0.05,v));draw()}
+function move(ev){const r=svg.getBoundingClientRect();set((Y0-(ev.clientY-r.top)*300/r.height)/SC)}
+h.addEventListener("pointerdown",e=>{h.setPointerCapture(e.pointerId);h.onpointermove=move;e.preventDefault()});
+h.addEventListener("pointerup",()=>h.onpointermove=null);
+h.addEventListener("keydown",e=>{if(e.key==="ArrowUp")set(eps+.01);if(e.key==="ArrowDown")set(eps-.01)});
+$("reset").onclick=()=>{
+  const from=eps,t0=performance.now(),d=matchMedia("(prefers-reduced-motion: reduce)").matches?0:300;
+  (function f(t){const k=d?1:Math.min(1,(t-t0)/d),e=1-Math.pow(1-k,3);set(from+(E0-from)*e);if(k<1)requestAnimationFrame(f)})(t0);
+};
+window.addEventListener("DOMContentLoaded",()=>{document.querySelectorAll(".m").forEach(m=>katex.render(m.textContent,m,{throwOnError:false}));draw()});
+</script></body></html>
