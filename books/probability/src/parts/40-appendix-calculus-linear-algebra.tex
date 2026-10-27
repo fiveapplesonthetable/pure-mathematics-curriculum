@@ -1,0 +1,777 @@
+\chapter{Appendix: The Calculus and Linear Algebra You Need}
+\label{chAcla:start}
+
+Probability is built on two older subjects, and it leans on them constantly. Calculus is the
+language of \emph{continuous} chance: the moment you write a probability density, an expectation
+becomes an integral, a tail probability becomes an area, and the normal curve becomes a function you
+actually have to integrate. Linear algebra is the language of \emph{many variables at once}: a vector
+of random quantities, a covariance \emph{matrix}, a Markov chain's transition matrix, a principal
+component, a least-squares prediction --- all of these are linear-algebra objects wearing
+probabilistic clothes.
+
+This appendix is not a course. It is a focused, intuition-first refresher on exactly the calculus and
+linear algebra the rest of this book uses, and nothing more. Where a topic deserves a full treatment,
+we point you to the companion volumes --- \emph{Calculus From the Ground Up} and \emph{Linear Algebra
+From the Ground Up} --- which develop these ideas with the same care we bring to probability here. The
+aim is narrower: to make sure that when the chapter on expectation writes $\E[X]=\int x f(x)\,\dd x$,
+or the chapter on the multivariate normal writes $\Sigma = Q \Lambda Q^\top$, you see exactly what
+those symbols are doing and why they are allowed to.
+
+The appendix comes in two halves. The calculus half covers derivatives as rates and slopes, integrals
+as accumulated area, the Fundamental Theorem that ties them together, multiple integrals over regions
+of the plane, and gradients for functions of several variables. The linear-algebra half covers vectors
+and the dot product, matrices as linear maps, eigenvectors and eigenvalues, the special role of
+symmetric and positive-definite matrices, and orthogonal projection. Throughout, we keep one eye on
+probability and flag the exact spot in the main text where each tool gets used.
+
+\begin{focusbox}
+You do not need to be fluent in calculus and linear algebra to read this book. You need to be
+\emph{comfortable} with a specific short list of ideas, and this appendix is that list. If a section
+feels obvious, skim it; if a section feels new, slow down --- it will pay off the next time you meet
+an integral or a covariance matrix in the wild.
+\end{focusbox}
+
+\section{Part I: The Calculus You Need}
+\label{chAcla:calc-intro}
+
+\subsection{Functions, slopes, and the derivative}
+\label{chAcla:derivative}
+
+Start with the most basic object: a function $f$ that takes a number $x$ and returns a number $f(x)$.
+Picture its graph, the curve $y=f(x)$. The first question calculus asks is: \emph{how fast is $f$
+changing} as $x$ moves? That ``rate of change'' is the slope of the curve, and the derivative measures
+it.
+
+The trick is to look at a tiny step. Move from $x$ to $x+h$. The output changes from $f(x)$ to
+$f(x+h)$. The average rate of change over that step is the rise over the run,
+\[
+  \frac{f(x+h)-f(x)}{h}.
+\]
+This is the slope of the straight line through the two nearby points $(x,f(x))$ and $(x+h, f(x+h))$
+--- a \emph{secant} line. Now shrink the step. As $h\to 0$ the secant pivots until it just kisses the
+curve at $x$: it becomes the \emph{tangent} line, and its slope is the derivative,
+\[
+  f'(x) \;=\; \lim_{h\to 0}\frac{f(x+h)-f(x)}{h}.
+\]
+We also write it $\frac{\dd f}{\dd x}$, read ``$\dd f$ by $\dd x$,'' a notation that deliberately
+looks like a ratio of tiny changes, because morally that is what it is.
+
+\begin{intuitionbox}
+The derivative answers ``if I nudge the input by a hair, how much does the output move, per unit of
+nudge?'' If $f'(x)=3$, then near $x$ the function climbs three units of output for every one unit of
+input. If $f'(x)=0$, the curve is momentarily flat --- a peak, a valley, or a plateau. If $f'(x)<0$,
+the function is falling. Everything else in differential calculus is bookkeeping on top of this one
+idea.
+\end{intuitionbox}
+
+A handful of derivatives cover almost everything we need in this book. The power rule says
+$\frac{\dd}{\dd x}x^n = n x^{n-1}$; in particular constants have derivative $0$ and lines $ax$ have
+derivative $a$. The exponential is its own derivative, $\frac{\dd}{\dd x}e^{x}=e^{x}$, which is the
+secret reason the exponential and normal distributions are so analytically friendly. The logarithm
+gives $\frac{\dd}{\dd x}\ln x = 1/x$. And two combining rules do the heavy lifting: the product rule
+$(fg)'=f'g+fg'$ and the chain rule $\big(f(g(x))\big)' = f'(g(x))\,g'(x)$. The chain rule is the one
+you will reach for most when transforming random variables --- see the change-of-variables chapter,
+where the factor $\abs{g'}$ that appears in density transformations is the chain rule made visible.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.2cm,
+  xlabel={$x$}, ylabel={$y$},
+  domain=-0.2:3, samples=120,
+  axis lines=left, ymin=-0.5, ymax=5,
+  legend pos=north west, legend cell align=left,
+  title={A function, a secant, and the tangent it becomes}
+]
+\addplot[densityred, very thick] {0.5*x*x} node[pos=0.92,above left,black] {$f(x)=\tfrac12 x^2$};
+% tangent at x=1.5: f'=x=1.5, f=1.125, line y=1.5(x-1.5)+1.125
+\addplot[sourceblue, thick, domain=0.3:2.7] {1.5*(x-1.5)+1.125};
+\addlegendentry{tangent at $x=1.5$, slope $f'(1.5)=1.5$}
+% secant from x=1 to x=2.5
+\addplot[quotientorange, thick, dashed, domain=0.6:2.9] {((0.5*2.5*2.5)-(0.5*1*1))/(2.5-1)*(x-1)+0.5};
+\addlegendentry{secant through $x=1$ and $x=2.5$}
+\addplot[only marks, black, mark=*, mark size=1.4pt] coordinates {(1.5,1.125)};
+\end{axis}
+\end{tikzpicture}
+\caption{The derivative is the limiting slope. The dashed secant connects two points on the curve; as
+the points slide together it pivots into the solid tangent, whose slope is $f'(1.5)=1.5$.}
+\label{chAcla:fig-tangent}
+\end{figure}
+
+\begin{connectionbox}
+In probability the derivative shows up the moment a quantity is continuous. The probability density
+function $f$ is literally the derivative of the cumulative distribution function $F$: $f(x)=F'(x)$.
+That is the whole content of ``density'' --- it is the \emph{rate} at which probability accumulates as
+$x$ increases. We unpack this in the continuous-random-variables chapter; here just notice that
+``density = derivative of the CDF'' is the same tangent-line idea applied to a curve that happens to
+measure probability. The companion \emph{Calculus From the Ground Up} treats limits and derivatives in
+full.
+\end{connectionbox}
+
+\subsection{The integral as accumulated area}
+\label{chAcla:integral}
+
+Now turn the question around. Instead of ``how fast is $f$ changing,'' ask ``how much of $f$ has
+piled up between $x=a$ and $x=b$?'' Geometrically: what is the area under the curve $y=f(x)$ from $a$
+to $b$? That area is the definite integral
+\[
+  \int_a^b f(x)\,\dd x.
+\]
+
+The construction mirrors the derivative's limiting step, but in reverse spirit. Chop the interval
+$[a,b]$ into many thin slices of width $\Delta x$. Over each slice the function is nearly constant, so
+the area of that sliver is approximately height $\times$ width, $f(x_i)\,\Delta x$. Add up all the
+slivers to get a \emph{Riemann sum}, $\sum_i f(x_i)\,\Delta x$, and then let the slices get
+infinitely thin. In the limit the jagged staircase of rectangles becomes the smooth area under the
+curve, and the summation sign $\sum$ relaxes into the integral sign $\int$ --- an elongated S, for
+``sum.'' The $\dd x$ is the vanishing width left over from $\Delta x$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6cm,
+  xlabel={$x$}, ylabel={$y$},
+  domain=0:3, samples=120,
+  axis lines=left, ymin=0, ymax=3.4,
+  title={Rectangles approximate the area; the integral is their limit}
+]
+\addplot[densityred, very thick] {0.4*x*x+0.3} node[pos=0.95,above left,black]{$f(x)$};
+\foreach \xa in {0,0.5,1,1.5,2,2.5} {
+  \edef\temp{\noexpand\addplot[draw=sourceblue, fill=histfill, fill opacity=0.45]
+    coordinates {(\xa,0) (\xa,{0.4*\xa*\xa+0.3}) (\xa+0.5,{0.4*\xa*\xa+0.3}) (\xa+0.5,0)} -- cycle;}
+  \temp
+}
+\end{axis}
+\end{tikzpicture}
+\caption{A Riemann sum. Each rectangle has area (height)$\times$(width)$=f(x_i)\,\Delta x$. As the
+widths shrink, the total rectangle area converges to $\int_0^3 f(x)\,\dd x$, the exact area under the
+curve.}
+\label{chAcla:fig-riemann}
+\end{figure}
+
+\begin{happeningbox}
+An integral is a continuous sum. That single sentence is the bridge between the discrete and
+continuous worlds of probability. When a random variable is discrete you compute its expectation by a
+weighted sum, $\E[X]=\sum_x x\,\P(X=x)$. When it is continuous you compute the \emph{same} thing as a
+weighted ``sum'' over a continuum, $\E[X]=\int x f(x)\,\dd x$. Nothing conceptual changed --- you are
+still adding up ``value times how much probability sits there.'' Only the bookkeeping switched from
+$\sum$ to $\int$ because there are now uncountably many values, each carrying an infinitesimal slice
+of probability $f(x)\,\dd x$. The measure-theory chapters make this unification airtight; the integral
+is the everyday face of it.
+\end{happeningbox}
+
+\subsection{The Fundamental Theorem of Calculus}
+\label{chAcla:ftc}
+
+The two halves of calculus --- slopes and areas --- look unrelated. The miracle, and it really is
+one, is that they are inverse operations. That is the Fundamental Theorem of Calculus.
+
+\begin{theorem}[Fundamental Theorem of Calculus]
+\label{chAcla:thm-ftc}
+Let $f$ be continuous on $[a,b]$. Define the ``area-so-far'' function
+$\displaystyle A(x)=\int_a^x f(t)\,\dd t$. Then $A$ is differentiable and $A'(x)=f(x)$. Consequently,
+if $F$ is any antiderivative of $f$ (so $F'=f$), then
+\[
+  \int_a^b f(x)\,\dd x \;=\; F(b)-F(a).
+\]
+\end{theorem}
+
+\begin{whybox}
+Why is the derivative of ``area so far'' equal to the height of the curve? Push the right edge of the
+shaded region from $x$ to $x+h$. You add a thin strip of area. That strip is almost a rectangle of
+width $h$ and height $f(x)$, so the added area is about $f(x)\cdot h$. Therefore
+\[
+  \frac{A(x+h)-A(x)}{h}\approx f(x),
+\]
+and as $h\to 0$ the approximation becomes exact: $A'(x)=f(x)$. The rate at which area accumulates is
+exactly the current height of the curve --- which is just common sense once you see the strip.
+Knowing this, evaluating an integral becomes a search for an antiderivative: find any $F$ with
+$F'=f$, then subtract its values at the endpoints.
+\end{whybox}
+
+This is exactly the relationship between a density and a CDF. Because $f=F'$, the Fundamental Theorem
+says $\P(a\le X\le b)=\int_a^b f(x)\,\dd x = F(b)-F(a)$. Differentiating a CDF gives the density;
+integrating a density gives back probabilities. Calculus is the dictionary that translates between the
+two descriptions of a continuous random variable.
+
+\begin{example}[The exponential density integrates to one]
+\label{chAcla:ex-expo}
+The $\Expo(\lambda)$ density is $f(x)=\lambda e^{-\lambda x}$ for $x\ge 0$. An antiderivative of
+$\lambda e^{-\lambda x}$ is $F(x)=-e^{-\lambda x}$, because by the chain rule $F'(x)=\lambda
+e^{-\lambda x}$. Then the total probability is
+\[
+  \int_0^\infty \lambda e^{-\lambda x}\,\dd x
+  = \Big[-e^{-\lambda x}\Big]_0^\infty
+  = \big(0\big)-\big(-1\big) = 1,
+\]
+as a density must. The same antiderivative gives any tail: $\P(X>t)=\int_t^\infty \lambda e^{-\lambda
+x}\,\dd x = e^{-\lambda t}$, the memoryless survival curve you meet in the exponential-distribution
+section.
+\end{example}
+
+\subsection{Integration techniques you will actually meet}
+\label{chAcla:techniques}
+
+Two techniques recur often enough to name. The first is \emph{substitution}, which is the chain rule
+read backwards. If you spot an inner function $u=g(x)$ whose derivative $g'(x)$ also appears (up to a
+constant), substitute and the integral simplifies:
+\[
+  \int f(g(x))\,g'(x)\,\dd x = \int f(u)\,\dd u, \qquad u=g(x),\ \dd u = g'(x)\,\dd x.
+\]
+This is precisely the engine behind change-of-variables for densities: when $Y=g(X)$, the $\dd u =
+g'(x)\,\dd x$ bookkeeping is where the Jacobian factor $\abs{g'}$ comes from.
+
+The second is \emph{integration by parts}, the product rule read backwards:
+\[
+  \int u\,\dd v = uv - \int v\,\dd u.
+\]
+You use it to derive moments of distributions. For instance, $\E[X]$ for an exponential, or the
+gamma-function identity $\Gamma(n)=(n-1)!$, both fall out of one or two integrations by parts.
+
+\begin{example}[Mean of the exponential, by parts]
+\label{chAcla:ex-mean-expo}
+For $X\sim\Expo(\lambda)$,
+\[
+  \E[X]=\int_0^\infty x\,\lambda e^{-\lambda x}\,\dd x.
+\]
+Take $u=x$ (so $\dd u=\dd x$) and $\dd v=\lambda e^{-\lambda x}\,\dd x$ (so $v=-e^{-\lambda x}$).
+Then
+\[
+  \E[X]=\Big[-x e^{-\lambda x}\Big]_0^\infty + \int_0^\infty e^{-\lambda x}\,\dd x
+  = 0 + \Big[-\tfrac1\lambda e^{-\lambda x}\Big]_0^\infty = \frac1\lambda.
+\]
+The boundary term vanishes because $e^{-\lambda x}$ crushes the linear $x$ at infinity. So the mean
+of an exponential is $1/\lambda$ --- a one-line computation once integration by parts is in hand.
+\end{example}
+
+\begin{historybox}
+The integral sign $\int$ and the $\dd x$ notation are Leibniz's, introduced in the 1670s; the
+elongated S stood for \emph{summa}, ``sum.'' Newton, working at the same time, thought of the same
+ideas in terms of ``fluxions'' --- quantities flowing in time --- and the two were later embroiled in
+a bitter priority dispute. For probability the relevant later hero is Henri Lebesgue, who in 1902
+reinvented the integral by slicing the \emph{range} of $f$ into thin horizontal bands instead of the
+domain into vertical strips. That seemingly small change is what lets us integrate against
+probability measures and unify discrete and continuous expectation, and it is the foundation of the
+measure-theoretic chapters near the end of this book.
+\end{historybox}
+
+\subsection{Improper integrals and why tails can be finite}
+\label{chAcla:improper}
+
+Probability densities live on infinite ranges --- the normal stretches over all of $\R$, the
+exponential over $[0,\infty)$. Integrating to infinity is an \emph{improper} integral, defined as a
+limit: $\int_a^\infty f = \lim_{b\to\infty}\int_a^b f$. The remarkable fact, which beginners find
+counterintuitive, is that an infinitely long region can enclose a finite area, provided the curve
+decays fast enough.
+
+\begin{paradoxbox}
+\textbf{Infinite length, finite area.} Consider $f(x)=1/x^2$ on $[1,\infty)$. The region under it
+runs forever to the right, yet
+\[
+  \int_1^\infty \frac{1}{x^2}\,\dd x = \Big[-\tfrac1x\Big]_1^\infty = 0-(-1) = 1.
+\]
+A finite answer for an unbounded region! The resolution is that ``length'' and ``area'' are different
+beasts: the strips get thin so fast that their areas form a convergent sum. But beware the other
+direction. With $f(x)=1/x$ the same region has \emph{infinite} area, $\int_1^\infty \frac1x\,\dd x =
+\lim_{b\to\infty}\ln b = \infty$, even though $1/x$ also decays to zero. The boundary between ``decays
+fast enough'' and ``not quite'' is exactly $1/x$, and it is the same boundary that decides whether a
+heavy-tailed distribution has a finite mean. A Cauchy distribution's density decays like $1/x^2$, so
+it integrates to a valid probability of $1$; but $x$ times that density decays like $1/x$, so its
+\emph{mean} integral diverges --- which is why the Cauchy has no mean at all. The St.\ Petersburg
+paradox and heavy-tailed risk models in the inequalities chapter are this same arithmetic of
+convergence.
+\end{paradoxbox}
+
+\subsection{Functions of several variables and multiple integrals}
+\label{chAcla:multiple-integrals}
+
+The moment two random variables share a story, we need functions of two inputs and integrals over
+two-dimensional regions. A joint density $f(x,y)$ is a surface sitting above the plane; the
+probability that $(X,Y)$ lands in a region $R$ is the \emph{volume} under that surface over $R$,
+\[
+  \P\big((X,Y)\in R\big) = \iint_R f(x,y)\,\dd x\,\dd y.
+\]
+
+You compute a double integral by integrating one variable at a time --- an \emph{iterated} integral.
+Hold $y$ fixed, integrate over $x$ (sweeping out the area of a single slice), then integrate the
+resulting function of $y$. Fubini's theorem guarantees that, for the well-behaved densities we use,
+the order does not matter: $\iint = \int(\int \dd x)\dd y = \int(\int \dd y)\dd x$. This is the engine
+behind \emph{marginalization}: to get the density of $X$ alone, integrate the joint density over all
+of $y$, $f_X(x)=\int_{-\infty}^{\infty} f(x,y)\,\dd y$. You are summing the probability over every way
+the other variable could have come out --- the law of total probability, written as an integral.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=9.5cm, height=6.5cm,
+  xlabel={$x$}, ylabel={$y$}, zlabel={$f(x,y)$},
+  domain=-2.2:2.2, y domain=-2.2:2.2, samples=24,
+  view={40}{30}, colormap/viridis,
+  title={A joint density as a surface; probability is volume underneath}
+]
+\addplot3[surf, opacity=0.85, faceted color=black!30]
+  {0.159*exp(-0.5*(x*x+y*y))};
+\end{axis}
+\end{tikzpicture}
+\caption{The standard bivariate normal density $f(x,y)=\frac{1}{2\pi}e^{-(x^2+y^2)/2}$. The
+probability of any region $R$ in the $xy$-plane is the volume of the solid standing over $R$ and below
+this bell-shaped surface. Marginalizing out $y$ flattens the surface onto the $x$-axis.}
+\label{chAcla:fig-bivariate}
+\end{figure}
+
+\begin{connectionbox}
+Polar coordinates earn their keep in probability through one famous trick: the integral
+$\int_{-\infty}^{\infty} e^{-x^2/2}\,\dd x$ has no elementary antiderivative, yet its \emph{square}
+becomes a double integral that switches to polar coordinates and evaluates cleanly to $2\pi$, giving
+$\int e^{-x^2/2}\dd x = \sqrt{2\pi}$. That is exactly the normalizing constant of the standard normal,
+and the substitution $r^2=x^2+y^2$, $\dd x\,\dd y = r\,\dd r\,\dd\theta$ is the reason the $\sqrt{2\pi}$
+appears. The normal-distribution chapter does this computation; the multiple-integral machinery here
+is what makes it legal.
+\end{connectionbox}
+
+\subsection{Gradients: derivatives in many directions}
+\label{chAcla:gradient}
+
+For a function of several variables, $g(x_1,\dots,x_n)$, there is no single ``slope'' --- the surface
+tilts differently depending on which way you walk. The \emph{partial derivative} $\partial g/\partial
+x_i$ measures the slope when you move along the $x_i$ axis only, holding the others fixed; it is just
+an ordinary derivative with the other variables treated as constants. Collect all the partials into a
+vector and you get the \emph{gradient},
+\[
+  \nabla g = \left(\frac{\partial g}{\partial x_1},\ \dots,\ \frac{\partial g}{\partial x_n}\right).
+\]
+
+\begin{intuitionbox}
+The gradient points in the direction of steepest ascent, and its length is how steep that climb is.
+Stand on a hillside; the gradient is the compass bearing of ``straight uphill,'' and its magnitude is
+the grade. At a peak, valley, or saddle the ground is momentarily level in every direction, so the
+gradient is the zero vector --- that is the multivariable version of ``set the derivative to zero to
+find the maximum.''
+\end{intuitionbox}
+
+This is the workhorse of estimation. Maximum likelihood (the MLE chapter) finds the parameter that
+maximizes a likelihood by setting its gradient to zero and solving. Modern machine learning (the ML
+chapter) does the same in reverse: \emph{gradient descent} repeatedly steps in the direction of
+$-\nabla g$, downhill, to minimize a loss function. Both are the one-variable idea ``optimum where
+the derivative is zero'' lifted to many parameters at once. The companion \emph{Calculus From the
+Ground Up} develops partial derivatives and gradients carefully; we only need the picture of ``uphill
+arrow whose zero marks an optimum.''
+
+\section{Part II: The Linear Algebra You Need}
+\label{chAcla:la-intro}
+
+If calculus is the mathematics of \emph{change}, linear algebra is the mathematics of \emph{many
+quantities handled together}. The instant you study several random variables jointly --- their
+spread, their correlations, how a Markov chain shuffles probability between states --- you are doing
+linear algebra whether you call it that or not. What follows is the small toolkit the book relies on.
+
+\subsection{Vectors and the dot product}
+\label{chAcla:vectors}
+
+A vector is an ordered list of numbers, $\mathbf{v}=(v_1,\dots,v_n)$, which you can picture as an
+arrow from the origin to the point $(v_1,\dots,v_n)$ in $n$-dimensional space. In probability a vector
+might hold a random sample $(X_1,\dots,X_n)$, a vector of means, or the probabilities of a chain's
+states. Two operations make vectors useful: you can add them coordinatewise, and you can scale them by
+a number. That is the entire definition of ``linear'' --- additions and scalings, nothing more exotic.
+
+The single most important vector operation for us is the \emph{dot product},
+\[
+  \mathbf{u}\cdot\mathbf{v} = u_1 v_1 + u_2 v_2 + \cdots + u_n v_n = \sum_{i=1}^n u_i v_i.
+\]
+It eats two vectors and returns one number. Two facts give it meaning. First, a vector's length is
+$\norm{\mathbf{v}} = \sqrt{\mathbf{v}\cdot\mathbf{v}}$ --- the Pythagorean theorem in $n$ dimensions.
+Second, the dot product measures alignment: $\mathbf{u}\cdot\mathbf{v} =
+\norm{\mathbf{u}}\,\norm{\mathbf{v}}\cos\theta$, where $\theta$ is the angle between the arrows. So a
+dot product of zero means the vectors are perpendicular --- \emph{orthogonal} --- and a large positive
+dot product means they point much the same way (Figure~\ref{chAcla:fig-dotproduct}).
+
+\begin{happeningbox}
+Correlation \emph{is} a dot product. Center two data vectors by subtracting their means, and the
+sample correlation is exactly the cosine of the angle between the centered vectors:
+\[
+  \Corr(X,Y) = \frac{\sum_i (x_i-\bar x)(y_i-\bar y)}
+                    {\sqrt{\sum_i (x_i-\bar x)^2}\,\sqrt{\sum_i (y_i-\bar y)^2}}
+            = \cos\theta.
+\]
+Numerator: a dot product. Denominator: the two lengths. This is why correlation always lies in
+$[-1,1]$ --- because a cosine does --- and why ``uncorrelated'' is the statistical name for
+``orthogonal.'' The covariance-and-correlation chapter leans on this geometry; the whole notion of one
+variable being ``perpendicular'' to another is the dot product talking.
+\end{happeningbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0, >=Stealth]
+\draw[->, very thick, sourceblue] (0,0) -- (3.4,0.6) node[right]{$\mathbf{u}$};
+\draw[->, very thick, targetgreen] (0,0) -- (1.8,2.6) node[above]{$\mathbf{v}$};
+\draw[densityred, thick] (0.7,0.123) arc[start angle=10, end angle=55, radius=0.71];
+\node[densityred] at (1.05,0.62) {$\theta$};
+\node[black, align=left] at (4.7,1.7)
+  {$\mathbf{u}\cdot\mathbf{v}=\norm{\mathbf{u}}\norm{\mathbf{v}}\cos\theta$};
+\end{tikzpicture}
+\caption{The dot product as alignment. Two vectors meet at angle $\theta$; their dot product is the
+product of their lengths times $\cos\theta$. When the centered data vectors are used, this $\cos\theta$
+is exactly the sample correlation, which is why correlation is pinned to $[-1,1]$ and why
+``uncorrelated'' means ``perpendicular.''}
+\label{chAcla:fig-dotproduct}
+\end{figure}
+
+\subsection{Matrices as linear transformations}
+\label{chAcla:matrices}
+
+A matrix is a rectangular grid of numbers, but the right way to think about it is as a \emph{machine}:
+feed it a vector, it returns another vector. A matrix $A$ acts on $\mathbf{x}$ by the rule that the
+$i$-th output coordinate is the dot product of the $i$-th row of $A$ with $\mathbf{x}$. Matrix
+multiplication is just the composition of two such machines: $AB$ means ``do $B$, then $A$.''
+
+The crucial property is \emph{linearity}: $A(\mathbf{x}+\mathbf{y})=A\mathbf{x}+A\mathbf{y}$ and
+$A(c\mathbf{x})=cA\mathbf{x}$. Geometrically, a matrix sends lines to lines and keeps the origin
+fixed; it can rotate, stretch, shear, and reflect space, but it cannot bend it. This is exactly the
+linearity that makes $\E$ behave well: expectation of a linear combination is the linear combination
+of expectations, $\E[A\mathbf{X}] = A\,\E[\mathbf{X}]$, treating the random vector $\mathbf{X}$ just
+like any vector the matrix acts on.
+
+\begin{example}[A $2\times 2$ map in action]
+\label{chAcla:ex-matrix-action}
+Let $A=\begin{pmatrix} 2 & 0 \\ 0 & \tfrac12 \end{pmatrix}$. Acting on $\mathbf{x}=(x_1,x_2)$ it
+returns $(2x_1,\ \tfrac12 x_2)$: it stretches the horizontal direction by $2$ and squashes the
+vertical by half. A circle of data points becomes an ellipse twice as wide and half as tall. Keep
+this picture --- ``a matrix turns a circle into an ellipse'' --- because it is precisely how a
+covariance matrix reshapes a round cloud of independent noise into the tilted elliptical cloud of
+correlated data.
+\end{example}
+
+\subsection{Transition matrices and the stochastic special case}
+\label{chAcla:transition}
+
+A Markov chain is a matrix in disguise. List the states $1,\dots,n$ and let $P_{ij}=\P(\text{go to }j
+\given \text{now in }i)$. The matrix $P$ is \emph{stochastic}: every entry is a probability in
+$[0,1]$ and every row sums to $1$. If $\boldsymbol\pi$ is a row vector holding the current
+distribution over states, then one step of the chain is one matrix multiplication, $\boldsymbol\pi
+\mapsto \boldsymbol\pi P$, and $k$ steps is $\boldsymbol\pi P^k$. The entire dynamics of the chain ---
+where probability flows, where it pools --- is encoded in powers of one matrix.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth, node distance=3.2cm, every node/.style={font=\small}]
+\node[circle, draw=sourceblue, very thick, fill=blue!5, minimum size=1.2cm] (S) {Sun};
+\node[circle, draw=quotientorange, very thick, fill=orange!7, minimum size=1.2cm, right=of S] (R) {Rain};
+\draw[->, thick] (S) to[bend left=18] node[above]{$0.3$} (R);
+\draw[->, thick] (R) to[bend left=18] node[below]{$0.5$} (S);
+\draw[->, thick] (S) to[out=120,in=60,looseness=5] node[above]{$0.7$} (S);
+\draw[->, thick] (R) to[out=120,in=60,looseness=5] node[above]{$0.5$} (R);
+\end{tikzpicture}
+\caption{A two-state weather chain and its transition matrix $P=\left(\begin{smallmatrix} 0.7 & 0.3
+\\ 0.5 & 0.5 \end{smallmatrix}\right)$. Each row sums to $1$. Multiplying a distribution vector by $P$
+advances the weather one day; the steady state is the vector $\boldsymbol\pi$ fixed by $\boldsymbol\pi
+P=\boldsymbol\pi$.}
+\label{chAcla:fig-markov}
+\end{figure}
+
+That steady-state condition, $\boldsymbol\pi P = \boldsymbol\pi$, says $\boldsymbol\pi$ is unchanged by
+the matrix --- it is a special vector for $P$, of the kind the next section names and studies.
+
+\subsection{Eigenvectors and eigenvalues}
+\label{chAcla:eigen}
+
+Most vectors get knocked off their direction when a matrix acts on them. But for any square matrix
+there are usually a few special directions that survive: vectors $\mathbf{v}$ that the matrix merely
+stretches, without rotating. Such a vector satisfies
+\[
+  A\mathbf{v} = \lambda\mathbf{v}
+\]
+for some number $\lambda$. We call $\mathbf{v}$ an \emph{eigenvector} and $\lambda$ its
+\emph{eigenvalue} (German \emph{eigen}, ``own'' or ``characteristic''). The eigenvector names a
+direction the matrix leaves alone; the eigenvalue says by how much it scales along that direction.
+
+\begin{intuitionbox}
+Picture the matrix as a flow that pushes every arrow around. Eigenvectors are the directions where the
+push is purely outward or inward --- no swirl, just a clean stretch by the factor $\lambda$. If
+$\abs{\lambda}>1$ that direction grows under repeated application; if $\abs{\lambda}<1$ it shrinks; if
+$\lambda=1$ it is perfectly preserved. Repeatedly applying the matrix amplifies the largest-eigenvalue
+direction and washes the rest out, which is why eigenvectors govern long-run behavior.
+\end{intuitionbox}
+
+This is the secret behind Markov-chain steady states. A stochastic matrix always has eigenvalue
+$\lambda=1$, and its eigenvector is exactly the stationary distribution $\boldsymbol\pi$ with
+$\boldsymbol\pi P=\boldsymbol\pi$ --- a $\lambda=1$ direction that the chain preserves forever. All
+other eigenvalues have $\abs{\lambda}<1$, so their contributions decay; that decay is precisely why a
+well-behaved chain forgets its starting point and converges to $\boldsymbol\pi$. The
+steady-state chapter proves this; the eigenvalue picture is why it is true.
+
+\begin{aestheticbox}
+Eigenvectors are how a matrix tells you its own preferred coordinate system. In the right basis ---
+the eigenvector basis --- a complicated transformation becomes nothing but independent stretches along
+each axis, a diagonal matrix. Half of applied linear algebra is the art of finding that basis, because
+in it the hard problem falls apart into easy one-dimensional pieces. We are about to see this with
+covariance matrices, where the eigenvectors are the axes of the data cloud's ellipse.
+\end{aestheticbox}
+
+\subsection{Symmetric and positive-definite matrices}
+\label{chAcla:posdef}
+
+The matrices that appear in probability are not arbitrary; they are almost always \emph{symmetric},
+meaning $A=A^\top$ (the entry in row $i$ column $j$ equals the entry in row $j$ column $i$). A
+covariance matrix is the prime example: its $(i,j)$ entry is $\Cov(X_i,X_j)=\Cov(X_j,X_i)$, manifestly
+symmetric. Symmetry is a gift, because it forces excellent behavior.
+
+\begin{theorem}[Spectral theorem, the version we use]
+\label{chAcla:thm-spectral}
+Every real symmetric matrix $A$ has only real eigenvalues, and its eigenvectors can be chosen mutually
+orthogonal and of unit length. Collecting them as the columns of an orthogonal matrix $Q$ (so
+$Q^\top Q = I$) and the eigenvalues on the diagonal of $\Lambda$, we can write
+\[
+  A = Q\,\Lambda\,Q^\top.
+\]
+\end{theorem}
+
+This factorization says any symmetric matrix is ``rotate into the eigenvector frame ($Q^\top$), stretch
+each axis by its eigenvalue ($\Lambda$), rotate back ($Q$).'' It is the rigorous form of ``a matrix
+turns a circle into an ellipse,'' and it is exactly the decomposition $\Sigma = Q\Lambda Q^\top$ that
+the multivariate-normal chapter uses to draw the elliptical contours of a Gaussian and to sample from
+it.
+
+A symmetric matrix is \emph{positive-definite} if all its eigenvalues are strictly positive, or
+equivalently if $\mathbf{x}^\top A\,\mathbf{x} > 0$ for every nonzero vector $\mathbf{x}$ (it is
+\emph{positive-semidefinite} if we allow $\ge 0$). The quantity $\mathbf{x}^\top A\,\mathbf{x}$ is a
+\emph{quadratic form} --- the matrix generalization of $a x^2$ --- and ``positive-definite'' is the
+matrix way of saying ``opens upward like a bowl.''
+
+\begin{whybox}
+Why must a covariance matrix be positive-semidefinite? Take any vector of weights $\mathbf{a}$ and
+form the scalar random variable $Y=\mathbf{a}^\top \mathbf{X}=\sum_i a_i X_i$. Its variance cannot be
+negative --- variance is an average of squared deviations. But a direct expansion gives
+\[
+  0 \le \Var(Y) = \Var\!\Big(\sum_i a_i X_i\Big)
+      = \sum_{i,j} a_i a_j \Cov(X_i,X_j)
+      = \mathbf{a}^\top \Sigma\,\mathbf{a}.
+\]
+So $\mathbf{a}^\top \Sigma\,\mathbf{a}\ge 0$ for \emph{every} $\mathbf{a}$ --- which is the definition
+of positive-semidefinite. The abstract algebraic condition is nothing but ``no combination of your
+variables can have negative variance.'' That is also why you cannot hand a statistics package an
+arbitrary symmetric matrix and call it a covariance matrix: if it has a negative eigenvalue, some
+linear combination would have negative variance, which is impossible.
+\end{whybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=8.4cm, height=6.2cm,
+  xlabel={$x_1$}, ylabel={$x_2$},
+  axis equal image, axis lines=middle,
+  xmin=-3.4, xmax=3.4, ymin=-3.4, ymax=3.4,
+  xtick=\empty, ytick=\empty,
+  title={Eigenvectors are the axes of the covariance ellipse}
+]
+% ellipse for Sigma with eigenvalues 4 (along (1,1)/sqrt2) and 1 (along (-1,1)/sqrt2)
+% point = 2 cos(t) v1 + 1 sin(t) v2, v1=(1,1)/sqrt2, v2=(-1,1)/sqrt2
+\addplot[densityred, very thick, domain=0:360, samples=120]
+  ({2*cos(x)*0.7071 + 1*sin(x)*(-0.7071)}, {2*cos(x)*0.7071 + 1*sin(x)*0.7071});
+% major eigen-axis (1,1)
+\addplot[sourceblue, very thick, -{Stealth}] coordinates {(0,0) (1.414,1.414)};
+\node[sourceblue] at (axis cs:1.9,1.3) {$\mathbf{v}_1$};
+% minor eigen-axis (-1,1)
+\addplot[targetgreen, very thick, -{Stealth}] coordinates {(0,0) (-0.707,0.707)};
+\node[targetgreen] at (axis cs:-1.25,0.75) {$\mathbf{v}_2$};
+\end{axis}
+\end{tikzpicture}
+\caption{A correlated Gaussian's contour. The eigenvectors $\mathbf{v}_1,\mathbf{v}_2$ of the
+covariance matrix point along the ellipse's principal axes; the square roots of the eigenvalues give
+the axis half-lengths. This is the spectral theorem made visible, and it is exactly what principal
+component analysis extracts from data.}
+\label{chAcla:fig-ellipse}
+\end{figure}
+
+\begin{applicationbox}
+\textbf{Principal Component Analysis (PCA).} Given a cloud of data, compute its covariance matrix
+$\Sigma$ and find the eigenvectors. The eigenvector with the largest eigenvalue points along the
+direction of greatest variance --- the long axis of the data ellipse --- and the eigenvalue \emph{is}
+the variance captured along it. Keeping the top few eigenvectors compresses high-dimensional data to a
+few coordinates while preserving as much variance as possible. PCA is, almost in its entirety, ``apply
+the spectral theorem to a covariance matrix,'' which is why the machine-learning chapter can treat it
+in a couple of pages: all the heavy lifting was done the moment we knew $\Sigma=Q\Lambda Q^\top$.
+\end{applicationbox}
+
+\begin{historybox}
+The word \emph{eigenvalue} is a half-translation of the German \emph{Eigenwert} (``own value''),
+which entered mathematics through David Hilbert's work on integral equations around 1904. The deeper
+story is older: the ``principal axes'' of a quadratic form were studied by Cauchy in the 1820s and by
+Lagrange before him, in the guise of finding the axes of an ellipse or the principal stresses in a
+solid. Karl Pearson, one of the founders of mathematical statistics, reinvented the same axes in 1901
+under the name ``principal components'' --- the very PCA above --- without realizing he was rediscovering
+the spectral theorem. Probability, mechanics, and pure algebra all converged on the same eigenvectors.
+\end{historybox}
+
+\subsection{Orthogonal projection}
+\label{chAcla:projection}
+
+The last tool is projection: given a vector $\mathbf{y}$ and a subspace (say, the line or plane
+spanned by some other vectors), find the point in the subspace closest to $\mathbf{y}$. Geometrically
+you drop a perpendicular from $\mathbf{y}$ onto the subspace; the foot of that perpendicular is the
+projection $\hat{\mathbf{y}}$, and the leftover $\mathbf{y}-\hat{\mathbf{y}}$ is orthogonal to
+everything in the subspace.
+
+For projection onto the line through a unit vector $\mathbf{u}$, the formula is just a dot product
+times a direction,
+\[
+  \hat{\mathbf{y}} = (\mathbf{y}\cdot\mathbf{u})\,\mathbf{u}.
+\]
+The number $\mathbf{y}\cdot\mathbf{u}$ is ``how much of $\mathbf{y}$ lies along $\mathbf{u}$,'' and we
+lay that much off in the $\mathbf{u}$ direction. The key property is that $\hat{\mathbf{y}}$ is the
+\emph{closest} point in the subspace --- projection minimizes squared distance.
+
+\begin{happeningbox}
+Least squares is a projection, and so is conditional expectation. When you fit a line by least
+squares (the estimation chapter), you are projecting the vector of observed responses onto the subspace
+of fitted values, choosing the prediction that minimizes the sum of squared errors --- exactly the
+closest point. More strikingly, the conditional expectation $\E[Y\given X]$ is the orthogonal
+projection of $Y$ onto the space of functions of $X$: among all predictors built from $X$, it is the
+one with the smallest mean squared error. ``Best prediction'' and ``perpendicular drop'' are the same
+statement in different languages. The residual $Y-\E[Y\given X]$ being uncorrelated with every
+function of $X$ is just ``the leftover is orthogonal to the subspace,'' which the conditional-
+expectation chapter calls the orthogonality principle.
+\end{happeningbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0, >=Stealth]
+\draw[->, thick, gray] (-0.4,0) -- (5.2,0) node[right]{subspace (span of $\mathbf{u}$)};
+\draw[->, very thick, sourceblue] (0,0) -- (3.2,2.4) node[above right]{$\mathbf{y}$};
+\draw[->, very thick, targetgreen] (0,0) -- (3.2,0) node[below]{$\hat{\mathbf{y}}$};
+\draw[->, very thick, densityred] (3.2,0) -- (3.2,2.4)
+  node[midway, right]{$\mathbf{y}-\hat{\mathbf{y}}$ (residual)};
+\draw (2.95,0) -- (2.95,0.25) -- (3.2,0.25); % right-angle mark
+\end{tikzpicture}
+\caption{Orthogonal projection of $\mathbf{y}$ onto a subspace. The projection $\hat{\mathbf{y}}$ is
+the closest point; the residual $\mathbf{y}-\hat{\mathbf{y}}$ meets the subspace at a right angle.
+Least-squares regression and conditional expectation are both this picture.}
+\label{chAcla:fig-projection}
+\end{figure}
+
+\begin{connectionbox}
+The Pythagorean theorem returns one last time, now as a probabilistic identity. Because the residual
+is orthogonal to the prediction, $\norm{\mathbf{y}}^2 = \norm{\hat{\mathbf{y}}}^2 +
+\norm{\mathbf{y}-\hat{\mathbf{y}}}^2$. Translated into variances, this is the law of total variance,
+$\Var(Y) = \Var\big(\E[Y\given X]\big) + \E\big[\Var(Y\given X)\big]$ --- ``explained plus
+unexplained.'' Geometry and probability are telling the same story: total spread splits into the part
+captured by the prediction and the part left in the residual, and they are perpendicular, so their
+sizes add in squares. The conditional-expectation chapter develops this; \emph{Linear Algebra From the
+Ground Up} develops projections and orthogonality in full generality.
+\end{connectionbox}
+
+\section{How the Pieces Fit the Book}
+\label{chAcla:summary}
+
+The two halves of this appendix line up neatly with the two faces of probability.
+
+\begin{focusbox}
+\textbf{Calculus, where it lands.}
+\begin{itemize}
+\item \emph{Derivative} $=$ density from CDF, $f=F'$; the Jacobian $\abs{g'}$ in change of variables.
+\item \emph{Integral} $=$ continuous expectation $\int x f(x)\,\dd x$ and probabilities as areas
+  $\int_a^b f$.
+\item \emph{Fundamental Theorem} $=$ the two-way street between density and CDF.
+\item \emph{Multiple integrals} $=$ joint densities, marginalization, the $\sqrt{2\pi}$ of the normal.
+\item \emph{Gradient} $=$ maximum likelihood (set $\nabla=0$) and gradient descent in machine learning.
+\end{itemize}
+
+\textbf{Linear algebra, where it lands.}
+\begin{itemize}
+\item \emph{Dot product} $=$ correlation as a cosine; uncorrelated means orthogonal.
+\item \emph{Matrix} $=$ linear maps, $\E[A\mathbf{X}]=A\E[\mathbf{X}]$, Markov transition steps.
+\item \emph{Eigenvectors} $=$ Markov steady states ($\lambda=1$) and long-run behavior.
+\item \emph{Spectral theorem / positive-definite} $=$ covariance matrices, Gaussian ellipses, PCA.
+\item \emph{Projection} $=$ least squares and conditional expectation as best prediction.
+\end{itemize}
+\end{focusbox}
+
+None of these tools is exotic, and you need only the working picture of each: a derivative is a slope,
+an integral is an area, a gradient is an uphill arrow, a dot product measures alignment, a matrix
+reshapes space, an eigenvector is a direction left alone, and a projection is the closest point. Carry
+those seven images and the calculus and linear algebra in this book will read as common sense dressed
+in notation. When you want the rigorous development behind any of them, the companion \emph{Calculus
+From the Ground Up} and \emph{Linear Algebra From the Ground Up} are written in the same spirit as this
+one.
+
+\section{Exercises}
+\label{chAcla:exercises}
+
+\begin{exercise}[Density is the derivative of the CDF]
+\label{chAcla:exr-density}
+The CDF of an $\Expo(\lambda)$ random variable is $F(x)=1-e^{-\lambda x}$ for $x\ge 0$. Differentiate
+$F$ to recover the density $f$, and confirm it equals $\lambda e^{-\lambda x}$. Then explain in one
+sentence why ``density is the derivative of the CDF'' is just the Fundamental Theorem of Calculus.
+\end{exercise}
+
+\begin{exercise}[A density that integrates to one]
+\label{chAcla:exr-normalize}
+A random variable has density $f(x)=c\,x^2$ on $[0,2]$ and $0$ elsewhere. Find the constant $c$ by
+requiring $\int_0^2 f(x)\,\dd x = 1$. Then compute $\E[X]=\int_0^2 x f(x)\,\dd x$.
+\end{exercise}
+
+\begin{exercise}[Integration by parts for a moment]
+\label{chAcla:exr-parts}
+Use integration by parts to evaluate $\int_0^\infty x^2\,\lambda e^{-\lambda x}\,\dd x$, the second
+moment of an $\Expo(\lambda)$. (Hint: take $u=x^2$, integrate the rest; you will need to integrate by
+parts a second time, or reuse the mean from Example~\ref{chAcla:ex-mean-expo}.) Confirm your answer is
+$2/\lambda^2$, and deduce that $\Var(X)=1/\lambda^2$.
+\end{exercise}
+
+\begin{exercise}[Convergence of a tail integral]
+\label{chAcla:exr-tail}
+For which exponents $p>0$ does $\int_1^\infty x^{-p}\,\dd x$ converge to a finite value, and what is
+that value when it does? Relate your finding to the paradox box on infinite length but finite area,
+and explain why a density decaying like $1/x^2$ can be a valid density yet have an infinite mean.
+\end{exercise}
+
+\begin{exercise}[Marginalizing a joint density]
+\label{chAcla:exr-marginal}
+Let $f(x,y)=4xy$ on the unit square $0\le x\le 1$, $0\le y\le 1$, and $0$ elsewhere. Verify it
+integrates to $1$ over the square. Then find the marginal density of $X$ by computing
+$f_X(x)=\int_0^1 f(x,y)\,\dd y$, and check that the marginal itself integrates to $1$.
+\end{exercise}
+
+\begin{exercise}[A gradient set to zero]
+\label{chAcla:exr-gradient}
+Consider $g(a,b)=\sum_{i=1}^n (y_i - a - b x_i)^2$, the sum of squared errors of a line $a+bx$ fit to
+data $(x_i,y_i)$. Compute the partial derivatives $\partial g/\partial a$ and $\partial g/\partial b$,
+set both to zero, and show that the resulting equations are the normal equations of least squares.
+Explain how this is the gradient-equals-zero idea from Section~\ref{chAcla:gradient}.
+\end{exercise}
+
+\begin{exercise}[Correlation as a cosine]
+\label{chAcla:exr-cosine}
+Take the two centered vectors $\mathbf{u}=(1,-1,0)$ and $\mathbf{v}=(2,0,-2)$. Compute
+$\mathbf{u}\cdot\mathbf{v}$, the two lengths, and hence $\cos\theta$. Interpret the result as a
+sample correlation. What would $\mathbf{u}\cdot\mathbf{v}=0$ have meant about the two variables?
+\end{exercise}
+
+\begin{exercise}[Eigenvector of a transition matrix]
+\label{chAcla:exr-eigen}
+For the weather chain $P=\left(\begin{smallmatrix} 0.7 & 0.3 \\ 0.5 & 0.5 \end{smallmatrix}\right)$
+of Figure~\ref{chAcla:fig-markov}, find the row vector $\boldsymbol\pi=(\pi_1,\pi_2)$ with
+$\boldsymbol\pi P=\boldsymbol\pi$ and $\pi_1+\pi_2=1$. Confirm $\boldsymbol\pi$ is a left eigenvector
+of $P$ with eigenvalue $1$, and interpret it as the long-run fraction of sunny days.
+\end{exercise}
+
+\begin{exercise}[Positive-definiteness, by hand]
+\label{chAcla:exr-posdef}
+Let $A=\begin{pmatrix} 2 & 1 \\ 1 & 2 \end{pmatrix}$. Compute the quadratic form
+$\mathbf{x}^\top A\,\mathbf{x}$ for $\mathbf{x}=(x_1,x_2)$, write it as a sum that is visibly
+nonnegative, and conclude $A$ is positive-definite. Then find the eigenvalues of $A$ and verify they
+are both positive, consistent with the criterion in Section~\ref{chAcla:posdef}.
+\end{exercise}
+
+\begin{exercise}[Projection minimizes distance (proof)]
+\label{chAcla:exr-projection-proof}
+Let $\mathbf{u}$ be a unit vector and $\hat{\mathbf{y}}=(\mathbf{y}\cdot\mathbf{u})\mathbf{u}$ the
+projection of $\mathbf{y}$ onto the line through $\mathbf{u}$. For any scalar $t$, expand
+$\norm{\mathbf{y}-t\mathbf{u}}^2 = \norm{\mathbf{y}}^2 - 2t(\mathbf{y}\cdot\mathbf{u}) + t^2$ and show
+it is minimized at $t=\mathbf{y}\cdot\mathbf{u}$. Conclude that $\hat{\mathbf{y}}$ is the closest point
+on the line, and that the residual $\mathbf{y}-\hat{\mathbf{y}}$ is orthogonal to $\mathbf{u}$.
+Explain how this is the geometric heart of least-squares regression.
+\end{exercise}

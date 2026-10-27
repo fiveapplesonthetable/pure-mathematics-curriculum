@@ -1,0 +1,1149 @@
+\chapter{Discrete Distributions}
+
+In the last chapter you met the random variable: a number whose value is decided
+by chance, with a probability mass function (PMF) that tells you how much weight
+sits on each possible value. So far each PMF has been a one-off, invented for the
+problem at hand. But a small handful of PMFs show up again and again, across coin
+games, genetics, call centers, quality control, web traffic, radioactivity, and
+machine learning, and they are not arbitrary. Each one is the answer to a
+\emph{story} -- a particular way of generating randomness -- and once you know the
+story, you can recognize the distribution when it appears and write down its mean,
+its variance, and its shape without re-deriving anything.
+
+We will meet six named families: \textbf{Bernoulli}, \textbf{Binomial},
+\textbf{Geometric}, \textbf{Negative Binomial}, \textbf{Hypergeometric}, and
+\textbf{Poisson}. The trick to remembering them forever is to never memorize the
+formula first. Memorize the \emph{story} first, and let the formula fall out of
+the story. By the end you should be able to read a word problem, hear which story
+it is telling, and name the distribution before you pick up a pen.
+
+\begin{focusbox}
+The single most useful skill in this chapter is \emph{model recognition}: given a
+real situation, deciding \emph{which} of these families fits. The questions to ask
+are always the same. Is each trial yes/no? Are the trials independent? Is the
+number of trials fixed in advance, or are we waiting for something? Are we
+sampling with or without replacement? Are we counting rare events in a window of
+time or space? Each answer points at a distribution.
+\end{focusbox}
+
+\section{Bernoulli: the atom of randomness}
+\label{ch07:bernoulli}
+
+Everything in this chapter is built out of one indivisible piece: a single trial
+with two outcomes, ``success'' and ``failure.'' Flip a coin. Did a customer buy?
+Did the patient recover? Did the bit arrive corrupted? Strip away the story and
+you have a number that is $1$ with probability $p$ and $0$ with probability
+$1-p$. That is the \textbf{Bernoulli} random variable, named for Jacob Bernoulli,
+and it is the atom from which the binomial, geometric, and negative binomial are
+all assembled.
+
+\begin{definition}[Bernoulli distribution]
+\label{ch07:def-bernoulli}
+A random variable $X$ has the \textbf{Bernoulli} distribution with parameter
+$p \in [0,1]$, written $X \sim \Bern(p)$, if it takes the value $1$ with
+probability $p$ and $0$ with probability $1-p$:
+\[
+  \P(X = 1) = p, \qquad \P(X = 0) = 1 - p = q.
+\]
+We call the outcome $X=1$ a \emph{success} and $X=0$ a \emph{failure}; $p$ is the
+\emph{success probability} and we often abbreviate $q = 1-p$.
+\end{definition}
+
+The choice to code success as the \emph{number} $1$ and failure as $0$ is not
+cosmetic. It is exactly what makes the algebra work, because then $X$ is an
+\emph{indicator}: $X = \ind_A$ where $A$ is the event ``success.'' Its mean and
+variance are immediate.
+
+\begin{proposition}[Mean and variance of Bernoulli]
+\label{ch07:bern-moments}
+If $X \sim \Bern(p)$ then $\E[X] = p$ and $\Var(X) = p(1-p) = pq$.
+\end{proposition}
+
+\begin{proof}
+By the definition of expectation for a discrete variable,
+\[
+  \E[X] = 1 \cdot p + 0 \cdot (1-p) = p.
+\]
+Since $X$ only takes the values $0$ and $1$, we have $X^2 = X$, so
+$\E[X^2] = \E[X] = p$. Therefore
+\[
+  \Var(X) = \E[X^2] - (\E[X])^2 = p - p^2 = p(1-p) = pq. \qedhere
+\]
+\end{proof}
+
+\begin{intuitionbox}
+The variance $p(1-p)$ is a little parabola, zero at $p=0$ and $p=1$, peaking at
+$p = \tfrac12$ where it equals $\tfrac14$. This matches intuition perfectly: a
+coin that always lands heads ($p=1$) or always tails ($p=0$) has \emph{no}
+randomness, so zero variance. The most unpredictable coin is the fair one, and
+that is exactly where the variance is largest.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5.2cm,
+  xlabel={success probability $p$}, ylabel={$\Var(X) = p(1-p)$},
+  xmin=0, xmax=1, ymin=0, ymax=0.28,
+  xtick={0,0.25,0.5,0.75,1}, ytick={0,0.1,0.2,0.25},
+  title={Bernoulli variance: a parabola peaking at the fair coin},
+  samples=100, domain=0:1,
+]
+\addplot[distblue, very thick] {x*(1-x)};
+\addplot[densityred, dashed, thick] coordinates {(0.5,0) (0.5,0.25)};
+\node[anchor=south] at (axis cs:0.5,0.25) {\small $\tfrac14$ at $p=\tfrac12$};
+\end{axis}
+\end{tikzpicture}
+\caption{The Bernoulli variance $p(1-p)$ as a function of $p$. It vanishes at the
+deterministic extremes $p=0$ and $p=1$ and is largest, equal to $\tfrac14$, at the
+fair coin $p=\tfrac12$.}
+\label{ch07:fig-bern-var}
+\end{figure}
+
+\begin{whybox}
+Why does the trick $X^2 = X$ work? Because the only values $X$ can take are $0$
+and $1$, and both satisfy $x^2 = x$. Squaring a $0/1$ variable changes nothing.
+This is the single most useful identity for indicators, and you will use it
+constantly: the variance of an indicator of an event $A$ is
+$\P(A)\bigl(1 - \P(A)\bigr)$, full stop.
+\end{whybox}
+
+A Bernoulli on its own is almost too simple to be interesting. What makes it
+matter is that it is a building block. The next move, which drives the rest of
+this chapter, is to line up many independent Bernoulli trials and ask different
+questions about them. Each question gives a different named distribution.
+
+\section{Binomial: counting successes in a fixed number of trials}
+\label{ch07:binomial}
+
+Here is the first compound story. Fix the number of trials at $n$. Run $n$
+independent Bernoulli($p$) trials -- $n$ coin flips, $n$ patients, $n$ shots on
+goal. Now ask: \emph{how many successes did I get?} That count, anywhere from $0$
+to $n$, is a \textbf{Binomial} random variable.
+
+\begin{intuitionbox}
+The keyword is \emph{fixed $n$, count the successes}. You decided in advance how
+many trials to run, the trials don't influence each other, each has the same
+success chance $p$, and your random quantity is the tally of successes. Whenever a
+problem matches that template -- $20$ free throws, $500$ users shown an ad, $8$
+births at a hospital -- reach for the binomial.
+\end{intuitionbox}
+
+\begin{definition}[Binomial distribution]
+\label{ch07:def-binomial}
+Let $X$ be the number of successes in $n$ independent $\Bern(p)$ trials. Then $X$
+has the \textbf{Binomial} distribution with parameters $n$ and $p$, written
+$X \sim \Bin(n,p)$, with PMF
+\[
+  \P(X = k) = \binom{n}{k} p^{k} (1-p)^{\,n-k}, \qquad k = 0, 1, \dots, n.
+\]
+\end{definition}
+
+\begin{whybox}
+Where does the formula come from? Build it from the story. One \emph{specific}
+sequence of $k$ successes and $n-k$ failures -- say SSFSF\dots -- has probability
+$p^k (1-p)^{n-k}$, because the trials are independent so we multiply, and there
+are $k$ factors of $p$ and $n-k$ factors of $q$. But we don't care \emph{which}
+trials succeeded, only \emph{how many}. The number of distinct sequences with
+exactly $k$ successes is the number of ways to choose which $k$ of the $n$ slots
+are successes, namely $\binom{n}{k}$. Each such sequence has the same probability
+$p^k q^{n-k}$, and they are disjoint, so we add them up:
+$\binom{n}{k} p^k q^{n-k}$. The two ingredients are: a \emph{counting} factor
+$\binom{n}{k}$ (how many arrangements) times a \emph{probability} factor
+$p^k q^{n-k}$ (the chance of any one arrangement).
+\end{whybox}
+
+Check that these probabilities sum to $1$; the check reveals where the name
+``binomial'' comes from. Summing over all $k$,
+\[
+  \sum_{k=0}^{n} \binom{n}{k} p^{k} q^{\,n-k} = (p + q)^{n} = 1^{n} = 1,
+\]
+by the binomial theorem. The PMF is literally the binomial expansion of
+$(p+q)^n$, term by term. That is the whole reason for the name.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6.2cm,
+  ybar, bar width=10pt,
+  xlabel={number of successes $k$}, ylabel={$\P(X=k)$},
+  xtick={0,1,...,10}, ymin=0, ymax=0.32,
+  title={Binomial PMFs for $n=10$: shape shifts with $p$},
+  legend style={at={(0.98,0.97)},anchor=north east,font=\small},
+  enlarge x limits=0.06,
+]
+\addplot+[fill=distblue!40,draw=distblue] coordinates {
+  (0,0.0282) (1,0.1211) (2,0.2335) (3,0.2668) (4,0.2001) (5,0.1029)
+  (6,0.0368) (7,0.0090) (8,0.0014) (9,0.0001) (10,0.0000)};
+\addplot+[fill=densityred!35,draw=densityred] coordinates {
+  (0,0.0010) (1,0.0098) (2,0.0439) (3,0.1172) (4,0.2051) (5,0.2461)
+  (6,0.2051) (7,0.1172) (8,0.0439) (9,0.0098) (10,0.0010)};
+\legend{$p=0.3$, $p=0.5$}
+\end{axis}
+\end{tikzpicture}
+\caption{Two binomial PMFs with $n=10$. With $p=0.5$ the bars are symmetric and
+centered at $5 = np$. With $p=0.3$ the whole pile shifts left to center near
+$3 = np$ and develops a right skew. The expected count $np$ is always where the
+mass piles up.}
+\label{ch07:fig-binom-pmf}
+\end{figure}
+
+\subsection{Mean and variance the easy way}
+\label{ch07:binom-moments}
+
+You could compute $\E[X] = \sum_k k \binom{n}{k} p^k q^{n-k}$ directly, and it can
+be done, but it is a slog. The elegant route is to remember the story: a binomial
+is a \emph{sum} of Bernoullis. Write $X = X_1 + X_2 + \dots + X_n$ where $X_i$ is
+the indicator that trial $i$ was a success. Each $X_i \sim \Bern(p)$ and they are
+independent.
+
+\begin{proposition}[Mean and variance of Binomial]
+\label{ch07:binom-mv}
+If $X \sim \Bin(n,p)$ then
+\[
+  \E[X] = np, \qquad \Var(X) = np(1-p) = npq.
+\]
+\end{proposition}
+
+\begin{proof}
+Write $X = \sum_{i=1}^{n} X_i$ with $X_i \sim \Bern(p)$ independent. Expectation
+is linear, \emph{always}, even without independence, so
+\[
+  \E[X] = \sum_{i=1}^{n} \E[X_i] = \sum_{i=1}^{n} p = np.
+\]
+For the variance we use that the variance of a sum of \emph{independent} variables
+is the sum of the variances:
+\[
+  \Var(X) = \sum_{i=1}^{n} \Var(X_i) = \sum_{i=1}^{n} p(1-p) = np(1-p). \qedhere
+\]
+\end{proof}
+
+\begin{happeningbox}
+Notice the division of labor in that proof. The mean came from \emph{linearity of
+expectation}, which never needs independence -- it would hold even if the trials
+were correlated. The variance, on the other hand, leaned on independence: only
+because the $X_i$ are independent do the variances simply add with no covariance
+terms. This is a recurring theme. Means are robust and add up no matter what;
+variances are delicate and add up only when things don't interfere. If your
+trials were positively correlated, the count would be \emph{more} spread out than
+$npq$; if negatively correlated, less. The hypergeometric, coming up, is exactly a
+case of negatively correlated trials, and you will see its variance come out
+\emph{smaller} than the binomial's for that reason.
+\end{happeningbox}
+
+\begin{example}[Free throws]
+\label{ch07:ex-freethrows}
+A player makes each free throw independently with probability $p = 0.8$ and takes
+$n = 12$ shots. Let $X$ be the number made. Then $X \sim \Bin(12, 0.8)$.
+\begin{itemize}
+\item Expected made: $\E[X] = np = 12 \times 0.8 = 9.6$.
+\item Standard deviation: $\SD(X) = \sqrt{npq} = \sqrt{12 \cdot 0.8 \cdot 0.2}
+  = \sqrt{1.92} \approx 1.39$.
+\item Probability of making exactly $10$:
+  $\binom{12}{10}(0.8)^{10}(0.2)^{2} = 66 \cdot 0.10737 \cdot 0.04
+  \approx 0.2835$.
+\item Probability of making all $12$: $(0.8)^{12} \approx 0.0687$.
+\end{itemize}
+So even an $80\%$ shooter sinks all twelve only about $7\%$ of the time -- a nice
+gut-check against the intuition that ``a good shooter should hit them all.''
+\end{example}
+
+\begin{example}[A/B test conversions]
+\label{ch07:ex-abtest}
+You show a new checkout button to $n = 500$ visitors. Historically the conversion
+rate is $p = 0.06$. If the button doesn't change behavior, the number of
+conversions is $X \sim \Bin(500, 0.06)$, with $\E[X] = 30$ and
+$\SD(X) = \sqrt{500 \cdot 0.06 \cdot 0.94} \approx 5.31$. If you actually observe
+$45$ conversions, that is
+$(45 - 30)/5.31 \approx 2.8$ standard deviations above the mean -- a result this
+extreme by chance alone is unusual, which is the seed of a hypothesis test. The
+binomial is the null-hypothesis model that A/B testing rests on.
+\end{example}
+
+\begin{historybox}
+The Bernoulli trial and the binomial both trace to Jacob Bernoulli's
+\emph{Ars Conjectandi}, published posthumously in 1713. There Bernoulli proved the
+first law of large numbers: as you run more and more independent trials, the
+observed fraction of successes converges to the true $p$. He saw clearly that the
+binomial count $\Bin(n,p)$ concentrates ever more tightly around $np$ as $n$ grows
+-- our variance $np(1-p)$ grows only like $n$, while the count itself grows like
+$n$, so the \emph{proportion} has variance $p(1-p)/n \to 0$. That single
+observation, that averages stabilize, is the foundation on which all of
+statistics, polling, and empirical science rests.
+\end{historybox}
+
+\begin{trapbox}
+The classic binomial mistake is forgetting the counting factor $\binom{n}{k}$.
+``The probability of $10$ makes out of $12$ is $0.8^{10} \cdot 0.2^2$'' is wrong;
+that is the probability of \emph{one particular} sequence (the first ten in, last
+two missed). There are $\binom{12}{10} = 66$ such sequences, and you want any of
+them. A second trap: applying the binomial when trials are \emph{not}
+independent or $p$ \emph{changes} between trials. Sampling people without
+replacement from a small group, for instance, is hypergeometric, not binomial.
+\end{trapbox}
+
+\section{Geometric: waiting for the first success}
+\label{ch07:geometric}
+
+The binomial fixed $n$ and counted successes. Now flip the question on its head.
+Don't fix the number of trials; instead keep going until you get your first
+success, and ask: \emph{how many trials did that take?} You are waiting for
+something -- the first defective part, the first ``yes,'' the first six on a die.
+The waiting time (in trials) is a \textbf{Geometric} random variable.
+
+\begin{intuitionbox}
+The keyword is \emph{wait for the first success}. The number of trials is now
+random, not fixed; it is the thing you are measuring. Where the binomial answers
+``how many successes in $n$ tries,'' the geometric answers ``how many tries until
+the first success.''
+\end{intuitionbox}
+
+\begin{definition}[Geometric distribution]
+\label{ch07:def-geometric}
+Run independent $\Bern(p)$ trials with $p > 0$ until the first success. Let $X$ be
+the number of trials needed, including the successful one. Then $X$ has the
+\textbf{Geometric} distribution with parameter $p$, written $X \sim \Geom(p)$,
+with PMF
+\[
+  \P(X = k) = (1-p)^{\,k-1} p, \qquad k = 1, 2, 3, \dots
+\]
+\end{definition}
+
+The story makes the formula transparent: to have your first success on trial $k$,
+you need the first $k-1$ trials to fail (probability $q^{k-1}$, multiplying
+because they're independent) and then the $k$-th to succeed (probability $p$).
+Hence $q^{k-1} p$. These sum to $1$ as they should, since it is a geometric series:
+\[
+  \sum_{k=1}^{\infty} q^{k-1} p = p \sum_{j=0}^{\infty} q^{j}
+  = p \cdot \frac{1}{1-q} = \frac{p}{p} = 1.
+\]
+That geometric series is, of course, where the distribution gets its name.
+
+\begin{marginnotebox}
+Beware of two conventions. Some books (and software) define the geometric as the
+number of \emph{failures before} the first success, $Y = X - 1$, supported on
+$0,1,2,\dots$ with PMF $q^k p$. Both are called ``geometric.'' We use the
+\emph{number of trials} version (support starting at $1$) throughout this book, so
+its mean is $1/p$, not $q/p$. Always check which convention a source uses.
+\end{marginnotebox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm,
+  ybar, bar width=11pt,
+  xlabel={trial of first success $k$}, ylabel={$\P(X=k)$},
+  xtick={1,2,...,10}, ymin=0, ymax=0.45,
+  title={Geometric PMF, $p=0.4$: a memoryless geometric decay},
+  enlarge x limits=0.06,
+]
+\addplot+[fill=quotientorange!45,draw=quotientorange] coordinates {
+  (1,0.4000) (2,0.2400) (3,0.1440) (4,0.0864) (5,0.0518)
+  (6,0.0311) (7,0.0187) (8,0.0112) (9,0.0067) (10,0.0040)};
+\end{axis}
+\end{tikzpicture}
+\caption{Geometric PMF with $p=0.4$. The bars decay by a constant factor $q=0.6$
+at each step -- each bar is $60\%$ of the one before. The mode is always at
+$k=1$: the single most likely outcome is success on the very first try, no matter
+how small $p$ is.}
+\label{ch07:fig-geom-pmf}
+\end{figure}
+
+\subsection{Mean, variance, and the memoryless property}
+\label{ch07:geom-mem}
+
+\begin{proposition}[Mean and variance of Geometric]
+\label{ch07:geom-mv}
+If $X \sim \Geom(p)$ then
+\[
+  \E[X] = \frac{1}{p}, \qquad \Var(X) = \frac{1-p}{p^{2}}.
+\]
+\end{proposition}
+
+\begin{proof}
+We give the slick first-step argument for the mean; it is more illuminating than
+grinding the series. Condition on the first trial. With probability $p$ it
+succeeds and we are done in one trial. With probability $q$ it fails, and then --
+here is the key -- we are starting over, having already used one trial. The
+\emph{remaining} number of trials is again $\Geom(p)$ by independence. So
+\[
+  \E[X] = p \cdot 1 + q \cdot (1 + \E[X]).
+\]
+Solve: $\E[X] = p + q + q\E[X]$, hence $\E[X](1-q) = 1$, so $\E[X] = 1/p$. The
+variance follows from a similar first-step relation on $\E[X^2]$ (Exercise),
+giving $\Var(X) = (1-p)/p^2$.
+\end{proof}
+
+\begin{intuitionbox}
+The mean $1/p$ is wonderfully intuitive. If a success happens one time in ten
+($p = 0.1$), you expect to wait about ten trials to see one. If $p = 1/6$ (rolling
+a six), you expect $6$ rolls. The rarer the success, the longer the wait, in exact
+reciprocal proportion. This $\E[X] = 1/p$ is one of the most quoted facts in all
+of applied probability.
+\end{intuitionbox}
+
+The geometric distribution has a famous and almost magical property that no other
+discrete waiting-time distribution shares.
+
+\begin{theorem}[Memorylessness]
+\label{ch07:geom-memoryless}
+If $X \sim \Geom(p)$, then for all integers $s, t \ge 0$,
+\[
+  \P(X > s + t \given X > s) = \P(X > t).
+\]
+\end{theorem}
+
+\begin{proof}
+First, $\P(X > m) = q^{m}$: to exceed $m$ trials means the first $m$ trials all
+failed, probability $q^m$. Then
+\[
+  \P(X > s+t \given X > s)
+  = \frac{\P(X > s+t,\ X > s)}{\P(X > s)}
+  = \frac{\P(X > s+t)}{\P(X > s)}
+  = \frac{q^{s+t}}{q^{s}} = q^{t} = \P(X > t),
+\]
+using that $\{X > s+t\} \subseteq \{X > s\}$. \qed
+\end{proof}
+
+\begin{paradoxbox}[The gambler's fallacy, formalized]
+Memorylessness says: \emph{the dice have no memory}. Suppose you have rolled a die
+$20$ times without a six. How long must you now expect to wait? The seductive
+wrong answer is ``a six is overdue, it should come soon.'' The correct answer is
+that the future is statistically identical to a fresh start: you still expect $6$
+more rolls, exactly as if the $20$ misses never happened. The coin, the die, the
+roulette wheel -- none of them are keeping a ledger that they owe you a win. The
+geometric distribution is the precise mathematical statement that past failures
+carry zero information about when the next success arrives. The ``hot hand''
+intuition and the ``law of averages'' intuition are both dismantled by this one
+equation. (The continuous cousin of this property belongs to the exponential
+distribution, which is why exponential and geometric are spiritual siblings -- one
+in continuous time, one in discrete trials.)
+\end{paradoxbox}
+
+\begin{whybox}
+\emph{Why} is the geometric memoryless, intuitively? Because the trials are
+independent and identical. The process has no internal state that records what has
+happened; each new trial is a clean coin flip with the same $p$. ``How many more
+trials until success'' depends only on the same coin you have been flipping all
+along, not on how long you have been flipping it. Any waiting-time distribution
+built from \emph{independent identical} trials \emph{must} be memoryless -- and in
+fact the geometric is the \emph{only} discrete distribution on
+$\{1,2,3,\dots\}$ with this property, which is a clean characterization.
+\end{whybox}
+
+\begin{example}[Hiring search]
+\label{ch07:ex-hiring}
+Suppose each candidate you interview is a good hire with probability $p = 0.15$,
+independently. Let $X$ be the number of interviews until your first good hire.
+Then $X \sim \Geom(0.15)$.
+\begin{itemize}
+\item Expected interviews: $\E[X] = 1/0.15 \approx 6.67$.
+\item Probability the first good hire is the third candidate:
+  $\P(X = 3) = (0.85)^2 (0.15) \approx 0.1084$.
+\item Probability you need more than $10$ interviews:
+  $\P(X > 10) = (0.85)^{10} \approx 0.1969$ -- about a $20\%$ chance of a long
+  search.
+\end{itemize}
+\end{example}
+
+\section{Negative Binomial: waiting for the $r$-th success}
+\label{ch07:negbinom}
+
+The geometric waits for the \emph{first} success. The natural generalization
+waits for the $r$-th. Keep running independent $\Bern(p)$ trials until you have
+accumulated $r$ successes, and ask how many trials that took. That count is a
+\textbf{Negative Binomial} random variable. Setting $r = 1$ recovers the
+geometric exactly, so the geometric is the special case ``wait for one success.''
+
+\begin{intuitionbox}
+Keyword: \emph{wait for the $r$-th success}. Collecting $r$ defects before
+shutting down a line; selling $r$ subscriptions; a pitcher recording the $r$-th
+strikeout. The number of trials is random, and you stop the instant the $r$-th
+success lands.
+\end{intuitionbox}
+
+\begin{definition}[Negative Binomial distribution]
+\label{ch07:def-negbinom}
+Run independent $\Bern(p)$ trials until the $r$-th success ($r \ge 1$ an integer).
+Let $X$ be the total number of trials. Then $X$ has the \textbf{Negative
+Binomial} distribution with parameters $r$ and $p$, with PMF
+\[
+  \P(X = k) = \binom{k-1}{r-1} p^{r} (1-p)^{\,k-r}, \qquad k = r, r+1, r+2, \dots
+\]
+\end{definition}
+
+\begin{whybox}
+Build the formula from the story, and watch how it differs from the binomial in
+one crucial way. To have the $r$-th success land on \emph{exactly} trial $k$, two
+things must happen. First, among the first $k-1$ trials there must be exactly
+$r-1$ successes (and $k-r$ failures); second, trial $k$ itself must be a success.
+The last trial is \emph{pinned} -- it is forced to be a success, because that's
+what stops the process. So we only get to arrange the other $r-1$ successes among
+the first $k-1$ slots, giving $\binom{k-1}{r-1}$ ways, not $\binom{k}{r}$. Each
+such full sequence has $r$ successes and $k-r$ failures, probability
+$p^r q^{k-r}$. Multiply: $\binom{k-1}{r-1} p^r q^{k-r}$. The pinned last trial is
+exactly what distinguishes the negative binomial from a binomial; forgetting it
+gives the wrong binomial coefficient.
+\end{whybox}
+
+Now the easy-way insight pays off again. A negative binomial is a \emph{sum of
+$r$ independent geometrics}: wait for the first success ($\Geom(p)$ trials), then
+from scratch wait for the second ($\Geom(p)$ more, by memorylessness), and so on
+$r$ times. The total trial count is $X = G_1 + G_2 + \dots + G_r$ with each
+$G_i \sim \Geom(p)$ independent. Mean and variance fall out instantly by adding.
+
+\begin{proposition}[Mean and variance of Negative Binomial]
+\label{ch07:negbinom-mv}
+If $X$ is negative binomial with parameters $r$ and $p$, then
+\[
+  \E[X] = \frac{r}{p}, \qquad \Var(X) = \frac{r(1-p)}{p^{2}}.
+\]
+\end{proposition}
+
+\begin{proof}
+Write $X = \sum_{i=1}^{r} G_i$ with $G_i \sim \Geom(p)$ independent. Then by
+linearity $\E[X] = r \cdot (1/p) = r/p$, and by independence
+$\Var(X) = r \cdot (1-p)/p^2$. \qed
+\end{proof}
+
+\begin{intuitionbox}
+If one success takes $1/p$ trials on average, then $r$ successes take $r/p$ -- you
+just stack $r$ independent waits end to end. There is nothing to memorize beyond
+the geometric; the negative binomial is geometrics in series.
+\end{intuitionbox}
+
+\begin{example}[Door-to-door sales]
+\label{ch07:ex-sales}
+Each house you visit results in a sale with probability $p = 0.2$, independently.
+You want $r = 3$ sales. Let $X$ be the number of houses visited.
+\begin{itemize}
+\item Expected houses: $\E[X] = r/p = 3/0.2 = 15$.
+\item Probability the third sale comes exactly at the $10$th house:
+  $\P(X = 10) = \binom{9}{2}(0.2)^3 (0.8)^7
+  = 36 \cdot 0.008 \cdot 0.2097 \approx 0.0604$.
+\item Standard deviation: $\SD(X) = \sqrt{3 \cdot 0.8 / 0.04}
+  = \sqrt{60} \approx 7.75$ houses -- a wide spread, so plan for a long day.
+\end{itemize}
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm,
+  ybar, bar width=8pt,
+  xlabel={number of trials $k$}, ylabel={$\P(X=k)$},
+  xtick={3,4,...,15}, ymin=0, ymax=0.17,
+  title={Negative binomial PMF, $r=3$, $p=0.4$},
+  enlarge x limits=0.04,
+]
+\addplot+[fill=structurepurple!40,draw=structurepurple] coordinates {
+  (3,0.0640)(4,0.1152)(5,0.1382)(6,0.1382)(7,0.1244)(8,0.1045)(9,0.0836)
+  (10,0.0645)(11,0.0484)(12,0.0355)(13,0.0255)(14,0.0181)(15,0.0127)};
+\end{axis}
+\end{tikzpicture}
+\caption{Negative binomial PMF for $r=3$ successes at $p=0.4$. The support starts
+at $k=r=3$ (you cannot finish before the third success), the mass peaks near
+$\E[X]=r/p=7.5$, and the long right tail is the signature of a waiting time --
+unlucky runs can drag on. Compare to the geometric ($r=1$) of
+Figure~\ref{ch07:fig-geom-pmf}, which is this picture with its mode pinned to the
+first trial.}
+\label{ch07:fig-negbinom-pmf}
+\end{figure}
+
+\begin{applicationbox}[Overdispersed counts in data science]
+There is a second, statistical reason the negative binomial matters enormously.
+When you model count data -- numbers of website visits, insurance claims, reads of
+a gene in RNA-sequencing -- the default model is the Poisson (next section), which
+forces $\text{variance} = \text{mean}$. Real count data is almost always
+\emph{overdispersed}: its variance exceeds its mean. The negative binomial,
+re-parameterized to allow any mean and a separately tunable variance, is the
+standard fix. In fact a negative binomial arises exactly when the Poisson rate
+itself varies randomly (a Gamma-distributed rate), a so-called Gamma--Poisson
+mixture. This is why ``negative binomial regression'' is a workhorse in
+epidemiology, genomics (the tool DESeq2 is built on it), and actuarial science.
+The waiting-time story and the overdispersed-count story are two faces of the same
+distribution.
+\end{applicationbox}
+
+\section{Hypergeometric: sampling without replacement}
+\label{ch07:hypergeometric}
+
+Every distribution so far assumed the trials were \emph{independent} with a
+\emph{fixed} success probability $p$. That assumption quietly breaks the moment
+you sample from a finite population \emph{without replacement}. Pull a card from a
+deck and don't put it back, and the composition of what's left has changed: the
+probabilities on the next draw depend on what you already drew. The trials are now
+dependent. The count of successes in such a sample follows the
+\textbf{Hypergeometric} distribution.
+
+\begin{intuitionbox}
+Keyword: \emph{sampling without replacement from a finite pool}. There is a box
+with $N$ items, of which $K$ are ``special'' (defective, red, tagged, aces). You
+grab a handful of $n$ without replacement. How many specials did you get? That
+count is hypergeometric. The tell-tale sign is a \emph{finite population} and
+\emph{no replacement} -- if you replaced each item, or if the population were
+effectively infinite, you'd be back to the binomial.
+\end{intuitionbox}
+
+\begin{definition}[Hypergeometric distribution]
+\label{ch07:def-hypergeom}
+A population of $N$ items contains $K$ successes and $N-K$ failures. Draw a sample
+of $n$ items uniformly at random without replacement. Let $X$ be the number of
+successes drawn. Then $X$ has the \textbf{Hypergeometric} distribution with
+parameters $N, K, n$, and PMF
+\[
+  \P(X = k) = \frac{\dbinom{K}{k}\dbinom{N-K}{\,n-k\,}}{\dbinom{N}{n}},
+  \qquad \max(0,\, n-(N-K)) \le k \le \min(n, K).
+\]
+\end{definition}
+
+\begin{whybox}
+This is pure counting -- no products of $p$'s at all, because every possible
+sample of size $n$ is equally likely. The denominator $\binom{N}{n}$ is the total
+number of ways to choose the sample. The numerator counts the favorable samples:
+to get exactly $k$ successes, choose which $k$ of the $K$ successes you took
+($\binom{K}{k}$ ways) \emph{and} which $n-k$ of the $N-K$ failures you took
+($\binom{N-K}{n-k}$ ways), and multiply. Divide favorable by total and you have
+the probability. The hypergeometric is the binomial's combinatorial twin: the
+binomial multiplies probabilities of independent trials, the hypergeometric
+counts equally likely subsets.
+\end{whybox}
+
+\begin{proposition}[Mean and variance of Hypergeometric]
+\label{ch07:hypergeom-mv}
+Let $p = K/N$ be the population success fraction. If $X$ is hypergeometric with
+parameters $N, K, n$, then
+\[
+  \E[X] = n p = n\frac{K}{N}, \qquad
+  \Var(X) = n p (1-p) \cdot \frac{N-n}{N-1}.
+\]
+\end{proposition}
+
+\begin{proof}[Proof sketch]
+Write $X = \sum_{i=1}^{n} X_i$ where $X_i$ indicates that the $i$-th draw is a
+success. By symmetry, every draw is equally likely to land on any item, so
+$\P(X_i = 1) = K/N = p$ for \emph{every} $i$ -- even though the draws are
+dependent. Linearity of expectation (which never cares about dependence!) gives
+$\E[X] = np$, the same mean as a binomial with the same $p$. The variance is
+where dependence bites. The draws are \emph{negatively} correlated: drawing a
+success leaves fewer successes for later draws. The covariance terms are negative,
+shrinking the variance by exactly the factor $(N-n)/(N-1)$ relative to the
+binomial $np(1-p)$. \qed
+\end{proof}
+
+\begin{happeningbox}
+That extra factor $\dfrac{N-n}{N-1}$ is called the \textbf{finite population
+correction}, and it is the whole personality of the hypergeometric. Stare at it:
+\begin{itemize}
+\item If $n = 1$ (one draw) it equals $1$: a single draw is just a Bernoulli,
+  identical to the binomial case. Dependence hasn't had a chance to act.
+\item If $n = N$ (sample the entire population) it equals $0$: the variance
+  collapses to zero, which is exactly right -- if you draw \emph{everything}, you
+  get \emph{all} $K$ successes with certainty, no randomness left.
+\item When $N$ is huge compared to $n$, the factor is $\approx 1$ and the
+  hypergeometric becomes indistinguishable from $\Bin(n, K/N)$. Removing a few
+  fish from a vast lake barely changes the proportions, so with-vs-without
+  replacement stops mattering.
+\end{itemize}
+The correction is the precise mathematical statement of when ``without
+replacement'' matters and when you can ignore it.
+\end{happeningbox}
+
+\begin{example}[Quality control]
+\label{ch07:ex-qc}
+A shipment has $N = 50$ chips, of which $K = 5$ are defective. An inspector samples
+$n = 10$ without replacement and rejects the shipment if any are defective. Let
+$X$ be the number of defectives found, $X \sim$ Hypergeometric$(50, 5, 10)$.
+\begin{itemize}
+\item Probability of finding zero defectives (and wrongly accepting):
+  \[
+    \P(X = 0) = \frac{\binom{5}{0}\binom{45}{10}}{\binom{50}{10}}
+    = \frac{\binom{45}{10}}{\binom{50}{10}} \approx 0.3106.
+  \]
+\item Expected defectives found: $\E[X] = 10 \cdot \tfrac{5}{50} = 1$.
+\end{itemize}
+So there is roughly a $31\%$ chance the sampling plan misses all defectives -- a
+sobering number for anyone designing acceptance sampling.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.8cm,
+  ybar, bar width=9pt,
+  xlabel={number of successes $k$}, ylabel={$\P(X=k)$},
+  xtick={0,1,...,5}, ymin=0, ymax=0.50,
+  title={Hypergeometric vs.\ binomial: without vs.\ with replacement},
+  legend style={at={(0.98,0.97)},anchor=north east,font=\small},
+  enlarge x limits=0.12,
+]
+\addplot+[fill=targetgreen!40,draw=targetgreen] coordinates {
+  (0,0.3106)(1,0.4313)(2,0.2098)(3,0.0442)(4,0.0040)(5,0.0001)};
+\addplot+[fill=distblue!35,draw=distblue] coordinates {
+  (0,0.3487)(1,0.3874)(2,0.1937)(3,0.0574)(4,0.0112)(5,0.0015)};
+\legend{{Hypergeom $(50,5,10)$}, {$\Bin(10,0.1)$}}
+\end{axis}
+\end{tikzpicture}
+\caption{Drawing $n=10$ from a pool of $N=50$ with $K=5$ successes. Both
+distributions share the mean $\E[X]=1$, but the hypergeometric (without
+replacement) is more concentrated -- its variance carries the finite-population
+factor $(N-n)/(N-1)=40/49\approx 0.82$, pulling probability toward the center and
+away from the tails relative to the binomial (with replacement).}
+\label{ch07:fig-hyper-pmf}
+\end{figure}
+
+\begin{example}[Lottery]
+\label{ch07:ex-lottery}
+A lottery draws $6$ numbers from $1$ to $49$ without replacement; you hold one
+ticket with $6$ chosen numbers. The number of your numbers that match is
+hypergeometric with $N = 49$, $K = 6$ (your picks are the ``successes''), $n = 6$
+(the drawn numbers). The chance of matching all six:
+\[
+  \P(X = 6) = \frac{\binom{6}{6}\binom{43}{0}}{\binom{49}{6}}
+  = \frac{1}{13{,}983{,}816} \approx 7.15 \times 10^{-8}.
+\]
+One in fourteen million. The hypergeometric is the exact model of every
+draw-without-replacement game of chance.
+\end{example}
+
+\begin{historybox}
+The word ``hypergeometric'' comes not from probability but from the
+\emph{hypergeometric series} of the eighteenth and nineteenth centuries (Euler,
+Gauss), a vast generalization of the geometric series whose coefficients are
+ratios of products much like the ones in this PMF. The distribution inherited the
+name because its probabilities are terms of such a series. It is a reminder that
+the named distributions did not arrive labeled and gift-wrapped; their names are
+historical accidents, dragged in from the analytic machinery mathematicians
+happened to be using. Don't read deep meaning into the names -- read it into the
+stories.
+\end{historybox}
+
+\section{Poisson: counting rare events in a continuum}
+\label{ch07:poisson}
+
+We come to the most surprising and arguably the most useful distribution in the
+chapter. The Poisson describes the \emph{number of events that occur in a fixed
+interval} of time, space, or volume, when the events happen at some average rate
+and don't collide with one another: calls arriving at a switchboard per minute,
+raindrops hitting a tile per second, mutations along a strand of DNA, typos per
+page, customers entering a shop per hour, photons striking a detector. It has a
+single parameter $\lambda$, the average number of events expected in the interval.
+
+\begin{definition}[Poisson distribution]
+\label{ch07:def-poisson}
+A random variable $X$ has the \textbf{Poisson} distribution with rate parameter
+$\lambda > 0$, written $X \sim \Pois(\lambda)$, if
+\[
+  \P(X = k) = e^{-\lambda} \frac{\lambda^{k}}{k!}, \qquad k = 0, 1, 2, \dots
+\]
+\end{definition}
+
+These sum to $1$ courtesy of the exponential series, which is the source of the
+$e^{-\lambda}$ normalizer:
+\[
+  \sum_{k=0}^{\infty} e^{-\lambda} \frac{\lambda^{k}}{k!}
+  = e^{-\lambda} \sum_{k=0}^{\infty} \frac{\lambda^{k}}{k!}
+  = e^{-\lambda} \cdot e^{\lambda} = 1.
+\]
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  ybar, bar width=8pt,
+  xlabel={number of events $k$}, ylabel={$\P(X=k)$},
+  xtick={0,2,4,6,8,10,12,14}, ymin=0, ymax=0.40,
+  title={Poisson PMFs: small $\lambda$ is skewed, large $\lambda$ turns bell-like},
+  legend style={at={(0.98,0.97)},anchor=north east,font=\small},
+  enlarge x limits=0.04,
+]
+\addplot+[fill=distblue!45,draw=distblue] coordinates {
+  (0,0.3679)(1,0.3679)(2,0.1839)(3,0.0613)(4,0.0153)(5,0.0031)(6,0.0005)(7,0.0001)};
+\addplot+[fill=densityred!35,draw=densityred] coordinates {
+  (0,0.0067)(1,0.0337)(2,0.0842)(3,0.1404)(4,0.1755)(5,0.1755)(6,0.1462)
+  (7,0.1044)(8,0.0653)(9,0.0363)(10,0.0181)(11,0.0082)(12,0.0034)(13,0.0013)(14,0.0005)};
+\legend{$\lambda=1$, $\lambda=5$}
+\end{axis}
+\end{tikzpicture}
+\caption{Poisson PMFs. For $\lambda=1$ the mass piles near $0$ and is strongly
+right-skewed (note $k=0$ and $k=1$ are equally likely). For $\lambda=5$ the
+distribution has shifted right, centered near $\lambda=5$, and is starting to look
+like the bell curve -- a preview of the normal approximation.}
+\label{ch07:fig-pois-pmf}
+\end{figure}
+
+\begin{proposition}[Mean and variance of Poisson]
+\label{ch07:pois-mv}
+If $X \sim \Pois(\lambda)$ then
+\[
+  \E[X] = \lambda, \qquad \Var(X) = \lambda.
+\]
+The mean and the variance are equal.
+\end{proposition}
+
+\begin{proof}
+For the mean, drop the $k=0$ term (it contributes nothing) and shift the index:
+\[
+  \E[X] = \sum_{k=0}^{\infty} k\, e^{-\lambda}\frac{\lambda^k}{k!}
+        = \sum_{k=1}^{\infty} e^{-\lambda}\frac{\lambda^k}{(k-1)!}
+        = \lambda \sum_{j=0}^{\infty} e^{-\lambda}\frac{\lambda^{j}}{j!}
+        = \lambda \cdot 1 = \lambda,
+\]
+substituting $j = k-1$ and recognizing the full PMF summing to $1$. For the
+variance, the cleanest route computes $\E[X(X-1)]$ by the same index-shift trick:
+\[
+  \E[X(X-1)] = \sum_{k=2}^{\infty} k(k-1) e^{-\lambda}\frac{\lambda^k}{k!}
+  = \lambda^2 \sum_{j=0}^{\infty} e^{-\lambda}\frac{\lambda^{j}}{j!}
+  = \lambda^2.
+\]
+Then $\E[X^2] = \E[X(X-1)] + \E[X] = \lambda^2 + \lambda$, so
+$\Var(X) = \E[X^2] - (\E[X])^2 = \lambda^2 + \lambda - \lambda^2 = \lambda$. \qed
+\end{proof}
+
+\begin{aestheticbox}
+$\E[X] = \Var(X) = \lambda$ is the Poisson's fingerprint. It gives you a free
+diagnostic: compute the sample mean and sample variance of any count data, and if
+they are wildly different, the data is \emph{not} Poisson. Variance much bigger
+than the mean signals overdispersion (reach for the negative binomial); variance
+smaller signals underdispersion. This one-number summary -- a distribution whose
+spread is locked to its center -- is both the Poisson's great convenience and its
+great limitation.
+\end{aestheticbox}
+
+\subsection{The law of rare events: Poisson as the limit of the binomial}
+\label{ch07:poisson-limit}
+
+Where does this distribution \emph{come from}? The Poisson is not handed down from
+on high; it emerges as a limit of the binomial, and that limit is the deepest idea
+in the chapter. It explains why so many unrelated phenomena are Poisson.
+
+\begin{intuitionbox}
+Imagine counting events in an interval by chopping the interval into a huge number
+$n$ of tiny sub-intervals, each so small that at most one event can occur in it.
+Each sub-interval is then a Bernoulli trial: an event happens (probability $p$) or
+doesn't. The total count is $\Bin(n, p)$. As you slice finer and finer,
+$n \to \infty$ while the chance of an event in any one tiny slice
+$p \to 0$, but the \emph{expected total} $np = \lambda$ stays fixed at the average
+rate. The binomial in this limit \emph{becomes} the Poisson. That is why the
+Poisson governs ``many opportunities, each rarely taken.''
+\end{intuitionbox}
+
+\begin{theorem}[Poisson limit theorem / law of rare events]
+\label{ch07:poisson-limit-thm}
+Fix $\lambda > 0$. Suppose $X_n \sim \Bin(n, p_n)$ with $n p_n \to \lambda$ as
+$n \to \infty$. Then for each fixed $k = 0,1,2,\dots$,
+\[
+  \P(X_n = k) \;\longrightarrow\; e^{-\lambda}\frac{\lambda^k}{k!}.
+\]
+\end{theorem}
+
+\begin{proof}
+Set $p_n = \lambda/n$ for clarity (the general case is the same with a vanishing
+correction). Then
+\[
+  \P(X_n = k) = \binom{n}{k}\Bigl(\frac{\lambda}{n}\Bigr)^{k}
+  \Bigl(1-\frac{\lambda}{n}\Bigr)^{n-k}.
+\]
+Expand the binomial coefficient and regroup the powers of $n$:
+\[
+  \binom{n}{k}\frac{1}{n^k}
+  = \frac{n(n-1)\cdots(n-k+1)}{k!\,n^k}
+  = \frac{1}{k!}\underbrace{\frac{n}{n}\frac{n-1}{n}\cdots\frac{n-k+1}{n}}_{\to\,1}.
+\]
+For fixed $k$, each of the $k$ fractions tends to $1$ as $n\to\infty$, so this
+whole piece tends to $1/k!$. Meanwhile
+$\bigl(1-\lambda/n\bigr)^{n} \to e^{-\lambda}$ (the defining limit of the
+exponential), and $\bigl(1-\lambda/n\bigr)^{-k} \to 1$. Collecting the surviving
+pieces,
+\[
+  \P(X_n = k) \;\longrightarrow\; \frac{1}{k!}\cdot \lambda^k \cdot e^{-\lambda}
+  = e^{-\lambda}\frac{\lambda^k}{k!}. \qed
+\]
+\end{proof}
+
+\begin{historybox}
+Sim\'eon Denis Poisson published this distribution in 1837 in a treatise on the
+probability of judicial verdicts, but it languished as a mathematical curiosity
+for decades. Its fame came in 1898 when Ladislaus Bortkiewicz studied a famously
+morbid dataset: the number of Prussian cavalry soldiers killed each year by being
+kicked by a horse, recorded across $14$ corps over $20$ years. Deaths-by-horse are
+the perfect Poisson scenario: enormously many soldiers ($n$ huge), each with a
+tiny chance of this particular fate ($p$ tiny), giving a modest expected count
+($\lambda \approx 0.7$ per corps-year). Bortkiewicz showed the yearly counts
+matched the Poisson almost exactly, and his little book \emph{The Law of Small
+Numbers} gave the law of rare events its name. The deep point: \emph{the
+mechanism, not the subject matter, makes something Poisson}. Horse-kicks, radio
+decays, and typos obey the same law because they share the same structure.
+\end{historybox}
+
+\begin{example}[Poisson approximation in action]
+\label{ch07:ex-poisapprox}
+A factory produces widgets with a $0.1\%$ defect rate. In a batch of $n = 2000$,
+let $X$ be the number of defective widgets. Exactly, $X \sim \Bin(2000, 0.001)$,
+which is painful to compute by hand. But $np = \lambda = 2$, and $p$ is tiny, so
+$X \approx \Pois(2)$. The probability of zero defectives:
+\[
+  \P(X = 0) \approx e^{-2} \approx 0.1353.
+\]
+The exact binomial value is $(0.999)^{2000} \approx 0.1352$ -- agreement to four
+decimals. The probability of at most one defective:
+$e^{-2}(1 + 2) = 3e^{-2} \approx 0.406$. The Poisson turns a brutal binomial into
+a one-line calculation, and the law of rare events guarantees the answer is
+excellent whenever $n$ is large and $p$ small.
+\end{example}
+
+\begin{example}[Call center staffing]
+\label{ch07:ex-callcenter}
+Calls arrive at a help line at an average rate of $\lambda = 4$ per minute. Model
+the count in a given minute as $\Pois(4)$.
+\begin{itemize}
+\item Exactly $4$ calls: $\P(X=4) = e^{-4}\dfrac{4^4}{4!}
+  = e^{-4}\dfrac{256}{24} \approx 0.1954$.
+\item No calls in a minute: $\P(X = 0) = e^{-4} \approx 0.0183$.
+\item More than $6$ calls: $\P(X > 6) = 1 - \sum_{k=0}^{6} e^{-4}\frac{4^k}{k!}
+  \approx 1 - 0.889 = 0.111$. Roughly an $11\%$ chance any given minute is a
+  surge -- the kind of number that drives staffing decisions.
+\end{itemize}
+\end{example}
+
+\begin{connectionbox}
+The Poisson does not live alone. It is the count side of the \textbf{Poisson
+process}, the canonical model of random arrivals in continuous time, which we
+build carefully in a later chapter. In that process, the \emph{number} of arrivals
+in an interval is Poisson, while the \emph{waiting time between} consecutive
+arrivals is Exponential -- the continuous, memoryless cousin of the geometric. So
+the discrete waiting-time/count pair (geometric, binomial) has a continuous mirror
+image (exponential, Poisson), and the bridge between them is exactly the limiting
+argument of this section. When you later meet the exponential and gamma
+distributions, remember that they are the continuous-time reincarnations of the
+geometric and negative binomial you learned here. The whole landscape rhymes.
+\end{connectionbox}
+
+\begin{applicationbox}[Poisson in modern data science]
+Poisson assumptions are everywhere in applied work. \emph{Poisson regression}
+models count outcomes (hospital admissions, goals scored, clicks) as a function of
+predictors, and is the count-data analogue of linear regression. In natural
+language processing, simple word-count models lean on Poisson assumptions. In
+genomics, read counts in sequencing are Poisson under idealized sampling (and
+negative binomial once biological variation is added). In sports analytics, goals
+in soccer are famously well modeled as Poisson, which lets you compute the
+probability of any score line from two rate parameters. Whenever you find yourself
+counting independent rare events in a window, the Poisson is your first model and
+your null hypothesis.
+\end{applicationbox}
+
+\section{Putting it together: which distribution fits?}
+\label{ch07:decision}
+
+The whole point of naming these families is to recognize them in the wild. Here is
+the decision tree, distilled. Run a problem through these questions in order.
+
+\begin{focusbox}
+\textbf{1. Single yes/no trial?} $\Rightarrow$ \textbf{Bernoulli}$(p)$.
+
+\textbf{2. Fixed number $n$ of independent trials, counting successes?}
+$\Rightarrow$ \textbf{Binomial}$(n, p)$.
+
+\textbf{3. Independent trials, waiting for the \emph{first} success (count the
+trials)?} $\Rightarrow$ \textbf{Geometric}$(p)$.
+
+\textbf{4. Independent trials, waiting for the \emph{$r$-th} success?}
+$\Rightarrow$ \textbf{Negative Binomial}$(r, p)$.
+
+\textbf{5. Drawing a sample \emph{without replacement} from a finite pool,
+counting successes?} $\Rightarrow$ \textbf{Hypergeometric}$(N, K, n)$.
+
+\textbf{6. Counting rare events in an interval of time/space at a fixed average
+rate?} $\Rightarrow$ \textbf{Poisson}$(\lambda)$.
+\end{focusbox}
+
+The two perennial points of confusion are worth isolating.
+
+\begin{trapbox}
+\textbf{Binomial vs.\ Hypergeometric.} Both count successes. The difference is
+\emph{replacement}. With replacement (or an effectively infinite population) the
+trials are independent and $p$ is constant: binomial. Without replacement from a
+finite pool, the trials are dependent and $p$ drifts as you draw: hypergeometric.
+When the population is much larger than the sample ($N \gg n$), the two coincide,
+and the binomial is the easy approximation.
+
+\textbf{Binomial vs.\ Negative Binomial.} Both involve trials and successes. The
+difference is \emph{what is fixed and what is random}. Binomial: $n$ is fixed, the
+number of successes is random. Negative binomial: the number of successes $r$ is
+fixed, and the number of trials is random. ``I ran $20$ trials, how many wins?'' is
+binomial. ``I kept going until $5$ wins, how many trials?'' is negative binomial.
+\end{trapbox}
+
+\begin{walkbox}
+A test has $30$ multiple-choice questions, each with $4$ options, and a student
+guesses every one. What is the distribution of the number correct, and what is its
+expected value? Pause and run it through the tree before reading on.
+
+\emph{Answer:} fixed $n = 30$ independent trials, each a success (correct guess)
+with probability $p = 1/4$, counting successes. That is question 2 on the tree:
+$\Bin(30, 1/4)$, with $\E[X] = 30 \cdot 1/4 = 7.5$. A pure guesser averages $7.5$
+out of $30$.
+\end{walkbox}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Distribution} & \textbf{PMF} & \textbf{Mean} & \textbf{Variance} \\
+\midrule
+$\Bern(p)$ & $p^k(1-p)^{1-k}$ & $p$ & $p(1-p)$ \\
+$\Bin(n,p)$ & $\binom{n}{k}p^k(1-p)^{n-k}$ & $np$ & $np(1-p)$ \\
+$\Geom(p)$ & $(1-p)^{k-1}p$ & $\dfrac{1}{p}$ & $\dfrac{1-p}{p^2}$ \\
+NegBin$(r,p)$ & $\binom{k-1}{r-1}p^r(1-p)^{k-r}$ & $\dfrac{r}{p}$ & $\dfrac{r(1-p)}{p^2}$ \\
+Hypergeom$(N,K,n)$ & $\dfrac{\binom{K}{k}\binom{N-K}{n-k}}{\binom{N}{n}}$ & $n\dfrac{K}{N}$ & $n\dfrac{K}{N}\dfrac{N-K}{N}\dfrac{N-n}{N-1}$ \\
+$\Pois(\lambda)$ & $e^{-\lambda}\dfrac{\lambda^k}{k!}$ & $\lambda$ & $\lambda$ \\
+\bottomrule
+\end{tabular}
+\caption{The six discrete families at a glance. Notice the family resemblances:
+the binomial mean $np$ and the hypergeometric mean $n(K/N)$ are the same with
+$p = K/N$, differing only by the finite-population factor in the variance; the
+negative binomial mean $r/p$ is just $r$ copies of the geometric mean $1/p$.}
+\label{ch07:tab-summary}
+\end{table}
+
+\begin{happeningbox}
+Step back and admire the architecture. The Bernoulli is the atom. Sum $n$ of them
+and ask ``how many successes'' $\to$ binomial. Ask instead ``how long until the
+first success'' $\to$ geometric; ``until the $r$-th'' $\to$ negative binomial.
+Break the independence by sampling without replacement $\to$ hypergeometric. Push
+the binomial to its rare-event limit $\to$ Poisson. Every distribution in this
+chapter is a different \emph{question} asked of the same underlying coin-flipping
+process, or a different \emph{limit} of it. You are not memorizing six unrelated
+formulas; you are reading six chapters of one story. That is the sense in which you
+can now \emph{see} discrete probability rather than recite it.
+\end{happeningbox}
+
+\section{Exercises}
+\label{ch07:exercises}
+
+\begin{exercise}[Bernoulli warm-up]
+\label{ch07:exr-bern}
+A biased coin has $\P(\text{heads}) = 0.7$. Let $X = 1$ if heads. Compute $\E[X]$,
+$\Var(X)$, and $\SD(X)$. For what value of $p$ is the variance of a Bernoulli
+maximized, and what is that maximum?
+\end{exercise}
+
+\begin{exercise}[Binomial computations]
+\label{ch07:exr-binom}
+A multiple-choice quiz has $8$ questions, each with $5$ choices; a student guesses
+randomly. Let $X$ be the number correct.
+(a) Name the distribution of $X$ with its parameters.
+(b) Compute $\P(X = 2)$.
+(c) Compute $\E[X]$ and $\Var(X)$.
+(d) Compute $\P(X \ge 1)$, the chance of getting at least one right.
+\end{exercise}
+
+\begin{exercise}[Geometric waiting]
+\label{ch07:exr-geom}
+You roll a fair die repeatedly until the first six.
+(a) What is the probability the first six appears on the fourth roll?
+(b) What is the expected number of rolls?
+(c) Given that you have rolled five times with no six, what is the expected number
+of \emph{additional} rolls until the first six? Explain how memorylessness makes
+this trivial.
+\end{exercise}
+
+\begin{exercise}[Negative binomial]
+\label{ch07:exr-negbinom}
+A basketball player makes each free throw with probability $0.6$. She shoots until
+she has made $4$ baskets. Let $X$ be the number of shots taken.
+(a) Identify the distribution and its parameters.
+(b) Compute $\P(X = 6)$.
+(c) Compute $\E[X]$ and $\SD(X)$.
+(d) Explain, using the ``sum of geometrics'' picture, why $\E[X] = 4/0.6$.
+\end{exercise}
+
+\begin{exercise}[Hypergeometric]
+\label{ch07:exr-hypergeom}
+A standard $52$-card deck contains $4$ aces. You are dealt a $5$-card poker hand.
+Let $X$ be the number of aces in your hand.
+(a) Identify the distribution and its parameters.
+(b) Compute $\P(X = 2)$.
+(c) Compute $\E[X]$.
+(d) If instead you drew $5$ cards \emph{with} replacement (reshuffling each time),
+what distribution would $X$ follow, and how would $\E[X]$ compare?
+\end{exercise}
+
+\begin{exercise}[Poisson modeling]
+\label{ch07:exr-pois}
+A website receives an average of $3$ sign-ups per hour, modeled as Poisson.
+(a) Probability of exactly $5$ sign-ups in a given hour.
+(b) Probability of no sign-ups in a given hour.
+(c) Probability of at least $2$ sign-ups in a given hour.
+(d) What is the distribution of sign-ups in a \emph{half}-hour, and its mean?
+(Hint: the rate scales with the length of the interval.)
+\end{exercise}
+
+\begin{exercise}[Poisson approximation]
+\label{ch07:exr-poisapprox}
+Each of $10{,}000$ independent visitors clicks a rare banner ad with probability
+$0.0003$.
+(a) Give the exact distribution of the number of clicks $X$.
+(b) Justify approximating $X$ by a Poisson and give $\lambda$.
+(c) Use the Poisson approximation to compute $\P(X = 0)$, $\P(X = 3)$, and
+$\P(X \ge 1)$.
+\end{exercise}
+
+\begin{exercise}[Conceptual: which model?]
+\label{ch07:exr-which}
+For each scenario, name the distribution and its parameters, and justify in one
+sentence by referencing the decision tree.
+(a) The number of defective bulbs in a random sample of $20$ drawn without
+replacement from a crate of $200$ containing $15$ defectives.
+(b) The number of emails you receive between $9$ and $10$ a.m., averaging $12$.
+(c) The number of coin flips until you see two heads in total.
+(d) The number of heads in $50$ flips of a fair coin.
+(e) Whether a single randomly chosen voter supports a measure.
+\end{exercise}
+
+\begin{exercise}[Proof: geometric variance]
+\label{ch07:exr-geomvar}
+Let $X \sim \Geom(p)$. Using a first-step argument analogous to the one for the
+mean, derive $\E[X^2]$ and hence show $\Var(X) = (1-p)/p^2$.
+(Hint: condition on the first trial. If it fails, the remaining count $X'$
+satisfies $X = 1 + X'$ with $X' \sim \Geom(p)$ independent, so
+$\E[X^2] = p\cdot 1 + q\,\E[(1+X')^2]$. Expand and solve, using $\E[X] = 1/p$.)
+\end{exercise}
+
+\begin{exercise}[Proof: binomial mode]
+\label{ch07:exr-binommode}
+Let $X \sim \Bin(n,p)$. By examining the ratio
+$\dfrac{\P(X=k)}{\P(X=k-1)}$, show that this ratio exceeds $1$ exactly when
+$k < (n+1)p$. Conclude that the PMF increases then decreases, and that the most
+likely value (the mode) is $\floor{(n+1)p}$ (with a tie when $(n+1)p$ is an
+integer). Verify for the free-throw example $\Bin(12, 0.8)$ that the mode is $10$.
+\end{exercise}
+
+\begin{exercise}[Proof: Poisson sum]
+\label{ch07:exr-poissum}
+Let $X \sim \Pois(\lambda)$ and $Y \sim \Pois(\mu)$ be independent. Prove that
+$X + Y \sim \Pois(\lambda + \mu)$.
+(Hint: $\P(X+Y = n) = \sum_{k=0}^{n}\P(X=k)\P(Y=n-k)$. Factor out
+$e^{-(\lambda+\mu)}/n!$ and recognize the binomial theorem
+$\sum_k \binom{n}{k}\lambda^k\mu^{n-k} = (\lambda+\mu)^n$ inside the sum.)
+Interpret the result through the law of rare events: merging two independent
+streams of rare events gives one rare-event stream at the combined rate.
+\end{exercise}
+
+\begin{exercise}[Connecting the families]
+\label{ch07:exr-connect}
+(a) Show that the negative binomial with $r=1$ is exactly the geometric.
+(b) Explain in words why the hypergeometric variance is always $\le$ the binomial
+variance with matching $p = K/N$, and identify the case where they are equal.
+(c) Two friends each model the number of typos on a page. One uses $\Bin(n,p)$
+with $n$ characters and tiny per-character error rate $p$; the other uses
+$\Pois(\lambda)$. Under what relationship between the parameters do they
+essentially agree, and which theorem of this chapter justifies it?
+\end{exercise}

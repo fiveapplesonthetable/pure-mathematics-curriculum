@@ -1,0 +1,805 @@
+\chapter{Conditional Expectation, Rigorously}
+
+\section{Why we are doing this again}
+\label{ch38:why-again}
+
+You already know what conditional expectation \emph{is}, at least in the friendly cases. Back when
+we conditioned on a variable, we wrote $g(x) = \E[Y \given X = x]$, an ordinary function of $x$, and
+then promoted it to a random variable $\E[Y \given X] = g(X)$. We proved the tower property, the
+pull-out rule, the law of total variance, and we used them happily. So why return to the topic with
+the word \emph{rigorously} stapled to the title?
+
+Three reasons, and each one is a crack in the elementary picture that only widens as you go deeper.
+
+\begin{itemize}
+  \item \textbf{The dividing-densities recipe breaks.} The definition $\E[Y \given X = x] = \int y\,
+    f_{Y \given X}(y \given x)\,\dd y$ silently assumed a joint density existed. But many of the most
+    important random objects --- a Brownian path, a mixture of a coin flip and a Gaussian, the
+    information carried by a whole filtration --- have \emph{no} joint density. The recipe has nothing
+    to say about them.
+  \item \textbf{Conditioning on a probability-zero event is genuinely ambiguous.} The expression
+    $\E[Y \given X = x]$ conditions on $\set{X = x}$, an event of probability zero when $X$ is
+    continuous. We swept this under the rug. The Borel--Kolmogorov paradox (Section
+    \ref{ch38:borel-kolmogorov}) shows that the rug was hiding a real contradiction.
+  \item \textbf{Martingales and Bayesian updating want to condition on \emph{information}, not on a
+    value.} A martingale is defined by $\E[X_{n+1} \given \mathcal{F}_n] = X_n$, where $\mathcal{F}_n$
+    is the sigma-algebra of everything known by time $n$. There is no single variable being plugged
+    in. We need to condition on a sigma-algebra directly.
+\end{itemize}
+
+Kolmogorov's resolution, from his 1933 \emph{Grundbegriffe}, is a striking change of tactics. He
+stopped trying to \emph{construct} conditional expectation by a formula and instead
+\emph{characterized} it by the one property it must have. The payoff is a single definition that
+covers densities, masses, Brownian motion, and everything in between, and that turns out to be
+exactly the geometric notion of \emph{orthogonal projection}. That equivalence is the heart of this
+chapter, so we start there, with a picture you already trust.
+
+\begin{focusbox}
+This chapter assumes the measure-theoretic backbone from the previous two chapters: a probability
+space $(\Omega, \mathcal{F}, \P)$, sigma-algebras as ``bundles of information,'' the Lebesgue
+integral $\E[X] = \int_\Omega X \,\dd\P$, and the Radon--Nikodym theorem. If any of those feel hazy,
+reread them first. Everything here is built on them.
+\end{focusbox}
+
+\section{The best-guess picture}
+\label{ch38:best-guess}
+
+Forget formulas for a moment. Conditional expectation answers a forecasting question: \emph{given
+some information, what is my best guess for $Y$?} ``Best'' has to mean something, and the cleanest
+meaning is mean-squared error. Among all guesses you are \emph{allowed} to make, which one minimizes
+the expected squared miss?
+
+What does ``allowed'' mean? If your information is the value of $X$, then a guess is allowed exactly
+when it is a function of $X$ --- you cannot use information you do not have. So the question becomes:
+
+\begin{equation}
+\label{ch38:l2-problem}
+  \text{minimize } \quad \E\!\big[(Y - g(X))^2\big] \quad \text{over all (measurable) functions } g.
+\end{equation}
+
+\begin{intuitionbox}
+Imagine $Y$ is a person's height and $X$ is their shoe size. You will see many people with shoe size
+$X = 9$; their heights scatter around some center. Your single allowed guess for all of them is
+$g(9)$. To minimize squared error \emph{within that group}, you should aim at the group's mean
+height. Do this for every shoe size and you have built the function $g(x) = \E[Y \given X = x]$. The
+conditional expectation is just ``the within-group average, computed group by group.'' The whole
+rigorous theory is a precise way to say exactly this when the groups are infinitesimally thin or do
+not exist at all.
+\end{intuitionbox}
+
+Here is the calculus that confirms the intuition, before we abstract it. Fix a value $x$ and treat
+$g(x)$ as a single number $c$ we get to choose. Conditionally on $X = x$,
+\[
+  \E\!\big[(Y - c)^2 \given X = x\big] = \Var(Y \given X = x) + \big(\E[Y \given X = x] - c\big)^2,
+\]
+by the same ``mean minimizes squared deviation'' identity you proved for plain expectation. The first
+term does not depend on $c$; the second is a square, minimized (at zero) by $c = \E[Y \given X = x]$.
+Minimizing pointwise in $x$ minimizes the average over $x$, so the best $g$ is exactly $g(x) =
+\E[Y \given X = x]$. \emph{Conditional expectation is the least-squares predictor.} Hold onto that.
+
+\subsection{A picture worth more than the algebra}
+\label{ch38:projection-picture}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0]
+  % the subspace plane
+  \fill[blue!8] (-0.3,-0.3) -- (5.0,-0.3) -- (6.2,1.4) -- (0.9,1.4) -- cycle;
+  \draw[blue!50!black,thick] (-0.3,-0.3) -- (5.0,-0.3) -- (6.2,1.4) -- (0.9,1.4) -- cycle;
+  \node[blue!50!black] at (5.4,-0.05) {\small $L^2(\mathcal{G})$: allowed guesses};
+  % origin
+  \coordinate (O) at (1.2,0.2);
+  \fill (O) circle (1.4pt);
+  \node[below left] at (O) {\small $0$};
+  % Y point above plane
+  \coordinate (Y) at (3.6,3.0);
+  \fill[densityred] (Y) circle (1.6pt);
+  \node[densityred,right] at (Y) {\small $Y$};
+  % projection foot
+  \coordinate (P) at (3.6,0.55);
+  \fill[targetgreen] (P) circle (1.6pt);
+  \node[targetgreen,below right] at (P) {\small $\E[Y \given \mathcal{G}]$};
+  % vectors
+  \draw[->,thick,densityred] (O) -- (Y);
+  \draw[->,thick,targetgreen] (O) -- (P);
+  \draw[->,thick,gray!60!black] (P) -- (Y);
+  \node[gray!50!black,right] at (3.62,1.75) {\small $Y - \E[Y\given\mathcal{G}]$};
+  % right angle mark
+  \draw (P) ++(-0.22,0) -- ++(0,0.22) -- ++(0.22,0);
+  % another candidate in plane
+  \coordinate (Q) at (5.1,0.75);
+  \fill (Q) circle (1.2pt);
+  \node[below] at (Q) {\small any other guess $g$};
+  \draw[dashed,gray] (Q) -- (Y);
+\end{tikzpicture}
+\caption{Conditional expectation as orthogonal projection. The plane is the space of guesses you are
+allowed to make (functions of your information $\mathcal{G}$). The random variable $Y$ lives above it.
+The closest point in the plane --- the foot of the perpendicular --- is $\E[Y \given \mathcal{G}]$.
+The error vector $Y - \E[Y \given \mathcal{G}]$ is orthogonal to the entire plane. Any other guess
+$g$ is farther from $Y$ (Pythagoras).}
+\label{ch38:fig-projection}
+\end{figure}
+
+If Figure \ref{ch38:fig-projection} looks exactly like the picture of projecting a vector onto a
+subspace from linear algebra, that is not a coincidence; it \emph{is} that picture. Making the
+analogy exact is the cleanest way to understand existence and uniqueness at once.
+
+\begin{connectionbox}
+In the companion linear algebra book you projected a vector $\mathbf{v} \in \R^n$ onto a subspace
+$W$. The projection $\hat{\mathbf{v}}$ is the unique point of $W$ closest to $\mathbf{v}$, and it is
+characterized by orthogonality: $\mathbf{v} - \hat{\mathbf{v}} \perp \mathbf{w}$ for every
+$\mathbf{w} \in W$, where $\perp$ means the inner product $\langle \cdot, \cdot \rangle$ vanishes.
+
+The probabilistic dictionary:
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Linear algebra & Probability \\
+\midrule
+vectors $\mathbf{v}$ & random variables $Y$ with $\E[Y^2] < \infty$ \\
+inner product $\langle \mathbf{u},\mathbf{v}\rangle$ & $\langle U, V \rangle = \E[UV]$ \\
+length$^2$ $\norm{\mathbf{v}}^2$ & $\E[Y^2]$ \\
+subspace $W$ & $\mathcal{G}$-measurable variables $L^2(\mathcal{G})$ \\
+projection onto $W$ & conditional expectation $\E[\,\cdot \given \mathcal{G}]$ \\
+$\mathbf{v}-\hat{\mathbf{v}} \perp W$ & error is uncorrelated with every $\mathcal{G}$-variable \\
+\bottomrule
+\end{tabular}
+\end{center}
+The space $L^2$ of square-integrable random variables, with $\langle U, V\rangle = \E[UV]$, is a
+genuine (infinite-dimensional) inner-product space --- a \emph{Hilbert space}. Hilbert spaces have a
+projection theorem: onto any closed subspace there is a unique nearest point. Conditional expectation
+is that projection. Existence is not magic; it is the Hilbert-space projection theorem.
+\end{connectionbox}
+
+\section{Conditioning on a sigma-algebra: the definition}
+\label{ch38:definition}
+
+We now make the leap that the elementary theory could not. Instead of conditioning on a value or even
+on a variable, we condition on a sigma-algebra $\mathcal{G} \subseteq \mathcal{F}$. Think of
+$\mathcal{G}$ as the collection of all events whose outcome you are allowed to know --- your
+information.
+
+\begin{intuitionbox}
+A sigma-algebra is a precise way to say ``how much can you resolve.'' If $\mathcal{G}$ is generated
+by a variable $X$, then knowing $\mathcal{G}$ means knowing $X$: you can tell apart two outcomes
+exactly when they give different $X$ values. A coarse $\mathcal{G}$ blurs many outcomes together; the
+finest $\mathcal{G} = \mathcal{F}$ resolves everything. ``Conditioning on $\mathcal{G}$'' means
+``give the best forecast computable from the information $\mathcal{G}$.''
+\end{intuitionbox}
+
+Two demands pin down conditional expectation. First, your forecast must be \emph{computable from your
+information}: it must be a $\mathcal{G}$-measurable random variable. Second, it must be \emph{right on
+average over every event you can see}: over any $G \in \mathcal{G}$, the forecast and the true $Y$
+must have the same integral. The second demand is the rigorous form of ``correct group averages.''
+
+\begin{definition}[Conditional expectation given a sigma-algebra]
+\label{ch38:def-cond-exp}
+Let $(\Omega, \mathcal{F}, \P)$ be a probability space, $Y$ an integrable random variable
+($\E\abs{Y} < \infty$), and $\mathcal{G} \subseteq \mathcal{F}$ a sub-sigma-algebra. A
+\textbf{conditional expectation of $Y$ given $\mathcal{G}$} is any random variable, written
+$\E[Y \given \mathcal{G}]$, satisfying:
+\begin{enumerate}
+  \item \textbf{(Measurability)} $\E[Y \given \mathcal{G}]$ is $\mathcal{G}$-measurable.
+  \item \textbf{(Averaging / partial-integral identity)} For every $G \in \mathcal{G}$,
+  \begin{equation}
+  \label{ch38:defining-property}
+    \int_G \E[Y \given \mathcal{G}] \,\dd\P \;=\; \int_G Y \,\dd\P,
+    \qquad \text{equivalently} \qquad
+    \E\!\big[\ind_G\,\E[Y\given\mathcal{G}]\big] = \E[\ind_G\, Y].
+  \end{equation}
+\end{enumerate}
+\end{definition}
+
+\begin{trapbox}
+$\E[Y \given \mathcal{G}]$ is a \emph{random variable}, not a number. It is only defined ``almost
+surely'': any two versions agree with probability one. The notation hides this, so be careful ---
+statements about $\E[Y\given\mathcal{G}]$ are statements that hold a.s. Also note we never divide by
+$\P(G)$ anywhere in \eqref{ch38:defining-property}. That division --- the source of all the trouble
+with probability-zero conditioning --- has vanished. We compare \emph{integrals}, which behave
+perfectly even when $\P(G) = 0$ pieces are involved.
+\end{trapbox}
+
+\subsection{Reading the definition as orthogonality}
+\label{ch38:read-as-orthogonality}
+
+The averaging property \eqref{ch38:defining-property} says $\E[\ind_G (Y - \E[Y\given\mathcal{G}])] =
+0$ for all $G \in \mathcal{G}$. Indicators $\ind_G$ are the simplest $\mathcal{G}$-measurable
+variables; by approximating any bounded $\mathcal{G}$-measurable $Z$ with simple functions and taking
+limits, the property upgrades to
+\begin{equation}
+\label{ch38:orthogonality}
+  \E\!\big[Z\,(Y - \E[Y \given \mathcal{G}])\big] = 0 \qquad \text{for every bounded }
+  \mathcal{G}\text{-measurable } Z.
+\end{equation}
+In inner-product language: the error $Y - \E[Y\given\mathcal{G}]$ is orthogonal to every variable in
+$L^2(\mathcal{G})$. That is precisely the orthogonality condition of Figure
+\ref{ch38:fig-projection}. \textbf{Kolmogorov's definition and the projection picture are literally
+the same equation.}
+
+\section{Why it exists: two routes to the same object}
+\label{ch38:existence}
+
+A definition by axioms is only worth something if such an object actually exists, and is essentially
+unique. We give the intuition for both. Uniqueness is short; existence has two proofs depending on
+how much you assume about $Y$.
+
+\subsection{Uniqueness (almost surely)}
+\label{ch38:uniqueness}
+
+\begin{proposition}[Uniqueness]
+\label{ch38:prop-uniqueness}
+If $V$ and $W$ both satisfy Definition \ref{ch38:def-cond-exp}, then $V = W$ almost surely.
+\end{proposition}
+
+\begin{whybox}
+Both are $\mathcal{G}$-measurable and both integrate to $\int_G Y$ over every $G \in \mathcal{G}$, so
+$\int_G (V - W)\,\dd\P = 0$ for all $G \in \mathcal{G}$. Now $D := V - W$ is $\mathcal{G}$-measurable.
+Take $G = \set{D > \eps} \in \mathcal{G}$; then $0 = \int_G D \ge \eps\,\P(G)$, forcing
+$\P(D > \eps) = 0$. Let $\eps \downarrow 0$ to get $\P(D > 0) = 0$; by symmetry $\P(D < 0) = 0$. So
+$D = 0$ a.s. The trick --- ``test the difference against the very event where it would be positive''
+--- is the workhorse of the whole subject. It is how you prove two conditional expectations are equal
+without ever computing them.
+\end{whybox}
+
+\subsection{Existence the easy way: the \texorpdfstring{$L^2$}{L2} projection}
+\label{ch38:existence-l2}
+
+Suppose first that $\E[Y^2] < \infty$. Then $Y$ is a vector in the Hilbert space $L^2(\Omega,
+\mathcal{F}, \P)$, and $L^2(\mathcal{G})$ --- the square-integrable $\mathcal{G}$-measurable
+variables --- is a \emph{closed} subspace of it. The Hilbert-space projection theorem hands us a
+unique nearest point $\hat Y \in L^2(\mathcal{G})$, characterized by $\langle Y - \hat Y, Z\rangle =
+0$ for all $Z \in L^2(\mathcal{G})$. Taking $Z = \ind_G$ recovers exactly
+\eqref{ch38:defining-property}. So for square-integrable $Y$, conditional expectation simply
+\emph{is} the orthogonal projection onto $L^2(\mathcal{G})$, and existence is the projection theorem.
+This is the route worth remembering; it is clean, geometric, and complete.
+
+\begin{happeningbox}
+The reason the subspace must be \emph{closed} for the projection theorem to apply is the same reason
+$L^2$ must be \emph{complete} (a Hilbert space, not just an inner-product space): you take limits.
+Completeness of $L^2$ is itself a consequence of the dominated convergence machinery from the Lebesgue
+chapter. So the abstract-looking phrase ``conditional expectation exists'' unwinds, layer by layer,
+into the concrete fact that the Lebesgue integral plays nicely with limits. Every rigorous comfort in
+probability eventually cashes out as a convergence theorem.
+\end{happeningbox}
+
+\subsection{Existence the general way: Radon--Nikodym}
+\label{ch38:existence-rn}
+
+What if $Y$ is integrable but not square-integrable (so it is not a vector in $L^2$)? The projection
+argument no longer applies directly. Kolmogorov's original construction handles every integrable $Y$
+at once, using the Radon--Nikodym theorem. The idea is elegant: build a \emph{measure} out of $Y$,
+notice it has a density with respect to $\P$, and \emph{that density is the conditional expectation.}
+
+\begin{theorem}[Existence via Radon--Nikodym]
+\label{ch38:thm-existence}
+For any integrable $Y$ and any sub-sigma-algebra $\mathcal{G}$, a conditional expectation
+$\E[Y\given\mathcal{G}]$ exists.
+\end{theorem}
+
+\begin{whybox}
+Assume first $Y \ge 0$. Define a set function on the smaller sigma-algebra $\mathcal{G}$:
+\[
+  \nu(G) := \int_G Y \,\dd\P, \qquad G \in \mathcal{G}.
+\]
+This $\nu$ is a (finite) measure on $(\Omega, \mathcal{G})$: it is countably additive because the
+integral is, by monotone convergence. Crucially, $\nu$ is \emph{absolutely continuous} with respect
+to $\P$ restricted to $\mathcal{G}$: if $\P(G) = 0$ then $\int_G Y\,\dd\P = 0$, so $\nu(G) = 0$.
+Whenever one measure is absolutely continuous with respect to another, the Radon--Nikodym theorem
+produces a density --- a $\mathcal{G}$-measurable function $h \ge 0$ with
+\[
+  \nu(G) = \int_G h \,\dd\P \quad\text{for all } G \in \mathcal{G}.
+\]
+Compare with the definition of $\nu$: $\int_G h\,\dd\P = \int_G Y\,\dd\P$ for every $G \in
+\mathcal{G}$, and $h$ is $\mathcal{G}$-measurable. That is precisely Definition
+\ref{ch38:def-cond-exp}. So $h = \E[Y\given\mathcal{G}]$. For general integrable $Y$, split $Y = Y^+
+- Y^-$ into positive and negative parts, apply the above to each, and subtract.
+\end{whybox}
+
+\begin{aestheticbox}
+Take stock of what just happened. The Radon--Nikodym density $\dd\nu/\dd\P$ --- a concept from pure measure
+theory with no probabilistic content --- \emph{is} the conditional expectation. Conditional
+expectation is a change-of-measure derivative. This is the same Radon--Nikodym derivative that
+defines likelihood ratios in statistics and the change of measure in mathematical finance (Girsanov).
+The fact that one theorem simultaneously delivers conditional expectation, likelihood ratios, and
+risk-neutral pricing is one of those moments where the architecture of probability shows through.
+\end{aestheticbox}
+
+\begin{historybox}
+Before Kolmogorov, ``conditional probability given a continuous variable'' was a folklore notion,
+computed by dividing densities and hoping for the best. The contradictions (the Borel--Kolmogorov
+paradox below) were known and embarrassing. In his 1933 monograph \emph{Grundbegriffe der
+Wahrscheinlichkeitsrechnung}, Andrey Kolmogorov reframed the whole subject on measure theory and
+\emph{defined} conditional expectation by the partial-integral property, invoking Radon--Nikodym
+(proved by Otton Nikodym in 1930, building on Johann Radon's 1913 work) for existence. He turned a
+shaky recipe into a theorem. It is hard to overstate how much modern probability --- martingales,
+stochastic calculus, filtering theory --- rests on this single reframing.
+\end{historybox}
+
+\section{It really does recover everything you knew}
+\label{ch38:recovers}
+
+A new definition is only trustworthy if the old correct answers fall out of it. They do.
+
+\subsection{Conditioning on a discrete partition}
+\label{ch38:discrete-recover}
+
+Let $\mathcal{G} = \sigma(B_1, B_2, \dots)$ be generated by a countable partition of $\Omega$ into
+events $B_i$ with $\P(B_i) > 0$. A $\mathcal{G}$-measurable variable must be constant on each $B_i$
+(it cannot distinguish points inside a block), so $\E[Y\given\mathcal{G}] = \sum_i c_i \ind_{B_i}$
+for some constants $c_i$. The averaging property over $G = B_i$ reads $c_i\,\P(B_i) = \int_{B_i}
+Y\,\dd\P$, hence
+\[
+  c_i = \frac{1}{\P(B_i)} \int_{B_i} Y \,\dd\P = \E[Y \given B_i].
+\]
+So on the block $B_i$, the conditional expectation equals the elementary $\E[Y \given B_i]$ --- the
+within-group average from the height-and-shoe-size story. The new definition has reproduced the old
+one exactly, with no density assumption.
+
+\subsection{Conditioning on a continuous variable}
+\label{ch38:continuous-recover}
+
+Let $\mathcal{G} = \sigma(X)$ and suppose $(X, Y)$ has a joint density. A theorem (the Doob--Dynkin
+lemma) says every $\sigma(X)$-measurable variable is a function of $X$, so $\E[Y\given\sigma(X)] =
+g(X)$ for some measurable $g$. Plug into the averaging property over $G = \set{X \in A}$:
+\[
+  \int_{\set{X\in A}} g(X)\,\dd\P = \int_{\set{X\in A}} Y\,\dd\P
+  \;\Longrightarrow\;
+  \int_A g(x) f_X(x)\,\dd x = \int_A \!\!\int y\, f_{X,Y}(x,y)\,\dd y\,\dd x.
+\]
+Since this holds for every Borel set $A$, the integrands match for almost every $x$:
+\[
+  g(x) f_X(x) = \int y\, f_{X,Y}(x,y)\,\dd y
+  \;\Longrightarrow\;
+  g(x) = \int y\,\frac{f_{X,Y}(x,y)}{f_X(x)}\,\dd y = \int y\, f_{Y\given X}(y\given x)\,\dd y.
+\]
+The dividing-densities formula re-emerges --- but now as a \emph{consequence}, valid where the
+densities exist, rather than as a shaky starting point. We write $\E[Y\given\sigma(X)]$ and
+$\E[Y\given X]$ interchangeably; they mean the same random variable.
+
+\begin{walkbox}
+Convince yourself why the constant ``$\E[Y]$'' is the right answer for the trivial sigma-algebra
+$\mathcal{G} = \set{\emptyset, \Omega}$. A $\mathcal{G}$-measurable variable must be constant
+(it cannot resolve any event), say $\equiv c$. The averaging property over $G = \Omega$ gives
+$c = \int_\Omega Y\,\dd\P = \E[Y]$. With \emph{no} information, your best guess is the overall mean.
+The projection picture agrees: $L^2(\mathcal{G})$ is the line of constants, and the nearest constant
+to $Y$ is $\E[Y]$.
+\end{walkbox}
+
+\section{The properties, re-proved from the definition}
+\label{ch38:properties}
+
+Every property you used in the elementary chapter now follows cleanly from measurability plus the
+averaging identity. We prove the most important ones; the pattern is always the same --- propose a
+candidate, check it is $\mathcal{G}$-measurable, verify the partial-integral identity, and invoke
+uniqueness.
+
+\begin{proposition}[Core properties]
+\label{ch38:prop-core}
+Let $Y, Y_1, Y_2$ be integrable and $\mathcal{G} \subseteq \mathcal{F}$.
+\begin{enumerate}
+  \item \textbf{Linearity:} $\E[aY_1 + bY_2 \given \mathcal{G}] = a\,\E[Y_1\given\mathcal{G}] +
+    b\,\E[Y_2\given\mathcal{G}]$.
+  \item \textbf{Taking out what is known:} if $Z$ is $\mathcal{G}$-measurable and $ZY$ integrable,
+    then $\E[ZY \given \mathcal{G}] = Z\,\E[Y\given\mathcal{G}]$.
+  \item \textbf{Tower / smaller wins:} if $\mathcal{H} \subseteq \mathcal{G}$, then
+    $\E\big[\E[Y\given\mathcal{G}] \,\big|\, \mathcal{H}\big] = \E[Y \given \mathcal{H}]$.
+  \item \textbf{Independence drops:} if $Y$ is independent of $\mathcal{G}$, then
+    $\E[Y\given\mathcal{G}] = \E[Y]$.
+  \item \textbf{Monotonicity \& Jensen:} $Y_1 \le Y_2$ a.s.\ implies $\E[Y_1\given\mathcal{G}] \le
+    \E[Y_2\given\mathcal{G}]$ a.s.; and $\varphi(\E[Y\given\mathcal{G}]) \le \E[\varphi(Y)\given
+    \mathcal{G}]$ for convex $\varphi$.
+\end{enumerate}
+\end{proposition}
+
+\begin{whybox}[Taking out what is known]
+We want to show $Z\,\E[Y\given\mathcal{G}]$ is the conditional expectation of $ZY$. It is
+$\mathcal{G}$-measurable (product of two $\mathcal{G}$-measurable things). For the averaging property,
+we must check $\int_G Z\,\E[Y\given\mathcal{G}]\,\dd\P = \int_G ZY\,\dd\P$ for every $G \in
+\mathcal{G}$. Start with $Z = \ind_B$, $B \in \mathcal{G}$: the left side is $\int_{G\cap B}
+\E[Y\given\mathcal{G}]\,\dd\P$, which by the defining property of $\E[Y\given\mathcal{G}]$ (applied to
+the set $G \cap B \in \mathcal{G}$) equals $\int_{G\cap B} Y\,\dd\P = \int_G \ind_B Y\,\dd\P$. So it
+holds for indicators; by linearity it holds for simple $\mathcal{G}$-measurable $Z$; by monotone
+convergence it holds for all $\mathcal{G}$-measurable $Z \ge 0$, then for general $Z$ by splitting.
+Uniqueness finishes the proof. The intuition: variables you already know act like \emph{constants}
+once you have conditioned --- there is nothing left to average about them.
+\end{whybox}
+
+\subsection{The tower property, re-proved}
+\label{ch38:tower}
+
+The tower property is the engine of martingale theory, so it deserves a clean proof from scratch.
+
+\begin{theorem}[Tower property]
+\label{ch38:thm-tower}
+If $\mathcal{H} \subseteq \mathcal{G} \subseteq \mathcal{F}$ and $Y$ is integrable, then
+\[
+  \E\big[\,\E[Y\given\mathcal{G}] \,\big|\, \mathcal{H}\,\big] = \E[Y\given\mathcal{H}]
+  \qquad \text{a.s.}
+\]
+\end{theorem}
+
+\begin{whybox}
+Let $W := \E[Y\given\mathcal{G}]$ and let us show $\E[W \given \mathcal{H}] = \E[Y\given\mathcal{H}]$.
+By uniqueness it suffices to show that $\E[Y\given\mathcal{H}]$ \emph{itself} qualifies as the
+conditional expectation of $W$ given $\mathcal{H}$. It is $\mathcal{H}$-measurable by construction.
+For the averaging property, take any $H \in \mathcal{H}$. Because $\mathcal{H} \subseteq \mathcal{G}$,
+we also have $H \in \mathcal{G}$, so we may use the defining property of $W = \E[Y\given\mathcal{G}]$
+at the set $H$:
+\[
+  \int_H W \,\dd\P \;=\; \int_H Y \,\dd\P \;=\; \int_H \E[Y\given\mathcal{H}] \,\dd\P,
+\]
+where the last equality is the defining property of $\E[Y\given\mathcal{H}]$ at the same $H \in
+\mathcal{H}$. Thus $\int_H W\,\dd\P = \int_H \E[Y\given\mathcal{H}]\,\dd\P$ for all $H \in
+\mathcal{H}$, and $\E[Y\given\mathcal{H}]$ is $\mathcal{H}$-measurable, so it is the conditional
+expectation of $W$. Done.
+\end{whybox}
+
+\begin{happeningbox}
+Notice how short and inevitable that proof is. The entire content is the single line ``$H \in
+\mathcal{H} \subseteq \mathcal{G}$, so the averaging set is legal for both,'' --- coarse information
+is a sub-collection of fine information. The tower property is just \emph{transitivity of
+averaging}: averaging finely and then coarsely is the same as averaging coarsely once, because the
+coarse blocks are unions of fine ones. In the projection picture (Figure
+\ref{ch38:fig-projection}), $L^2(\mathcal{H})$ is a subspace of $L^2(\mathcal{G})$, and projecting
+onto the big plane and then onto the smaller line inside it lands in the same place as projecting onto
+the line directly. The tower property is ``projection of a projection is a projection onto the
+smaller space'' --- a fact you already trust about shadows.
+\end{happeningbox}
+
+Setting $\mathcal{H} = \set{\emptyset, \Omega}$ recovers the law of total expectation
+$\E\big[\E[Y\given\mathcal{G}]\big] = \E[Y]$, the special case you have been using all along.
+
+\section{A picture: the conditional expectation as a step function}
+\label{ch38:step-figure}
+
+Let us see the projection concretely. Take $X \sim \Unif(0,1)$ and $Y = X^2 + \text{noise}$, so the
+true regression curve is $\E[Y\given X = x] = x^2$. If instead of knowing $X$ exactly we only know
+\emph{which quarter} $X$ falls in --- the coarse sigma-algebra $\mathcal{G}$ generated by the
+partition $[0,\tfrac14), [\tfrac14,\tfrac12), [\tfrac12,\tfrac34), [\tfrac34,1)$ --- then
+$\E[Y\given\mathcal{G}]$ must be constant on each quarter, equal to the average of $x^2$ over that
+quarter. It is the best step-function approximation to $x^2$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.6cm,
+  xlabel={$x$}, ylabel={prediction of $Y$},
+  domain=0:1, samples=120,
+  xmin=0, xmax=1, ymin=0, ymax=1.05,
+  legend pos=north west, legend cell align=left,
+  grid=both, grid style={gray!18},
+]
+  % true regression curve E[Y|X=x] = x^2
+  \addplot[densityred, thick, samples=120] {x^2};
+  \addlegendentry{$\E[Y\given X]=x^2$ (full info)}
+  % step function: average of x^2 over each quarter
+  % avg over [a,b] of x^2 = (b^3-a^3)/(3(b-a))
+  \addplot[targetgreen, thick, const plot mark left] coordinates {
+    (0,0.020833) (0.25,0.145833) (0.5,0.395833) (0.75,0.770833) (1,0.770833)
+  };
+  \addlegendentry{$\E[Y\given\mathcal{G}]$ (quarter info)}
+  % vertical partition lines
+  \draw[gray!55, dashed] (axis cs:0.25,0) -- (axis cs:0.25,1.05);
+  \draw[gray!55, dashed] (axis cs:0.5,0) -- (axis cs:0.5,1.05);
+  \draw[gray!55, dashed] (axis cs:0.75,0) -- (axis cs:0.75,1.05);
+\end{axis}
+\end{tikzpicture}
+\caption{Conditional expectation given coarser information. The smooth curve is $\E[Y\given X]=x^2$
+(you know $X$ exactly). The step function is $\E[Y\given\mathcal{G}]$ when you know only which quarter
+$X$ lies in: on each block it is the \emph{average} of the curve, the best constant fit there. As the
+partition refines, the steps shrink toward the curve --- finer information, sharper forecast. This is
+the projection of Figure \ref{ch38:fig-projection} drawn as a function.}
+\label{ch38:fig-step}
+\end{figure}
+
+\begin{aestheticbox}
+Figure \ref{ch38:fig-step} is the whole subject in one image. More information $=$ a finer partition
+$=$ a richer subspace to project onto $=$ a prediction that can hug the truth more closely. The tower
+property says: average the fine step function over the coarse blocks and you get the coarse step
+function. The conditional variance --- the expected squared gap between the steps and the curve --- is
+exactly the part of $\Var(Y)$ that your information cannot explain. Everything we call ``learning from
+data'' is somewhere on this picture.
+\end{aestheticbox}
+
+\section{The paradox that forced this rigor}
+\label{ch38:borel-kolmogorov}
+
+Why insist on conditioning on sigma-algebras instead of just writing $\E[Y \given X = x]$? Because the
+latter, taken literally, is \emph{ambiguous} when $\P(X = x) = 0$ --- and the ambiguity is not
+academic.
+
+\begin{paradoxbox}[Borel--Kolmogorov]
+Pick a point uniformly at random on the surface of the Earth (a sphere). Now condition on the event
+that the point lies \emph{on a particular great circle}. What is the conditional distribution of the
+point along that circle?
+
+\textbf{Answer 1.} Treat the great circle as a line of longitude (a meridian). The two-dimensional
+uniform density on the sphere, expressed in latitude $\theta$ and longitude $\phi$, carries a factor
+$\cos\theta$ (rings near the equator are bigger than rings near the poles). Conditioning on a fixed
+longitude and normalizing the latitude, you get a distribution \emph{proportional to $\cos\theta$} ---
+points bunch toward the equator.
+
+\textbf{Answer 2.} Treat the same great circle as the equator (rotate your coordinates). Now by
+symmetry the conditional distribution is \emph{uniform} along the circle.
+
+Same circle, same uniform point on the sphere, two different conditional distributions. A
+contradiction --- unless conditioning on a measure-zero event is not actually well defined by the
+event alone.
+\end{paradoxbox}
+
+\begin{whybox}[Resolving it]
+The resolution is exactly Kolmogorov's reframing. The event $\set{X = x}$ has probability zero, and
+the symbol $\E[Y \given X = x]$ has \emph{no meaning in isolation}. What is well defined is
+$\E[Y\given\sigma(X)]$, a single function whose values on probability-zero slices are pinned down only
+up to a null set. To get a number on one particular slice you must say \emph{which family of thinning
+events} converges to it --- meridians of longitude versus rings of latitude are two different limiting
+families, and the Jacobian factor ($\cos\theta$ versus $1$) differs between them. The ``paradox'' is
+the failure to specify the limiting procedure. Definition \ref{ch38:def-cond-exp} sidesteps it
+entirely: it never conditions on a single null event, only ever integrates over positive-measure sets
+$G \in \mathcal{G}$, where no ambiguity exists. The price is that the conditional expectation is
+defined only a.s.; the reward is that it is defined \emph{consistently}.
+\end{whybox}
+
+\begin{trapbox}
+The practical lesson: do not assign meaning to $\E[Y\given X = x]$ at an isolated point without a
+density or a stated limiting scheme. With a joint density, the dividing-densities formula gives the
+canonical answer (it secretly fixes the limiting family --- the natural Cartesian thinning). Without
+one, ask ``conditional with respect to which sigma-algebra?'' before you compute anything.
+\end{trapbox}
+
+\section{Why this is the right notion for martingales}
+\label{ch38:martingales}
+
+Now the payoff. A \textbf{filtration} is an increasing chain $\mathcal{F}_0 \subseteq \mathcal{F}_1
+\subseteq \cdots$ of sigma-algebras: $\mathcal{F}_n$ is everything known by time $n$, and information
+only accumulates. A process $(M_n)$ is a \textbf{martingale} (adapted to the filtration) if each $M_n$
+is $\mathcal{F}_n$-measurable, integrable, and
+\begin{equation}
+\label{ch38:martingale-def}
+  \E[M_{n+1} \given \mathcal{F}_n] = M_n \qquad \text{for all } n.
+\end{equation}
+
+This definition is \emph{impossible to state} with the elementary $\E[Y\given X = x]$ machinery: the
+``information at time $n$'' is a whole sigma-algebra, generated by the entire past $M_0, \dots, M_n$
+(and possibly more), not a single value. Conditioning on a sigma-algebra is not a luxury here; it is
+the only language in which a martingale can be written down.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0]
+  % nested sigma-algebras as growing boxes
+  \draw[blue!50!black, thick, rounded corners] (0,0) rectangle (2.0,1.4);
+  \node[blue!50!black] at (1.0,1.65) {\small $\mathcal{F}_0$};
+  \draw[blue!50!black, thick, rounded corners] (0,0) rectangle (3.6,1.4);
+  \node[blue!50!black] at (2.8,1.65) {\small $\mathcal{F}_1$};
+  \draw[blue!50!black, thick, rounded corners] (0,0) rectangle (5.4,1.4);
+  \node[blue!50!black] at (4.5,1.65) {\small $\mathcal{F}_2$};
+  \node[gray!60!black] at (6.2,0.7) {$\subseteq\cdots$};
+  \node at (1.0,0.5) {\small known};
+  \node at (1.0,0.1) {\small at $0$};
+  \node at (4.8,0.5) {\small more};
+  \node at (4.8,0.1) {\small known later};
+  % the conditional expectation arrow
+  \draw[->, thick, densityred] (7.6,1.4) -- (7.6,0.0);
+  \node[densityred, right] at (7.7,1.45) {\small $M_{n+1}$ (random)};
+  \fill[targetgreen] (7.6,0.0) circle (1.8pt);
+  \node[targetgreen, right] at (7.7,0.0) {\small $\E[M_{n+1}\given\mathcal{F}_n]=M_n$};
+  \node[gray!60!black, right, align=left] at (7.7,0.7)
+    {\small project onto\\ \small what is known\\ \small by time $n$};
+\end{tikzpicture}
+\caption{A filtration is a growing stack of information: $\mathcal{F}_0 \subseteq \mathcal{F}_1
+\subseteq \cdots$. The martingale condition projects the unknown future value $M_{n+1}$ onto the
+information $\mathcal{F}_n$ available now; for a fair game the projection lands back on the current
+value $M_n$. Each step is one application of Definition \ref{ch38:def-cond-exp}.}
+\label{ch38:fig-filtration}
+\end{figure}
+
+\begin{applicationbox}[The tower property is the fairness of a fair game]
+Read \eqref{ch38:martingale-def} as: given all the history up to now, the expected next value equals
+the current value --- a fair game, no drift (Figure \ref{ch38:fig-filtration}). The tower property
+(Theorem \ref{ch38:thm-tower}) immediately gives the long-range version. For any $m < n$,
+\[
+  \E[M_n \given \mathcal{F}_m]
+  = \E\big[\E[M_n\given\mathcal{F}_{n-1}] \,\big|\, \mathcal{F}_m\big]
+  = \E[M_{n-1}\given\mathcal{F}_m] = \cdots = M_m,
+\]
+peeling off one step at a time via the tower. A fair game is fair over any horizon, not just one step.
+And taking $m=0$ with $\mathcal{F}_0$ trivial, $\E[M_n] = \E[M_0]$ for all $n$: the expected fortune
+never changes. This single consequence underlies optional stopping, the gambler's-ruin computations,
+and the no-arbitrage pricing of derivatives, where the discounted asset price is a martingale under
+the risk-neutral measure.
+\end{applicationbox}
+
+\begin{happeningbox}
+Why must the \emph{whole} sigma-algebra $\mathcal{F}_n$ appear, rather than just $M_n$? Because
+fairness must hold given \emph{everything} a gambler could know, not merely the current price.
+A process can satisfy $\E[M_{n+1}\given M_n] = M_n$ (fair given only the last value) yet fail
+$\E[M_{n+1}\given\mathcal{F}_n] = M_n$ (using the full past lets you detect a pattern and beat the
+game). The sigma-algebra formulation closes that loophole. ``You cannot beat a martingale'' is a
+statement about \emph{all} usable information, which is exactly what a sigma-algebra encodes.
+\end{happeningbox}
+
+\section{Why this is the right notion for Bayesian updating}
+\label{ch38:bayes}
+
+Bayesian inference is conditioning made into a worldview: you hold a prior over an unknown $\Theta$,
+observe data $D$, and update to the posterior. The posterior \emph{mean} $\E[\Theta \given D]$ is a
+conditional expectation in exactly our sense, and the projection picture explains why it is the
+optimal estimate.
+
+\begin{applicationbox}[The posterior mean is the optimal point estimate]
+Suppose you must report a single number $\hat\theta(D)$ to estimate $\Theta$, and you will be scored
+by squared error $\E[(\Theta - \hat\theta(D))^2]$. Your estimate may depend only on the data, i.e.\ it
+must be $\sigma(D)$-measurable. This is precisely the least-squares problem
+\eqref{ch38:l2-problem} with $Y = \Theta$ and information $\mathcal{G} = \sigma(D)$. Its solution is
+the projection:
+\[
+  \hat\theta(D) = \E[\Theta \given D] = \text{posterior mean}.
+\]
+\emph{Under squared-error loss, the Bayes-optimal estimator is the posterior mean} --- not by
+convention, but because it is the orthogonal projection of the truth onto the space of data-driven
+guesses. The data filtration grows as observations arrive; the tower property says yesterday's
+posterior is the prior for today, and updating in one batch or sequentially gives the same answer.
+Bayesian learning \emph{is} a sequence of projections onto ever-finer information.
+\end{applicationbox}
+
+\begin{connectionbox}
+The same projection idea, restricted to \emph{linear} functions of the data instead of all functions,
+gives linear regression and the Kalman filter. Linear regression projects $Y$ onto the subspace
+spanned by $\set{1, X_1, \dots, X_p}$; conditional expectation projects onto the much larger subspace
+of \emph{all} functions of the data. So $\E[Y\given X]$ is the ``true'' regression function and
+ordinary least squares is its best linear approximation. When $(Y, X)$ is jointly Gaussian the two
+coincide --- the conditional expectation is already linear --- which is the secret reason the Kalman
+filter, built from linear projections, is exactly optimal in the Gaussian world. See the linear
+algebra companion for the projection machinery and the estimation chapters here for the statistics.
+\end{connectionbox}
+
+\section{A fully worked example}
+\label{ch38:worked}
+
+\begin{example}[Conditioning a sum on one of its parts, three ways]
+\label{ch38:ex-sum}
+Let $X, Y$ be independent with $\E[X] = \mu_X$, $\E[Y] = \mu_Y$, and let $S = X + Y$. We compute
+$\E[X \given S]$, $\E[S \given X]$, and verify the tower property, using only the rules of
+Proposition \ref{ch38:prop-core}.
+
+\textbf{(a) $\E[S\given X]$.} Write $S = X + Y$ and use linearity: $\E[S\given X] = \E[X\given X] +
+\E[Y\given X]$. Now $X$ is $\sigma(X)$-measurable so $\E[X\given X] = X$ (take out what is known, with
+$Y=1$). And $Y \indep X$, so $\E[Y\given X] = \E[Y] = \mu_Y$ (independence drops). Hence
+\[
+  \E[S\given X] = X + \mu_Y.
+\]
+Sensible: knowing $X$, the only randomness left in $S$ is $Y$, whose average is $\mu_Y$.
+
+\textbf{(b) $\E[X\given S]$ when $X, Y$ are i.i.d.} Now suppose $X$ and $Y$ have the \emph{same}
+distribution. By symmetry $\E[X\given S]$ and $\E[Y\given S]$ are a.s.\ equal as functions of $S$ (the
+symmetric roles give identical $\sigma(S)$-measurable answers). Their sum is forced:
+\[
+  \E[X\given S] + \E[Y\given S] = \E[X + Y\given S] = \E[S\given S] = S,
+\]
+so each equals $S/2$:
+\[
+  \boxed{\;\E[X\given S] = \tfrac{S}{2}.\;}
+\]
+No densities, no integrals --- pure structure. If $X,Y \sim \Pois(\lambda)$ then given $S = n$, $X$ is
+$\Bin(n, \tfrac12)$ with mean $n/2$, matching. If $X,Y \sim \Normal(0,\sigma^2)$, then given $S$, $X$
+is Gaussian with mean $S/2$, matching again. One symmetry argument, every distribution at once.
+
+\textbf{(c) Tower check.} We verify $\E\big[\E[X\given S]\big] = \E[X]$ in the i.i.d.\ case:
+$\E[S/2] = \tfrac12(\mu_X + \mu_Y) = \mu_X$ since $\mu_X = \mu_Y$. The law of total expectation holds.
+\end{example}
+
+\begin{labbox}
+Redo Example \ref{ch38:ex-sum}(b) without symmetry, when $X \sim \Pois(\alpha)$, $Y \sim
+\Pois(\beta)$ are independent with $\alpha \ne \beta$. Show that given $S = n$, $X \sim \Bin(n,
+\tfrac{\alpha}{\alpha+\beta})$ and therefore $\E[X\given S] = \tfrac{\alpha}{\alpha+\beta}\,S$. Notice
+the answer is again \emph{linear} in $S$ even though no Gaussian is in sight --- and check it reduces
+to $S/2$ when $\alpha = \beta$.
+\end{labbox}
+
+\section{Summary}
+\label{ch38:summary}
+
+\begin{recoverybox}
+\begin{itemize}
+  \item Conditional expectation $\E[Y\given\mathcal{G}]$ is the unique (a.s.)\ random variable that is
+    (i) $\mathcal{G}$-measurable and (ii) has the same integral as $Y$ over every $G \in \mathcal{G}$.
+    No division by probabilities, so it survives null events.
+  \item Geometrically it is the \emph{orthogonal projection} of $Y$ onto $L^2(\mathcal{G})$ --- the
+    best mean-squared predictor using the information $\mathcal{G}$. The error is uncorrelated with
+    everything you know.
+  \item Existence: for square-integrable $Y$, the Hilbert-space projection theorem; for any integrable
+    $Y$, the Radon--Nikodym theorem, which makes $\E[Y\given\mathcal{G}]$ a change-of-measure density.
+  \item It recovers the elementary definitions --- group averages over a partition, dividing densities
+    for a continuous $X$, and $\E[Y]$ for no information --- as special cases.
+  \item Linearity, taking out known factors, independence-drops, monotonicity, Jensen, and the
+    \emph{tower property} all fall out by the candidate-and-uniqueness method. The tower property is
+    transitivity of averaging, or projection-of-a-projection.
+  \item The Borel--Kolmogorov paradox shows why conditioning on a bare null event is ill-posed; the
+    sigma-algebra formulation is the cure.
+  \item This is the native language of martingales ($\E[M_{n+1}\given\mathcal{F}_n] = M_n$) and of
+    Bayesian updating (the posterior mean $\E[\Theta\given D]$ is the squared-error-optimal estimator).
+\end{itemize}
+\end{recoverybox}
+
+\section{Exercises}
+\label{ch38:exercises}
+
+\begin{exercise}[Definition drill]
+\label{ch38:ex-def}
+Let $\Omega = \set{1,2,3,4}$ with $\P$ uniform, and let $\mathcal{G} = \sigma(\set{1,2}, \set{3,4})$.
+Let $Y(\omega) = \omega^2$. Compute $\E[Y\given\mathcal{G}]$ explicitly as a function on $\Omega$, and
+verify the averaging property \eqref{ch38:defining-property} for $G = \set{1,2}$ and for $G =
+\set{3,4}$.
+\end{exercise}
+
+\begin{exercise}[Smoothing reduces variance]
+\label{ch38:ex-variance}
+Assume $\E[Y^2] < \infty$. Using the orthogonality \eqref{ch38:orthogonality} with
+$Z = \E[Y\given\mathcal{G}]$ (here a bounded approximation argument lets you take $Z$ square-integrable),
+prove the
+Pythagorean identity $\E[Y^2] = \E\big[\E[Y\given\mathcal{G}]^2\big] +
+\E\big[(Y - \E[Y\given\mathcal{G}])^2\big]$. Deduce that $\Var(\E[Y\given\mathcal{G}]) \le \Var(Y)$:
+conditioning never increases variance. When is it an equality?
+\end{exercise}
+
+\begin{exercise}[Take-out rule by hand]
+\label{ch38:ex-takeout}
+Let $X \sim \Unif(0,1)$ and $Y = X U$ where $U \sim \Unif(0,1)$ is independent of $X$. Find
+$\E[Y\given X]$ using ``take out what is known'' plus ``independence drops,'' then verify your answer
+by direct integration against $f_{Y\given X}$.
+\end{exercise}
+
+\begin{exercise}[Conditioning on a coarser sigma-algebra]
+\label{ch38:ex-coarser}
+For the setup of Figure \ref{ch38:fig-step} ($\E[Y\given X] = X^2$, $X \sim \Unif(0,1)$), compute the
+four step heights of $\E[Y\given\mathcal{G}]$ for the quarter-partition by averaging $x^2$ over each
+quarter, and confirm they match the values plotted. Then compute $\E\big[\E[Y\given\mathcal{G}]\big]$
+two ways (from the steps, and as $\E[X^2] = 1/3$) to check the tower property.
+\end{exercise}
+
+\begin{exercise}[Tower in action]
+\label{ch38:ex-tower}
+Let $N \sim \Pois(\lambda)$ and, given $N = n$, let $S = \sum_{i=1}^n X_i$ with the $X_i$ i.i.d.\
+mean $\mu$, independent of $N$. Using the tower property with $\mathcal{F} = \sigma(N)$, prove
+$\E[S] = \lambda\mu$. Then identify the sigma-algebra you conditioned on and explain in one sentence
+why $\E[S\given N] = N\mu$ qualifies as a conditional expectation per Definition
+\ref{ch38:def-cond-exp}.
+\end{exercise}
+
+\begin{exercise}[Martingale from a fixed variable]
+\label{ch38:ex-martingale}
+Let $\mathcal{F}_0 \subseteq \mathcal{F}_1 \subseteq \cdots$ be a filtration and $Y$ an integrable
+variable. Define $M_n := \E[Y\given\mathcal{F}_n]$ (a ``Doob martingale''). Use the tower property to
+prove $(M_n)$ is a martingale, i.e.\ $\E[M_{n+1}\given\mathcal{F}_n] = M_n$. Interpret $M_n$ as ``the
+current best estimate of $Y$ given what is known so far,'' and explain why a fair-game property is
+exactly what you would expect of a well-behaved running estimate.
+\end{exercise}
+
+\begin{exercise}[Posterior mean is optimal]
+\label{ch38:ex-bayes}
+Let $\Theta \sim \Bet(a,b)$ and, given $\Theta = \theta$, let $D \sim \Bin(n,\theta)$. Find the
+posterior $\Theta \given D$ and its mean $\E[\Theta\given D]$. Then argue from the least-squares
+characterization \eqref{ch38:l2-problem} that no other function of $D$ achieves smaller expected
+squared error against $\Theta$.
+\end{exercise}
+
+\begin{exercise}[Why measurability cannot be dropped --- proof]
+\label{ch38:ex-measurability}
+Show by a counterexample that the averaging property \eqref{ch38:defining-property} \emph{alone},
+without the $\mathcal{G}$-measurability requirement, fails to determine a unique object: exhibit two
+distinct variables that integrate to $\int_G Y$ over every $G \in \mathcal{G}$ but are not both
+$\mathcal{G}$-measurable. Conclude that measurability is doing essential work in pinning down ``what
+your information can compute.''
+\end{exercise}
+
+\begin{exercise}[Borel--Kolmogorov in coordinates --- proof]
+\label{ch38:ex-borel}
+On the unit disk with uniform distribution, let $(R,\Theta)$ be polar coordinates. Conditioning on
+$\Theta = \theta_0$ (a radius), show the conditional density of $R$ is proportional to $r$ on
+$[0,1]$, not uniform. Then re-derive the ``conditional distribution along a radius'' as the limit of
+thin angular wedges and confirm the same answer; finally explain in one paragraph how choosing a
+different thinning family would change it, mirroring the sphere paradox of Section
+\ref{ch38:borel-kolmogorov}.
+\end{exercise}

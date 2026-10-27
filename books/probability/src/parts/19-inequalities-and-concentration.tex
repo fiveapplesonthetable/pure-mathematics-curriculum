@@ -1,0 +1,896 @@
+\chapter{Inequalities and Concentration}
+
+Up to now we have spent most of our energy computing things \emph{exactly}.
+We found exact probabilities, exact expectations, exact variances, exact
+distributions of sums. That is a valuable skill, but it has a quiet
+limitation: real problems rarely hand you a distribution clean enough to
+compute with. You will often know the mean of a quantity, maybe its variance,
+perhaps
+that it is a sum of independent pieces --- and almost nothing else. The full
+distribution is a mystery. And yet you are asked, again and again, a very
+practical question:
+
+\begin{quote}
+\emph{How likely is this random quantity to land far from where I expect it
+to be?}
+\end{quote}
+
+This is the question of \textbf{tail probabilities}, and the tools that answer
+it without knowing the whole distribution are called \textbf{inequalities}. An
+inequality trades exactness for robustness. Instead of saying ``the chance of
+a big deviation is exactly $0.0137$,'' it says ``the chance is \emph{at most}
+$0.02$, no matter what the distribution is, as long as it has this mean and
+this variance.'' That ``no matter what'' is where the leverage comes from. It
+is a guarantee that holds across an entire universe of distributions you never
+had to identify.
+
+The real payoff of these inequalities is a phenomenon called
+\textbf{concentration}: when you average many independent random things, the
+average stops being random in any practical sense. It \emph{concentrates}
+near a single number, tighter and tighter as you add more terms, and the
+probability of any meaningful deviation collapses --- often
+\emph{exponentially} fast. Concentration is the reason polls work, the reason
+casinos are never surprised, the reason a machine-learning model trained on a
+big sample generalizes to data it has never seen. It is, with very little
+exaggeration, the mathematical engine underneath all of statistics and much of
+modern data science.
+
+The chapter builds in stages. We start with Markov's inequality, the humblest
+and most universal bound, squeezed out of nothing but non-negativity.
+Chebyshev's inequality comes next; it adds the variance and gives our first
+real concentration result. From there we make the jump to \emph{exponential}
+bounds --- Chernoff and Hoeffding --- which are what make concentration
+genuinely powerful. Along the way we meet Jensen's inequality, the one bound in
+this chapter that is about \emph{shape} rather than tails, and which quietly
+underwrites half the proofs in the subject.
+
+\chapterline
+
+\section{The Problem: Bounding the Unknown}
+\label{ch19:problem}
+
+Let us start with a story that has no clean distribution in it at all.
+
+A factory ships boxes of bolts. You are told one fact and one fact only: the
+\emph{average} number of defective bolts per box is $2$. A buyer asks: ``What
+fraction of boxes contain $10$ or more defective bolts?'' You do not know the
+distribution of defects. It could be Poisson, it could be lumpy, it could be
+anything. Can you say \emph{anything} useful?
+
+It feels like you cannot. With only the mean, the distribution is wide open.
+And yet there is a hard ceiling hiding in plain sight. Defect counts cannot be
+negative. That single constraint --- non-negativity --- combined with the
+known average, is enough to corner the answer.
+
+\begin{intuitionbox}
+Here is the whole idea in one sentence. \emph{If the average is small but a
+value is large, then that large value cannot happen too often --- because if
+it did, it would drag the average up past where we know it sits.}
+
+Suppose, for contradiction, that more than $1/5$ of boxes had $10$ or more
+defects. Those boxes alone would contribute more than $\tfrac15 \times 10 = 2$
+to the average. Every other box contributes a non-negative amount on top of
+that. So the overall average would have to exceed $2$. But the average
+\emph{is} $2$. Contradiction. Therefore at most $1/5$ of boxes can have $10$
+or more defects.
+\end{intuitionbox}
+
+That little argument is the entire content of Markov's inequality. No
+distribution required. Just ``values are non-negative'' and ``here is the
+mean.'' Let us make it a theorem.
+
+\section{Markov's Inequality: Everything From Non-Negativity}
+\label{ch19:markov}
+
+\begin{theorem}[Markov's inequality]
+\label{ch19:markov-thm}
+Let $X$ be a random variable with $X \ge 0$, and let $a > 0$. Then
+\[
+  \P(X \ge a) \;\le\; \frac{\E[X]}{a}.
+\]
+\end{theorem}
+
+\begin{whybox}
+The proof is the sand-on-a-seesaw picture turned into one line. The trick is to
+build a crude ``staircase'' function that lies underneath $X$ but is easy to
+average.
+
+Fix $a>0$ and look at the indicator $\ind\set{X \ge a}$, which is $1$ when
+$X \ge a$ and $0$ otherwise. We claim the simple inequality
+\[
+  a \cdot \ind\set{X \ge a} \;\le\; X
+  \qquad \text{(always, for every outcome).}
+\]
+Check the two cases. If $X \ge a$, the left side is $a$ and the right side is
+$X \ge a$, so the inequality holds. If $X < a$, the left side is $0$ and the
+right side is $X \ge 0$ (here we use non-negativity!), so it holds again. The
+inequality is true outcome by outcome, so it survives taking expectations:
+\[
+  a\,\E\!\left[\ind\set{X\ge a}\right] \;\le\; \E[X].
+\]
+But the expectation of an indicator is just the probability of the event,
+$\E[\ind\set{X\ge a}] = \P(X\ge a)$. Divide by $a>0$ and you are done.
+Figure~\ref{ch19:fig-markov} shows the staircase-under-the-line picture that
+the algebra is tracking.
+\end{whybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xmin=0, xmax=6, ymin=0, ymax=5,
+  xlabel={value of $X$}, ylabel={},
+  xtick={2.5}, xticklabels={$a$},
+  ytick={2.5}, yticklabels={$a$},
+  axis lines=left,
+  domain=0:6, samples=2,
+  legend pos=north west,
+]
+\addplot[densityred, thick] {x};
+\addlegendentry{$y=x$}
+\addplot[sourceblue, thick] coordinates {(0,0) (2.5,0)};
+\addplot[sourceblue, thick] coordinates {(2.5,2.5) (6,2.5)};
+\addlegendentry{$y=a\,\ind\{x\ge a\}$}
+\draw[gray, dashed] (axis cs:2.5,0) -- (axis cs:2.5,2.5);
+\end{axis}
+\end{tikzpicture}
+\caption{Markov's inequality in one picture. The blue staircase
+$a\,\ind\{x\ge a\}$ never rises above the red line $y=x$ as long as $x\ge 0$.
+Averaging the staircase gives $a\,\P(X\ge a)$; averaging the line gives
+$\E[X]$. Since the staircase sits underneath, $a\,\P(X\ge a)\le \E[X]$.}
+\label{ch19:fig-markov}
+\end{figure}
+
+\begin{happeningbox}
+Markov's inequality looks almost too weak to be useful --- and used naively,
+it often is. Its real power is that it is a \emph{template}. The proof never
+cared that $X$ was the original quantity of interest. If you can find
+\emph{any} clever non-negative function $g(X) \ge 0$ that blows up when $X$
+strays, you can apply Markov to $g(X)$ and get a bound on $X$ straying. Feed
+it $g(X) = (X-\mu)^2$ and out pops Chebyshev. Feed it
+$g(X) = e^{tX}$ and out pops the Chernoff bound, the most powerful tail
+inequality in this book. Every concentration result we prove is Markov's
+inequality wearing a different costume.
+\end{happeningbox}
+
+\begin{example}[The bolt boxes, finished]
+\label{ch19:ex-bolts}
+With $X = $ defects per box, $\E[X]=2$, and $a=10$:
+\[
+  \P(X \ge 10) \;\le\; \frac{\E[X]}{10} = \frac{2}{10} = \frac15.
+\]
+At most $20\%$ of boxes have $10$ or more defective bolts --- guaranteed,
+with no knowledge of the distribution. If the truth happened to be Poisson
+with mean $2$, the real probability is about $0.0000465$ (that is,
+$4.6\times 10^{-5}$), so Markov is wildly loose here. That looseness is the price of universality: the bound has to hold
+even for the worst-case distribution, which in this case is a nasty one that
+puts a tiny sliver of mass exactly at $10$ and the rest at $0$.
+\end{example}
+
+\begin{trapbox}
+Markov needs $X \ge 0$. Forgetting this is the classic blunder. If $X$ can be
+negative, the staircase argument breaks at the step ``$X < a$ implies
+$X \ge 0$,'' and the bound is simply false. To bound a two-sided quantity like
+$X-\mu$, do not apply Markov to it directly --- apply Markov to a non-negative
+\emph{function} of it, such as $(X-\mu)^2$. That detour is exactly how we get
+Chebyshev next.
+\end{trapbox}
+
+\begin{historybox}
+The inequality is named for \textbf{Andrey Markov} (1856--1922), the St.\
+Petersburg mathematician who also gave us Markov chains. He published it in the
+early $1900$s, though the core idea --- that a non-negative quantity with a
+small average cannot often be large --- was used earlier by his teacher
+\textbf{Pafnuty Chebyshev} in the proof of the inequality that now bears
+Chebyshev's name. The two results are a matched pair: Markov is the raw
+lemma, Chebyshev the polished theorem built from it. It is a small historical
+irony that the cruder bound carries the student's name and the sharper one the
+teacher's.
+\end{historybox}
+
+\section{Chebyshev's Inequality: Bringing In the Variance}
+\label{ch19:chebyshev}
+
+Markov used only the mean. But if you also know the \emph{variance} --- how
+spread out $X$ is --- you should be able to say much more about how far $X$
+wanders. Variance is literally a measure of typical squared distance from the
+mean, so it is exactly the right currency for buying a tail bound.
+
+The move is the one the happeningbox promised: apply Markov not to $X$, but to
+the non-negative quantity $(X-\mu)^2$.
+
+\begin{theorem}[Chebyshev's inequality]
+\label{ch19:cheb-thm}
+Let $X$ have mean $\mu = \E[X]$ and finite variance $\sigma^2 = \Var(X)$. Then
+for any $k > 0$,
+\[
+  \P\bigl(\abs{X-\mu} \ge k\bigr) \;\le\; \frac{\sigma^2}{k^2}.
+\]
+Equivalently, writing the deviation in units of standard deviations
+($k = c\,\sigma$),
+\[
+  \P\bigl(\abs{X-\mu} \ge c\,\sigma\bigr) \;\le\; \frac{1}{c^2}.
+\]
+\end{theorem}
+
+\begin{whybox}
+Let $Y = (X-\mu)^2$. This $Y$ is non-negative, so Markov applies. Its mean is
+the variance: $\E[Y] = \E[(X-\mu)^2] = \sigma^2$. Now notice that the events
+$\set{\abs{X-\mu}\ge k}$ and $\set{Y \ge k^2}$ are the \emph{same event} ---
+$\abs{X-\mu}\ge k$ exactly when $(X-\mu)^2 \ge k^2$. So
+\[
+  \P\bigl(\abs{X-\mu}\ge k\bigr)
+  = \P\bigl(Y \ge k^2\bigr)
+  \;\overset{\text{Markov}}{\le}\;
+  \frac{\E[Y]}{k^2}
+  = \frac{\sigma^2}{k^2}.
+\]
+That is the whole proof. Squaring turned a two-sided deviation into a
+one-sided statement about a non-negative variable, and Markov finished the
+job.
+\end{whybox}
+
+The ``standard deviations'' form is the one worth memorizing, because it is
+distribution-free and strikingly clean:
+
+\begin{itemize}
+  \item At least $1 - 1/2^2 = 75\%$ of any distribution's mass lies within
+        $2$ standard deviations of the mean.
+  \item At least $1 - 1/3^2 \approx 88.9\%$ lies within $3$ standard
+        deviations.
+  \item At least $1 - 1/4^2 \approx 93.75\%$ lies within $4$.
+\end{itemize}
+
+No bell-curve assumption, no symmetry, nothing. Any random variable with a
+finite variance obeys these; Figure~\ref{ch19:fig-cheb} plots the ceiling
+$1/c^2$ against the much smaller Gaussian tail. (The Normal distribution does far better ---
+about $95\%$ within two standard deviations and $99.7\%$ within three --- but
+that requires \emph{knowing} you have a Normal. Chebyshev is the floor that
+holds for everyone.)
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=6cm,
+  xmin=1, xmax=5, ymin=0, ymax=1.05,
+  xlabel={$c$ = deviation in standard deviations},
+  ylabel={tail probability bound},
+  domain=1:5, samples=120,
+  legend pos=north east,
+  grid=both, grid style={gray!18},
+]
+\addplot[densityred, thick] {1/(x^2)};
+\addlegendentry{Chebyshev bound $1/c^2$}
+\addplot[sourceblue, thick, dashed] {exp(-x^2/2)};
+\addlegendentry{Gaussian tail bound $e^{-c^2/2}$}
+\end{axis}
+\end{tikzpicture}
+\caption{The Chebyshev ceiling $1/c^2$ (red) bounds the probability of being
+at least $c$ standard deviations from the mean, for \emph{any} distribution.
+For comparison the Gaussian tail bound $e^{-c^2/2}$ (blue dashed), which
+controls the Normal, is far smaller --- Chebyshev pays for its universality
+with looseness, but it never lies.}
+\label{ch19:fig-cheb}
+\end{figure}
+
+\begin{example}[Polling, the crude version]
+\label{ch19:ex-poll}
+You poll $n$ people and let $\hat p$ be the fraction who say ``yes.'' Each
+response is $\Bern(p)$, so $\hat p$ has mean $p$ and variance
+$p(1-p)/n \le 1/(4n)$ (the variance of a Bernoulli is largest at $p=1/2$).
+Chebyshev says
+\[
+  \P\bigl(\abs{\hat p - p} \ge \eps\bigr)
+  \;\le\; \frac{\Var(\hat p)}{\eps^2}
+  \;\le\; \frac{1}{4n\eps^2}.
+\]
+To be within $\eps = 0.03$ of the truth with probability at least $95\%$, set
+$1/(4n\eps^2) \le 0.05$, giving $n \ge 1/(4\cdot 0.05 \cdot 0.0009) \approx
+5556$. So a few thousand respondents pin down a national opinion to within
+three points --- and this is the \emph{pessimistic} Chebyshev count. The
+exponential bounds later in the chapter will sharpen it, but the headline is
+already here: accuracy depends on $n$, not on the size of the population.
+\end{example}
+
+\begin{happeningbox}
+Look at what Chebyshev does to an \emph{average}. Let
+$\bar X_n = \frac1n\sum_{i=1}^n X_i$ be the average of $n$ independent copies,
+each with mean $\mu$ and variance $\sigma^2$. Variances of independent things
+add, and the $1/n$ out front gets squared, so
+$\Var(\bar X_n) = \sigma^2/n$. Plug into Chebyshev:
+\[
+  \P\bigl(\abs{\bar X_n - \mu} \ge \eps\bigr)
+  \;\le\; \frac{\sigma^2}{n\,\eps^2}
+  \;\xrightarrow[n\to\infty]{}\; 0.
+\]
+The right-hand side melts to zero as $n$ grows. The average concentrates on
+$\mu$. This single line is a complete proof of the \textbf{Weak Law of Large
+Numbers} --- the formal statement that sample averages converge in
+probability to the true mean. We will revisit it in its own chapter, but you
+have just watched it fall out of one inequality. \emph{This} is concentration:
+randomness in the average does not merely shrink, it provably shrinks, and we
+can say how fast.
+\end{happeningbox}
+
+\section{What ``Concentration'' Really Means}
+\label{ch19:concentration}
+
+Pause to appreciate the shift in worldview. A single fair coin flip is maximally
+uncertain --- you cannot predict it at all. But the \emph{average} of a million
+fair coin flips is almost perfectly predictable: it will be $0.5$ to within a
+whisker, essentially every time. The randomness has not disappeared; it has
+been \emph{diluted}. Each flip still surprises you, but their collective
+average has nowhere to hide. Figure~\ref{ch19:fig-concentration} shows the
+distribution of the sample average tightening around $0.5$ as $n$ grows.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=6cm,
+  xmin=0, xmax=1,
+  ymin=0, ymax=12,
+  xlabel={value of the sample average $\bar X_n$},
+  ylabel={density (schematic)},
+  domain=0:1, samples=160,
+  legend pos=north west,
+  ytick=\empty,
+]
+\addplot[sourceblue, thick] {1/(0.18*sqrt(2*pi))*exp(-((x-0.5)^2)/(2*0.18^2))};
+\addlegendentry{$n=10$}
+\addplot[quotientorange, thick] {1/(0.08*sqrt(2*pi))*exp(-((x-0.5)^2)/(2*0.08^2))};
+\addlegendentry{$n=50$}
+\addplot[densityred, thick] {1/(0.035*sqrt(2*pi))*exp(-((x-0.5)^2)/(2*0.035^2))};
+\addlegendentry{$n=250$}
+\draw[gray, dashed] (axis cs:0.5,0) -- (axis cs:0.5,12);
+\end{axis}
+\end{tikzpicture}
+\caption{Concentration in action. As the number of averaged coin flips $n$
+grows, the distribution of the sample average $\bar X_n$ piles up ever more
+tightly around the true mean $0.5$. The spread shrinks like $1/\sqrt n$; the
+\emph{tail probability} of any fixed deviation shrinks far faster, as the next
+section shows.}
+\label{ch19:fig-concentration}
+\end{figure}
+
+\begin{aestheticbox}
+Chebyshev's $\sigma^2/(n\eps^2)$ tells us the tail probability shrinks at least
+as fast as $1/n$. That is genuinely useful, and for a long time it was the best
+general tool available. But $1/n$ is, for many purposes, embarrassingly slow.
+To drive a failure probability down to one in a million, $1/n$ decay demands
+about a million samples. The remarkable discovery of the twentieth century is
+that for \emph{sums of independent bounded variables}, the true decay is
+\emph{exponential} in $n$: the tail behaves like $e^{-cn}$, not $1/n$. One in a
+million then costs only a few dozen samples' worth of exponent. The leap from
+polynomial to exponential decay is the difference between statistics that
+``eventually works'' and statistics that works \emph{decisively}. The tool
+that captures it is the Chernoff method.
+\end{aestheticbox}
+
+\section{The Chernoff Method: Exponential Tails}
+\label{ch19:chernoff}
+
+Why is Chebyshev slow? Because $(X-\mu)^2$ grows only quadratically, so a
+single far-out outlier is not penalized very harshly inside the expectation.
+To get an exponential tail bound we need an exponentially harsh penalty. So we
+feed Markov's inequality the most aggressive non-negative function we have:
+the exponential $e^{tX}$.
+
+Here is the trick in full. For any $t > 0$, the event $\set{X \ge a}$ is
+identical to $\set{e^{tX} \ge e^{ta}}$, because $e^{t\,\cdot}$ is increasing.
+Apply Markov to the non-negative variable $e^{tX}$:
+\[
+  \P(X \ge a) \;=\; \P\bigl(e^{tX} \ge e^{ta}\bigr)
+  \;\le\; \frac{\E[e^{tX}]}{e^{ta}}
+  \;=\; e^{-ta}\,M_X(t),
+\]
+where $M_X(t) = \E[e^{tX}]$ is the \textbf{moment generating function} we met
+in the chapter on generating functions. This holds for \emph{every} $t > 0$
+simultaneously, so we are free to choose the $t$ that makes the bound
+tightest:
+\[
+  \boxed{\;\P(X \ge a) \;\le\; \min_{t>0}\; e^{-ta}\,M_X(t).\;}
+\]
+This is the \textbf{Chernoff bound}. The minimization over $t$ is what gives it
+its power.
+
+\begin{whybox}
+Why does optimizing over $t$ unlock exponential decay? Think of $e^{-ta}M_X(t)$
+as a family of bounds, one per $t$. A small $t$ barely penalizes large values,
+giving a weak bound; a huge $t$ penalizes them ferociously but blows up
+$M_X(t)$ itself. Somewhere in between is a sweet spot where the two effects
+balance, and at that sweet spot the exponent $-ta$ wins out, scaling linearly
+in $a$ inside an exponential. Because $M_X(t)$ for a \emph{sum} of $n$
+independent variables factorizes --- $M_{S_n}(t) = M_X(t)^n$ --- the whole
+bound becomes $\bigl(e^{-ta/n}M_X(t)\bigr)^n$, an $n$-th power. A number less
+than one raised to the $n$ is exponential decay in $n$. That factorization,
+inherited from independence, is the engine. Chebyshev never exploited it
+because squaring does not turn products into powers the way exponentials do.
+\end{whybox}
+
+\begin{example}[Chernoff for a sum of fair coins]
+\label{ch19:ex-chernoff-coins}
+Let $S_n = X_1 + \cdots + X_n$ be the number of heads in $n$ fair flips, so
+$\E[S_n] = n/2$. Each $X_i$ has MGF
+$\E[e^{tX_i}] = \tfrac12(1 + e^{t})$, and by independence
+$M_{S_n}(t) = \bigl(\tfrac12(1+e^t)\bigr)^n$. The Chernoff bound on the chance
+of seeing at least $(\tfrac12 + \delta)n$ heads is
+\[
+  \P\!\left(S_n \ge \bigl(\tfrac12+\delta\bigr)n\right)
+  \;\le\;
+  \min_{t>0}\, e^{-t(\frac12+\delta)n}\Bigl(\tfrac12(1+e^t)\Bigr)^n .
+\]
+Carrying out the minimization (set the derivative of the exponent to zero) and
+simplifying yields the clean exponential
+\[
+  \P\!\left(S_n \ge \bigl(\tfrac12+\delta\bigr)n\right)
+  \;\le\; e^{-2\delta^2 n}.
+\]
+Compare to Chebyshev, which here gives only
+$\P(\abs{S_n - n/2}\ge \delta n) \le 1/(4\delta^2 n)$, a measly $1/n$. For a
+$10\%$ excess ($\delta = 0.1$) with $n = 1000$ flips, Chebyshev allows up to
+$1/40 = 2.5\%$; Chernoff caps it at $e^{-20} \approx 2\times 10^{-9}$. That is
+the chasm between polynomial and exponential, drawn on a log scale in
+Figure~\ref{ch19:fig-chernoff-vs-cheb}.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=6.2cm,
+  xmin=0, xmax=1000,
+  ymin=1e-12, ymax=1,
+  ymode=log,
+  xlabel={number of samples $n$},
+  ylabel={upper bound on tail probability},
+  legend pos=north east,
+  domain=10:1000, samples=80,
+  grid=both, grid style={gray!18},
+]
+\addplot[densityred, thick] {1/(4*0.1^2*x)};
+\addlegendentry{Chebyshev $\sim 1/n$}
+\addplot[sourceblue, thick] {exp(-2*0.1^2*x)};
+\addlegendentry{Chernoff $\sim e^{-2\delta^2 n}$}
+\end{axis}
+\end{tikzpicture}
+\caption{Tail bound on $\P(S_n \ge (\tfrac12+\delta)n)$ for $\delta=0.1$, on a
+log scale. Chebyshev (red) crawls down like $1/n$; Chernoff (blue) plunges
+exponentially. By $n=1000$ they differ by many orders of magnitude. This gap
+is why concentration is taken seriously.}
+\label{ch19:fig-chernoff-vs-cheb}
+\end{figure}
+
+\begin{historybox}
+The method is named for \textbf{Herman Chernoff}, who published it in $1952$ in
+a paper on the asymptotic efficiency of hypothesis tests --- though Chernoff
+himself generously credited his colleague \textbf{Herman Rubin} with the key
+idea of optimizing the exponential moment. The underlying technique, bounding a
+tail by an optimized exponential moment, was already present in the work of
+\textbf{Sergei Bernstein} in the $1920$s and traces back to the
+exponential-moment methods of \textbf{Cram\'er} in large-deviation theory.
+What Chernoff's name now labels is less a single inequality than a
+\emph{recipe}: take the log of the optimized exponential bound and you obtain
+the \emph{rate function} of large-deviations theory, the precise exponent at
+which rare events decay. The recipe has become so central to theoretical
+computer science and machine learning that ``a Chernoff bound'' is spoken of
+the way an engineer speaks of a wrench.
+\end{historybox}
+
+\section{Hoeffding's Inequality: Concentration You Can Use}
+\label{ch19:hoeffding}
+
+The Chernoff recipe is powerful but demands the MGF, which you may not know.
+\textbf{Hoeffding's inequality} packages the recipe into a ready-to-use form
+that needs only one mild assumption: each variable is \emph{bounded}. This is
+the concentration inequality you will reach for most often in practice.
+
+\begin{theorem}[Hoeffding's inequality]
+\label{ch19:hoeff-thm}
+Let $X_1, \dots, X_n$ be independent with $a_i \le X_i \le b_i$ almost surely.
+Let $S_n = \sum_{i=1}^n X_i$. Then for any $\eps > 0$,
+\[
+  \P\bigl(S_n - \E[S_n] \ge \eps\bigr)
+  \;\le\;
+  \exp\!\left(-\frac{2\eps^2}{\sum_{i=1}^n (b_i - a_i)^2}\right),
+\]
+and the same bound holds for the lower tail $\P(\E[S_n] - S_n \ge \eps)$. In
+the common case where each $X_i \in [a,b]$ and we look at the
+\emph{average} $\bar X_n = S_n/n$,
+\[
+  \P\bigl(\abs{\bar X_n - \mu} \ge \eps\bigr)
+  \;\le\;
+  2\exp\!\left(-\frac{2 n \eps^2}{(b-a)^2}\right).
+\]
+\end{theorem}
+
+\begin{whybox}
+Hoeffding is Chernoff plus one technical lemma. The Chernoff step gives, for a
+centered bounded variable $Y_i = X_i - \E[X_i]$,
+\[
+  \P(S_n - \E[S_n] \ge \eps)
+  \le e^{-t\eps}\prod_{i=1}^n \E\!\bigl[e^{tY_i}\bigr],
+\]
+using independence to split the expectation of the product into a product of
+expectations. The missing piece is a bound on each factor $\E[e^{tY_i}]$.
+\textbf{Hoeffding's lemma} supplies it: if $Y$ has mean $0$ and lies in
+$[a,b]$, then $\E[e^{tY}] \le e^{t^2(b-a)^2/8}$. (Intuitively, among all
+mean-zero variables confined to an interval, the one with the fattest
+exponential moment is the two-point distribution sitting at the endpoints,
+and a short convexity argument pins down the $(b-a)^2/8$ constant.) Plugging
+in,
+\[
+  \P(S_n - \E[S_n] \ge \eps)
+  \le \exp\!\left(-t\eps + \tfrac{t^2}{8}\sum_i (b_i-a_i)^2\right).
+\]
+This is a parabola in $t$ inside the exponent; minimizing over $t$ (vertex at
+$t^\star = 4\eps/\sum_i (b_i-a_i)^2$) gives exactly the stated
+$-2\eps^2/\sum_i(b_i-a_i)^2$. The whole proof is: Chernoff splits, Hoeffding's
+lemma bounds each piece, calculus finds the best $t$.
+\end{whybox}
+
+\begin{happeningbox}
+Stare at the exponent of the average form, $-2n\eps^2/(b-a)^2$. Two features
+matter enormously.
+
+First, $n$ sits in the exponent. Double your sample size and you do not halve
+the failure probability --- you \emph{square} it. This is the exponential
+concentration that Chebyshev's $1/n$ could only dream of.
+
+Second, the bound depends on the range $(b-a)$ but \emph{not} on the variance,
+the shape, or anything else about the distribution. Bounded plus independent is
+the entire price of admission. That distribution-freeness, married to
+exponential decay, is precisely the combination that statistical learning
+theory needs --- which is why Hoeffding is the first inequality in every
+machine-learning theory course.
+\end{happeningbox}
+
+\begin{example}[Polling, the sharp version]
+\label{ch19:ex-poll-sharp}
+Return to the poll. Each response $X_i \in [0,1]$, so $b-a = 1$, and
+$\bar X_n = \hat p$. Hoeffding gives
+\[
+  \P\bigl(\abs{\hat p - p} \ge \eps\bigr)
+  \;\le\; 2 e^{-2n\eps^2}.
+\]
+For $\eps = 0.03$ and a $95\%$ guarantee we need $2e^{-2n(0.03)^2} \le 0.05$,
+i.e.\ $e^{-0.0018\,n} \le 0.025$, giving
+$n \ge \ln(40)/0.0018 \approx 2050$. Recall Chebyshev demanded about
+$5556$ for the same guarantee. Same data, same assumptions, sharper tool ---
+less than half the sample size. Figure~\ref{ch19:fig-hoeffding} traces how the
+guaranteed half-width shrinks with $n$. And unlike Chebyshev, Hoeffding hands you a
+confidence \emph{interval} of half-width $\eps = \sqrt{\ln(2/\alpha)/(2n)}$ at
+confidence $1-\alpha$, the Hoeffding bound used throughout applied statistics.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=6cm,
+  xmin=0, xmax=4000,
+  ymin=0, ymax=0.12,
+  xlabel={number of samples $n$},
+  ylabel={Hoeffding half-width $\eps$},
+  domain=50:4000, samples=120,
+  legend pos=north east,
+  grid=both, grid style={gray!18},
+]
+\addplot[sourceblue, thick] {sqrt(ln(2/0.05)/(2*x))};
+\addlegendentry{$95\%$ confidence ($\alpha=0.05$)}
+\addplot[densityred, thick, dashed] {sqrt(ln(2/0.01)/(2*x))};
+\addlegendentry{$99\%$ confidence ($\alpha=0.01$)}
+\draw[gray, dashed] (axis cs:0,0.03) -- (axis cs:4000,0.03);
+\end{axis}
+\end{tikzpicture}
+\caption{The Hoeffding confidence half-width $\eps=\sqrt{\ln(2/\alpha)/(2n)}$
+for a bounded average on $[0,1]$, as a function of sample size $n$. It shrinks
+like $1/\sqrt n$: quadrupling the sample halves the width. The horizontal line
+marks $\eps=0.03$; the $95\%$ curve crosses it near $n\approx 2050$, matching
+the poll calculation. Demanding higher confidence ($99\%$, red dashed) widens
+the band only mildly, because confidence enters through the slow logarithm
+$\ln(2/\alpha)$.}
+\label{ch19:fig-hoeffding}
+\end{figure}
+
+\begin{applicationbox}
+\textbf{Why concentration is the backbone of statistics and machine learning.}
+
+Every estimate you ever compute --- a sample mean, a regression coefficient,
+a model's accuracy on a test set --- is a function of random data. The entire
+enterprise of statistics rests on a single hope: that this function does not
+swing wildly with the luck of the sample, but \emph{concentrates} near the
+true value. Concentration inequalities turn that hope into a theorem with an
+explicit, computable failure probability.
+
+In supervised machine learning the stakes are sharper still. You train a model
+to minimize error on a finite \emph{training} sample, but you care about its
+error on the unseen population --- its \emph{generalization} error. The two
+differ by exactly the kind of deviation Hoeffding controls. For a single fixed
+hypothesis $h$, the training error is an average of $n$ bounded $\set{0,1}$
+mistakes, so Hoeffding gives
+\[
+  \P\bigl(\abs{\widehat{\mathrm{err}}(h) - \mathrm{err}(h)} \ge \eps\bigr)
+  \le 2 e^{-2n\eps^2}.
+\]
+To cover a whole hypothesis class of size $M$ (so we may safely \emph{choose}
+the best $h$ after seeing the data) one applies the union bound, paying a
+factor $M$ that becomes a mild additive $\ln M$ inside the exponent's budget:
+the sample size needed grows only like $\log M$. This is the seed of
+\textbf{PAC learning} (``probably approximately correct'') and of VC theory,
+which extend the argument to infinite classes via cleverer counting. Strip
+away the formalism and the message is simple: \emph{a model generalizes
+because averages concentrate, and we can bound the sample size that makes the
+guarantee bite.} Concentration is not a footnote to learning theory. It
+\emph{is} learning theory.
+\end{applicationbox}
+
+\begin{connectionbox}
+The Chernoff and Hoeffding proofs lean entirely on the moment generating
+function $M_X(t) = \E[e^{tX}]$ from the chapter on generating functions, and
+the optimization step is plain single-variable calculus --- find the $t$ where
+the derivative of the exponent vanishes. The deeper link is to
+\emph{large-deviations theory}: the limit $-\frac1n \log \P(\bar X_n \ge a)$
+converges to the \textbf{Legendre transform} of $\log M_X(t)$, a construction
+borrowed straight from convex analysis and classical mechanics. The Chernoff
+bound is the finite-$n$ shadow of that exact asymptotic rate. If you enjoyed
+the Legendre transform in the companion calculus book, you are meeting it
+again here in probabilistic disguise.
+\end{connectionbox}
+
+\section{Jensen's Inequality: The Bound About Shape}
+\label{ch19:jensen}
+
+The inequalities so far were about \emph{tails} --- how often a variable
+strays. Jensen's inequality is about something different and equally
+fundamental: how \emph{averaging interacts with curvature}. It answers the
+question, ``is the average of a function the function of the average?'' ---
+and the answer, almost always, is no, with a definite direction to the error.
+
+\begin{intuitionbox}
+Picture a function that bends upward, like $g(x) = x^2$ --- a \emph{convex}
+function, holding water. Take two input points and look at the chord
+connecting the corresponding points on the curve. Because the curve bends away
+below the chord, the chord sits \emph{above} the curve. Now read this in the
+language of averages: the height of the chord at the midpoint is the
+\emph{average of the function values}, while the curve's height at the midpoint
+is the \emph{function of the average input}. Chord above curve means
+\[
+  \text{average of } g \;\ge\; g(\text{of the average}).
+\]
+That is Jensen's inequality, and it is nothing more than ``convex curves lie
+below their chords,'' generalized from two points to an entire probability
+distribution of points.
+\end{intuitionbox}
+
+\begin{theorem}[Jensen's inequality]
+\label{ch19:jensen-thm}
+Let $g$ be a convex function and $X$ a random variable with finite mean. Then
+\[
+  g\bigl(\E[X]\bigr) \;\le\; \E\bigl[g(X)\bigr].
+\]
+If $g$ is concave, the inequality reverses:
+$g(\E[X]) \ge \E[g(X)]$.
+\end{theorem}
+
+\begin{whybox}
+The proof is the picture made rigorous with one tool: the \emph{supporting
+line}. Because $g$ is convex, at the point $\mu = \E[X]$ there is a line
+through $(\mu, g(\mu))$ that stays at or below the whole curve --- a tangent if
+$g$ is differentiable, a supporting line in general. Write it as
+$L(x) = g(\mu) + m(x - \mu)$, and convexity guarantees $g(x) \ge L(x)$ for all
+$x$. Now take expectations of both sides:
+\[
+  \E[g(X)] \;\ge\; \E[L(X)]
+  = g(\mu) + m\,\E[X - \mu]
+  = g(\mu) + m\cdot 0
+  = g(\E[X]).
+\]
+The middle term vanished because $\E[X-\mu] = 0$ by definition of $\mu$. The
+supporting line, anchored exactly at the mean, is what makes the linear term
+disappear and leaves the clean inequality behind.
+Figure~\ref{ch19:fig-jensen} shows the curve, a chord, and that supporting line
+together.
+\end{whybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xmin=-0.3, xmax=3.3, ymin=-0.5, ymax=9.5,
+  xlabel={$x$}, ylabel={$g(x)$},
+  domain=0:3, samples=80,
+  legend pos=north west,
+  xtick={0.7,1.5,2.3}, xticklabels={$x_1$,$\mu$,$x_2$},
+  ytick=\empty,
+]
+\addplot[densityred, thick] {x^2};
+\addlegendentry{convex $g(x)=x^2$}
+\addplot[sourceblue, thick] coordinates {(0.7,0.49) (2.3,5.29)};
+\addlegendentry{chord (average of $g$)}
+\addplot[targetgreen, thick, dashed] {2.25+3*(x-1.5)};
+\addlegendentry{supporting line at $\mu$}
+\draw[gray, dashed] (axis cs:1.5,0) -- (axis cs:1.5,2.25);
+\fill (axis cs:1.5,2.25) circle (2pt);
+\fill (axis cs:1.5,2.89) circle (2pt);
+\end{axis}
+\end{tikzpicture}
+\caption{Jensen's inequality. The convex curve lies below every chord, so the
+chord height at $\mu$ --- which equals $\E[g(X)]$ for a two-point variable ---
+sits above the curve height $g(\mu) = g(\E[X])$. The dashed supporting line
+through $(\mu, g(\mu))$ is the proof: the curve never dips below it, and its
+expectation equals $g(\mu)$.}
+\label{ch19:fig-jensen}
+\end{figure}
+
+\begin{example}[Why variance is non-negative, instantly]
+\label{ch19:ex-jensen-var}
+Apply Jensen with the convex $g(x) = x^2$:
+$\bigl(\E[X]\bigr)^2 \le \E[X^2]$. Rearranged, this is
+$\E[X^2] - (\E[X])^2 \ge 0$ --- but the left side is exactly the variance.
+Jensen hands you $\Var(X) \ge 0$ in a single line, with equality only when $X$
+is a constant (no spread). A fact you proved laboriously before is a one-step
+corollary of convexity.
+\end{example}
+
+\begin{paradoxbox}
+\textbf{The flaw of averages.} A consultant plans a warehouse. Demand is
+random with an average of $100$ units, and profit is some function of demand.
+Surely, the consultant reasons, ``planning for average demand gives average
+profit.'' This is the \emph{flaw of averages}, and Jensen is the verdict on
+it. Whenever profit is a curved function of demand, $\E[g(\text{demand})] \ne
+g(\E[\text{demand}])$, and the gap has a guaranteed sign.
+
+A sharp instance: a gambler holds a stock whose value next year is $\$1$ or
+$\$4$ with equal probability, average $\$2.50$. If returns \emph{multiply}
+over years, the relevant growth is the logarithm, and $\log$ is
+\emph{concave}, so Jensen flips: the expected log-growth $\E[\log V]$ is
+\emph{strictly less} than $\log \E[V]$. Concretely $\E[\log V] = \tfrac12(\log
+1 + \log 4) = \log 2$, while $\log \E[V] = \log 2.5$. Over many years your
+wealth compounds at the rate set by $\E[\log V] = \log 2$ (geometric mean
+$\$2$), not the deceptively higher arithmetic mean $\$2.50$. Confusing the two
+has ruined real portfolios. Jensen's inequality is the mathematical reason the
+\emph{geometric} mean never exceeds the arithmetic mean --- and the reason
+``it averages out'' is one of the most expensive phrases in finance.
+\end{paradoxbox}
+
+\begin{connectionbox}
+Jensen is the silent workhorse behind several results elsewhere in this book.
+It is why \textbf{Kullback--Leibler divergence} $\KL(p\,\|\,q) \ge 0$ (apply
+Jensen to the concave $\log$ inside the divergence), the cornerstone of
+information theory. It is why the \textbf{EM algorithm} in machine learning
+provably increases the likelihood at each step (the E-step builds a Jensen
+lower bound on the log-likelihood). And it underlies the variational
+inequalities that power modern Bayesian computation. Whenever you see a proof
+that ``moves a function inside or outside an expectation'' and gains a definite
+direction, look for Jensen hiding underneath.
+\end{connectionbox}
+
+\section{A Field Guide to the Inequalities}
+\label{ch19:fieldguide}
+
+It helps to see the four tail bounds lined up, because they form a ladder of
+increasing assumptions buying increasing strength.
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Inequality} & \textbf{Needs} & \textbf{Gives} \\
+\midrule
+Markov     & $X\ge 0$, mean & $\P(X\ge a) \le \E[X]/a$ \\
+Chebyshev  & mean, variance & $\P(\abs{X-\mu}\ge k)\le \sigma^2/k^2$ \\
+Chernoff   & MGF, independence & $\le \min_t e^{-ta}M_X(t)$ (exponential) \\
+Hoeffding  & bounded, independent & $\le 2e^{-2n\eps^2/(b-a)^2}$ (exponential) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Read the table top to bottom as a bargain. Markov asks for almost nothing and
+gives a loose $1/a$ bound. Chebyshev adds the variance and earns a $1/k^2$
+bound and the Weak Law. Chernoff and Hoeffding add independence and
+boundedness and are rewarded with \emph{exponential} decay --- the qualitative
+leap that makes large-scale statistics and learning theory possible. The
+pattern to internalize is not four separate formulas but one method:
+\emph{apply Markov to a cleverly chosen non-negative function}, where each row
+just picks a smarter function ($x$, then $x^2$, then $e^{tx}$).
+
+\begin{recoverybox}
+If you remember one thing from this chapter, remember the engine: every tail
+bound here is Markov's inequality applied to a non-negative function of $X$.
+The function determines the strength. Squaring buys variance-based decay;
+exponentiating buys exponential decay. Concentration is what happens when you
+apply the exponential version to a sum of many independent pieces and watch the
+tail collapse like $e^{-cn}$. That collapse is why averages are trustworthy,
+why polls work, and why models trained on samples generalize.
+\end{recoverybox}
+
+\section{Exercises}
+\label{ch19:exercises}
+
+\begin{exercise}[Markov warm-up]
+\label{ch19:ex-markov}
+The average score on an exam is $65$ out of $100$. Using only this, give an
+upper bound on the fraction of students who scored at least $90$. Then explain
+in one sentence why the true fraction is almost certainly far smaller than
+your bound, referring to what Markov ignores.
+\end{exercise}
+
+\begin{exercise}[Chebyshev in standard units]
+\label{ch19:ex-cheb}
+A random variable has mean $50$ and standard deviation $4$. Use Chebyshev to
+bound $\P(X \le 38 \text{ or } X \ge 62)$. Then find the smallest interval
+$[\mu - c\sigma, \mu + c\sigma]$ that Chebyshev guarantees contains at least
+$90\%$ of the mass.
+\end{exercise}
+
+\begin{exercise}[Sharpness of Markov]
+\label{ch19:ex-sharp}
+Construct an explicit non-negative random variable for which Markov's
+inequality holds with \emph{equality} at $a$, i.e.\ $\P(X\ge a) = \E[X]/a$.
+(Hint: a two-point distribution, with mass at $0$ and at $a$.) This shows
+Markov cannot be improved in general.
+\end{exercise}
+
+\begin{exercise}[Chebyshev to the Weak Law]
+\label{ch19:ex-wlln}
+Let $X_1,\dots,X_n$ be i.i.d.\ with mean $\mu$ and variance $\sigma^2$. Using
+Chebyshev, find the smallest $n$ guaranteeing
+$\P(\abs{\bar X_n - \mu} \ge 0.1\sigma) \le 0.01$. Then state precisely what
+happens to this probability as $n\to\infty$ and name the theorem.
+\end{exercise}
+
+\begin{exercise}[Chernoff for Poisson]
+\label{ch19:ex-chernoff-pois}
+Let $X \sim \Pois(\lambda)$, whose MGF is $M_X(t) = e^{\lambda(e^t - 1)}$.
+Write down the Chernoff bound $\min_{t>0} e^{-ta}M_X(t)$ for $\P(X \ge a)$,
+carry out the minimization to find the optimal $t^\star = \ln(a/\lambda)$
+(valid for $a>\lambda$), and show the bound simplifies to
+$e^{-\lambda}(e\lambda/a)^a$.
+\end{exercise}
+
+\begin{exercise}[Hoeffding sample size]
+\label{ch19:ex-hoeff-n}
+You want to estimate the mean of a quantity known to lie in $[0,10]$ to within
+$\eps = 0.5$ with confidence $99\%$. Use the average form of Hoeffding to find
+the required number of independent samples $n$. Compare with the count
+Chebyshev would demand if you also knew $\sigma = 2$.
+\end{exercise}
+
+\begin{exercise}[Jensen direction]
+\label{ch19:ex-jensen-dir}
+For each function, state whether $\E[g(X)]$ is at least or at most $g(\E[X])$,
+and name the convexity that decides it: (a) $g(x) = e^x$; (b)
+$g(x) = \sqrt{x}$ on $x \ge 0$; (c) $g(x) = 1/x$ on $x > 0$; (d)
+$g(x) = \abs{x}$.
+\end{exercise}
+
+\begin{exercise}[AM--GM from Jensen]
+\label{ch19:ex-amgm}
+Let $X$ take the values $x_1,\dots,x_n > 0$ each with probability $1/n$. Apply
+Jensen to the concave function $g(x) = \log x$ and exponentiate the result to
+prove the arithmetic mean--geometric mean inequality
+$\frac1n\sum x_i \ge \bigl(\prod x_i\bigr)^{1/n}$. State the condition for
+equality.
+\end{exercise}
+
+\begin{exercise}[Why the exponential beats the square --- a proof]
+\label{ch19:ex-proof}
+Let $S_n$ be the number of heads in $n$ fair flips. (a) Use Chebyshev to bound
+$\P(S_n \ge 0.6n)$ and show the bound decays like $C/n$. (b) Use the Chernoff
+result $\P(S_n \ge (\tfrac12+\delta)n) \le e^{-2\delta^2 n}$ to bound the same
+event. (c) For $n = 500$, compute both numerically and explain in two or three
+sentences, in terms of the optimization over $t$, why the exponential method
+captures a decay the quadratic method structurally cannot.
+\end{exercise}
+
+\begin{exercise}[Conceptual: what concentration is not]
+\label{ch19:ex-concept}
+A student claims: ``Concentration means that if I flip a coin many times, I am
+guaranteed to get exactly half heads.'' Explain, using the precise statement of
+Hoeffding's inequality, in what sense this is wrong and in what sense it is
+nearly right. Distinguish carefully between the \emph{value} concentrating and
+the randomness \emph{disappearing}.
+\end{exercise}

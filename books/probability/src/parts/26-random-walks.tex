@@ -1,0 +1,867 @@
+\chapter{Random Walks}
+
+A drunk man leaves a bar at midnight. He can barely stand, and certainly
+cannot navigate. Each step he takes is a coin flip: east or west, with no
+memory of where he has been and no plan for where he is going. Will he ever
+stumble home? Or will he wander off into the night, never to return?
+
+This is not an idle riddle. It is one of the most fertile questions in all of
+probability, and the path from it leads -- astonishingly directly -- to the
+physics of diffusing molecules, the price of a stock option, the spread of a
+gene through a population, the design of search algorithms, and the
+mathematics of Brownian motion. The humble \emph{random walk} is the bridge
+between the discrete world of coin flips, which we have studied at length, and
+the continuous world of motion and noise.
+
+In this chapter we build the random walk from the ground up. We start with the
+simplest possible version -- steps of $\pm 1$ on a line -- and we ask the
+natural questions a curious person asks: where do you end up on average, how
+far do you spread, do you come back to the start, and what does a typical path
+actually look like? The answers are sometimes intuitive, sometimes deeply
+surprising, and always illuminating.
+
+\chapterline
+
+\section{The Simple Random Walk}
+\label{ch26:srw}
+
+\begin{intuitionbox}
+Forget the formalism for a moment. Picture a token sitting on the integer $0$
+of a number line. A fair coin is flipped. Heads, the token moves one step
+right; tails, one step left. Flip again. And again. The position of the token
+after many flips is a random walk. Everything we do in this chapter is a
+question about that wandering token.
+\end{intuitionbox}
+
+Let $X_1, X_2, X_3, \dots$ be independent steps, each equal to $+1$ or $-1$
+with probability $1/2$:
+\[
+  \P(X_i = +1) = \P(X_i = -1) = \tfrac{1}{2}, \qquad i = 1, 2, 3, \dots
+\]
+These are independent and identically distributed (i.i.d.) -- the coin has no
+memory. The \emph{position} of the walk after $n$ steps is the running sum
+\[
+  S_n = X_1 + X_2 + \cdots + X_n, \qquad S_0 = 0.
+\]
+
+\begin{definition}[Simple symmetric random walk]
+\label{ch26:def-srw}
+The sequence $S_0, S_1, S_2, \dots$ defined by $S_0 = 0$ and
+$S_n = \sum_{i=1}^n X_i$, where the $X_i$ are i.i.d.\ with
+$\P(X_i = \pm 1) = 1/2$, is the \emph{simple symmetric random walk} on $\Z$.
+If instead $\P(X_i = +1) = p$ and $\P(X_i = -1) = q = 1-p$ with $p \neq 1/2$,
+we call it a \emph{biased} (or asymmetric) random walk.
+\end{definition}
+
+The word ``simple'' means the steps have size one; ``symmetric'' means the coin
+is fair. We will spend most of our energy on the symmetric case, because that
+is where the deepest surprises live, but the biased walk is exactly what we
+need for gambling problems, so we keep it in our pocket.
+
+\begin{happeningbox}
+A random walk is a \emph{cumulative sum of i.i.d.\ random variables}. That one
+sentence connects this entire chapter to everything you already know. The
+Law of Large Numbers and the Central Limit Theorem are theorems about sums
+$S_n$ -- so they are secretly theorems about random walks. When we ask ``where
+is the walk after $n$ steps?'' we are asking about the distribution of a sum,
+and the CLT will hand us a bell curve. The new questions -- recurrence,
+first-passage times, the reflection principle -- are the ones that go
+\emph{beyond} a single snapshot $S_n$ and ask about the whole \emph{path}.
+\end{happeningbox}
+
+\subsection{A first look at a path}
+
+Before any formulas, let us just \emph{watch}. Figure~\ref{ch26:fig-paths}
+shows several independent sample paths of the symmetric walk over $120$ steps.
+Stare at them. Notice three things. First, the paths sprawl: by step $120$ they
+are scattered over a wide band, not clustered near zero. Second, they are
+jagged and unpredictable -- no path ``trends.'' Third, and most importantly,
+the band of paths widens like the square root of time, not linearly. We will
+prove that shape precisely in the next section, but your eye can already see
+it.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=7cm,
+  xlabel={step $n$}, ylabel={position $S_n$},
+  xmin=0, xmax=120, ymin=-26, ymax=26,
+  grid=both, grid style={gray!18},
+  title={Five sample paths of the simple symmetric random walk},
+  legend style={font=\scriptsize, at={(1.02,1)}, anchor=north west}
+]
+\addplot[sourceblue, thick] coordinates {
+(0,0)(1,1)(2,0)(3,1)(4,2)(5,1)(6,2)(7,3)(8,2)(9,3)(10,4)(11,3)(12,4)(13,5)(14,4)(15,5)(16,6)(17,5)(18,6)(19,7)(20,6)(21,7)(22,8)(23,7)(24,6)(25,7)(26,8)(27,9)(28,8)(29,9)(30,10)(31,9)(32,10)(33,11)(34,10)(35,9)(36,10)(37,11)(38,12)(39,11)(40,12)(41,13)(42,12)(43,13)(44,12)(45,13)(46,14)(47,13)(48,12)(49,13)(50,14)(51,15)(52,14)(53,15)(54,16)(55,15)(56,14)(57,15)(58,16)(59,15)(60,16)(61,17)(62,16)(63,15)(64,16)(65,17)(66,16)(67,17)(68,18)(69,17)(70,16)(71,17)(72,16)(73,17)(74,18)(75,17)(76,16)(77,15)(78,16)(79,17)(80,18)(81,17)(82,18)(83,19)(84,18)(85,17)(86,18)(87,17)(88,18)(89,19)(90,18)(91,17)(92,18)(93,19)(94,20)(95,19)(96,18)(97,19)(98,18)(99,19)(100,20)(101,19)(102,18)(103,19)(104,18)(105,17)(106,18)(107,19)(108,18)(109,17)(110,18)(111,19)(112,18)(113,17)(114,18)(115,19)(116,18)(117,17)(118,18)(119,17)(120,18)
+};
+\addplot[densityred, thick] coordinates {
+(0,0)(1,-1)(2,-2)(3,-1)(4,-2)(5,-3)(6,-2)(7,-3)(8,-4)(9,-3)(10,-2)(11,-3)(12,-2)(13,-1)(14,-2)(15,-1)(16,-2)(17,-3)(18,-2)(19,-1)(20,-2)(21,-1)(22,0)(23,-1)(24,-2)(25,-1)(26,0)(27,-1)(28,-2)(29,-3)(30,-2)(31,-3)(32,-4)(33,-5)(34,-4)(35,-5)(36,-6)(37,-5)(38,-6)(39,-7)(40,-6)(41,-7)(42,-8)(43,-7)(44,-8)(45,-9)(46,-8)(47,-9)(48,-10)(49,-9)(50,-10)(51,-11)(52,-10)(53,-11)(54,-10)(55,-11)(56,-12)(57,-11)(58,-12)(59,-13)(60,-12)(61,-11)(62,-12)(63,-13)(64,-12)(65,-11)(66,-12)(67,-13)(68,-14)(69,-13)(70,-14)(71,-15)(72,-14)(73,-15)(74,-16)(75,-15)(76,-14)(77,-15)(78,-14)(79,-13)(80,-14)(81,-15)(82,-14)(83,-13)(84,-14)(85,-13)(86,-12)(87,-13)(88,-12)(89,-13)(90,-14)(91,-13)(92,-12)(93,-13)(94,-12)(95,-13)(96,-14)(97,-13)(98,-12)(99,-11)(100,-12)(101,-13)(102,-12)(103,-13)(104,-14)(105,-13)(106,-14)(107,-15)(108,-14)(109,-15)(110,-16)(111,-15)(112,-16)(113,-17)(114,-16)(115,-17)(116,-16)(117,-15)(118,-16)(119,-15)(120,-14)
+};
+\addplot[targetgreen, thick] coordinates {
+(0,0)(1,1)(2,2)(3,1)(4,0)(5,1)(6,0)(7,-1)(8,0)(9,1)(10,0)(11,1)(12,2)(13,1)(14,0)(15,-1)(16,0)(17,1)(18,0)(19,-1)(20,0)(21,1)(22,2)(23,3)(24,2)(25,1)(26,2)(27,3)(28,2)(29,1)(30,2)(31,3)(32,4)(33,3)(34,2)(35,3)(36,4)(37,5)(38,4)(39,3)(40,4)(41,5)(42,4)(43,5)(44,6)(45,5)(46,6)(47,7)(48,6)(49,5)(50,4)(51,5)(52,6)(53,5)(54,4)(55,3)(56,4)(57,5)(58,4)(59,3)(60,2)(61,3)(62,2)(63,1)(64,2)(65,3)(66,2)(67,1)(68,0)(69,1)(70,2)(71,1)(72,2)(73,3)(74,4)(75,3)(76,2)(77,3)(78,4)(79,5)(80,4)(81,3)(82,2)(83,1)(84,2)(85,3)(86,4)(87,3)(88,2)(89,1)(90,0)(91,-1)(92,0)(93,1)(94,2)(95,1)(96,0)(97,1)(98,2)(99,3)(100,2)(101,3)(102,4)(103,3)(104,2)(105,1)(106,2)(107,3)(108,2)(109,1)(110,0)(111,1)(112,2)(113,3)(114,2)(115,1)(116,0)(117,1)(118,0)(119,-1)(120,0)
+};
+\addplot[quotientorange, thick] coordinates {
+(0,0)(1,-1)(2,0)(3,1)(4,0)(5,-1)(6,-2)(7,-1)(8,0)(9,1)(10,2)(11,3)(12,2)(13,3)(14,4)(15,5)(16,4)(17,3)(18,4)(19,5)(20,6)(21,5)(22,6)(23,7)(24,8)(25,7)(26,8)(27,9)(28,10)(29,9)(30,10)(31,11)(32,10)(33,11)(34,12)(35,11)(36,12)(37,13)(38,12)(39,11)(40,12)(41,13)(42,14)(43,13)(44,14)(45,15)(46,14)(47,13)(48,14)(49,15)(50,16)(51,15)(52,16)(53,17)(54,16)(55,17)(56,18)(57,19)(58,18)(59,17)(60,18)(61,19)(62,20)(63,19)(64,20)(65,21)(66,20)(67,21)(68,20)(69,21)(70,22)(71,21)(72,20)(73,21)(74,22)(75,23)(76,22)(77,21)(78,22)(79,21)(80,22)(81,23)(82,22)(83,21)(84,22)(85,23)(86,22)(87,21)(88,22)(89,23)(90,22)(91,23)(92,22)(93,21)(94,22)(95,21)(96,20)(97,21)(98,22)(99,21)(100,22)(101,21)(102,20)(103,21)(104,20)(105,21)(106,22)(107,21)(108,20)(109,21)(110,22)(111,21)(112,20)(113,21)(114,22)(115,21)(116,22)(117,21)(118,20)(119,21)(120,22)
+};
+\addplot[structurepurple, thick] coordinates {
+(0,0)(1,1)(2,0)(3,-1)(4,-2)(5,-1)(6,0)(7,-1)(8,-2)(9,-1)(10,-2)(11,-1)(12,0)(13,1)(14,0)(15,1)(16,2)(17,1)(18,0)(19,-1)(20,-2)(21,-1)(22,-2)(23,-3)(24,-4)(25,-3)(26,-2)(27,-3)(28,-4)(29,-5)(30,-4)(31,-3)(32,-2)(33,-3)(34,-4)(35,-5)(36,-6)(37,-5)(38,-6)(39,-7)(40,-6)(41,-5)(42,-4)(43,-5)(44,-6)(45,-7)(46,-8)(47,-7)(48,-8)(49,-9)(50,-8)(51,-7)(52,-8)(53,-9)(54,-8)(55,-7)(56,-6)(57,-7)(58,-8)(59,-9)(60,-8)(61,-9)(62,-10)(63,-9)(64,-8)(65,-7)(66,-8)(67,-9)(68,-10)(69,-9)(70,-8)(71,-9)(72,-10)(73,-11)(74,-10)(75,-9)(76,-10)(77,-11)(78,-12)(79,-11)(80,-10)(81,-9)(82,-10)(83,-11)(84,-10)(85,-9)(86,-8)(87,-9)(88,-10)(89,-11)(90,-10)(91,-9)(92,-8)(93,-9)(94,-8)(95,-7)(96,-8)(97,-9)(98,-10)(99,-9)(100,-8)(101,-9)(102,-10)(103,-11)(104,-10)(105,-11)(106,-12)(107,-11)(108,-10)(109,-9)(110,-10)(111,-11)(112,-10)(113,-11)(114,-12)(115,-11)(116,-10)(117,-9)(118,-10)(119,-11)(120,-10)
+};
+\addplot[black, dashed, thick, samples=80, domain=0:120] {sqrt(x)};
+\addplot[black, dashed, thick, samples=80, domain=0:120] {-sqrt(x)};
+\legend{path 1, path 2, path 3, path 4, path 5}
+\end{axis}
+\end{tikzpicture}
+\caption{Five independent sample paths of the simple symmetric random walk.
+The dashed curves are $\pm\sqrt{n}$: the typical spread of the walk grows like
+the \emph{square root} of the number of steps, not linearly. Most paths stay
+within a band of this width, though any single path can wander outside it.}
+\label{ch26:fig-paths}
+\end{figure}
+
+\section{Expected Position and Variance}
+\label{ch26:moments}
+
+Where is the walk, on average, after $n$ steps? The answer feels almost
+like a trick.
+
+\begin{theorem}[Mean and variance of the walk]
+\label{ch26:thm-meanvar}
+For the simple symmetric random walk,
+\[
+  \E[S_n] = 0, \qquad \Var(S_n) = n, \qquad \SD(S_n) = \sqrt{n}.
+\]
+For the biased walk with $\P(X_i = +1) = p$, $\P(X_i = -1) = q = 1-p$, writing
+the drift $\mu = p - q$ and $\sigma^2 = 1 - \mu^2$,
+\[
+  \E[S_n] = n\mu = n(p-q), \qquad \Var(S_n) = n\sigma^2 = 4npq.
+\]
+\end{theorem}
+
+\begin{whybox}
+Both lines follow from a single idea: expectation is linear, and for
+independent variables variances add.
+
+\textbf{The mean.} Each step has $\E[X_i] = (+1)p + (-1)q = p - q = \mu$. By
+linearity of expectation -- which needs no independence at all --
+\[
+  \E[S_n] = \E\!\Big[\sum_{i=1}^n X_i\Big] = \sum_{i=1}^n \E[X_i] = n\mu.
+\]
+For the fair coin $p = q = 1/2$, so $\mu = 0$ and $\E[S_n] = 0$.
+
+\textbf{The variance.} First, a single step. Since $X_i \in \{-1,+1\}$ we
+have $X_i^2 = 1$ always, so $\E[X_i^2] = 1$ and
+\[
+  \Var(X_i) = \E[X_i^2] - (\E[X_i])^2 = 1 - \mu^2 = \sigma^2.
+\]
+For the fair coin $\mu = 0$ so $\Var(X_i) = 1$. Now because the steps are
+\emph{independent}, the variance of the sum is the sum of the variances:
+\[
+  \Var(S_n) = \sum_{i=1}^n \Var(X_i) = n\sigma^2.
+\]
+For the fair coin this is just $n$. Taking square roots gives the standard
+deviation $\sqrt{n}\,\sigma$, and $\sqrt{n}$ in the fair case.
+\end{whybox}
+
+That $\E[S_n] = 0$ is the trick the symmetric walk plays on your intuition. On
+average, the drunk goes nowhere. But ``on average zero'' does not mean ``stays
+near zero.'' It means the rightward and leftward excursions cancel \emph{in
+expectation}, the way the average of $+1000$ and $-1000$ is zero. The right
+measure of how far the walk roams is not the mean but the standard deviation,
+and that grows without bound, like $\sqrt{n}$.
+
+\begin{focusbox}
+\textbf{The $\sqrt{n}$ law.} After $n$ steps the walk is typically a distance
+of order $\sqrt{n}$ from the origin. After $100$ steps, about $10$ away; after
+$10{,}000$ steps, about $100$ away. To get twice as far you must walk four
+times as long. This sublinear, square-root spreading is the signature of
+diffusion, and it reappears verbatim in the physics of heat, ink in water, and
+pollen grains under a microscope.
+\end{focusbox}
+
+\begin{example}[How far is ``far''?]
+\label{ch26:ex-howfar}
+A particle takes $n = 10{,}000$ symmetric unit steps. What is the probability
+it ends up more than $300$ units from the origin?
+
+Here $\Var(S_n) = 10{,}000$, so $\SD(S_n) = 100$. A displacement of $300$ is
+exactly $3$ standard deviations. By the Central Limit Theorem (the sum of
+$10{,}000$ i.i.d.\ bounded steps is very nearly normal), $S_n \approx
+\Normal(0, 100^2)$, and
+\[
+  \P(\abs{S_n} > 300) \approx \P(\abs{Z} > 3) \approx 0.0027,
+\]
+about a quarter of one percent. Ending up $3000$ away (thirty standard
+deviations) is, for all practical purposes, impossible -- even though the walk
+\emph{could} in principle go straight right the entire time, with probability
+$2^{-10000}$.
+\end{example}
+
+\begin{connectionbox}
+The exact distribution of $S_n$ is a relabelled binomial. If $R$ is the number
+of rightward steps, then $R \sim \Bin(n, p)$ and $S_n = R - (n - R) = 2R - n$.
+So
+\[
+  \P(S_n = k) = \P\!\Big(R = \tfrac{n+k}{2}\Big)
+  = \binom{n}{\frac{n+k}{2}} p^{\frac{n+k}{2}} q^{\frac{n-k}{2}},
+\]
+valid when $n + k$ is even (the walk's parity must match $n$: after an even
+number of steps you sit on an even site). Everything about the position $S_n$
+is binomial in disguise -- including its bell shape, which is the de
+Moivre--Laplace theorem, the historical seed of the CLT. See the companion
+\emph{Calculus From the Ground Up} for how that bell shape emerges from
+Stirling's approximation to the binomial coefficient.
+\end{connectionbox}
+
+Figure~\ref{ch26:fig-pmf} shows this binomial pmf for $n = 40$ together with
+the normal curve it converges to. The match is already excellent.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=6.2cm,
+  xlabel={position $S_{40}$}, ylabel={$\P(S_{40}=k)$},
+  xmin=-22, xmax=22, ymin=0, ymax=0.14,
+  ybar, bar width=4pt,
+  title={Distribution of position after $n=40$ steps (bars) vs.\ its normal approximation},
+]
+\addplot[draw=sourceblue, fill=histfill] coordinates {
+(-20,0.0008)(-18,0.0021)(-16,0.0051)(-14,0.0109)(-12,0.0211)(-10,0.0366)(-8,0.0572)(-6,0.0807)(-4,0.1031)(-2,0.1194)(0,0.1254)(2,0.1194)(4,0.1031)(6,0.0807)(8,0.0572)(10,0.0366)(12,0.0211)(14,0.0109)(16,0.0051)(18,0.0021)(20,0.0008)
+};
+\addplot[densityred, very thick, samples=160, domain=-22:22]
+  {2*1/(sqrt(2*pi)*sqrt(40))*exp(-x^2/(2*40))};
+\end{axis}
+\end{tikzpicture}
+\caption{The exact distribution of $S_{40}$ (only even sites have positive
+probability, since parity must match $n=40$) overlaid with the normal density
+$\Normal(0,40)$. The bars are spaced two apart, so each carries the
+probability of a width-$2$ interval; the curve is scaled to match. The CLT is
+visible to the naked eye.}
+\label{ch26:fig-pmf}
+\end{figure}
+
+\section{Recurrence and Transience: Does the Drunk Get Home?}
+\label{ch26:recurrence}
+
+Now the question that gives this chapter its soul. The walk wanders. Does it
+ever come \emph{back}? More sharply: with probability $1$, will the walk return
+to its starting point $0$?
+
+\begin{definition}[Recurrence and transience]
+\label{ch26:def-recurrence}
+A random walk is \emph{recurrent} if it returns to its starting point with
+probability $1$ (and hence, by starting afresh each time, returns infinitely
+often). It is \emph{transient} if there is positive probability it never
+returns -- in which case it visits the origin only finitely many times and
+eventually drifts away forever.
+\end{definition}
+
+The answer in one dimension is one of the loveliest facts in probability.
+
+\begin{theorem}[Recurrence of the 1D symmetric walk]
+\label{ch26:thm-rec1d}
+The simple symmetric random walk on $\Z$ is recurrent: it returns to the
+origin with probability $1$. In fact it visits \emph{every} integer infinitely
+often, with probability $1$.
+\end{theorem}
+
+\begin{whybox}
+The standard tool is the \emph{expected number of visits}. Let
+$N = \sum_{n=0}^\infty \ind\{S_n = 0\}$ count how many times (including time
+$0$) the walk sits at the origin. By linearity (the indicators need not be
+independent),
+\[
+  \E[N] = \sum_{n=0}^\infty \P(S_n = 0).
+\]
+There is a beautiful dichotomy: the walk is recurrent if and only if
+$\E[N] = \infty$. Why? If returns are certain, the walk returns again and
+again forever, so $N = \infty$ surely and $\E[N] = \infty$. If there is a
+chance $1 - u < 1$ of never returning, then the number of returns is geometric
+with finite mean, so $\E[N] < \infty$. So we just have to decide whether
+$\sum_n \P(S_n = 0)$ converges.
+
+Return to $0$ is only possible after an even number of steps, with $n/2$ rights
+and $n/2$ lefts. Setting $n = 2m$,
+\[
+  \P(S_{2m} = 0) = \binom{2m}{m}\Big(\tfrac{1}{2}\Big)^{2m}.
+\]
+By Stirling's formula, $\binom{2m}{m} \sim 4^m/\sqrt{\pi m}$, so
+\[
+  \P(S_{2m} = 0) \sim \frac{1}{\sqrt{\pi m}}.
+\]
+Therefore
+\[
+  \E[N] = \sum_{m=0}^\infty \P(S_{2m}=0)
+  \sim \sum_{m=1}^\infty \frac{1}{\sqrt{\pi m}} = \infty,
+\]
+because $\sum 1/\sqrt{m}$ diverges (it is a $p$-series with $p = 1/2 \le 1$).
+The expected number of visits is infinite, so the walk is recurrent. \qed
+\end{whybox}
+
+This calculation deserves a long pause, because the \emph{exact same machine}
+decides recurrence in every dimension, and the verdict flips on the razor's
+edge of how fast $\P(S_{2m}=0)$ decays. In one dimension it decays like
+$m^{-1/2}$, the sum diverges, and the walk comes home. Watch what happens as we
+add dimensions.
+
+\subsection{Two dimensions: still recurrent}
+
+In two dimensions the walker stands at a lattice point and, each step, moves
+north, south, east, or west with probability $1/4$ each. To return to the
+origin after $2m$ steps, the net horizontal displacement and the net vertical
+displacement must both be zero. A clean way to see the count: think of the
+$x$-coordinate and $y$-coordinate as \emph{nearly} two independent 1D walks
+(after a $45^\circ$ rotation they become exactly independent), so the return
+probability roughly squares:
+\[
+  \P(S_{2m} = 0) \sim \Big(\frac{1}{\sqrt{\pi m}}\Big)^2 = \frac{1}{\pi m}.
+\]
+Now the series in question is the harmonic series:
+\[
+  \E[N] = \sum_m \P(S_{2m}=0) \sim \sum_m \frac{1}{\pi m} = \infty.
+\]
+It \emph{still} diverges -- but just barely, since $\sum 1/m$ is the famous
+divergent harmonic series sitting right at the boundary. So the 2D walk is also
+recurrent. The drunk in a city grid \emph{does} get home.
+
+\subsection{Three dimensions: transient}
+
+In three dimensions the walker moves along one of six directions
+($\pm x, \pm y, \pm z$) with probability $1/6$ each. Now the return probability
+behaves like the cube of the 1D rate:
+\[
+  \P(S_{2m} = 0) \sim \frac{C}{m^{3/2}}
+\]
+for a constant $C > 0$. And here the series \emph{converges}:
+\[
+  \E[N] = \sum_m \P(S_{2m}=0) \sim \sum_m \frac{C}{m^{3/2}} < \infty,
+\]
+a $p$-series with $p = 3/2 > 1$. Finite expected visits means the 3D walk is
+\emph{transient}: with positive probability it never returns to the origin.
+The bird flying in three-dimensional space may well wander off forever.
+
+\begin{paradoxbox}
+\textbf{P\'olya's theorem: ``A drunk man finds his way home, but a drunk bird
+may not.''} This memorable line is due to the mathematician Shizuo Kakutani,
+summarizing a $1921$ theorem of George P\'olya. The symmetric lattice walk is
+recurrent in dimensions $1$ and $2$ but transient in dimension $3$ and higher.
+
+What makes it a genuine paradox is how \emph{close} the calls are. The entire
+fate of the walker hinges on whether a single series converges, and the series
+exponents are $1/2$, $1$, $3/2$ in dimensions $1$, $2$, $3$. The boundary
+between ``always returns'' and ``may escape'' falls exactly between $d = 2$
+(harmonic series, just diverges) and $d = 3$ (just converges). Two dimensions
+is recurrent by a hair; three is transient by a hair. Geometry, not luck,
+decides -- there is simply \emph{more room to get lost} in three dimensions.
+
+A concrete number: the probability that the 3D walk ever returns to the origin
+is about $0.3405$. So a drunk bird has roughly a $34\%$ chance of coming home
+and a $66\%$ chance of being lost to the void. The drunk man's chance is
+$100\%$.
+\end{paradoxbox}
+
+\begin{historybox}
+George P\'olya later told the story of how he discovered the theorem. While
+walking in the woods near Zurich, he kept running into the same young couple --
+again and again, no matter which path he took. He wondered: was it pure chance,
+or was something about the structure of paths forcing the encounters? That idle
+question on a walk became the recurrence theorem of $1921$, one of the
+foundational results of the modern theory of random walks and Markov chains.
+The lesson is worth keeping: deep mathematics often begins with a concrete,
+almost childish question -- ``why do I keep bumping into these people?'' -- taken
+seriously.
+\end{historybox}
+
+\begin{happeningbox}
+Why does dimension matter so much? Recurrence is a competition between two
+forces. The walk \emph{spreads} -- after $n$ steps it occupies a cloud of
+diameter $\sim \sqrt{n}$. In $d$ dimensions that cloud has volume $\sim
+n^{d/2}$ and contains $\sim n^{d/2}$ lattice sites, so the chance of being on
+any one particular site (the origin) is $\sim n^{-d/2}$. Summing over all
+times asks whether $\sum_n n^{-d/2}$ converges, and that flips at $d = 2$. The
+higher the dimension, the more sites the probability is ``diluted'' across, and
+the less likely any specific site -- including home -- gets revisited. Recurrence
+is really a statement about whether the spreading cloud is dense enough to keep
+hitting the same point.
+\end{happeningbox}
+
+\section{The Reflection Principle and the Ballot Problem}
+\label{ch26:reflection}
+
+So far we have asked about the walk's position at a fixed time. The richer
+questions are about the \emph{path as a whole}: How high does it ever get? When
+does it first hit a level? How long does it stay positive? The master tool for
+all of these is a single, gorgeous idea.
+
+\begin{intuitionbox}
+\textbf{The reflection principle, in one picture}
+(Figure~\ref{ch26:fig-reflection}). Suppose a path goes from a
+point $A$ above some horizontal line to a point $B$ also above the line, but
+\emph{touches} the line somewhere in between. Reflect the portion of the path
+\emph{after} the first touch across the line. You get a brand-new path from $A$
+to $B'$, the mirror image of $B$. This reflection is a perfect bijection
+between (paths from $A$ to $B$ that touch the line) and (all paths from $A$ to
+$B'$). Counting one set is the same as counting the other -- and the reflected
+set is usually far easier to count.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.62]
+\draw[->] (-0.5,0) -- (15,0) node[right]{step $n$};
+\draw[->] (0,-5.7) -- (0,4.5) node[above]{$S_n$};
+\draw[gray!55, thick, dashed] (0,-1) -- (14,-1) node[right]{\small level $-1$};
+\draw[sourceblue, very thick]
+ (0,0)--(1,1)--(2,0)--(3,1)--(4,0)--(5,-1)--(6,0)--(7,-1)--(8,0)--(9,1)--(10,2)--(11,1)--(12,2)--(13,3);
+\fill[black] (0,0) circle (3pt) node[above left]{$A$};
+\fill[black] (13,3) circle (3pt) node[right]{$B$};
+\fill[densityred] (5,-1) circle (3.5pt);
+\node[densityred, below] at (5,-1) {\small first touch};
+\draw[densityred, very thick, dashed]
+ (5,-1)--(6,-2)--(7,-1)--(8,-2)--(9,-3)--(10,-4)--(11,-3)--(12,-4)--(13,-5);
+\fill[densityred] (13,-5) circle (3pt) node[right]{$B'$ (mirror of $B$)};
+\end{tikzpicture}
+\caption{The reflection principle. A path from $A$ to $B$ that touches the
+dashed level is reflected, after its first touch, into a path from $A$ to the
+mirror point $B'$. This pairing is exactly one-to-one, turning a hard count
+(``paths that touch'') into an easy one (``all paths to $B'$'').}
+\label{ch26:fig-reflection}
+\end{figure}
+
+Let us put it to work on the classic first-passage count.
+
+\begin{theorem}[Reflection principle / hitting count]
+\label{ch26:thm-reflection}
+For $a, b > 0$, the number of $n$-step $\pm 1$ paths from height $a$ to height
+$b$ that touch level $0$ at some time equals the total number of $n$-step paths
+from $-a$ to $b$.
+\end{theorem}
+
+\begin{whybox}
+Take any path from $a > 0$ to $b > 0$ that touches level $0$. Let $\tau$ be the
+first time it hits $0$. Reflect the entire path \emph{before} time $\tau$ across
+the level $0$: the starting height $a$ becomes $-a$, the touch point stays at
+$0$ (it is on the mirror), and the path after $\tau$ is left unchanged. The
+result is a path from $-a$ to $b$. Conversely, any path from $-a$ to $b$ must
+cross level $0$ (it starts below and ends above), and reflecting its piece up
+to the first crossing returns a path from $a$ that touches $0$. The map is its
+own inverse -- a bijection. So the two counts are equal. \qed
+\end{whybox}
+
+This bijection is the engine behind a charming old puzzle.
+
+\begin{example}[The ballot problem]
+\label{ch26:ex-ballotworked}
+In an election, candidate A receives $\alpha$ votes and candidate B receives
+$\beta$ votes, with $\alpha > \beta$. The ballots are counted one at a time in
+random order. What is the probability that A is \emph{strictly ahead} of B
+throughout the entire count -- from the very first vote to the last?
+
+Model the running lead $S_k = (\text{A votes so far}) - (\text{B votes so
+far})$ as a walk: an A-ballot is a $+1$ step, a B-ballot is a $-1$ step. After
+all $\alpha + \beta$ ballots the walk sits at $\alpha - \beta > 0$. ``A always
+strictly ahead'' means $S_k > 0$ for all $k \ge 1$, i.e.\ the walk never
+returns to (or dips below) $0$ after the first step.
+
+The first ballot must be an A (else A is not ahead at step $1$). After that,
+starting from height $1$, we need a path to $\alpha - \beta$ that never touches
+$0$. By the reflection principle the count of paths that \emph{do} touch $0$
+equals the count of paths starting from the mirror height $-1$ -- and a short
+bookkeeping with binomial coefficients collapses the whole thing into a
+startlingly clean answer:
+\[
+  \boxed{\,\P(\text{A always strictly ahead}) = \frac{\alpha - \beta}{\alpha + \beta}.\,}
+\]
+\end{example}
+
+\begin{aestheticbox}
+Look at how clean that is. The probability that A leads wire-to-wire depends
+only on the \emph{margin} $\alpha - \beta$ relative to the \emph{total}
+$\alpha + \beta$ -- the individual values barely matter. If A wins $600$ to
+$400$, the chance she led at every single moment of the count is exactly
+$200/1000 = 1/5$, no matter how large the electorate. The answer is so simple
+that it cries out for a slick proof, and indeed there are several (Andr\'e's
+reflection argument above; a cyclic-shift ``cycle lemma'' of Dvoretzky and
+Motzkin). When an answer is this clean, nature is telling you that you have
+found the right way to count.
+\end{aestheticbox}
+
+\begin{historybox}
+The ballot problem was posed and solved by Joseph Bertrand in $1887$, and
+D\'esir\'e Andr\'e published the elegant reflection argument the same year --
+which is why the technique is often called \emph{Andr\'e's reflection
+method}. It was one of the first deep results about the \emph{trajectory} of a
+random process rather than its endpoint, and it foreshadowed the modern theory
+of fluctuations: the arcsine laws, the distribution of the maximum, and
+first-passage times all descend from this single reflection idea.
+\end{historybox}
+
+\section{Gambler's Ruin}
+\label{ch26:ruin}
+
+The reflection principle counts paths that avoid a barrier. The gambler's ruin
+problem asks the complementary, intensely practical question: if there are
+barriers on \emph{both} sides -- you stop when you go broke or when you reach a
+target -- which barrier do you hit, and how long does it take?
+
+\begin{walkbox}
+A gambler starts with $\$i$ and bets $\$1$ per round on a game that pays even
+money. She quits if she reaches a fortune of $\$N$ (her goal) or if she hits
+$\$0$ (ruin). With a fair game, what is the chance she reaches her goal before
+going broke? And how many rounds, on average, until the game ends?
+\end{walkbox}
+
+This is a random walk on the integers $0, 1, 2, \dots, N$ with two
+\emph{absorbing} barriers: once you hit $0$ or $N$ the walk stops. Let $p_i$ be
+the probability of reaching $N$ before $0$, starting from $i$.
+
+\begin{theorem}[Gambler's ruin]
+\label{ch26:thm-ruin}
+For the fair game ($p = q = 1/2$), starting from $i$,
+\[
+  \P(\text{reach } N \text{ before } 0) = \frac{i}{N}.
+\]
+For a biased game with $p \ne q$ and ratio $r = q/p$,
+\[
+  \P(\text{reach } N \text{ before } 0) = \frac{1 - r^{\,i}}{1 - r^{\,N}}.
+\]
+The expected duration of the fair game, starting from $i$, is
+\[
+  \E[\text{number of rounds}] = i\,(N - i).
+\]
+\end{theorem}
+
+\begin{whybox}
+Condition on the first step -- this is the ``first-step analysis'' that solves
+almost every absorbing-walk problem. From state $i$ (with $0 < i < N$) the walk
+moves to $i+1$ with probability $p$ or to $i-1$ with probability $q$, so
+\[
+  p_i = p\,p_{i+1} + q\,p_{i-1}, \qquad p_0 = 0,\ p_N = 1.
+\]
+For the fair case $p = q = 1/2$ this says $p_i = \tfrac{1}{2}(p_{i+1} +
+p_{i-1})$, i.e.\ each $p_i$ is the \emph{average} of its neighbors. A sequence
+whose every term is the average of its neighbors is a straight line. With
+boundary values $p_0 = 0$ and $p_N = 1$, the only such line is $p_i = i/N$.
+
+For the biased case, rearrange into $p(p_{i+1} - p_i) = q(p_i - p_{i-1})$; the
+consecutive differences $d_i = p_i - p_{i-1}$ satisfy $d_{i+1} = r\,d_i$ with
+$r = q/p$, so $d_i = d_1 r^{i-1}$. Summing the geometric series of differences
+and applying $p_0 = 0$, $p_N = 1$ gives $p_i = (1 - r^i)/(1 - r^N)$.
+
+For the expected duration $D_i$, a parallel first-step analysis gives
+$D_i = 1 + \tfrac{1}{2}D_{i+1} + \tfrac{1}{2}D_{i-1}$ with $D_0 = D_N = 0$
+(the $+1$ counts the current round). The function $D_i = i(N-i)$ satisfies both
+the recurrence and the boundaries: $i(N-i)$ is a downward parabola, and one
+checks $1 + \tfrac12(i{+}1)(N{-}i{-}1) + \tfrac12(i{-}1)(N{-}i{+}1) = i(N-i)$.
+\qed
+\end{whybox}
+
+\begin{example}[The house always wins -- slowly]
+\label{ch26:ex-ruin}
+You sit down at a fair-coin game with $\$50$, hoping to double to $\$100$
+(so $i = 50$, $N = 100$). Your chance of success is $p_i = 50/100 = 1/2$ --
+perfectly fair, as it must be. And the expected number of rounds is $i(N-i) =
+50 \times 50 = 2500$. A long evening.
+
+Now suppose the game is slightly unfair, as every real casino game is. Take
+$p = 0.49$, $q = 0.51$, so $r = q/p = 0.51/0.49 \approx 1.0408$. Then
+\[
+  p_{50} = \frac{1 - 1.0408^{50}}{1 - 1.0408^{100}}
+  \approx \frac{1 - 7.3}{1 - 53.4} \approx 0.12.
+\]
+A house edge of a mere $2\%$ collapses your chance of doubling up from $50\%$ to
+about $12\%$. This is the brutal arithmetic of the casino: a tiny per-bet bias
+compounds, through $r^N$, into near-certain ruin for anyone who plays long
+enough.
+\end{example}
+
+Figure~\ref{ch26:fig-ruin} plots the success probability against the starting
+stake for both a fair and a slightly unfair game, and the gap between the two
+curves is the whole story of the casino.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6.2cm,
+  xlabel={starting stake $i$ (goal $N=100$)},
+  ylabel={$\P(\text{reach } N \text{ before } 0)$},
+  xmin=0, xmax=100, ymin=0, ymax=1,
+  grid=both, grid style={gray!18},
+  legend style={font=\scriptsize, at={(0.02,0.98)}, anchor=north west},
+  title={Gambler's ruin: chance of reaching the goal vs.\ starting stake},
+]
+\addplot[sourceblue, very thick, domain=0:100, samples=2] {x/100};
+\addplot[densityred, very thick] coordinates {
+(0,0.0000)(5,0.0041)(10,0.0092)(15,0.0153)(20,0.0229)(25,0.0320)(30,0.0433)(35,0.0570)(40,0.0737)(45,0.0942)(50,0.1192)(55,0.1497)(60,0.1870)(65,0.2325)(70,0.2881)(75,0.3560)(80,0.4390)(85,0.5404)(90,0.6641)(95,0.8153)(100,1.0000)
+};
+\legend{fair game ($p=\tfrac12$): $i/N$, biased ($p=0.49$): $(1-r^i)/(1-r^N)$}
+\end{axis}
+\end{tikzpicture}
+\caption{Success probability in gambler's ruin. For a fair game it is the
+straight line $i/N$. A mere $2\%$ house edge ($p=0.49$, $r=q/p\approx1.041$)
+bends the curve sharply downward: starting at the halfway stake $i=50$ your
+chance of doubling falls from $50\%$ to about $12\%$, matching
+Example~\ref{ch26:ex-ruin}.}
+\label{ch26:fig-ruin}
+\end{figure}
+
+\begin{paradoxbox}
+\textbf{The bold-play paradox.} Given an unfair game and a fixed goal, what
+betting strategy maximizes your chance of reaching it? Intuition says ``bet
+small, survive longer, give yourself more chances.'' Intuition is exactly
+wrong. The longer you expose your money to a negative-edge game, the more
+surely the edge grinds you down -- duration is the enemy. The optimal strategy
+is \emph{bold play}: bet as much as you can each time, racing to the goal in as
+few rounds as possible to minimize the house's chances to apply its edge.
+Against an unfair game, the rational move is to gamble \emph{harder}, not
+softer. (Against a \emph{fair} game it makes no difference -- timid and bold play
+both leave your success probability at $i/N$.)
+\end{paradoxbox}
+
+\begin{connectionbox}
+Gambler's ruin is your first encounter with a finite \emph{Markov chain} with
+absorbing states, and the ``each value is the average of its neighbors''
+equation $p_i = \tfrac12(p_{i+1}+p_{i-1})$ is the discrete \emph{Laplace
+equation}. Its solutions are \emph{harmonic functions}; the absorbing barriers
+play the role of boundary conditions. This is the same equation that governs
+steady-state heat and electrostatic potential, and it is exactly why random
+walks turn out to be a probabilistic method for solving partial differential
+equations. We develop the Markov-chain machinery -- transition matrices,
+absorption probabilities, expected hitting times -- in the next chapter; the
+linear-algebra view of these systems lives in the companion \emph{Linear
+Algebra From the Ground Up}.
+\end{connectionbox}
+
+\section{From Random Walk to Brownian Motion}
+\label{ch26:brownian}
+
+We end where the random walk has been pointing all along: at the continuous
+limit. What happens if we take smaller and smaller steps, faster and faster, in
+just the right balance?
+
+\begin{intuitionbox}
+Zoom out from a random-walk path until the individual $\pm 1$ steps blur into a
+continuous wiggle. To keep the picture from collapsing to a flat line or
+exploding to infinity, we must rescale space and time together -- and the
+$\sqrt{n}$ law tells us exactly how. If we take $n$ steps in one unit of time,
+the walk spreads by $\sqrt{n}$; to keep that spread finite as $n \to \infty$ we
+must shrink each step by a factor of $\sqrt{n}$. Space scales like the square
+root of time. The limiting object is \emph{Brownian motion}.
+\end{intuitionbox}
+
+Make it precise. Rescale the walk by letting $n$ steps fit into time $t$ and
+shrinking each step to size $1/\sqrt{n}$:
+\[
+  B_t^{(n)} = \frac{1}{\sqrt{n}}\, S_{\lfloor nt \rfloor}.
+\]
+At time $t = 1$ this is $S_n/\sqrt{n}$, which by the CLT converges to
+$\Normal(0, 1)$. More is true: the entire rescaled \emph{path} converges (this
+is Donsker's theorem, the ``functional CLT'') to a random continuous function
+$B_t$ with these properties.
+
+\begin{definition}[Brownian motion]
+\label{ch26:def-brownian}
+\emph{Standard Brownian motion} $\{B_t : t \ge 0\}$ is the random process with:
+$B_0 = 0$; independent increments (disjoint time intervals give independent
+displacements); stationary Gaussian increments, $B_t - B_s \sim \Normal(0,
+t-s)$ for $s < t$; and continuous sample paths.
+\end{definition}
+
+Notice the fingerprints of the random walk all over this definition.
+Independent increments are the i.i.d.\ steps. The variance $t - s$ growing
+linearly in elapsed time is the $\Var(S_n) = n$ law, survived into the limit.
+The Gaussian shape is the CLT doing its work on each increment. Brownian
+motion is the simple random walk, viewed from infinitely far away.
+Figure~\ref{ch26:fig-brownian} shows one such limiting path.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=6cm,
+  xlabel={time $t$}, ylabel={$B_t$},
+  xmin=0, xmax=1, ymin=-1.7, ymax=1.7,
+  grid=both, grid style={gray!18},
+  title={A Brownian sample path as the scaling limit of a random walk},
+]
+\addplot[sourceblue, thick] coordinates {
+(0,0)(0.02,0.14)(0.04,0.05)(0.06,0.22)(0.08,0.10)(0.10,0.31)(0.12,0.20)(0.14,0.41)(0.16,0.33)(0.18,0.52)(0.20,0.40)(0.22,0.55)(0.24,0.47)(0.26,0.66)(0.28,0.58)(0.30,0.45)(0.32,0.60)(0.34,0.74)(0.36,0.63)(0.38,0.80)(0.40,0.70)(0.42,0.58)(0.44,0.72)(0.46,0.61)(0.48,0.50)(0.50,0.64)(0.52,0.55)(0.54,0.42)(0.56,0.30)(0.58,0.44)(0.60,0.33)(0.62,0.20)(0.64,0.08)(0.66,-0.05)(0.68,0.10)(0.70,-0.02)(0.72,-0.16)(0.74,-0.04)(0.76,-0.20)(0.78,-0.33)(0.80,-0.22)(0.82,-0.38)(0.84,-0.50)(0.86,-0.40)(0.88,-0.55)(0.90,-0.44)(0.92,-0.60)(0.94,-0.48)(0.96,-0.63)(0.98,-0.52)(1.0,-0.66)
+};
+\addplot[black, dashed, samples=60, domain=0:1]{sqrt(x)};
+\addplot[black, dashed, samples=60, domain=0:1]{-sqrt(x)};
+\end{axis}
+\end{tikzpicture}
+\caption{A sample path of Brownian motion on $[0,1]$. The dashed curves
+$\pm\sqrt{t}$ mark one standard deviation; the path is continuous everywhere
+yet -- as a deeper analysis shows -- differentiable nowhere, infinitely jagged at
+every scale, exactly as the un-zoomable wiggle of the underlying random walk
+demands.}
+\label{ch26:fig-brownian}
+\end{figure}
+
+\begin{historybox}
+In $1827$ the botanist Robert Brown peered through a microscope at pollen grains
+suspended in water and saw them jiggling ceaselessly, with no apparent cause.
+For nearly eighty years the ``Brownian movement'' resisted explanation. Then in
+his \emph{annus mirabilis} of $1905$, Albert Einstein argued that the jiggle was
+the pollen being bombarded by countless invisible water molecules -- a visible
+random walk driven by molecular collisions -- and derived that the mean squared
+displacement grows \emph{linearly} in time, the continuous echo of $\Var(S_n) =
+n$. This gave Jean Perrin the means to measure Avogadro's number and clinched
+the physical reality of atoms. The rigorous mathematical object was constructed
+by Norbert Wiener in $1923$, which is why Brownian motion is also called the
+\emph{Wiener process}. A drunkard's stagger and a pollen grain's tremble obey
+the very same law.
+\end{historybox}
+
+\begin{applicationbox}
+\textbf{Brownian motion in the wild.} The random-walk-to-Brownian-motion limit
+is one of the most useful pipelines in applied mathematics.
+\begin{itemize}
+\item \textbf{Finance.} The Black--Scholes model treats the logarithm of a
+stock price as Brownian motion with drift. Option pricing, hedging, and modern
+quantitative finance all rest on this foundation -- the daily up/down ticks of a
+price are the random-walk steps.
+\item \textbf{Physics and chemistry.} Diffusion of heat, ink, perfume, and
+pollutants is Brownian motion of enormous numbers of particles; the
+$\sqrt{t}$ spreading law sets how fast a drop of dye fills a glass of water.
+\item \textbf{Genetics.} The frequency of a neutral allele in a finite
+population performs a random walk (the Wright--Fisher model), whose
+diffusion limit predicts how long until a gene is fixed or lost.
+\item \textbf{Machine learning.} Stochastic gradient descent is a noisy walk
+through a loss landscape; its continuous-time idealization is a Brownian-driven
+diffusion, and that lens explains why small-batch noise can help models
+generalize.
+\item \textbf{Algorithms.} Randomized search, Markov chain Monte Carlo (MCMC),
+and many randomized algorithms are analyzed as walks on enormous state spaces.
+\end{itemize}
+\end{applicationbox}
+
+\begin{labbox}
+Simulate it yourself. Generate $n = 1000$ i.i.d.\ $\pm 1$ steps and plot the
+cumulative sum -- you will see a jagged path like
+Figure~\ref{ch26:fig-paths}. Now do it for $100$ independent walks and, at each
+time $n$, compute the standard deviation across the $100$ endpoints; plot that
+against $\sqrt{n}$ and watch them track. Finally rescale one long walk by
+dividing positions by $\sqrt{n}$ and squeezing time into $[0,1]$: the result is
+a convincing Brownian path. Three short loops turn this whole chapter into a
+picture on your screen.
+\end{labbox}
+
+\begin{recoverybox}
+\textbf{The thread of the chapter.} A random walk is a running sum of i.i.d.\
+steps. Its mean stays put ($\E[S_n] = 0$) but its spread grows like $\sqrt{n}$
+($\Var(S_n) = n$). Whether it returns home is decided by a single series and
+flips with dimension -- recurrent in 1D and 2D, transient in 3D. The reflection
+principle turns hard path-counts into easy ones, giving the ballot problem and
+first-passage results for free. With absorbing barriers we get gambler's ruin,
+solved by first-step analysis and the discrete Laplace equation. And scaling
+the walk down in space and time, guided by the $\sqrt{n}$ law, produces
+Brownian motion -- the same process that jiggles a pollen grain and prices an
+option. Every one of these is a question about that one wandering token we
+started with.
+\end{recoverybox}
+
+\section{Exercises}
+\label{ch26:exercises}
+
+\begin{exercise}[Warm-up positions]
+\label{ch26:ex-warmup}
+For the simple symmetric random walk, compute $\P(S_4 = 2)$ and $\P(S_4 = 0)$
+directly by listing or counting the $\pm 1$ step sequences. Confirm your
+answers against the binomial formula $\P(S_n = k) = \binom{n}{(n+k)/2}2^{-n}$.
+\end{exercise}
+
+\begin{exercise}[Mean and variance, biased]
+\label{ch26:ex-biasedmoments}
+A biased walk has $\P(X_i = +1) = 0.6$. Find $\E[S_{100}]$ and
+$\SD(S_{100})$. Using the normal approximation, estimate $\P(S_{100} > 40)$.
+\end{exercise}
+
+\begin{exercise}[The $\sqrt{n}$ law in numbers]
+\label{ch26:ex-sqrtlaw}
+For the symmetric walk, how many steps must you take before the standard
+deviation of your position first exceeds $50$? Before it exceeds $500$? Explain
+in one sentence why the second answer is one hundred times the first, not ten.
+\end{exercise}
+
+\begin{exercise}[Return probability]
+\label{ch26:ex-return}
+Compute $\P(S_{2m} = 0)$ exactly for $m = 1, 2, 3$ for the symmetric walk, and
+compare each with the Stirling approximation $1/\sqrt{\pi m}$. Comment on how
+fast the approximation kicks in.
+\end{exercise}
+
+\begin{exercise}[Recurrence vs.\ transience, conceptual]
+\label{ch26:ex-rectrans}
+Explain, in your own words and without heavy formulas, why
+$\sum_n \P(S_n = 0) = \infty$ implies the walk returns to $0$ with probability
+$1$, while a finite sum implies positive escape probability. Then state which
+$p$-series exponent governs each dimension $d = 1, 2, 3$ and why $d = 2$ is the
+borderline case.
+\end{exercise}
+
+\begin{exercise}[Ballot problem]
+\label{ch26:ex-ballot}
+Candidate A gets $7$ votes and B gets $3$. (a) Using the ballot theorem, find
+the probability A is strictly ahead throughout the count. (b) Find the
+probability A is \emph{never behind} (ties allowed). \emph{Hint for (b): the
+``never behind'' count is given by the closely related formula
+$(\alpha - \beta + 1)/(\alpha + 1)$.}
+\end{exercise}
+
+\begin{exercise}[Gambler's ruin, fair]
+\label{ch26:ex-ruinfair}
+You start with $\$30$ and play a fair $\$1$ game, quitting at $\$0$ or
+$\$100$. (a) What is your probability of reaching $\$100$? (b) What is the
+expected number of rounds? (c) If instead you start at $\$50$, by what factor
+does the expected duration change, and why is it not simply proportional to
+your starting capital?
+\end{exercise}
+
+\begin{exercise}[Gambler's ruin, biased]
+\label{ch26:ex-ruinbiased}
+With $p = 0.45$, $q = 0.55$ (so $r = q/p = 11/9$), you start with $\$10$ and
+aim for $\$20$. Compute your probability of success using
+$p_i = (1 - r^i)/(1 - r^N)$. Compare with the fair-game value $i/N = 1/2$ and
+comment on how a $5\%$ edge per bet translates into the overall outcome.
+\end{exercise}
+
+\begin{exercise}[First-step analysis from scratch]
+\label{ch26:ex-firststep}
+Consider a walk on states $0, 1, 2, 3$ with absorbing barriers at $0$ and $3$,
+fair steps in between. Write down the equations $p_i = \tfrac12 p_{i+1} +
+\tfrac12 p_{i-1}$ with $p_0 = 0$, $p_3 = 1$, and solve the small linear system
+by hand for $p_1$ and $p_2$. Verify they match $i/N$.
+\end{exercise}
+
+\begin{exercise}[Scaling to Brownian motion]
+\label{ch26:ex-scaling}
+Define $B_t^{(n)} = S_{\lfloor nt \rfloor}/\sqrt{n}$. (a) Show that
+$\E[B_t^{(n)}] = 0$ and $\Var(B_t^{(n)}) \to t$ as $n \to \infty$. (b) For
+$s < t$, argue that $B_t^{(n)} - B_s^{(n)}$ is asymptotically independent of
+$B_s^{(n)}$ and has variance approaching $t - s$. Identify which property of
+Brownian motion each part establishes.
+\end{exercise}
+
+\begin{exercise}[Proof: maximum of the walk]
+\label{ch26:ex-maxproof}
+Use the reflection principle to prove that for the symmetric walk and any
+integer $b > 0$,
+\[
+  \P\!\Big(\max_{0 \le k \le n} S_k \ge b\Big)
+  = 2\,\P(S_n > b) + \P(S_n = b).
+\]
+\emph{Hint: a path reaching level $b$ either ends at or above $b$, or ends
+below $b$ after touching it; reflect the latter to pair it with a path ending
+above $b$.}
+\end{exercise}
+
+\begin{exercise}[Expected duration is a parabola]
+\label{ch26:ex-durparabola}
+Verify directly that $D_i = i(N - i)$ solves the duration recurrence
+$D_i = 1 + \tfrac12 D_{i+1} + \tfrac12 D_{i-1}$ with $D_0 = D_N = 0$. Then
+explain intuitively why the game lasts longest when you start in the middle
+($i = N/2$) and is shortest near a barrier.
+\end{exercise}
