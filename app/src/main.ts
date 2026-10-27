@@ -72,14 +72,17 @@ function renderMath(root: ParentNode, macros: Record<string, string>) {
       console.warn('KaTeX', e);
     }
   });
-  // Inline formulas wider than the column get their own scrollable line.
-  requestAnimationFrame(() => {
+  // Inline formulas wider than their container (e.g. inside indented lists) get their own scrollable line.
+  const markWide = () => {
     const host = root instanceof Element ? root : document.body;
-    const max = host.getBoundingClientRect().width;
+    const hb = host.getBoundingClientRect();
     host.querySelectorAll<HTMLElement>('.m').forEach((el) => {
-      if (el.getBoundingClientRect().width > max + 1) el.classList.add('wide');
+      const r = el.getBoundingClientRect();
+      if (r.width > hb.width + 1 || r.right > hb.right + 1) el.classList.add('wide');
     });
-  });
+  };
+  requestAnimationFrame(markWide);
+  document.fonts?.ready.then(markWide);
 }
 
 // ---------- views ----------

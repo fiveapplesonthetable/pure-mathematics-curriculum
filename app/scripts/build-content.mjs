@@ -258,6 +258,12 @@ function prepMath(src) {
     .replace(/\\(abs|norm|set|floor|ceil)\[\\[a-zA-Z]+\]/g, (_, n) => `\\${n}Star`)
     .replace(/\\bm\b/g, '\\boldsymbol')
     .replace(/\\protect\b/g, '')
+    .replace(/(\\text\{[^{}]*)\\textsuperscript\{([^}]*)\}/g, '$1$^{$2}$')
+    .replace(/\\bordermatrix\{([\s\S]*?)\}/g, (_, body) => {
+      const rows = body.replace(/%[^\n]*\n?/g, '').trim().replace(/\\cr\s*$/, '').split(/\\cr\b/).map((r) => r.trim()).filter(Boolean);
+      const cols = Math.max(1, (rows[0]?.split('&').length || 2) - 1);
+      return `\\begin{array}{r|${'c'.repeat(cols)}}${rows.join(' \\\\ ')}\\end{array}`;
+    })
     .replace(/\\begin\{([pbBvV])smallmatrix\}/g, (_, k) => `\\left${DELIM[k][0]}\\begin{smallmatrix}`)
     .replace(/\\end\{([pbBvV])smallmatrix\}/g, (_, k) => `\\end{smallmatrix}\\right${DELIM[k][1]}`)
     .replace(/\\(eqref|ref|cref|Cref|autoref)\{([^}]*)\}/g, (_, c, l) => `\\text{@@REF:${c}:${l}@@}`);

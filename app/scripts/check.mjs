@@ -87,9 +87,9 @@ for (const n of chapters) {
         width: f.getBoundingClientRect().width,
       })),
       wide: [...document.querySelectorAll('article *')]
-        .filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1 && !e.closest('.display, .table, pre, .fig-formula'))
+        .filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1 && !e.closest('.display, .md, .m.wide, .katex-mathml, .table, pre, .fig-formula'))
         .slice(0, 5)
-        .map((e) => e.tagName + '.' + e.className),
+        .map((e) => e.tagName + '.' + e.className + '(' + (e.textContent || '').slice(0, 25).replace(/\s+/g, ' ') + ')'),
     }));
     const problems = [...errors];
     if (info.overflow > 0) problems.push(`horizontal overflow ${info.overflow}px: ${info.wide.join(', ')}`);
