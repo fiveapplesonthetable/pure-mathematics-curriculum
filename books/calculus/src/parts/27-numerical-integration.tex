@@ -1,0 +1,533 @@
+\chapter{Numerical Integration}
+
+There is a quiet scandal at the heart of integral calculus, and it is time we spoke of it plainly. The Fundamental Theorem of Calculus is glorious: it tells us that to compute the definite integral $\int_a^b f(x)\,\dd x$ we need only find an antiderivative $F$ with $F' = f$, and then subtract: $F(b) - F(a)$. Clean. Exact. Beautiful. But it has a precondition hidden in plain sight, and the precondition fails far more often than the textbooks let on. \emph{You have to be able to find $F$.}
+
+For the polished examples we drill in a course, $F$ is always there, waiting to be remembered. In the wild, it usually is not. The function
+\[
+\int_0^1 e^{-x^2}\,\dd x
+\]
+has no antiderivative expressible in terms of the elementary functions you know -- no finite combination of polynomials, roots, exponentials, logarithms, and trig functions will ever equal an antiderivative of $e^{-x^2}$. This is not a failure of cleverness. It is a theorem (Liouville, 1830s): the antiderivative provably does not live in that world. Yet the integral is a perfectly definite number, roughly $0.7468$, and the entire field of statistics leans on it, because $e^{-x^2}$ is the bell curve.
+
+So what do you do when the Fundamental Theorem hands you a bill you cannot pay? You go back to what the integral \emph{is}. It is an area. It is a limit of sums. And areas can be \emph{estimated} -- carefully, with controlled error -- even when they cannot be written in closed form. That is numerical integration, and this chapter is about doing it well.
+
+\begin{focusbox}
+The integral $\int_a^b f\,\dd x$ is a number: the signed area under $f$. The Fundamental Theorem is one road to that number, available only when an antiderivative exists in usable form. Numerical integration is a different road, always open, that returns to the original meaning of the integral as accumulated area and computes that area directly from samples of $f$. Our goal: get an accurate number \emph{and} a reliable bound on how wrong it might be.
+\end{focusbox}
+
+\section{When the Antiderivative Will Not Come}
+\label{ch27:noanti}
+
+First feel the size of the problem, so that numerical methods do not look like a fallback for the lazy but the main highway they actually are.
+
+Here are integrals that arise constantly and have no elementary antiderivative:
+\[
+\int e^{-x^2}\,\dd x,\qquad
+\int \frac{\sin x}{x}\,\dd x,\qquad
+\int \frac{1}{\ln x}\,\dd x,\qquad
+\int \sqrt{1 + \tfrac14\cos^2 x}\,\dd x,\qquad
+\int \frac{e^{x}}{x}\,\dd x.
+\]
+The first is the Gaussian, the spine of probability. The second, $\sin x / x$, is the sinc function, the heartbeat of signal processing and optics. The third, $1/\ln x$, integrated, is the logarithmic integral $\mathrm{li}(x)$ that estimates how many primes lie below $x$. The fourth is the arc length of an ellipse -- the orbit of every planet -- and the reason elliptic integrals got their name. None of them yields to substitution, parts, or partial fractions, because no elementary antiderivative exists to be found.
+
+\begin{historybox}
+The French mathematician Joseph Liouville, in a series of papers around 1833--1841, did something that must have felt almost philosophical: he proved a \emph{negative}. He showed precisely which functions can have elementary antiderivatives, and built the machinery to certify that $e^{-x^2}$, $\sin(x)/x$, and many others cannot. Before Liouville, a student who failed to integrate $e^{-x^2}$ might reasonably suspect a gap in their own skill. After Liouville, we know the gap is in the universe of elementary functions, not in us. This is why numerical integration is not a confession of defeat. It is often the only road there is.
+\end{historybox}
+
+And even when an antiderivative \emph{does} exist, you may not have a formula for $f$ at all. A bridge engineer measuring the deflection of a beam, a physiologist tracking cardiac output, a data scientist with a column of numbers -- they have $f$ only as a \emph{table of values}, sampled at points. There is no symbolic $f$ to integrate. There is only data, and the area under it. Numerical integration is the language for turning samples into accumulated quantities.
+
+\begin{applicationbox}
+A car's speedometer reads its speed $v(t)$ each second. How far did the car travel between $t = 0$ and $t = 60$? Distance is $\int_0^{60} v(t)\,\dd t$. You have no formula for $v(t)$ -- you have sixty-one numbers. The only way to recover distance is to estimate the area under the speed curve from those samples. Every fitness tracker, every flight data recorder, every digital oscilloscope integrates this way thousands of times a second.
+\end{applicationbox}
+
+\section{The Crudest Defensible Estimate: Rectangles}
+\label{ch27:rectangles}
+
+We already met the idea in the chapter on the integral. Chop $[a,b]$ into $n$ equal slices of width
+\[
+h = \frac{b-a}{n},
+\]
+with cut points $x_0 = a,\ x_1 = a+h,\ \dots,\ x_n = b$. On each slice approximate the area by a rectangle. If we use the left endpoint's height $f(x_{i-1})$ on each slice we get the \emph{left Riemann sum}; the right endpoints give the right sum.
+
+The trouble with rectangles is visible to the eye. A rectangle has a flat top, but $f$ usually slopes. On a rising function, left rectangles sit entirely below the curve and lose area; right rectangles poke above and gain it (Figure~\ref{ch27:fig-rect}). The error on each slice is roughly the little triangular sliver between the flat top and the sloping curve. Halve the slice width and you halve roughly each sliver's base \emph{and} its height -- but there are twice as many of them, so the total error only halves. This is the painful arithmetic of rectangles: error $\propto h$. To get one more correct decimal digit you need ten times as many slices.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6cm,
+  domain=0:4, samples=100,
+  axis lines=middle,
+  xtick={0,1,2,3,4}, ytick=\empty,
+  xlabel={$x$}, ylabel={$f$},
+  xmin=-0.3, xmax=4.5, ymin=0, ymax=3.2,
+  enlargelimits=false,
+]
+\addplot[curveblue, very thick, domain=0:4] {0.6 + 0.25*x + 0.12*x^2};
+\foreach \i in {0,1,2,3} {
+  \edef\temp{\noexpand\addplot[draw=trapred!70, fill=trapred!12]
+    coordinates {(\i,0) (\i+1,0) (\i+1,{0.6+0.25*\i+0.12*\i*\i}) (\i,{0.6+0.25*\i+0.12*\i*\i})} --cycle;}
+  \temp
+}
+\end{axis}
+\end{tikzpicture}
+\caption{Left rectangles under a rising curve. Each rectangle's flat top falls short of the sloping curve, leaving a triangular sliver of lost area. The total error shrinks only in proportion to the slice width $h$. We can do much better by letting the tops slope.}
+\label{ch27:fig-rect}
+\end{figure}
+
+\begin{intuitionbox}
+The whole game of numerical integration is this: \emph{make the top of each piece look more like the curve}. A rectangle's top is a constant -- a degree-zero polynomial. The error comes from the curve refusing to be flat. If we let the top be a sloping line (degree one), we cancel the slope error. If we let it be a parabola (degree two), we cancel the curvature error too. Each step up in the local approximation kills the leading source of error and earns us a faster-shrinking mistake. The trapezoidal rule is the line; Simpson's rule is the parabola.
+\end{intuitionbox}
+
+\section{The Trapezoidal Rule: Let the Tops Slope}
+\label{ch27:trap}
+
+The fix for rectangles is almost too obvious once you see the sliver. Instead of a flat top, connect the two endpoints of each slice with a straight line. The flat-topped rectangle becomes a \emph{trapezoid} whose slanted top hugs the curve far better (Figure~\ref{ch27:fig-trap}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6cm,
+  domain=0:4, samples=100,
+  axis lines=middle,
+  xtick={0,1,2,3,4}, ytick=\empty,
+  xlabel={$x$}, ylabel={$f$},
+  xmin=-0.3, xmax=4.5, ymin=0, ymax=3.2,
+  enlargelimits=false,
+]
+\foreach \i in {0,1,2,3} {
+  \edef\temp{\noexpand\addplot[draw=targetgreen!70, fill=targetgreen!12]
+    coordinates {(\i,0) (\i+1,0) (\i+1,{0.6+0.25*(\i+1)+0.12*(\i+1)*(\i+1)}) (\i,{0.6+0.25*\i+0.12*\i*\i})} --cycle;}
+  \temp
+}
+\addplot[curveblue, very thick, domain=0:4] {0.6 + 0.25*x + 0.12*x^2};
+\end{axis}
+\end{tikzpicture}
+\caption{The trapezoidal rule: connect consecutive sample points with straight chords. Each trapezoid hugs the curve much more closely than a flat rectangle. The leftover error per slice now comes only from the curve's \emph{bending}, not its sloping.}
+\label{ch27:fig-trap}
+\end{figure}
+
+The area of a single trapezoid is its average height times its width. On the slice $[x_{i-1}, x_i]$ the two heights are $f(x_{i-1})$ and $f(x_i)$, and the width is $h$, so
+\[
+\text{slice area} \approx h\cdot \frac{f(x_{i-1}) + f(x_i)}{2}.
+\]
+Add up all $n$ slices. Watch what happens: every interior point $x_1, \dots, x_{n-1}$ is the right endpoint of one trapezoid and the left endpoint of the next, so its height gets counted twice. The two outer endpoints $x_0$ and $x_n$ are counted once. The total telescopes into a clean formula.
+
+\begin{focusbox}
+\textbf{Trapezoidal Rule.} With $h = (b-a)/n$ and $x_i = a + i h$,
+\[
+T_n = \frac{h}{2}\Big[\, f(x_0) + 2f(x_1) + 2f(x_2) + \cdots + 2f(x_{n-1}) + f(x_n) \,\Big].
+\]
+The pattern of weights is $1,2,2,\dots,2,1$. Ends count once, interiors count twice, and the whole thing is scaled by $h/2$.
+\end{focusbox}
+
+\begin{whybox}
+Why is the weight pattern $1,2,2,\dots,2,1$ and not something fancier? Because each interior sample is shared between two neighboring trapezoids -- it is the right wall of one and the left wall of the next -- so its height contributes to two pieces of area, hence weight $2$. The two boundary samples belong to only one trapezoid each, hence weight $1$. The trapezoidal rule is nothing more than ``replace the curve with the connect-the-dots polygon through your samples, and take the area under the polygon.'' That polygon is the unique piecewise-linear function agreeing with $f$ at every node. Integrating it exactly gives $T_n$. So the trapezoidal rule is exact for any function that already \emph{is} a straight line on each slice -- and approximately right to the extent that $f$ is nearly straight at the scale of $h$.
+\end{whybox}
+
+\begin{labbox}
+Estimate $\int_0^1 e^{-x^2}\,\dd x$ with the trapezoidal rule using $n=4$. Then $h = 0.25$ and the nodes are $0, 0.25, 0.5, 0.75, 1$. Compute the heights $f(x) = e^{-x^2}$:
+\[
+\begin{array}{c|c}
+x & e^{-x^2}\\\hline
+0    & 1.000000\\
+0.25 & 0.939413\\
+0.5  & 0.778801\\
+0.75 & 0.569783\\
+1.0  & 0.367879
+\end{array}
+\]
+Now apply the weights $1,2,2,2,1$:
+\[
+T_4 = \frac{0.25}{2}\Big[1.000000 + 2(0.939413) + 2(0.778801) + 2(0.569783) + 0.367879\Big].
+\]
+The bracket is $1.000000 + 1.878826 + 1.557602 + 1.139566 + 0.367879 = 5.943873$. Multiply by $h/2 = 0.125$: $T_4 = 0.742984$. The true value is $0.746824$. We are off by about $0.0038$ -- already under one percent with only five function evaluations, and we never found an antiderivative because none exists.
+\end{labbox}
+
+\subsection{How Wrong Is the Trapezoidal Rule? The Error Comes From Curvature}
+\label{ch27:traperror}
+
+Look again at Figure~\ref{ch27:fig-trap}. Where the curve bulges \emph{up} (concave down), the chord cuts underneath and the trapezoid undershoots. Where the curve bulges \emph{down} (concave up), the chord rides above and the trapezoid overshoots. Either way, the error is governed by how much the curve bends -- by the second derivative $f''$. A straight line has $f'' = 0$ and the trapezoidal rule nails it exactly. The more $f$ curves, the more the chord misses.
+
+Make this precise on one slice, because the mechanism is the whole story. Take a single interval of width $h$ and ask how far the area under the chord differs from the area under $f$. A careful accounting (a short Taylor expansion, done in the box below) gives, for one slice,
+\[
+\text{(true area)} - \text{(trapezoid area)} = -\frac{h^3}{12}\, f''(\xi)
+\]
+for some point $\xi$ inside the slice. The error on one slice is proportional to $h^3$ and to the curvature there.
+
+\begin{happeningbox}
+\textbf{Why $h^3$ per slice but $h^2$ overall.} Each slice carries error of size $\sim h^3$. But to cover a fixed interval $[a,b]$ you need $n = (b-a)/h$ slices, so the errors stack up:
+\[
+\text{total error} \sim n \cdot h^3 = \frac{b-a}{h}\cdot h^3 = (b-a)\,h^2.
+\]
+One power of $h$ is eaten by needing more slices as $h$ shrinks. What survives is $h^2$. This is the deep pattern of the whole subject: a method with per-slice error $h^{p+1}$ delivers \emph{global} error $h^{p}$. The trapezoidal rule has $p=2$. Halve $h$ (double the work) and the error drops by a factor of $4$, not $2$. That is already a world better than rectangles, where halving $h$ only halves the error.
+\end{happeningbox}
+
+\begin{whybox}
+\textbf{Where the $-h^3 f''/12$ comes from.} Put the slice symmetrically as $[-h/2, h/2]$ to keep the algebra clean. Taylor-expand $f$ about the midpoint:
+\[
+f(x) = f(0) + f'(0)\,x + \tfrac12 f''(0)\,x^2 + \cdots
+\]
+Integrate across the slice. The odd term $f'(0)x$ integrates to zero by symmetry, leaving
+\[
+\int_{-h/2}^{h/2} f\,\dd x = f(0)\,h + \tfrac12 f''(0)\cdot \frac{2}{3}\Big(\tfrac{h}{2}\Big)^3 + \cdots = f(0)\,h + \frac{f''(0)\,h^3}{24} + \cdots
+\]
+The trapezoid uses the two endpoint heights $f(\pm h/2)$. Their average is
+\[
+\frac{f(h/2)+f(-h/2)}{2} = f(0) + \tfrac12 f''(0)\Big(\tfrac{h}{2}\Big)^2 + \cdots = f(0) + \frac{f''(0)h^2}{8} + \cdots,
+\]
+so the trapezoid area is $h\big(f(0) + \tfrac{f''(0)h^2}{8}\big) = f(0)h + \frac{f''(0)h^3}{8}$. Subtract:
+\[
+\text{true} - \text{trap} = \frac{f''(0)h^3}{24} - \frac{f''(0)h^3}{8} = f''(0)h^3\Big(\tfrac{1}{24} - \tfrac{3}{24}\Big) = -\frac{f''(0)h^3}{12}.
+\]
+There it is. The midpoint rule (rectangle of height $f(0)$, area $f(0)\,h$) misses the truth by $+\tfrac{1}{24}f''(0)h^3$, while the trapezoid misses by $-\tfrac{1}{12}f''(0)h^3$. Both errors are a term in $f'' h^3$, but the trapezoid's is exactly \emph{twice as large, in the opposite direction}. Hold that fact -- Simpson will exploit it.
+\end{whybox}
+
+Summing $-h^3 f''(\xi_i)/12$ over all $n$ slices and replacing the average of the $f''(\xi_i)$ by a single value $f''(\xi)$ (a use of the intermediate value property) gives the standard bound.
+
+\begin{focusbox}
+\textbf{Trapezoidal error bound.} If $\abs{f''(x)} \le M_2$ for all $x$ in $[a,b]$, then
+\[
+\abs{\,\int_a^b f\,\dd x - T_n\,} \le \frac{(b-a)\,h^2}{12}\,M_2 = \frac{(b-a)^3}{12\,n^2}\,M_2.
+\]
+The error is controlled by the largest curvature on the interval and falls like $1/n^2$.
+\end{focusbox}
+
+\begin{labbox}
+Bound the error of our $T_4$ estimate of $\int_0^1 e^{-x^2}\,\dd x$. We need a bound $M_2$ on $\abs{f''}$ over $[0,1]$. With $f = e^{-x^2}$, $f' = -2x e^{-x^2}$ and $f'' = (4x^2 - 2)e^{-x^2}$. On $[0,1]$ this ranges between $-2$ (at $x=0$) and about $0.74$ (at $x=1$), so $\abs{f''} \le 2$; take $M_2 = 2$. With $b-a = 1$, $n=4$, $h = 0.25$:
+\[
+\abs{\text{error}} \le \frac{1 \cdot (0.25)^2}{12}\cdot 2 = \frac{0.0625}{12}\cdot 2 = 0.0104.
+\]
+Our actual error was $0.0038$, comfortably inside the guaranteed bound of $0.0104$. The bound is valid but conservative -- it uses the worst-case curvature everywhere, while the real curvature is smaller over most of the interval. This is the typical relationship: the bound certifies, the true error beats it.
+\end{labbox}
+
+\section{Simpson's Rule: Let the Tops Be Parabolas}
+\label{ch27:simpson}
+
+The trapezoidal rule replaced the curve by straight chords and was left with an error driven by curvature, $f''$. The obvious next move: replace the curve not by lines but by \emph{parabolas}, which can themselves curve. A parabola is determined by three points, so we take the samples two slices at a time -- $x_0, x_1, x_2$ -- fit the unique parabola through those three heights, and use the exact area under that parabola as our estimate for the area over $[x_0, x_2]$ (Figure~\ref{ch27:fig-simp}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6cm,
+  domain=0:4, samples=100,
+  axis lines=middle,
+  xtick={0,2,4}, xticklabels={$x_0$,$x_1$,$x_2$}, ytick=\empty,
+  xlabel={$x$}, ylabel={$f$},
+  xmin=-0.3, xmax=4.6, ymin=0, ymax=3.4,
+  enlargelimits=false,
+]
+\addplot[curveblue, very thick, domain=0:4, samples=80] {0.7 + 0.9*sin(deg(0.55*x)) + 0.18*x};
+\addplot[targetgreen, very thick, dashed, domain=0:4, samples=60]
+  {0.7 + (1.862-0.7)*(x/2) + ((2.148 - 2*1.862 + 0.7)/2)*(x/2)*(x/2-1)};
+\addplot[only marks, mark=*, mark size=2pt, trapred] coordinates {(0,0.7) (2,1.862) (4,2.148)};
+\end{axis}
+\end{tikzpicture}
+\caption{Simpson's rule fits a parabola (dashed green) through three consecutive samples and integrates the parabola exactly. A parabola can bend, so it tracks a curving function far better than a straight chord. The fit need not pass under or over the curve everywhere -- it weaves through it, and the over- and under-estimates largely cancel.}
+\label{ch27:fig-simp}
+\end{figure}
+
+The arithmetic of ``integrate the parabola through three points'' produces a startlingly tidy weight pattern. Over a double-slice $[x_0, x_2]$ of total width $2h$, the exact area under the interpolating parabola works out to
+\[
+\int_{x_0}^{x_2} (\text{parabola})\,\dd x = \frac{h}{3}\Big[\,f(x_0) + 4 f(x_1) + f(x_2)\,\Big].
+\]
+The middle point gets weight $4$, the two ends weight $1$, scaled by $h/3$. (The derivation is in the box below -- it is just integrating a quadratic.) Now stitch these double-slices together along $[a,b]$. This requires $n$ to be \emph{even} so the slices pair up cleanly. Each interior odd-indexed node $x_1, x_3, x_5, \dots$ is the apex of its own parabola and gets weight $4$. Each interior even-indexed node $x_2, x_4, \dots$ is shared as the right end of one parabola and the left end of the next, so its two weight-$1$ contributions add to $2$. The outer ends keep weight $1$.
+
+\begin{focusbox}
+\textbf{Simpson's Rule} (requires $n$ even). With $h = (b-a)/n$,
+\[
+S_n = \frac{h}{3}\Big[\, f(x_0) + 4f(x_1) + 2f(x_2) + 4f(x_3) + 2f(x_4) + \cdots + 4f(x_{n-1}) + f(x_n)\,\Big].
+\]
+The weight pattern is $1,4,2,4,2,\dots,4,1$: ends are $1$, odd interior nodes are $4$, even interior nodes are $2$, all scaled by $h/3$.
+\end{focusbox}
+
+\begin{whybox}
+\textbf{Deriving the $\tfrac{h}{3}[1,4,1]$ formula.} Center the double-slice at the origin: nodes at $-h, 0, +h$ with heights $y_{-1}, y_0, y_1$. Any parabola is $p(x) = A + Bx + Cx^2$. Integrate it across $[-h,h]$:
+\[
+\int_{-h}^{h} (A + Bx + Cx^2)\,\dd x = 2Ah + \frac{2Ch^3}{3},
+\]
+since the odd term $Bx$ integrates to zero. Now express $A$ and $C$ through the sampled heights. Plugging in the nodes: $y_0 = A$, and $y_1 + y_{-1} = 2A + 2Ch^2$, so $C = (y_1 - 2y_0 + y_{-1})/(2h^2)$. Substitute:
+\[
+2Ah + \frac{2Ch^3}{3} = 2y_0 h + \frac{h}{3}(y_1 - 2y_0 + y_{-1}) = \frac{h}{3}\big(y_{-1} + 4y_0 + y_1\big).
+\]
+Out drops the famous $1,4,1$. Notice we never needed $B$ at all -- the slope term self-cancels by symmetry. This is the secret of Simpson's surprising power.
+\end{whybox}
+
+\begin{labbox}
+Estimate $\int_0^1 e^{-x^2}\,\dd x$ with Simpson's rule, $n = 4$, reusing the exact same five heights from the trapezoidal lab. Apply the weights $1,4,2,4,1$:
+\[
+S_4 = \frac{0.25}{3}\Big[1.000000 + 4(0.939413) + 2(0.778801) + 4(0.569783) + 0.367879\Big].
+\]
+The bracket: $1.000000 + 3.757652 + 1.557602 + 2.279132 + 0.367879 = 8.962265$. Multiply by $h/3 = 0.083333$: $S_4 = 0.746855$. The true value is $0.746824$. The error is $0.000031$ -- about $31$ \emph{millionths}. Trapezoid with the very same data missed by $0.0038$. Simpson, using not a single extra function evaluation, is more than a hundred times more accurate. That is the punchline of this chapter, and now we explain why.
+\end{labbox}
+
+\section{Why Simpson Is So Astonishingly Good}
+\label{ch27:whysimpson}
+
+Simpson's rule fits parabolas, so you would naturally guess it is exact for parabolas and merely good for everything else. It is exact for parabolas -- but it is also exact for \emph{cubics}, and that one extra degree of free accuracy is the source of its near-magical performance. The rest of this section shows why, geometrically, and what it buys.
+
+\begin{intuitionbox}
+\textbf{The cubic that Simpson sees for free.} Consider $f(x) = x^3$ on the symmetric double-slice $[-h, h]$ with midpoint at $0$. Its true integral is zero, because $x^3$ is odd: the positive bump on the right exactly cancels the negative dip on the left. Now ask what Simpson predicts. The weights $1,4,1$ act on the heights $(-h)^3, 0, h^3$, i.e. $-h^3, 0, h^3$. Their weighted sum is $1\cdot(-h^3) + 4\cdot 0 + 1\cdot h^3 = 0$. Simpson also returns zero! The parabola Simpson fits cannot \emph{see} the cubic wiggle -- but it does not need to, because the symmetric weighting cancels the odd part of the function just as the true integral does. So Simpson gets cubics exactly right, by symmetry, even though it only ever fits quadratics. A method built to be exact on degree $2$ turns out, for free, to be exact on degree $3$.
+\end{intuitionbox}
+
+Before we cash this in, meet the rule's silent partner: the \emph{midpoint rule}. Instead of sampling at the ends of a slice (trapezoid) it samples at the \emph{center} and uses a rectangle of that single height. You might expect a lone rectangle to be no better than the crude left/right rectangles of Section~\ref{ch27:rectangles}, but centering changes everything. Because the rectangle's flat top crosses the curve in the middle of the slice, it overshoots on one side and undershoots on the other, and those two triangular errors very nearly cancel (Figure~\ref{ch27:fig-mid}). That near-cancellation is why the midpoint rule, despite using only \emph{one} sample per slice, already matches the trapezoid's $h^2$ accuracy -- and, as we are about to see, leans its error in the \emph{opposite} direction, which is exactly what Simpson needs.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6cm,
+  domain=0:4, samples=100,
+  axis lines=middle,
+  xtick={0.5,1.5,2.5,3.5}, xticklabels={}, ytick=\empty,
+  xlabel={$x$}, ylabel={$f$},
+  xmin=-0.3, xmax=4.5, ymin=0, ymax=3.2,
+  enlargelimits=false,
+]
+\foreach \i in {0,1,2,3} {
+  \edef\temp{\noexpand\addplot[draw=structurepurple!70, fill=structurepurple!12]
+    coordinates {(\i,0) (\i+1,0) (\i+1,{0.6+0.25*(\i+0.5)+0.12*(\i+0.5)*(\i+0.5)}) (\i,{0.6+0.25*(\i+0.5)+0.12*(\i+0.5)*(\i+0.5)})} --cycle;}
+  \temp
+}
+\addplot[curveblue, very thick, domain=0:4] {0.6 + 0.25*x + 0.12*x^2};
+\addplot[only marks, mark=*, mark size=1.6pt, trapred] coordinates {
+  (0.5,{0.6+0.25*0.5+0.12*0.25}) (1.5,{0.6+0.25*1.5+0.12*2.25})
+  (2.5,{0.6+0.25*2.5+0.12*6.25}) (3.5,{0.6+0.25*3.5+0.12*12.25})};
+\end{axis}
+\end{tikzpicture}
+\caption{The midpoint rule: each rectangle's height is sampled at the \emph{center} of its slice (red dots). The flat top now slices through the curve, overshooting on the low side and undershooting on the high side, so the two errors largely cancel. One sample per slice, yet accuracy $\sim h^2$ -- and its leftover error tilts opposite to the trapezoid's, the fact Simpson exploits.}
+\label{ch27:fig-mid}
+\end{figure}
+
+\begin{whybox}
+\textbf{Simpson is the trapezoid's error, cancelled.} Recall the two facts we proved earlier on a single slice: the \emph{midpoint rule} (rectangle of height $f$ at the center) has error $+\tfrac{1}{24} f'' h^3$ per slice, while the \emph{trapezoid} has error $-\tfrac{1}{12}f'' h^3$ -- the trapezoid's leading error is exactly $-2$ times the midpoint's. So if we take a weighted blend that kills the $f''$ term,
+\[
+\frac{2\,(\text{Midpoint}) + 1\,(\text{Trapezoid})}{3},
+\]
+the leading curvature errors cancel: $2\cdot(+\tfrac{1}{24}) + 1\cdot(-\tfrac{1}{12}) = \tfrac{1}{12} - \tfrac{1}{12} = 0$. And this blend \emph{is} Simpson's rule. On a double-slice the trapezoid uses the two endpoints and the midpoint rule uses the center; combine them in the ratio $2{:}1$ and you reproduce exactly the $1,4,1$ pattern. So Simpson is not an unrelated trick: it is precisely the linear combination of the two simple rules engineered to annihilate their common $f''$ error term. With the $f''$ term gone, the leading error is pushed all the way out to the next term, the fourth derivative $f^{(4)}$.
+\end{whybox}
+
+Because the $f''$ error is gone, Simpson's per-slice error is $\sim h^5 f^{(4)}$, and summed over $n = (b-a)/h$ double-slices the global error is $\sim h^4 f^{(4)}$. Compare:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lccc}
+\toprule
+Rule & Exact for & Global error & Halving $h$ divides error by\\
+\midrule
+Rectangles & constants (deg 0) & $\sim h$ & $2$\\
+Trapezoid  & lines (deg 1)     & $\sim h^2$ & $4$\\
+Simpson    & cubics (deg 3)    & $\sim h^4$ & $16$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+These three growth laws are not abstractions; you can \emph{watch} them. Figure~\ref{ch27:fig-conv} plots the true error of each rule against the number of slices $n$ for our running integral $\int_0^1 e^{-x^2}\,\dd x$, on log--log axes. On such axes a power law $\text{error} \sim n^{-p}$ becomes a straight line of slope $-p$, and the three rules sort themselves into three visibly different slopes.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{loglogaxis}[
+  width=12cm, height=7.2cm,
+  xlabel={number of slices $n$}, ylabel={absolute error},
+  xmin=1.6, xmax=160, ymin=1e-10, ymax=1,
+  grid=both, grid style={gray!18},
+  legend pos=south west,
+  legend cell align=left,
+  log basis x=10, log basis y=10,
+]
+% Rectangle (left) error: ~ slope -1
+\addplot[trapred, very thick, mark=*, mark size=1.6pt] coordinates {
+  (2,1.30e-1) (4,6.50e-2) (8,3.25e-2) (16,1.62e-2) (32,8.12e-3) (64,4.06e-3) (128,2.03e-3)
+};
+\addlegendentry{rectangles ($\sim n^{-1}$)}
+% Trapezoid error: ~ slope -2
+\addplot[curveblue, very thick, mark=square*, mark size=1.6pt] coordinates {
+  (2,1.55e-2) (4,3.84e-3) (8,9.59e-4) (16,2.40e-4) (32,5.99e-5) (64,1.50e-5) (128,3.74e-6)
+};
+\addlegendentry{trapezoid ($\sim n^{-2}$)}
+% Simpson error: ~ slope -4
+\addplot[targetgreen, very thick, mark=triangle*, mark size=2pt] coordinates {
+  (2,3.05e-4) (4,3.10e-5) (8,2.02e-6) (16,1.28e-7) (32,8.04e-9) (64,5.03e-10)
+};
+\addlegendentry{Simpson ($\sim n^{-4}$)}
+\end{loglogaxis}
+\end{tikzpicture}
+\caption{Error of each rule versus the number of slices $n$ for $\int_0^1 e^{-x^2}\,\dd x$, on log--log axes, where a power law appears as a straight line of slope $-p$. Rectangles fall one decade per decade ($p=1$), the trapezoid two ($p=2$), Simpson four ($p=4$). The vertical gap is the whole story of the chapter: at $n=32$, Simpson is already near the limits of double precision while the trapezoid still carries five-digit error and rectangles barely three.}
+\label{ch27:fig-conv}
+\end{figure}
+
+\begin{focusbox}
+\textbf{Simpson error bound.} If $\abs{f^{(4)}(x)} \le M_4$ on $[a,b]$, then
+\[
+\abs{\,\int_a^b f\,\dd x - S_n\,} \le \frac{(b-a)\,h^4}{180}\,M_4 = \frac{(b-a)^5}{180\,n^4}\,M_4.
+\]
+The error falls like $1/n^4$. Doubling the number of slices divides the error by $16$.
+\end{focusbox}
+
+\begin{labbox}
+Bound the error of $S_4$ for $\int_0^1 e^{-x^2}\,\dd x$. We need $M_4 = \max\abs{f^{(4)}}$ on $[0,1]$. For $f = e^{-x^2}$, $f^{(4)} = (16x^4 - 48x^2 + 12)e^{-x^2}$. At $x = 0$ this is $12$; it decreases over $[0,1]$, so $\abs{f^{(4)}} \le 12$; take $M_4 = 12$. With $b-a=1$, $h=0.25$:
+\[
+\abs{\text{error}} \le \frac{1\cdot (0.25)^4}{180}\cdot 12 = \frac{0.00390625}{180}\cdot 12 = 0.00026.
+\]
+Our actual error was $0.000031$, well inside the certified $0.00026$. Even the conservative bound promises four good digits from five function values; the truth delivers five.
+\end{labbox}
+
+\begin{aestheticbox}
+Pause on what just happened. By choosing local pieces one degree smarter -- parabolas instead of chords -- and getting one more degree of exactness for free by symmetry, the error exponent jumped from $h^2$ to $h^4$. That is not a small tweak; it is a different growth law. To reach an error of $10^{-8}$, the trapezoidal rule might need $n \approx 10^4$ slices while Simpson needs only $n \approx 10^2$. The same five samples, weighted $1,4,2,4,1$ instead of $1,2,2,2,1$, buy a hundredfold accuracy. This is the recurring lesson of numerical analysis: \emph{where you put your effort matters more than how much you spend}. A cleverer formula, not a bigger computer, is what closes the gap.
+\end{aestheticbox}
+
+\section{A Fuller Worked Example with Both Rules}
+\label{ch27:worked}
+
+Let us integrate something with a known answer so we can check ourselves against the truth. Take
+\[
+\int_1^2 \frac{1}{x}\,\dd x = \ln 2 = 0.693147\ldots
+\]
+This one \emph{does} have an antiderivative, $\ln x$, but that makes it a perfect test bench: we can compare our estimates against the exact value to the last digit.
+
+Use $n = 4$, so $h = 0.25$ and the nodes are $1, 1.25, 1.5, 1.75, 2$. The heights $f(x) = 1/x$:
+\[
+\begin{array}{c|c}
+x & 1/x\\\hline
+1.00 & 1.000000\\
+1.25 & 0.800000\\
+1.50 & 0.666667\\
+1.75 & 0.571429\\
+2.00 & 0.500000
+\end{array}
+\]
+
+\textbf{Trapezoidal.} Weights $1,2,2,2,1$:
+\[
+T_4 = \frac{0.25}{2}\big[1.000000 + 2(0.800000) + 2(0.666667) + 2(0.571429) + 0.500000\big].
+\]
+Bracket: $1.000000 + 1.600000 + 1.333334 + 1.142858 + 0.500000 = 5.576192$. Times $0.125$: $T_4 = 0.697024$. Error: $0.003877$.
+
+\textbf{Simpson.} Weights $1,4,2,4,1$:
+\[
+S_4 = \frac{0.25}{3}\big[1.000000 + 4(0.800000) + 2(0.666667) + 4(0.571429) + 0.500000\big].
+\]
+Bracket: $1.000000 + 3.200000 + 1.333334 + 2.285716 + 0.500000 = 8.319050$. Times $0.083333$: $S_4 = 0.693254$. Error: $0.000107$.
+
+Simpson beats the trapezoidal rule by a factor of about $36$ here, on identical data. Now let us check the error bounds. For $f = 1/x$ on $[1,2]$: $f'' = 2/x^3$, maximized at $x=1$ giving $M_2 = 2$; and $f^{(4)} = 24/x^5$, maximized at $x=1$ giving $M_4 = 24$.
+\[
+\text{Trap bound} = \frac{1\cdot(0.25)^2}{12}\cdot 2 = 0.01042,\qquad
+\text{Simpson bound} = \frac{1\cdot(0.25)^4}{180}\cdot 24 = 0.00052.
+\]
+Both actual errors ($0.0039$ and $0.0001$) sit safely below their bounds. The numbers tell a consistent story across two completely different integrands.
+
+\begin{labbox}
+\textbf{Use the bound to choose $n$ in advance.} Suppose you want $\int_1^2 \tfrac1x\,\dd x$ to within $10^{-6}$ using Simpson. Solve the bound for $n$:
+\[
+\frac{(b-a)^5}{180\,n^4}M_4 \le 10^{-6}
+\;\Longrightarrow\;
+\frac{1\cdot 24}{180\,n^4} \le 10^{-6}
+\;\Longrightarrow\;
+n^4 \ge \frac{24}{180\cdot 10^{-6}} = 133{,}333
+\;\Longrightarrow\;
+n \ge 19.1.
+\]
+Round up to the next even integer: $n = 20$. With just twenty-one function values, Simpson guarantees six correct digits of $\ln 2$. The same calculation for the trapezoidal rule demands $n \ge 409$ -- twenty times the work for the same accuracy. This is how production code actually decides its step size: not by trial and error, but by inverting the error bound.
+\end{labbox}
+
+\begin{trapbox}
+Three classic ways to wreck a numerical integral:
+\begin{itemize}
+\item \textbf{Odd $n$ in Simpson.} Simpson pairs slices into parabolas, so $n$ must be even. With odd $n$ the weight pattern $1,4,2,\dots$ does not close properly and your answer is silently wrong. Always check $n$ is even before applying $h/3\,[1,4,2,\dots,4,1]$.
+\item \textbf{Forgetting the rules assume smoothness.} The error bounds rely on $f''$ (trapezoid) or $f^{(4)}$ (Simpson) being bounded. If $f$ has a kink, a spike, or a vertical tangent in the interval -- think $\sqrt{x}$ near $0$, whose derivatives blow up -- the bound is infinite and the promised convergence rate evaporates. Subdivide at the bad point or change variables first.
+\item \textbf{Mixing up $h/2$ and $h/3$.} Trapezoid is $h/2$, Simpson is $h/3$. Swap them and every digit is off. The mnemonic: trapezoid \emph{averages} two heights ($\div 2$); Simpson's weights $1{+}4{+}1 = 6 = 3\times 2$ live naturally over $\div 3$.
+\end{itemize}
+\end{trapbox}
+
+\section{How Computers Actually Integrate}
+\label{ch27:computers}
+
+When you type \texttt{quad(f, a, b)} in a scientific library, what runs underneath is a refined descendant of exactly what we have built. The core ideas survive; engineering wraps them.
+
+\textbf{Adaptive subdivision.} A fixed, uniform $h$ is wasteful. Where $f$ is nearly straight, big slices suffice; where $f$ swings violently, you want tiny slices. So real integrators are \emph{adaptive}: they apply Simpson's rule on a region, then split the region in half and apply Simpson to each half. If the two-half estimate agrees with the whole-region estimate to within tolerance, the region is declared done; otherwise each half is recursively subdivided. Effort flows automatically to wherever the function is hardest, which is the only sensible place to spend it.
+
+\begin{whybox}
+\textbf{How the computer estimates its own error without knowing the answer.} This is the cleverest practical idea in the chapter. Run Simpson once on $[a,b]$ with step $h$ to get $S(h)$, then again with step $h/2$ to get $S(h/2)$. We know the error scales like $h^4$, so $S(h)$ is off by about $C h^4$ and $S(h/2)$ by about $C(h/2)^4 = Ch^4/16$. Subtract the two estimates:
+\[
+S(h/2) - S(h) \approx \Big(I - \tfrac{Ch^4}{16}\Big) - \big(I - Ch^4\big) = Ch^4 - \frac{Ch^4}{16} = \frac{15}{16}\,Ch^4.
+\]
+The thing we cannot see directly -- the error $Ch^4/16$ of the better estimate -- is therefore about $\tfrac{1}{15}$ of the \emph{difference between the two estimates}, which we \emph{can} see. So the computer gauges its own error by comparing two grids, with no oracle for the true value. When that estimated error drops below your tolerance, it stops. This is the engine inside every adaptive quadrature routine.
+\end{whybox}
+
+\begin{connectionbox}
+That same comparison-of-two-grids trick can be turned into \emph{Richardson extrapolation}: form the combination $\big(16\,S(h/2) - S(h)\big)/15$, which cancels the leading $h^4$ error entirely and leaves an error of order $h^6$. Applied systematically to the trapezoidal rule, this idea generates the \emph{Romberg integration} table -- a triangular scheme that raises the accuracy order at each column. Romberg's first column is trapezoidal estimates on ever-finer grids; its second column is, beautifully, exactly Simpson's rule; later columns are higher-order rules nobody had to derive by hand. It is the same Taylor-cancellation logic we used to build Simpson, run to its logical conclusion. We meet extrapolation again, in disguise, when we study Taylor series.
+\end{connectionbox}
+
+\textbf{Gaussian quadrature.} We assumed the sample points were \emph{equally spaced}, because that is natural and because it is forced on you when $f$ is a table of measurements. But if you are free to choose \emph{where} to sample $f$, you can do dramatically better. Gauss asked: with a fixed budget of $n$ sample points, placed wherever we like and weighted however we like, what is the most accurate rule possible? The answer -- sampling at special points called the roots of Legendre polynomials, clustered toward the ends of the interval -- yields a rule exact for polynomials up to degree $2n-1$. With the same $n$ evaluations that give Simpson degree-$3$ exactness, Gaussian quadrature reaches degree $2n-1$. For smooth functions this is the gold standard, and it is what high-precision libraries reach for first.
+
+\begin{historybox}
+The trapezoidal rule is ancient in spirit -- it is just ``average the heights,'' a thing surveyors did for centuries. Thomas Simpson published his rule in 1743, though Cavalieri and James Gregory had it earlier (the law that a result is named after the last person to discover it claims another victim). Carl Friedrich Gauss introduced his optimal quadrature in 1814, in the same fertile decade he was reorganizing half of mathematics. The remarkable thing is how durable these ideas are: the bell-curve integral that opened this chapter is, today, most often computed by an adaptive Gauss--Kronrod rule -- Gauss's 1814 points, augmented by Kronrod's 1960s refinement points that let the method estimate its own error in the spirit of our two-grid trick. Two centuries of ideas, all aimed at the same stubborn integral that has no antiderivative.
+\end{historybox}
+
+\begin{happeningbox}
+\textbf{What a computer is really doing} when it ``integrates'' is therefore never symbolic and never magic. It samples $f$ at a handful of cleverly chosen points, multiplies those heights by precomputed weights, and adds. Every definite integral your machine evaluates -- a probability, a Fourier coefficient, the energy of an orbit, the loss in a training run -- comes down to a weighted sum of function values: $\sum_i w_i f(x_i)$. The trapezoidal weights are $1,2,2,\dots,2,1$; Simpson's are $1,4,2,4,\dots,1$; Gauss's are subtler still. But it is always the same shape. Numerical integration is the art of choosing the points $x_i$ and the weights $w_i$ so that this finite sum tracks an infinite, continuous accumulation as closely as the smoothness of $f$ allows.
+\end{happeningbox}
+
+\begin{walkbox}
+On your walk, picture the speedometer-and-distance problem. You glance at the speedometer once a minute on a winding drive. The trapezoidal rule says: average each consecutive pair of readings and multiply by a minute. Simpson says: take readings three at a time and trust that the speed varied parabolically between them. Now ask yourself: on a stretch where you were steadily accelerating (constant $f''$ but $f''' = 0$), which rule is exactly right, and why does Simpson nail it while the trapezoid does not? Then ask the harder one: if you got to choose \emph{when} to glance, would you space your glances evenly -- or look more often through the twists and less often on the straightaways?
+\end{walkbox}
+
+\section{Summary: The Logic of the Whole Subject}
+\label{ch27:summary}
+
+We began stranded -- handed integrals like $\int_0^1 e^{-x^2}\,\dd x$ that provably have no elementary antiderivative, so the Fundamental Theorem cannot help. We returned to the integral's true meaning as area and learned to estimate that area from samples.
+
+\begin{itemize}
+\item \textbf{Rectangles} approximate $f$ by constants on each slice. Global error $\sim h$. Crude.
+\item \textbf{Trapezoidal rule}, weights $\tfrac{h}{2}[1,2,\dots,2,1]$, approximates $f$ by straight chords. Exact for lines; error driven by curvature $f''$; global error $\sim h^2$. Built from connect-the-dots.
+\item \textbf{Simpson's rule}, weights $\tfrac{h}{3}[1,4,2,4,\dots,4,1]$ with $n$ even, approximates $f$ by parabolas. Exact for cubics (one bonus degree, by symmetry); error driven by $f^{(4)}$; global error $\sim h^4$. Built as the curvature-cancelling blend $\tfrac{2\,\text{Mid} + \text{Trap}}{3}$.
+\item \textbf{Error bounds} let you certify accuracy and choose $n$ in advance: trapezoid $\le \tfrac{(b-a)^3}{12n^2}M_2$, Simpson $\le \tfrac{(b-a)^5}{180n^4}M_4$.
+\item \textbf{Real software} uses these as building blocks inside adaptive subdivision (spend effort where $f$ is wild), self-error-estimation by comparing grids, Richardson extrapolation and Romberg tables, and Gaussian quadrature (optimal sample placement). It is always, in the end, a weighted sum $\sum w_i f(x_i)$.
+\end{itemize}
+
+The throughline is a single idea, applied with increasing refinement: \emph{replace the curve, locally, by something you can integrate exactly, and the better the local fit, the faster the error dies}. Constant, line, parabola -- and the error exponent climbs $h, h^2, h^4$. That is calculus turning its own definition into an algorithm.
+
+\section{Exercises}
+\label{ch27:exercises}
+
+\begin{exercise}
+Estimate $\int_0^2 \sqrt{1 + x^3}\,\dd x$ using the trapezoidal rule with $n = 4$. (Nodes $0, 0.5, 1, 1.5, 2$; compute each $\sqrt{1+x^3}$ to four decimals, then apply weights $1,2,2,2,1$ and multiply by $h/2$.)
+\end{exercise}
+
+\begin{exercise}
+Estimate the same integral $\int_0^2 \sqrt{1+x^3}\,\dd x$ with Simpson's rule, $n = 4$, reusing your five heights from Exercise 1 but with weights $1,4,2,4,1$ and factor $h/3$. By how much do the two estimates differ?
+\end{exercise}
+
+\begin{exercise}
+Compute $\int_0^{\pi} \sin x\,\dd x$ exactly (you know the antiderivative), then estimate it with Simpson's rule using $n = 2$ (nodes $0, \pi/2, \pi$). Find the actual error. Why is it not zero even though $\sin$ is smooth?
+\end{exercise}
+
+\begin{exercise}
+For $\int_0^1 e^{-x^2}\,\dd x$, how large must $n$ be to guarantee the trapezoidal rule is within $10^{-4}$ of the truth? Use $M_2 = 2$. Then find the $n$ needed for Simpson to reach the same tolerance using $M_4 = 12$. Comment on the ratio.
+\end{exercise}
+
+\begin{exercise}
+A car's speed (in m/s) is recorded every $2$ seconds: at $t = 0,2,4,6,8,10,12$ the readings are $0, 8, 17, 22, 24, 25, 25$. This gives $n = 6$ intervals -- an even number, so Simpson applies. Estimate the distance travelled, $\int_0^{12} v\,\dd t$, with (a) the trapezoidal rule and (b) Simpson's rule. Which would you trust more, and why?
+\end{exercise}
+
+\begin{exercise}
+(Conceptual.) Explain in your own words why the trapezoidal rule \emph{overestimates} the integral of a function that is concave up (like $e^x$) on the whole interval, and underestimates a concave-down function. Tie your answer to the sign of $f''$ in the error term $-\tfrac{h^3}{12}f''(\xi)$ per slice.
+\end{exercise}
+
+\begin{exercise}
+(Proof.) Show directly that Simpson's rule is exact for every cubic $f(x) = ax^3 + bx^2 + cx + d$ on a single double-slice $[-h, h]$. That is, compute $\int_{-h}^{h} f\,\dd x$ exactly and compare it to $\tfrac{h}{3}[f(-h) + 4f(0) + f(h)]$, and verify they are equal. Identify which term of $f$ would have to be present (degree $4$) for Simpson to start being wrong.
+\end{exercise}
+
+\begin{exercise}
+(Proof / derivation.) Show that for the trapezoidal rule applied to a single slice $[x_0, x_1]$ of width $h$, the leading error term is $-\tfrac{h^3}{12}f''(\xi)$ by Taylor-expanding $f$ about the midpoint and integrating, mirroring the symmetric derivation in the chapter.
+\end{exercise}
+
+\begin{exercise}
+(Self-error estimation.) Using $\int_1^2 \tfrac1x\,\dd x$ with Simpson, compute $S_2$ (i.e. $h = 0.5$) and $S_4$ ($h = 0.25$). Form the estimated error of $S_4$ as $\tfrac{1}{15}(S_4 - S_2)$ and compare it to the actual error $S_4 - \ln 2$. How close is the estimate? This is exactly what adaptive software does.
+\end{exercise}
+
+\begin{exercise}
+(Richardson extrapolation.) Continue the previous exercise: form the combination $S^\star = \tfrac{16 S_4 - S_2}{15}$, which cancels the leading $h^4$ error. Compute $S^\star$ and its error against $\ln 2 = 0.693147$. You should find it dramatically more accurate than either $S_2$ or $S_4$ alone -- this is the first step of Romberg integration.
+\end{exercise}
