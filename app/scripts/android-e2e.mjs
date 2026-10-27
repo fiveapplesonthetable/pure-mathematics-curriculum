@@ -181,6 +181,40 @@ await sleep(1200);
 const pos = await page.evaluate(() => scrollY / (document.documentElement.scrollHeight - innerHeight));
 check('chapter reopens near the saved position', pos > 0.35 && pos < 0.65, pos.toFixed(2));
 
+// ---- 9b. every chapter with interactive figures: mounts, and a touch drag moves a handle
+const figChapters = [...readFileSync(new URL('../src/chapters/index.ts', import.meta.url), 'utf8').matchAll(/'([a-z-]+\/[0-9A-Z]+)':/g)].map((m) => m[1]);
+for (const key of figChapters) {
+  errors.length = 0;
+  await page.evaluate((h) => (location.hash = h), `#/${key}`);
+  await page.waitForSelector('article figure.fig .fig-body > *', { timeout: 15000 }).catch(() => {});
+  await sleep(900);
+  const info = await page.evaluate(() => ({
+    figs: document.querySelectorAll('figure.fig').length,
+    mounted: [...document.querySelectorAll('figure.fig .fig-body')].filter((b) => b.childElementCount).length,
+    handles: document.querySelectorAll('figure.fig .handle').length,
+    overflow: document.documentElement.scrollWidth - innerWidth,
+  }));
+  let moved = 'no handle';
+  if (info.handles) {
+    await page.evaluate(() => document.querySelector('figure.fig .handle').scrollIntoView({ block: 'center' }));
+    await sleep(500);
+    const v0 = await page.evaluate(() => { const hd = document.querySelector('figure.fig .handle'); return hd.getAttribute('aria-valuetext') || hd.getAttribute('transform'); });
+    const r = await rectOf('figure.fig .handle .knob');
+    const c = await rectOf('figure.fig svg');
+    const [x, y] = dev(r.cx, r.cy);
+    // drag toward the middle of the picture, so a handle at the edge of its range can move
+    const k = 70 / Math.max(1, Math.hypot(c.cx - r.cx, c.cy - r.cy));
+    const [x2, y2] = dev(r.cx + (c.cx - r.cx) * k, r.cy + (c.cy - r.cy) * k);
+    adb('shell', 'input', 'swipe', String(x), String(y), String(x2), String(y2), '500');
+    await sleep(700);
+    const v1 = await page.evaluate(() => { const hd = document.querySelector('figure.fig .handle'); return hd.getAttribute('aria-valuetext') || hd.getAttribute('transform'); });
+    moved = v1 !== v0 ? 'moved' : 'did not move';
+  }
+  const ok = info.figs > 0 && info.mounted === info.figs && info.overflow <= 0 && errors.length === 0 && moved !== 'did not move';
+  check(`${key}: ${info.figs} interactive figure(s) mount; touch drag ${moved}`, ok, ok ? '' : JSON.stringify({ ...info, errors: errors.slice(0, 3) }));
+  if (out) shot(`09-${key.replace('/', '-')}`);
+}
+
 // ---- 10. a sample of chapters from every book
 const lib = JSON.parse(readFileSync(new URL('../src/content/library.json', import.meta.url), 'utf8'));
 const timings = [];
