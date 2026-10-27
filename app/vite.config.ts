@@ -4,6 +4,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 // Relative base so the same build works on GitHub Pages (/<repo>/) and locally.
 export default defineConfig({
   base: './',
+  server: { allowedHosts: true },
+  preview: { allowedHosts: true },
   build: { target: 'es2020', chunkSizeWarningLimit: 900 },
   plugins: [
     VitePWA({
