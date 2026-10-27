@@ -51,11 +51,8 @@ const mount: Mount = (root) => {
   hd.el.setAttribute('aria-valuemin', String(EMIN));
   hd.el.setAttribute('aria-valuemax', String(EMAX));
 
-  const r = row(root);
   const f = formula(root);
-  r.prepend(f.el);
-  f.el.style.margin = '0';
-  f.el.style.flex = '1 1 260px';
+  const r = row(root);
   button(r, 'Reset', () => {
     const from = eps;
     tween((k) => setEps(lerp(from, E0, k)));
@@ -115,7 +112,7 @@ const mount: Mount = (root) => {
     label(ticks, x(1), H - pad.b + 18, 'n = 1');
 
     f.set(
-      `\\varepsilon=${eps.toFixed(2)}\\;\\Rightarrow\\;N=${N}:\\quad n\\ge ${N}\\implies |a_n-1|=\\tfrac1n\\le\\tfrac1{${N}}<${eps.toFixed(2)}`,
+      `N=${N}:\\ \\ n\\ge ${N}\\implies |a_n-1|=\\tfrac1n\\le\\tfrac1{${N}}<${eps.toFixed(2)}=\\varepsilon`,
     );
   }
   view.onResize(draw);
