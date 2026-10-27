@@ -1,0 +1,959 @@
+\chapter{Linear Approximation and Differentials}
+
+There is one idea hiding underneath every theorem in this book, and this chapter
+is where we finally say it out loud:
+
+\begin{center}
+\emph{A smooth curve, looked at closely enough, is a straight line.}
+\end{center}
+
+That sentence is the whole secret of differential calculus. The derivative
+$f'(a)$ is not just ``the slope of the tangent line.'' It is the slope of the
+\emph{one straight line that the curve becomes} when you zoom in near $x=a$. Once
+you believe that smooth means locally-straight, everything else -- tangent
+lines, error estimates, Newton's method, the differentials $\dd y$ and $\dd x$
+that physicists scribble so freely, even the whole theory of differential
+equations -- is just the careful bookkeeping of replacing a curve by its tangent
+line and asking how much you lost.
+
+This chapter makes that replacement precise. We will build the
+\emph{linearization} of a function, measure the error you commit by using it,
+pin down what $\dd y$ and $\dd x$ \emph{really mean} (they are not zero,
+and they are not ``infinitely small''), use them to track how measurement errors
+propagate through a formula, and take a first look at Newton's method, which is
+nothing but linear approximation applied over and over. By the end the tangent
+line should look less like a topic and more like the seed from which all of
+calculus grows.
+
+\chapterline
+
+\section{Zooming In: Why Smooth Means Straight}
+\label{ch14:zooming}
+
+Take any function you like that is differentiable at a point -- say
+$f(x)=x^2$ near $x=1$ -- and imagine doing the following experiment. Plot it.
+Then zoom in on the point $(1,1)$: cut the viewing window in half, then in half
+again, then again. What happens to the parabola?
+
+It flattens. The more you zoom, the straighter the visible piece of curve looks,
+until on a small enough window you genuinely cannot tell it from a straight line
+drawn with a ruler. Figure~\ref{ch14:fig-zoom} shows three frames of this
+experiment.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=4.6cm, height=4.6cm,
+  title={\footnotesize window $\pm 1$},
+  xmin=0, xmax=2, ymin=-0.2, ymax=4,
+  xtick={0,1,2}, ytick={0,2,4},
+  tick label style={font=\tiny},
+  axis lines=left,
+]
+\addplot[curveblue, thick, samples=80, domain=0:2] {x^2};
+\addplot[tangentred, thick, domain=0:2] {2*x-1};
+\addplot[mark=*, mark size=1pt, black] coordinates {(1,1)};
+\end{axis}
+\end{tikzpicture}
+\hspace{0.2cm}
+\begin{tikzpicture}
+\begin{axis}[
+  width=4.6cm, height=4.6cm,
+  title={\footnotesize window $\pm 0.3$},
+  xmin=0.7, xmax=1.3, ymin=0.4, ymax=1.7,
+  xtick={0.7,1,1.3}, ytick={0.5,1,1.5},
+  tick label style={font=\tiny},
+  axis lines=left,
+]
+\addplot[curveblue, thick, samples=80, domain=0.7:1.3] {x^2};
+\addplot[tangentred, thick, domain=0.7:1.3] {2*x-1};
+\addplot[mark=*, mark size=1pt, black] coordinates {(1,1)};
+\end{axis}
+\end{tikzpicture}
+\hspace{0.2cm}
+\begin{tikzpicture}
+\begin{axis}[
+  width=4.6cm, height=4.6cm,
+  title={\footnotesize window $\pm 0.07$},
+  xmin=0.93, xmax=1.07, ymin=0.85, ymax=1.16,
+  xtick={0.93,1,1.07}, ytick={0.9,1,1.15},
+  tick label style={font=\tiny},
+  axis lines=left,
+]
+\addplot[curveblue, thick, samples=80, domain=0.93:1.07] {x^2};
+\addplot[tangentred, thick, domain=0.93:1.07] {2*x-1};
+\addplot[mark=*, mark size=1pt, black] coordinates {(1,1)};
+\end{axis}
+\end{tikzpicture}
+\caption{Zooming in on $y=x^2$ at $(1,1)$. The curve (blue) and its tangent line
+$y=2x-1$ (red) become indistinguishable as the window shrinks. ``Smooth''
+literally means ``looks straight up close.''}
+\label{ch14:fig-zoom}
+\end{figure}
+
+\begin{intuitionbox}
+Differentiability \emph{is} this zoom property. To say $f$ has a derivative at
+$a$ is to say: there is a single straight line through $(a,f(a))$ that the curve
+melts into as you magnify. A function with a corner (like $\abs{x}$ at $0$) fails
+the test -- no matter how far you zoom into the corner, you still see two
+different slopes meeting, never one line. Smoothness is the promise that the zoom
+converges.
+\end{intuitionbox}
+
+Why should you care that the curve becomes straight? Because straight lines are
+the only functions we can compute with effortlessly. A line is just ``start
+here, go up by the slope times how far you walk.'' No squaring, no exponentials,
+no trig tables. If we are willing to accept a small error, we can replace any
+hard smooth function, \emph{near a point}, by a line and do arithmetic instead of
+analysis. That trade -- a little error in exchange for enormous simplicity -- is
+the engine of applied mathematics.
+
+\begin{walkbox}
+Picture the surface of the Earth. Locally -- in your backyard, on a soccer field
+-- it looks flat, and flat-earth geometry (Pythagoras, straight survey lines)
+works beautifully. The error only shows up over hundreds of miles, where the
+curvature accumulates. The Earth is the function; the flat backyard is its
+tangent plane; the error is the curvature. Where else in life do you replace a
+curved thing by a flat one because the flat version is good enough up close?
+\end{walkbox}
+
+\section{The Tangent Line as the Best Linear Approximation}
+\label{ch14:tangent-best}
+
+Let us turn the picture into algebra. We have a function $f$ differentiable at a
+point $a$. We want the straight line that best matches $f$ near $a$. A straight
+line through the point $(a,f(a))$ has the form
+\[
+L(x) = f(a) + m\,(x-a),
+\]
+and the only freedom we have is the slope $m$. Which slope makes $L$ hug the
+curve best?
+
+Geometrically the answer is obvious from the zoom picture: pick the slope of the
+curve itself at $a$, namely $m=f'(a)$. That gives the \emph{tangent line}. But
+``looks best'' is not a definition. Let us say precisely what ``best'' means and
+then prove the tangent line wins.
+
+\begin{definition}[Linearization]
+\label{ch14:def-linearization}
+Let $f$ be differentiable at $a$. The \textbf{linearization} of $f$ at $a$ is the
+linear function
+\[
+L(x) \;=\; f(a) + f'(a)\,(x-a).
+\]
+The approximation $f(x)\approx L(x)$ for $x$ near $a$ is called the
+\textbf{linear} (or \textbf{tangent-line}) \textbf{approximation}.
+\end{definition}
+
+Notice the anatomy of $L$: it carries the function's \emph{height} $f(a)$ and its
+\emph{slope} $f'(a)$ at the single point $a$, and nothing else. It is the most a
+straight line can know about $f$. Read it aloud: ``Start at the known value
+$f(a)$. Walk a distance $(x-a)$. For each unit you walk, climb by the rate
+$f'(a)$.''
+
+\subsection{In what sense is it ``best''?}
+
+Compare the tangent line to any other line through $(a,f(a))$ with a different
+slope $m\neq f'(a)$. The error of a line $L_m(x)=f(a)+m(x-a)$ is
+\[
+E_m(x) = f(x) - L_m(x).
+\]
+At $x=a$ every such line is exact: $E_m(a)=0$, because they all pass through the
+point. So the contest is about how fast the error grows as you step away. Write
+$x = a+h$ and divide the error by the step $h$:
+\[
+\frac{E_m(a+h)}{h} = \frac{f(a+h)-f(a)}{h} - m.
+\]
+As $h\to 0$ the difference quotient $\frac{f(a+h)-f(a)}{h}$ tends to $f'(a)$.
+Therefore
+\[
+\frac{E_m(a+h)}{h} \;\longrightarrow\; f'(a)-m.
+\]
+Here is the punchline. If $m\neq f'(a)$, this limit is a nonzero number; the
+error is roughly $(f'(a)-m)\cdot h$, growing \emph{in proportion to} $h$. But if
+$m=f'(a)$, the limit is $0$: the error, divided by $h$, dies. The error of the
+tangent line shrinks \emph{faster than $h$ itself}. That is the precise sense in
+which the tangent line is the uniquely best linear approximation.
+
+\begin{focusbox}
+\textbf{The defining property of the tangent line.} Among all lines through
+$(a,f(a))$, the tangent line is the only one whose error is \emph{small compared
+to the step}: writing $x=a+h$,
+\[
+\lim_{h\to 0}\frac{f(a+h) - \big[f(a)+f'(a)\,h\big]}{h} \;=\; 0.
+\]
+Every other line leaves an error proportional to $h$; the tangent line leaves an
+error that is negligible next to $h$. We say the tangent line agrees with $f$ ``to
+first order.''
+\end{focusbox}
+
+\begin{whybox}
+Why does matching the slope kill the first-order error? Because the derivative
+\emph{is} the leading-order rate of change. Near $a$,
+\[
+f(a+h) = f(a) + f'(a)\,h + (\text{error}),
+\]
+and the very definition of $f'(a)$ as a limit forces the error to be small
+relative to $h$. Choosing the slope to be anything other than $f'(a)$ leaves a
+leftover term $(f'(a)-m)h$ that is itself proportional to $h$ -- a first-order
+mistake that swamps the curvature. Matching the slope is exactly the act of
+cancelling the largest part of the discrepancy. There is nothing magic about the
+tangent line; it is simply the line that has already paid off the $h$-sized debt,
+leaving only the smaller $h^2$-sized debt of curvature behind.
+\end{whybox}
+
+\subsection{A first worked example}
+
+\begin{example}[Approximating a square root]
+\label{ch14:ex-sqrt}
+Estimate $\sqrt{4.1}$ without a calculator.
+
+Let $f(x)=\sqrt{x}$, and choose the \emph{anchor} $a=4$ because we know
+$\sqrt{4}=2$ exactly and $4$ is close to $4.1$. We need the slope:
+\[
+f'(x) = \frac{1}{2\sqrt{x}}, \qquad f'(4) = \frac{1}{2\cdot 2} = \frac14.
+\]
+The linearization is
+\[
+L(x) = f(4) + f'(4)(x-4) = 2 + \tfrac14 (x-4).
+\]
+Plug in $x=4.1$:
+\[
+\sqrt{4.1} \approx L(4.1) = 2 + \tfrac14 (0.1) = 2 + 0.025 = 2.025.
+\]
+The true value is $\sqrt{4.1} = 2.024845\ldots$, so our estimate is right to four
+decimal places. We did it with one division.
+\end{example}
+
+The choice of anchor $a$ is the whole art. You want a point where $f$ and $f'$
+are easy to evaluate exactly, and which is as close to your target as possible.
+``Easy'' and ``close'' usually pull in the same direction here -- $4$ is both a
+perfect square and near $4.1$.
+
+\begin{labbox}
+Estimate $\sqrt{4.4}$ the same way: $L(4.4) = 2 + \tfrac14(0.4) = 2.1$. The true
+value is $2.0976\ldots$. Notice the error has grown from about $0.00015$ (at the
+step $h=0.1$) to about $0.0024$ (at the step $h=0.4$): the step grew by a factor
+of $4$, and the error grew by a factor of about $16=4^2$. That square-law growth
+is the fingerprint of the curvature, and Section~\ref{ch14:error} explains
+exactly why the factor is $h^2$.
+\end{labbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=6cm,
+  xlabel={$x$}, ylabel={$y$},
+  xmin=2.5, xmax=6, ymin=1.4, ymax=2.6,
+  xtick={3,4,5,6}, ytick={1.5,2,2.5},
+  axis lines=left,
+  legend pos=south east, legend style={font=\footnotesize},
+  samples=100,
+]
+\addplot[curveblue, thick, domain=2.5:6] {sqrt(x)};
+\addlegendentry{$y=\sqrt{x}$}
+\addplot[tangentred, thick, domain=2.5:6] {2 + 0.25*(x-4)};
+\addlegendentry{$L(x)=2+\frac14(x-4)$}
+\addplot[mark=*, black, mark size=1.3pt] coordinates {(4,2)};
+\addplot[dashed, gray] coordinates {(4.1,1.4) (4.1,2.025)};
+\node[font=\tiny] at (axis cs:4.5,1.55) {anchor at $a=4$};
+\end{axis}
+\end{tikzpicture}
+\caption{The tangent line to $\sqrt{x}$ at $a=4$. Near the anchor the red line
+and blue curve are nearly identical; the gap (the error) opens slowly as you move
+away, and because $\sqrt{x}$ bends downward, the line sits slightly above the
+curve.}
+\label{ch14:fig-sqrt}
+\end{figure}
+
+\begin{trapbox}
+Linearization is a \emph{local} tool. It is only trustworthy near the anchor. If
+you used the line $L(x)=2+\tfrac14(x-4)$ to estimate $\sqrt{100}$ you would get
+$2+\tfrac14(96)=26$, which is absurd (the truth is $10$). The approximation does
+not ``know'' anything about the curve far from $a$ -- it only ever knew the height
+and slope at one point. Always ask: is my target genuinely close to my anchor?
+\end{trapbox}
+
+\section{What the Differentials \texorpdfstring{$\dd y$}{dy} and \texorpdfstring{$\dd x$}{dx} Really Mean}
+\label{ch14:differentials}
+
+You have been writing $\dv{y}{x}$ for chapters now, and we kept insisting it is a
+single symbol, the limit of a ratio, \emph{not} a fraction of two real things.
+That was the right position to take while we were defining the derivative. Now we
+can afford a more generous truth: there really are two separate quantities, $\dd x$
+and $\dd y$, and their ratio really is the derivative -- provided you define them
+correctly. The man who introduced this notation, Leibniz, thought of $\dd x$ as
+an ``infinitely small'' change. That idea was fertile but logically shaky, and it
+took two centuries to repair. Here is the repaired version.
+
+\begin{definition}[The differentials $\dd x$ and $\dd y$]
+\label{ch14:def-differentials}
+Let $y=f(x)$ be differentiable at $x$. We declare $\dd x$ to be an
+\textbf{independent real variable} -- an ordinary number, which you are free to
+choose, representing a step in the $x$-direction. Then we \emph{define} the
+\textbf{differential of $y$} by
+\[
+\dd y \;=\; f'(x)\,\dd x.
+\]
+$\dd y$ is the rise of the \emph{tangent line} over a run of $\dd x$.
+\end{definition}
+
+Read that definition slowly, because it dissolves a confusion you may have
+carried for years.
+
+\begin{happeningbox}
+\textbf{What $\dd x$ and $\dd y$ really are.} They are not zero. They are not
+``infinitely small.'' $\dd x$ is just a number you pick -- the size of a step.
+And $\dd y$ is the corresponding \emph{rise along the tangent line}, not along the
+curve. Look at Figure~\ref{ch14:fig-dydx}. Take a real step $\dd x = \Delta x$
+from the point $(a,f(a))$. Two things rise:
+\begin{itemize}
+\item the \emph{curve} rises by $\Delta y = f(a+\Delta x) - f(a)$ -- the true
+change;
+\item the \emph{tangent line} rises by $\dd y = f'(a)\,\dd x$ -- the linear
+estimate of the change.
+\end{itemize}
+The differential $\dd y$ is the \textbf{approximation}; the increment $\Delta y$
+is the \textbf{truth}. The gap between them, $\Delta y - \dd y$, is the error of
+linear approximation -- exactly the quantity we studied in the last section. And
+now the notation $\dv{y}{x}=f'(x)$ is literally a quotient of two numbers $\dd y$
+and $\dd x$, because that is how we defined $\dd y$. Leibniz's fraction was real
+all along; we just had to say which line the rise is measured on.
+\end{happeningbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.05]
+% curve: f(x)=0.35 x^2 + 0.4 ; anchor a=1.4
+\draw[curveblue, thick, samples=100, domain=0.4:3.0, variable=\x]
+  plot (\x, {0.35*\x*\x + 0.4});
+\def\a{1.4}      % anchor x
+\def\fa{1.086}   % f(a) = 0.35*1.96+0.4
+\def\fp{0.98}    % f'(a) = 0.7*1.4
+\def\xb{2.7}     % a + dx
+% tangent line at a
+\draw[tangentred, thick] (0.6,{\fa+\fp*(0.6-\a)}) -- (3.0,{\fa+\fp*(3.0-\a)});
+\filldraw[black] (\a,\fa) circle (1.6pt);
+\node[below left, font=\small] at (\a,\fa) {$(a,f(a))$};
+% curve and tangent points at x=xb
+% f(xb)=0.35*7.29+0.4=2.9515 ; tangent: fa+fp*(xb-a)=1.086+0.98*1.3=2.360
+\filldraw[curveblue] (\xb,2.9515) circle (1.4pt);
+\filldraw[tangentred] (\xb,2.360) circle (1.4pt);
+% horizontal dx
+\draw[densely dashed] (\a,\fa) -- (\xb,\fa);
+\draw[<->] (\a,0.2) -- (\xb,0.2);
+\node[fill=white, font=\small] at ({(\a+\xb)/2},0.2) {$\dd x=\Delta x$};
+\draw[densely dashed] (\xb,2.9515) -- (\xb,0.2);
+% dy (tangent rise)
+\draw[<->, tangentred] (\xb+0.08,\fa) -- (\xb+0.08,2.360);
+\node[right, tangentred, font=\small] at (\xb+0.08,{(\fa+2.360)/2}) {$\dd y$};
+% Delta y (true rise)
+\draw[<->, curveblue] (\xb+0.7,\fa) -- (\xb+0.7,2.9515);
+\node[right, curveblue, font=\small] at (\xb+0.7,{(\fa+2.9515)/2}) {$\Delta y$};
+% error gap
+\draw[<->, structurepurple, thick] (\xb-0.22,2.360) -- (\xb-0.22,2.9515);
+\node[left, structurepurple, font=\footnotesize] at (\xb-0.22,{(2.360+2.9515)/2}) {error};
+\node[font=\footnotesize, curveblue] at (0.95,2.7) {$y=f(x)$};
+\node[font=\footnotesize, tangentred] at (3.0,3.2) {tangent};
+\end{tikzpicture}
+\caption{The true meaning of differentials. Over a real step $\dd x=\Delta x$,
+the tangent line rises by $\dd y=f'(a)\,\dd x$ while the curve rises by the true
+amount $\Delta y$. The differential $\dd y$ estimates $\Delta y$; their
+difference (purple) is the approximation error, governed by the curvature.}
+\label{ch14:fig-dydx}
+\end{figure}
+
+\begin{historybox}
+When Leibniz invented this notation in the 1670s and 1680s, he pictured $\dd x$ as
+an \emph{infinitesimal}: a quantity smaller than any positive real number, yet not
+zero. With it he could write $\dd y = f'(x)\,\dd x$ and treat derivatives as
+genuine fractions, which made the chain rule $\dv{y}{x}=\dv{y}{u}\dv{u}{x}$ look
+like cancelling $\dd u$'s -- gorgeous, and almost always correct. Newton,
+working at the same time, leaned instead on ``fluxions'' and vanishing quantities
+he called \emph{evanescent increments}. Both men got the right answers; neither
+could say cleanly what an infinitely small number \emph{was}. Bishop Berkeley
+mocked the whole enterprise in 1734, asking whether these increments were ``the
+ghosts of departed quantities.'' The fair complaint: a quantity cannot be both
+nonzero (so you may divide by it) and zero (so you may discard it) at the end.
+
+The repair came in the 1820s with Cauchy and then, decisively, with Weierstrass:
+replace the infinitesimal by the \emph{limit} of a ratio of ordinary finite
+numbers. That is the $\dv{y}{x}=\lim \frac{\Delta y}{\Delta x}$ you learned. Our
+modern $\dd x$ and $\dd y$ (Definition~\ref{ch14:def-differentials}) are the
+finite, fully-defined reconstruction: $\dd x$ is a real number, $\dd y$ is defined
+from it, and the ``fraction'' $\dd y/\dd x$ equals $f'(x)$ by decree, not by
+mysticism. (For the record: in the 1960s Abraham Robinson's \emph{nonstandard
+analysis} showed you \emph{can} build a rigorous number system containing true
+infinitesimals, vindicating Leibniz's instinct after all. But you do not need it
+-- the limit picture suffices.)
+\end{historybox}
+
+\subsection{Differentials as a notation for approximation}
+
+The single most useful sentence about differentials is this:
+\[
+\boxed{\;\Delta y \;\approx\; \dd y \;=\; f'(x)\,\dd x\;}
+\]
+``The true change is approximately the linear change.'' Everything in the rest of
+this chapter is an application of that boxed line. Let us redo
+Example~\ref{ch14:ex-sqrt} in this language to see how compact it becomes.
+
+\begin{example}[$\sqrt{4.1}$ via differentials]
+\label{ch14:ex-sqrt-diff}
+We want $\sqrt{4.1}$. Anchor at $x=4$, take the step $\dd x = 0.1$. With
+$y=\sqrt{x}$ we have $\dd y = \frac{1}{2\sqrt{x}}\,\dd x$, so
+\[
+\dd y = \frac{1}{2\sqrt 4}(0.1) = \frac{0.1}{4} = 0.025.
+\]
+Then
+\[
+\sqrt{4.1} = \sqrt 4 + \Delta y \approx \sqrt 4 + \dd y = 2 + 0.025 = 2.025,
+\]
+matching what we found before. The differential $\dd y=0.025$ \emph{is} the
+estimated change in $\sqrt{x}$ caused by nudging $x$ from $4$ to $4.1$.
+\end{example}
+
+\begin{connectionbox}
+The boxed approximation $\Delta y \approx f'(x)\,\dd x$ is the one-variable seed
+of the \emph{total differential} you will meet in multivariable calculus:
+\[
+\dd z = \pdv{f}{x}\,\dd x + \pdv{f}{y}\,\dd y.
+\]
+There, a small move in the plane changes $z$ by (rate in $x$)$\times$(step in
+$x$) plus (rate in $y$)$\times$(step in $y$): the tangent \emph{plane} replaces
+the tangent line, but the idea -- locally, smooth equals linear -- is
+identical. Get it down in one variable and the multivariable version costs you
+almost nothing.
+\end{connectionbox}
+
+\section{Linearization and Error: How Wrong Are You?}
+\label{ch14:error}
+
+An approximation you cannot bound is a guess. The reason linear approximation is
+trustworthy -- rather than merely convenient -- is that we can say precisely how
+large the error is. Define the error of the linearization at $a$ as
+\[
+E(x) = f(x) - L(x) = f(x) - \big[f(a)+f'(a)(x-a)\big].
+\]
+We already know (Section~\ref{ch14:tangent-best}) that $E$ vanishes faster than
+the step: $E(a)=0$ and $E(x)/(x-a)\to 0$. That tells us the error is small, but
+not \emph{how} small. The next theorem gives the size exactly, and the answer is
+beautiful: \emph{the error is controlled by the second derivative} -- by the
+curvature, which is the thing a straight line is blind to.
+
+\begin{theorem}[Error of linear approximation]
+\label{ch14:thm-error}
+Suppose $f$ has a continuous second derivative on an interval containing $a$ and
+$x$. Then there is a point $c$ between $a$ and $x$ such that
+\[
+f(x) - \big[f(a) + f'(a)(x-a)\big] \;=\; \frac{f''(c)}{2}\,(x-a)^2.
+\]
+\end{theorem}
+
+Before the proof, absorb the shape of the result. Writing $h = x-a$ for the step:
+\[
+E = \tfrac12\, f''(c)\, h^2.
+\]
+Three things to notice. First, the error is proportional to $h^2$, not $h$ -- so
+halving your distance from the anchor quarters the error, exactly the square-law
+we saw numerically in the lab box. Second, the multiplier is $f''$, the
+curvature: a flatter curve (small $f''$) is approximated better, and a perfectly
+straight $f$ (with $f''=0$) has \emph{zero} error, as it must. Third, the sign of
+$f''$ tells you which way you missed: if the curve is concave up ($f''>0$) the
+tangent line lies below it and you underestimate; concave down ($f''<0$) and you
+overestimate. That is why in Figure~\ref{ch14:fig-sqrt} the line for the
+downward-bending $\sqrt{x}$ sat \emph{above} the curve, and our estimate $2.025$
+came out slightly high. Figure~\ref{ch14:fig-errgrow} shows this $h^2$ growth
+directly: the true error tracks a parabola, snug under the guaranteed bound.
+
+\begin{whybox}
+Where does the $\tfrac12$ come from, and why $f''$? Think of building $f$ back up
+from its derivatives, like reconstructing a journey from your speedometer. The
+value $f(a)$ is where you start. The term $f'(a)h$ is how far you would travel if
+your speed never changed -- the linear estimate. But your speed \emph{does} change,
+at the rate $f''$ (that is what the second derivative is: the rate the slope
+changes). Over a step $h$, a steadily changing speed contributes an
+\emph{average} extra displacement. Just as distance under constant acceleration is
+$\tfrac12 a t^2$ in physics, the curvature contributes $\tfrac12 f'' h^2$. The
+$\tfrac12$ is the same $\tfrac12$ that appears in $\tfrac12 at^2$ -- it is the
+average of a quantity ramping linearly from $0$ to its full value. The error term
+is the first correction you would add to make the straight-line estimate curved.
+\end{whybox}
+
+\begin{proof}[Proof of Theorem~\ref{ch14:thm-error}]
+We use the Cauchy mean value theorem twice -- but you can read the idea without
+the machinery: we compare the error to the function $(x-a)^2$ and apply the mean
+value theorem to both.
+
+Fix $a$ and let $x$ vary; write $h=x-a$ and consider the two functions
+\[
+g(t) = f(t) - \big[f(a)+f'(a)(t-a)\big],
+\qquad
+p(t) = (t-a)^2,
+\]
+both on the interval between $a$ and $x$. We want $g(x)/p(x)$. Notice
+$g(a)=0$ and $p(a)=0$, and also
+\[
+g'(t) = f'(t) - f'(a), \qquad p'(t) = 2(t-a),
+\]
+so $g'(a)=0$ and $p'(a)=0$ as well. By the Cauchy mean value theorem applied to
+$g$ and $p$ on the interval from $a$ to $x$ (using $g(a)=p(a)=0$), there is a
+point $c_1$ between $a$ and $x$ with
+\[
+\frac{g(x)}{p(x)} = \frac{g(x)-g(a)}{p(x)-p(a)} = \frac{g'(c_1)}{p'(c_1)}
+= \frac{f'(c_1)-f'(a)}{2(c_1-a)}.
+\]
+Now apply the ordinary mean value theorem to $f'$ on the interval from $a$ to
+$c_1$: there is a point $c$ between $a$ and $c_1$ (hence between $a$ and $x$) with
+\[
+\frac{f'(c_1)-f'(a)}{c_1-a} = f''(c).
+\]
+Substituting,
+\[
+\frac{g(x)}{p(x)} = \frac{f''(c)}{2}
+\quad\Longrightarrow\quad
+g(x) = \frac{f''(c)}{2}\,(x-a)^2,
+\]
+which is exactly the claim, since $g(x)=E(x)$.
+\end{proof}
+
+\begin{focusbox}
+\textbf{Usable error bound.} You rarely know the mystery point $c$, but you do not
+need it. If $\abs{f''(t)}\le M$ for all $t$ between $a$ and $x$, then
+\[
+\big|f(x)-L(x)\big| \;\le\; \frac{M}{2}\,(x-a)^2.
+\]
+Replace the unknown $f''(c)$ by an \emph{upper bound} on the curvature and you get
+a guaranteed, conservative error bar.
+\end{focusbox}
+
+\begin{example}[Putting a number on the $\sqrt{4.1}$ error]
+\label{ch14:ex-sqrt-bound}
+For $f(x)=\sqrt{x}$ we have $f''(x) = -\tfrac14 x^{-3/2}$. On the interval
+$[4,4.1]$ the largest size of $f''$ occurs at the left end $x=4$ (where
+$x^{-3/2}$ is biggest):
+\[
+\abs{f''(x)} \le \tfrac14 \cdot 4^{-3/2} = \tfrac14\cdot \tfrac18 = \tfrac{1}{32}
+= M.
+\]
+With $h = 0.1$,
+\[
+\big|\sqrt{4.1}-2.025\big| \le \frac{M}{2}h^2
+= \frac{1}{64}\,(0.1)^2 = \frac{0.01}{64} \approx 0.000156.
+\]
+The actual error was $0.000155\ldots$ -- our bound is essentially tight, and we
+obtained it knowing only that $\sqrt{x}$ does not bend too sharply on $[4,4.1]$.
+Because $f''<0$ there, we even know the \emph{sign}: the estimate is high, as it
+was.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=5.6cm,
+  xlabel={step $h=x-a$}, ylabel={error $\big|f(x)-L(x)\big|$},
+  xmin=0, xmax=1, ymin=0, ymax=0.18,
+  xtick={0,0.25,0.5,0.75,1}, ytick={0,0.05,0.1,0.15},
+  axis lines=left,
+  legend pos=north west, legend style={font=\footnotesize},
+  samples=120,
+]
+% true error of sqrt(4+h) linearized at a=4: sqrt(4+h) - (2 + h/4)
+\addplot[curveblue, thick, domain=0:1] {2 + 0.25*x - sqrt(4+x)};
+\addlegendentry{true error of $\sqrt{x}$ at $a=4$}
+% quadratic envelope M/2 h^2 with M=1/32
+\addplot[tangentred, thick, dashed, domain=0:1] {(1/64)*x^2};
+\addlegendentry{$\tfrac{M}{2}h^2=\tfrac{1}{64}h^2$}
+\end{axis}
+\end{tikzpicture}
+\caption{The linearization error grows like $h^2$. The blue curve is the actual
+error of approximating $\sqrt{x}$ by its tangent line at $a=4$; the dashed red
+parabola is the guaranteed bound $\tfrac{M}{2}h^2$ from
+Theorem~\ref{ch14:thm-error}. The error hugs a parabola, not a line -- doubling
+the step roughly quadruples the error.}
+\label{ch14:fig-errgrow}
+\end{figure}
+
+\begin{aestheticbox}
+Theorem~\ref{ch14:thm-error} is the first whisper of \emph{Taylor's theorem}, the
+crown jewel of approximation theory you will meet later. The pattern continues
+forever: the linear approximation has error $\sim f'' h^2/2$; if you also match
+the curvature you get the quadratic approximation, with error $\sim f''' h^3/6$;
+and so on, each new derivative buying you another power of $h$. Linear
+approximation is Taylor's theorem stopped at the first term. Everything you learn
+here scales up.
+\end{aestheticbox}
+
+\section{Propagation of Error: Differentials Earn Their Keep}
+\label{ch14:propagation}
+
+Here is where differentials stop being a notational nicety and become a working
+tool of every laboratory science. You measure something -- a radius, a voltage, a
+time -- and your measurement has an uncertainty. You then \emph{compute} something
+from it -- an area, a power, a distance. How does the uncertainty in what you
+measured contaminate what you computed? The answer is one application of
+$\dd y = f'(x)\,\dd x$, read in a new light: $\dd x$ is now the \emph{measurement
+error}, and $\dd y$ is the resulting error in the computed quantity.
+
+\begin{example}[Error in the area of a circle]
+\label{ch14:ex-circle}
+You measure the radius of a circular plate as $r = 10\,$cm, with your ruler good
+to about $\dd r = \pm 0.05\,$cm. You report the area $A=\pi r^2$. What is the
+uncertainty in $A$?
+
+The area's differential is
+\[
+\dd A = \dv{A}{r}\,\dd r = 2\pi r\,\dd r.
+\]
+At $r=10$, $\dd r = 0.05$:
+\[
+\dd A = 2\pi (10)(0.05) = \pi \approx 3.14\ \text{cm}^2.
+\]
+So $A = \pi(10)^2 \pm \pi \approx 314.16 \pm 3.14\ \text{cm}^2$. A half-millimeter
+slip in the radius costs you about $3\,$cm$^2$ of area.
+\end{example}
+
+Often the \emph{relative} error -- the fractional, or percentage, error -- is more
+illuminating than the absolute error, because it is dimensionless and tells you
+how many significant figures you can trust. Divide:
+\[
+\frac{\dd A}{A} = \frac{2\pi r\,\dd r}{\pi r^2} = 2\,\frac{\dd r}{r}.
+\]
+
+\begin{focusbox}
+\textbf{Relative error doubles for area, triples for volume.} For $A = \pi r^2$,
+\[
+\frac{\dd A}{A} = 2\,\frac{\dd r}{r}.
+\]
+A $1\%$ error in radius becomes a $2\%$ error in area. For a volume $V = \tfrac43
+\pi r^3$ the same calculation gives $\dfrac{\dd V}{V} = 3\,\dfrac{\dd r}{r}$ -- a
+$1\%$ radius error becomes a $3\%$ volume error. The exponent in the power law
+\emph{is} the error-amplification factor.
+\end{focusbox}
+
+\begin{whybox}
+Why does the exponent become the multiplier? Because $\dd$(power) is just the
+power rule turned into error language. If $y = x^n$ then $\dd y = n x^{n-1}\dd x$,
+and dividing by $y=x^n$ gives
+\[
+\frac{\dd y}{y} = n\,\frac{\dd x}{x}.
+\]
+The logarithm makes it even cleaner: $\ln y = n\ln x$, so $\frac{\dd y}{y} =
+n\,\frac{\dd x}{x}$ is exactly the differential of that identity (since
+$\dd(\ln u) = \dd u/u$). Relative error is the \emph{differential of the
+logarithm}. That is why, for any product or power expression, the relative errors
+simply add up weighted by the exponents -- taking logs turns products into sums,
+and differentiation turns the sums into added relative errors.
+\end{whybox}
+
+\begin{example}[Combining several measurements]
+\label{ch14:ex-combine}
+A pendulum's period is $T = 2\pi\sqrt{L/g}$. Suppose you know $L$ to within
+$0.5\%$ and $g$ to within $0.2\%$. How accurately do you know $T$?
+
+Take logarithms first: $\ln T = \ln(2\pi) + \tfrac12\ln L - \tfrac12 \ln g$.
+Now take the differential of each side, using $\dd(\ln u)=\dd u/u$:
+\[
+\frac{\dd T}{T} = \tfrac12\,\frac{\dd L}{L} - \tfrac12\,\frac{\dd g}{g}.
+\]
+For a \emph{worst-case} bound we add the magnitudes:
+\[
+\left|\frac{\dd T}{T}\right| \le \tfrac12(0.5\%) + \tfrac12(0.2\%)
+= 0.25\% + 0.1\% = 0.35\%.
+\]
+The logarithmic trick converted a messy square-root-and-quotient formula into a
+one-line sum of weighted relative errors. This is the everyday error-propagation
+arithmetic of physics labs.
+\end{example}
+
+\begin{applicationbox}
+Error propagation via differentials runs through all of quantitative science.
+A surveyor turning a measured angle into a distance, an engineer turning a
+measured current into dissipated power $P=I^2R$ (so $\dd P/P = 2\,\dd I/I$ -- watch
+your ammeter!), an economist turning a growth rate into a doubling time, a machine
+learning engineer asking how a tiny perturbation $\dd x$ to an input shifts a
+network's output -- that last one, the \emph{sensitivity} $\dd y = f'(x)\,\dd x$,
+is precisely a single step of backpropagation. In every case the question ``how
+much does the output wobble when the input wobbles?'' is answered by the
+derivative times the wobble. The differential is the universal currency of
+sensitivity.
+\end{applicationbox}
+
+\section{The Newton Step: Linear Approximation in Reverse}
+\label{ch14:newton}
+
+So far we used the tangent line to estimate a function's \emph{value}. Now turn
+the question inside out. Suppose we want to \emph{solve} an equation $f(x)=0$ --
+to find a root -- but the equation is too hard to solve exactly. Examples are
+everywhere: $\cos x = x$, or $x^5 - x - 1 = 0$, equations with no formula for the
+answer. The tangent line rescues us again, and the idea is irresistibly simple:
+
+\begin{center}
+\emph{We cannot solve $f(x)=0$, but we can always solve $L(x)=0$,\\ because $L$
+is a straight line.}
+\end{center}
+
+Start with a guess $x_0$ near the root. Replace the curve by its tangent line at
+$x_0$ -- the best line we know how to build. Then find where \emph{that line}
+crosses zero, and call it $x_1$. Because the line hugs the curve, its crossing
+should be much closer to the true root than $x_0$ was. Repeat from $x_1$, and you
+spiral in. Figure~\ref{ch14:fig-newton} shows two steps of the dance.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.2cm,
+  xlabel={$x$}, ylabel={$y$},
+  xmin=0.6, xmax=3.2, ymin=-1.6, ymax=4.2,
+  axis lines=middle,
+  xtick={1,1.5,2,2.5,3}, ytick={0},
+  samples=100,
+  clip=false,
+  legend pos=north west, legend style={font=\footnotesize},
+]
+% f(x)=x^2-2, root sqrt2 ~ 1.4142
+\addplot[curveblue, thick, domain=0.6:3.2] {x^2-2};
+\addlegendentry{$f(x)=x^2-2$}
+% tangent at x0=2.5: zero at 1.65
+\addplot[tangentred, thick, domain=1.4:2.7] {(2.5^2-2) + 2*2.5*(x-2.5)};
+% tangent at x1=1.65: zero at ~1.431
+\addplot[orange, thick, domain=1.25:1.8] {(1.65^2-2) + 2*1.65*(x-1.65)};
+\addplot[mark=*, black, mark size=1.2pt, only marks] coordinates {(2.5,0) (1.65,0) (1.431,0)};
+\node[below, font=\small] at (axis cs:2.5,0) {$x_0$};
+\node[above right, font=\small] at (axis cs:1.65,0) {$x_1$};
+\node[below left, font=\small] at (axis cs:1.36,0) {$x_2$};
+\addplot[densely dashed, gray] coordinates {(2.5,0) (2.5,4.25)};
+\addplot[densely dashed, gray] coordinates {(1.65,0) (1.65,0.7225)};
+\node[font=\footnotesize] at (axis cs:2.1,-1.0) {root $=\sqrt 2\approx 1.414$};
+\end{axis}
+\end{tikzpicture}
+\caption{Newton's method on $f(x)=x^2-2$. From $x_0$, slide down the tangent
+(red) to its zero $x_1$; from $x_1$, slide down the next tangent (orange) to
+$x_2$. Each step lands far closer to the true root $\sqrt 2$.}
+\label{ch14:fig-newton}
+\end{figure}
+
+Let us derive the step. The tangent line at $x_0$ is
+\[
+L(x) = f(x_0) + f'(x_0)(x - x_0).
+\]
+Set $L(x_1)=0$ and solve for $x_1$:
+\[
+0 = f(x_0) + f'(x_0)(x_1 - x_0)
+\;\;\Longrightarrow\;\;
+x_1 = x_0 - \frac{f(x_0)}{f'(x_0)}.
+\]
+That is the entire method.
+
+\begin{focusbox}
+\textbf{Newton's iteration.}
+\[
+x_{n+1} = x_n - \frac{f(x_n)}{f'(x_n)}.
+\]
+In words: from your current guess, step by ``minus the value over the slope.''
+The value $f(x_n)$ tells you how far off you are; dividing by the slope
+$f'(x_n)$ converts that vertical miss into the horizontal correction that a
+straight line of that slope would need.
+\end{focusbox}
+
+\begin{example}[Computing $\sqrt 2$ by hand]
+\label{ch14:ex-newton-sqrt2}
+To find $\sqrt 2$, solve $f(x)=x^2-2=0$, with $f'(x)=2x$. The iteration becomes
+\[
+x_{n+1} = x_n - \frac{x_n^2 - 2}{2x_n} = \frac{x_n}{2} + \frac{1}{x_n},
+\]
+the famous ``average your guess with $2/\text{guess}$'' rule (known to the
+Babylonians millennia before Newton). Start at $x_0 = 1.5$:
+\[
+\begin{aligned}
+x_1 &= \tfrac{1.5}{2} + \tfrac{1}{1.5} = 0.75 + 0.6667 = 1.41667,\\
+x_2 &= \tfrac{1.41667}{2} + \tfrac{1}{1.41667} = 0.70833 + 0.70588 = 1.41422,\\
+x_3 &= 1.414214\ldots
+\end{aligned}
+\]
+The true value is $\sqrt 2 = 1.4142136\ldots$. After just three steps we are
+correct to seven digits. Notice the number of correct digits roughly
+\emph{doubled} each step: $1$, then $3$, then $6$+. That explosive accuracy --
+\emph{quadratic convergence} -- is the reward for using the best linear
+approximation.
+\end{example}
+
+\begin{whybox}
+Why does Newton's method converge so ferociously fast? Because the error it leaves
+behind is exactly the linear-approximation error of Theorem~\ref{ch14:thm-error},
+which is of order (current error)$^2$. Each step uses the tangent line, whose miss
+is governed by $\tfrac12 f'' h^2$; so if your current distance to the root is $h$,
+your next distance is of size $h^2$. Square a small number and it becomes tiny:
+$0.01 \to 0.0001 \to 0.00000001$. The doubling of correct digits per step is the
+$h \mapsto h^2$ law in disguise. Newton's method is fast for precisely the reason
+the tangent line is accurate: matching the slope kills the first-order error,
+leaving only the squared remainder.
+\end{whybox}
+
+\begin{trapbox}
+Newton's method is powerful but not foolproof. If $f'(x_n)=0$ the step divides by
+zero -- the tangent is horizontal and never reaches the axis. A bad starting guess
+can send the iterates flying away from the root, or trap them in a loop. And if
+the root is one where $f'$ also vanishes (a double root), the fast doubling slows
+to a crawl. We treat all of this carefully in the dedicated Newton's-method
+chapter; here the point is only the \emph{idea} -- root-finding is linear
+approximation run backwards, solving the line instead of the curve.
+\end{trapbox}
+
+\begin{historybox}
+Newton described this method around 1669 (published later) for polynomial
+equations, though his version did not yet use the tangent-line/derivative picture
+explicitly -- he manipulated the polynomial algebraically. Joseph Raphson
+streamlined it in 1690 into an iterative form close to what we use, which is why
+it is often called the \emph{Newton--Raphson method}. The clean
+$x_{n+1}=x_n-f(x_n)/f'(x_n)$, framed in terms of the derivative and the tangent
+line, is the later gift of the calculus that Newton and Leibniz had built. It is a
+small marvel that the same tangent line which approximates a curve's height also
+hands us the most powerful equation-solver in computational science.
+\end{historybox}
+
+\section{The Seed of All of Calculus}
+\label{ch14:seed}
+
+Step back and look at what one idea -- \emph{locally, smooth is linear} -- has
+already done in this single chapter.
+
+\begin{itemize}
+\item It \emph{defined} the derivative geometrically: $f'(a)$ is the slope of the
+line the curve becomes under magnification.
+\item It gave us \emph{linearization}: replace $f$ by $f(a)+f'(a)(x-a)$ to compute
+hard values with easy arithmetic.
+\item It pinned down \emph{differentials}: $\dd y = f'(x)\,\dd x$ is the tangent
+line's rise, and $\dd y/\dd x$ is a true ratio.
+\item It powered \emph{error propagation}: the same $\dd y = f'(x)\,\dd x$, read
+as ``output wobble equals slope times input wobble.''
+\item It produced \emph{Newton's method}: solve the tangent line instead of the
+curve, and iterate.
+\end{itemize}
+
+And this is only the beginning of the book. The \emph{integral} is the same idea
+inverted: chop a curved region into slivers so thin that each is a straight-sided
+rectangle (smooth $=$ linear on a sliver), then add the slivers up. The
+\emph{Fundamental Theorem} ties the slope picture to the area picture. A
+\emph{differential equation} is a recipe that gives you the local slope $\dd
+y/\dd x$ at every point and asks you to reassemble the global curve -- which you do
+by stepping along tangent lines (that is literally Euler's method). Taylor series
+push linear approximation to its limit, matching infinitely many derivatives.
+
+\begin{aestheticbox}
+Here is the thought to carry out of this chapter. \textbf{Calculus is the
+systematic exploitation of one fact: that a smooth thing, examined locally, is
+linear -- and linear things we can do anything with.} Differentiation is the act
+of \emph{finding} the local line. Integration is the act of \emph{summing}
+infinitely many local lines back into a whole. Every technique you will learn --
+the chain rule, substitution, slope fields, series -- is a different way of
+moving between the curved world (hard, interesting, real) and the linear world
+(easy, computable) along the bridge that the tangent line provides. You now hold
+the seed. The rest of the book is watching it grow.
+\end{aestheticbox}
+
+\section{Exercises}
+\label{ch14:exercises}
+
+\begin{exercise}[Warm-up linearizations]
+For each function, find the linearization $L(x)$ at the given anchor $a$, and use
+it to estimate the requested value. Compare with a calculator.
+\begin{enumerate}
+\item $f(x)=\sqrt[3]{x}$ at $a=27$; estimate $\sqrt[3]{27.5}$.
+\item $f(x)=\sin x$ at $a=0$; estimate $\sin(0.1)$ (radians).
+\item $f(x)=\ln x$ at $a=1$; estimate $\ln(1.05)$.
+\item $f(x)=(1+x)^{10}$ at $a=0$; estimate $(1.02)^{10}$.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Differentials directly]
+A cube has side length measured as $s = 5.00\,$cm with possible error $\dd s =
+\pm 0.02\,$cm. Use the differential of $V=s^3$ to estimate the largest possible
+error in the computed volume, and the corresponding \emph{relative} error
+$\dd V/V$. State the relative error as a percentage and confirm it equals
+$3\,(\dd s/s)$.
+\end{exercise}
+
+\begin{exercise}[Sign of the error]
+Without computing the true value, decide whether the linear approximation of
+$f(x)=e^x$ at $a=0$ \emph{over}- or \emph{under}-estimates $e^{0.2}$, and justify
+your answer using the sign of $f''$. Then check numerically.
+\end{exercise}
+
+\begin{exercise}[A guaranteed error bar]
+Let $f(x) = \sqrt{x}$ and anchor at $a=9$. Use the linearization to estimate
+$\sqrt{9.3}$, then use the bound $\abs{E}\le \tfrac{M}{2}h^2$ (with $M$ an upper
+bound for $\abs{f''}$ on $[9,9.3]$) to produce a guaranteed interval that
+contains the true value of $\sqrt{9.3}$. Verify the true value lies inside.
+\end{exercise}
+
+\begin{exercise}[Relative error in a power law]
+The kinetic energy of a moving mass is $E = \tfrac12 m v^2$. If the speed $v$ is
+known to within $1.5\%$ and the mass $m$ to within $0.4\%$, bound the relative
+error in $E$. (Hint: take logarithms first, then differentiate.)
+\end{exercise}
+
+\begin{exercise}[Newton by hand]
+Apply Newton's method to $f(x) = x^3 - 7$ to estimate $\sqrt[3]{7}$.
+\begin{enumerate}
+\item Write the iteration $x_{n+1} = x_n - f(x_n)/f'(x_n)$ explicitly for this
+$f$.
+\item Starting from $x_0 = 2$, compute $x_1$ and $x_2$ to five decimal places.
+\item How many correct digits did each step gain? Relate this to the
+$h\mapsto h^2$ error law.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[When Newton stumbles]
+Consider $f(x) = x^3 - 2x + 2$ with starting guess $x_0 = 0$.
+\begin{enumerate}
+\item Compute $x_1$ and $x_2$.
+\item Show that the iteration falls into a $2$-cycle ($0 \to 1 \to 0 \to \cdots$)
+and never approaches the real root near $x\approx -1.77$. Explain geometrically,
+in terms of where the tangent lines point, why the method fails to converge here.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Conceptual: what is $\dd y$?]
+A student writes: ``$\dd y$ is the change in $y$ when $x$ changes by $\dd x$.''
+Correct this sentence so that it is precise. In your corrected version, explain
+the difference between $\dd y$ and $\Delta y$, draw the small picture that
+distinguishes them, and identify which one the derivative $\dv{y}{x}$ is a ratio
+of.
+\end{exercise}
+
+\begin{exercise}[Prove the first-order property]
+Let $f$ be differentiable at $a$ and let $L(x) = f(a)+f'(a)(x-a)$ be its
+linearization. Prove directly from the definition of the derivative that
+\[
+\lim_{x\to a} \frac{f(x)-L(x)}{x-a} = 0,
+\]
+and explain why no line of a \emph{different} slope can satisfy this. (This is the
+precise statement that the tangent line is the unique best linear approximation.)
+\end{exercise}
+
+\begin{exercise}[Proof: error formula on a polynomial]
+Let $f(x) = x^3$ and anchor at $a=1$.
+\begin{enumerate}
+\item Write the exact error $E(x) = f(x) - L(x)$ as a polynomial in $h=x-1$ by
+expanding $(1+h)^3$.
+\item Show directly that $E(x) = \tfrac{f''(c)}{2}(x-1)^2$ holds, and solve for
+the point $c$ as a function of $h$. Confirm that $c$ lies between $1$ and $x$, as
+Theorem~\ref{ch14:thm-error} promises.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Linearization of a product]
+Suppose $u$ and $v$ are differentiable at $a$, with values $u(a), v(a)$ and
+derivatives $u'(a), v'(a)$. Using $\dd(uv) = u\,\dd v + v\,\dd u$, show that the
+relative error of a product is the sum of the relative errors:
+\[
+\frac{\dd(uv)}{uv} = \frac{\dd u}{u} + \frac{\dd v}{v}.
+\]
+Interpret this as the differential of the identity $\ln(uv) = \ln u + \ln v$, and
+state the analogous rule for a quotient $u/v$.
+\end{exercise}
