@@ -1,0 +1,987 @@
+\chapter{Matrices as Machines: Linear Transformations}
+
+So far you have met vectors as arrows and as lists of numbers, you have added
+them, scaled them, and combined them into spans. Now we ask the question that
+turns linear algebra from bookkeeping into a living subject: \emph{what if a
+matrix is not a thing but a \textbf{verb}?}
+
+A matrix is a machine. You feed it a vector, it hands you back another vector.
+Drop $\colvec{1\\0}$ in the top and watch what comes out the bottom. Drop in
+$\colvec{0\\1}$ and watch again. Drop in every vector in the plane and you will
+see the whole plane bend, rotate, stretch, or collapse. That motion -- the way
+the machine moves all of space at once -- \emph{is} the matrix. Everything else
+in this book (elimination, inverses, eigenvectors, the SVD) is a story about
+what these machines do and how to take them apart.
+
+This chapter builds that picture from the ground up. We start with the geometry
+of a single transformation, distill the one property (\emph{linearity}) that
+makes everything work, read the secret hidden in a matrix's columns, and then
+tour the cast of characters -- rotations, reflections, shears, scalings -- each
+with an explicit $2\times 2$ matrix and a diagram you can redraw on a napkin. We
+end by previewing why ``do one machine, then another'' is exactly matrix
+multiplication.
+
+\section{A Matrix Is a Function on Vectors}
+\label{ch05:matrix-is-function}
+
+Here is the whole idea in one example. Take the matrix
+\[
+  \mat{A} = \begin{bmatrix} 2 & 0 \\ 0 & 3 \end{bmatrix},
+\]
+and feed it the vector $\vec{x} = \colvec{1\\1}$. The rule for ``feeding'' is the
+matrix--vector product you may have seen: multiply each row of $\mat{A}$ against
+$\vec{x}$.
+\[
+  \mat{A}\vec{x}
+  = \begin{bmatrix} 2 & 0 \\ 0 & 3 \end{bmatrix}\colvec{1\\1}
+  = \colvec{2\cdot 1 + 0 \cdot 1 \\ 0 \cdot 1 + 3 \cdot 1}
+  = \colvec{2\\3}.
+\]
+The machine took the arrow pointing to $(1,1)$ and returned the arrow pointing to
+$(2,3)$: it doubled the horizontal part and tripled the vertical part. Feed it a
+different vector and it stretches that one the same way. The matrix is a rule
+that assigns to \emph{every} input vector $\vec{x}$ an output vector
+$\mat{A}\vec{x}$. That is exactly what a function is.
+
+\begin{intuitionbox}
+Stop thinking of $\mat{A}\vec{x}$ as ``a calculation.'' Think of it as
+\textbf{$\mat{A}$ acting on $\vec{x}$} -- the machine $\mat{A}$ reaching into
+space, grabbing the point $\vec{x}$, and dragging it to a new home
+$\mat{A}\vec{x}$. The matrix is the motion; the vector is just one of the
+infinitely many points being moved.
+\end{intuitionbox}
+
+We will write this as a function and give it a name. An $m \times n$ matrix
+$\mat{A}$ defines a function
+\[
+  T : \R^n \to \R^m, \qquad T(\vec{x}) = \mat{A}\vec{x}.
+\]
+It eats vectors with $n$ entries and produces vectors with $m$ entries -- the
+column count $n$ is the size of the input, the row count $m$ is the size of the
+output. A $2\times 2$ matrix sends the plane to the plane. A $3\times 2$ matrix
+sends the plane into $3$-dimensional space. A $1\times 3$ matrix crushes
+$3$-space down to a single number (a line). The \emph{shape} of the matrix tells
+you which spaces it connects before you compute a single entry.
+
+\begin{focusbox}
+$\mat{A}$ is $m \times n$ $\;\Longrightarrow\;$ input lives in $\R^n$ (the
+columns), output lives in $\R^m$ (the rows). Read the shape first: it tells you
+where vectors come from and where they go.
+\end{focusbox}
+
+\begin{example}[Three machines, one vector]
+\label{ch05:three-machines}
+Let $\vec{x} = \colvec{2\\1}$ and watch three different matrices act on it.
+
+\emph{A flip across the vertical axis,} $\mat{F} = \begin{bmatrix} -1 & 0 \\ 0 & 1\end{bmatrix}$:
+\[
+  \mat{F}\vec{x} = \colvec{-1\cdot 2 + 0 \\ 0 + 1\cdot 1} = \colvec{-2\\1}.
+\]
+The $x$-coordinate changed sign; the point hopped to the other side of the
+$y$-axis.
+
+\emph{A horizontal shear,} $\mat{S} = \begin{bmatrix} 1 & 1 \\ 0 & 1\end{bmatrix}$:
+\[
+  \mat{S}\vec{x} = \colvec{1\cdot 2 + 1 \cdot 1 \\ 0 + 1 \cdot 1} = \colvec{3\\1}.
+\]
+The height $1$ slid the point to the right by $1$.
+
+\emph{A collapse onto the $x$-axis,} $\mat{P} = \begin{bmatrix} 1 & 0 \\ 0 & 0\end{bmatrix}$:
+\[
+  \mat{P}\vec{x} = \colvec{2\\0}.
+\]
+The vertical part was erased; every point now lives on the horizontal line.
+One vector, three completely different fates -- because the machine, not the
+vector, decides what happens.
+\end{example}
+
+\subsection{The picture: dots moving to dots}
+
+The cleanest way to \emph{see} a transformation is to draw a few input points and
+draw arrows to where they land. Figure~\ref{ch05:fig-action} shows the doubling
+machine $\mat{A} = \diag(2,3)$ acting on a small cloud of points.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.9,>=Stealth]
+  \begin{scope}
+    \draw[->,gray!60] (-0.4,0) -- (5.2,0) node[right]{$x$};
+    \draw[->,gray!60] (0,-0.4) -- (0,5.2) node[above]{$y$};
+    % input points (blue) and output points (green) with arrows
+    \foreach \px/\py in {1/0, 0/1, 1/1, 2/1, 1/2} {
+      \pgfmathsetmacro{\qx}{2*\px}
+      \pgfmathsetmacro{\qy}{3*\py}
+      \fill[vecblue] (\px,\py) circle (2pt);
+      \fill[targetgreen] (\qx,\qy) circle (2pt);
+      \draw[->,gray!50,dashed] (\px,\py) -- (\qx,\qy);
+    }
+    \node[vecblue,below left] at (1,1) {$(1,1)$};
+    \node[targetgreen,above right] at (2,3) {$(2,3)$};
+  \end{scope}
+\end{tikzpicture}
+\caption{The machine $\mat{A}=\protect\begin{bmatrix}2&0\\0&3\protect\end{bmatrix}$
+acting on a handful of points. Blue dots are inputs, green dots are outputs, and
+each dashed arrow shows where a point is dragged. Horizontal distances double,
+vertical distances triple.}
+\label{ch05:fig-action}
+\end{figure}
+
+A cloud of dots tells the truth but it gets cluttered fast. The trick that makes
+transformations \emph{readable} is to draw a whole \textbf{grid} and watch what
+the machine does to it. Because (as we will prove in a moment) the machine moves straight lines to
+straight lines and evenly spaced lines to evenly spaced lines, the image of a
+square grid is again a grid -- but possibly tilted, stretched, or sheared. We
+will lean on this picture constantly.
+
+\section{Linearity: The One Property That Makes a Matrix a Matrix}
+\label{ch05:linearity}
+
+Not every function on vectors comes from a matrix. The function that adds
+$\colvec{1\\1}$ to everything, or the function that maps $\vec{x}$ to the vector
+of squared entries, are perfectly good functions -- but they are not matrices.
+The functions that \emph{are} matrices are exactly the ones with a special,
+beautiful property called \textbf{linearity}.
+
+\begin{definition}[Linear transformation]
+\label{ch05:def-linear}
+A function $T : \R^n \to \R^m$ is \textbf{linear} if for all vectors
+$\vec{u}, \vec{v} \in \R^n$ and all scalars $c \in \R$:
+\begin{align*}
+  \textbf{(additivity)} \qquad & T(\vec{u} + \vec{v}) = T(\vec{u}) + T(\vec{v}), \\
+  \textbf{(homogeneity)} \qquad & T(c\,\vec{u}) = c\,T(\vec{u}).
+\end{align*}
+\end{definition}
+
+Read these geometrically. \emph{Additivity} says: if you build $\vec{u}+\vec{v}$
+by the parallelogram rule and \emph{then} transform, you get the same arrow as
+transforming $\vec{u}$ and $\vec{v}$ separately and \emph{then} adding. The
+machine doesn't care whether you combine before or after.
+\emph{Homogeneity} says: stretching the input by $c$ stretches the output by the
+same $c$. Double the input arrow, double the output arrow. The machine respects
+scaling.
+
+\begin{intuitionbox}
+Linearity is the statement that \textbf{the grid stays a grid}. Straight,
+evenly spaced lines go to straight, evenly spaced lines, and the origin stays
+put. No bending, no curving, no off-center shift. If you can picture a sheet of
+graph paper being stretched and sheared but never crumpled, you are picturing a
+linear transformation.
+\end{intuitionbox}
+
+The two rules combine into one clean statement worth memorizing: a linear map
+sends linear combinations to linear combinations,
+\[
+  T(c\,\vec{u} + d\,\vec{v}) = c\,T(\vec{u}) + d\,T(\vec{v}).
+\]
+This is the heart of everything. It says $T$ \emph{commutes} with the basic
+operations of linear algebra -- adding and scaling -- which are the only
+operations we have. A linear map is a function that gets along perfectly with the
+structure of a vector space.
+
+\begin{trapbox}
+``Linear'' here does \emph{not} mean ``graph is a line.'' The high-school line
+$y = mx + b$ is \textbf{not} a linear map when $b \neq 0$, because it fails
+homogeneity: $T(0) = b \neq 0$, but every linear map must send $\vec{0}$ to
+$\vec{0}$ (set $c = 0$ in homogeneity). A map with a $+b$ shift is called
+\emph{affine}, not linear. Linear maps always pin the origin in place.
+\end{trapbox}
+
+\begin{example}[Checking linearity directly]
+\label{ch05:check-linear}
+Is rotation by $90^\circ$ counterclockwise a linear map? Call it $R$. Geometrically
+$R$ takes $\colvec{a\\b}$ to $\colvec{-b\\a}$ (we will derive this carefully in
+Section~\ref{ch05:rotations}). Check additivity:
+\[
+  R\!\left(\colvec{a_1\\b_1} + \colvec{a_2\\b_2}\right)
+  = R\colvec{a_1+a_2\\b_1+b_2}
+  = \colvec{-(b_1+b_2)\\a_1+a_2}
+  = \colvec{-b_1\\a_1} + \colvec{-b_2\\a_2}
+  = R\colvec{a_1\\b_1} + R\colvec{a_2\\b_2}.\ \checkmark
+\]
+Check homogeneity:
+\[
+  R\!\left(c\colvec{a\\b}\right) = R\colvec{ca\\cb} = \colvec{-cb\\ca}
+  = c\colvec{-b\\a} = c\,R\colvec{a\\b}. \ \checkmark
+\]
+Both hold, so rotation is linear. Geometrically this is obvious: spinning the
+whole plane rigidly about the origin keeps the grid a grid.
+\end{example}
+
+\begin{example}[A function that is \emph{not} linear]
+\label{ch05:not-linear}
+Let $T\colvec{a\\b} = \colvec{a^2\\b}$. Try homogeneity with $c = 2$ and
+$\vec{u} = \colvec{1\\0}$:
+\[
+  T(2\vec{u}) = T\colvec{2\\0} = \colvec{4\\0},
+  \qquad\text{but}\qquad
+  2\,T(\vec{u}) = 2\colvec{1\\0} = \colvec{2\\0}.
+\]
+Since $\colvec{4\\0} \neq \colvec{2\\0}$, the map fails homogeneity. Squaring
+bends the grid, so $T$ is not linear and cannot be written as a matrix.
+\end{example}
+
+\subsection{Why matrices are automatically linear}
+
+Every matrix gives a linear map. This is not a coincidence; it falls right out of
+how matrix--vector products work. Two facts about the product $\mat{A}\vec{x}$ --
+which we can take as the defining algebra of matrices -- are
+\[
+  \mat{A}(\vec{u} + \vec{v}) = \mat{A}\vec{u} + \mat{A}\vec{v}
+  \qquad\text{and}\qquad
+  \mat{A}(c\,\vec{u}) = c\,(\mat{A}\vec{u}).
+\]
+Compare with Definition~\ref{ch05:def-linear}: these are \emph{exactly}
+additivity and homogeneity. So $T(\vec{x}) = \mat{A}\vec{x}$ is always linear.
+Let us verify the first one by direct computation in $2\times 2$, so you trust the
+machinery. Write $\mat{A} = \begin{bmatrix} a & b \\ c & d \end{bmatrix}$,
+$\vec{u} = \colvec{u_1\\u_2}$, $\vec{v} = \colvec{v_1\\v_2}$:
+\[
+  \mat{A}(\vec{u}+\vec{v})
+  = \begin{bmatrix} a & b \\ c & d \end{bmatrix}\colvec{u_1+v_1\\u_2+v_2}
+  = \colvec{a(u_1+v_1) + b(u_2+v_2) \\ c(u_1+v_1) + d(u_2+v_2)}.
+\]
+Distribute and regroup by $\vec{u}$ and $\vec{v}$:
+\[
+  = \colvec{(au_1 + bu_2) + (av_1 + bv_2) \\ (cu_1+du_2) + (cv_1+dv_2)}
+  = \colvec{au_1+bu_2\\cu_1+du_2} + \colvec{av_1+bv_2\\cv_1+dv_2}
+  = \mat{A}\vec{u} + \mat{A}\vec{v}. \ \checkmark
+\]
+The only thing we used was the distributive law for ordinary numbers. Matrices
+are linear because arithmetic is distributive.
+
+The centerpiece of the chapter is that the converse holds too: \emph{every}
+linear map from $\R^n$ to $\R^m$ is given by some matrix. There are no other linear maps hiding out there. To see why, and to learn
+how to \emph{build} the matrix, we read the columns.
+
+\section{What the Columns Tell You}
+\label{ch05:columns}
+
+Here is the single most useful sentence in this chapter:
+
+\begin{focusbox}
+\textbf{The columns of a matrix are the images of the standard basis vectors.}
+Column $j$ of $\mat{A}$ is exactly $\mat{A}\vec{e}_j$ -- where the input arrow
+$\vec{e}_j$ lands. To know a linear map, you only need to know where it sends the
+basis vectors. Everything else follows by linearity.
+\end{focusbox}
+
+Recall the standard basis of $\R^2$: $\vec{e}_1 = \colvec{1\\0}$ (one step east)
+and $\vec{e}_2 = \colvec{0\\1}$ (one step north). Multiply a matrix by
+$\vec{e}_1$ and watch what survives:
+\[
+  \begin{bmatrix} a & b \\ c & d \end{bmatrix}\colvec{1\\0}
+  = \colvec{a\cdot 1 + b \cdot 0 \\ c \cdot 1 + d \cdot 0}
+  = \colvec{a\\c} = \text{first column.}
+\]
+Likewise $\mat{A}\vec{e}_2 = \colvec{b\\d}$ is the second column. Picking out
+$\vec{e}_j$ simply \emph{reads off} column $j$. This is why we say the columns
+are the images of the basis vectors: feeding the machine the pure ``east'' arrow
+returns its first column; feeding it the pure ``north'' arrow returns its second.
+
+\subsection{From basis images to the whole map}
+
+Now watch how a single matrix's behavior on the two basis vectors determines its
+behavior on \emph{every} vector. Any $\vec{x} = \colvec{x_1\\x_2}$ is a linear
+combination of the basis vectors:
+\[
+  \vec{x} = \colvec{x_1\\x_2} = x_1\colvec{1\\0} + x_2\colvec{0\\1}
+          = x_1\vec{e}_1 + x_2\vec{e}_2.
+\]
+Apply $T$ and use linearity (Definition~\ref{ch05:def-linear}) to slide $T$
+through the combination:
+\[
+  T(\vec{x}) = T(x_1\vec{e}_1 + x_2\vec{e}_2)
+             = x_1\,T(\vec{e}_1) + x_2\,T(\vec{e}_2).
+\]
+Read that last expression aloud: \emph{the output is the same combination of the
+basis images}. The numbers $x_1, x_2$ that built the input out of $\vec{e}_1,
+\vec{e}_2$ now rebuild the output out of $T(\vec{e}_1), T(\vec{e}_2)$. So if you
+stack the basis images as columns into a matrix $\mat{A} =
+[\,T(\vec{e}_1)\ \ T(\vec{e}_2)\,]$, then
+\[
+  T(\vec{x}) = x_1\,(\text{col }1) + x_2\,(\text{col }2) = \mat{A}\vec{x}.
+\]
+
+\begin{formalbox}
+\textbf{Every linear map is a matrix.} Let $T : \R^n \to \R^m$ be linear. Define
+the $m \times n$ matrix $\mat{A}$ whose $j$-th column is $T(\vec{e}_j)$. Then
+$T(\vec{x}) = \mat{A}\vec{x}$ for all $\vec{x} \in \R^n$, and this $\mat{A}$ is the
+only matrix that works. \\[0.3em]
+\emph{Proof sketch.} Write $\vec{x} = \sum_j x_j \vec{e}_j$. By linearity
+$T(\vec{x}) = \sum_j x_j T(\vec{e}_j) = \sum_j x_j (\text{col } j) = \mat{A}\vec{x}$.
+Uniqueness: if $\mat{B}$ also represents $T$, then column $j$ of $\mat{B}$ is
+$\mat{B}\vec{e}_j = T(\vec{e}_j) = $ column $j$ of $\mat{A}$, so $\mat{B}=\mat{A}$.
+\hfill$\square$
+\end{formalbox}
+
+That is a lot of payoff for very little work. An object you might think
+needs infinitely many instructions -- ``tell me where \emph{every} vector goes''
+-- is pinned down by a finite table of numbers: just say where the $n$ basis
+vectors go. Linearity fills in all the rest.
+
+\begin{aestheticbox}
+A linear map carries infinite information (a rule for the whole continuous plane)
+yet is compressed, with zero loss, into a tiny $2\times 2$ box of four numbers.
+That compression is the reason linear algebra is computable at all. It is also
+the seed of every later idea in this book: change of basis is choosing
+\emph{which} vectors to track, eigenvectors are the inputs the machine treats
+most simply, and the SVD finds the basis in which the machine looks like pure
+stretching. All of it grows from ``store the images of the basis.''
+\end{aestheticbox}
+
+\begin{labbox}
+Build the matrix from its action. Suppose a linear map $T$ on $\R^2$ satisfies
+$T\colvec{1\\0} = \colvec{3\\1}$ and $T\colvec{0\\1} = \colvec{-1\\2}$. \\[0.3em]
+(a) Write down $\mat{A}$ by stacking these as columns. \\
+(b) Use it to compute $T\colvec{4\\5}$ both by the formula
+$4\,T(\vec{e}_1) + 5\,T(\vec{e}_2)$ and by the matrix product $\mat{A}\colvec{4\\5}$,
+and check that they agree. \\[0.3em]
+\emph{Answer:} $\mat{A} = \begin{bmatrix} 3 & -1 \\ 1 & 2\end{bmatrix}$, and both
+routes give $\colvec{7\\14}$.
+\end{labbox}
+
+\subsection{Columns and the unit square}
+
+The columns have a vivid picture. The standard basis vectors $\vec{e}_1,
+\vec{e}_2$ are the two sides of the \textbf{unit square} -- the square with
+corners $(0,0), (1,0), (1,1), (0,1)$. Their images $\mat{A}\vec{e}_1,
+\mat{A}\vec{e}_2$ are the two columns of $\mat{A}$, and they are the two sides of
+the \textbf{output parallelogram} the unit square becomes. Drawing the columns as
+arrows draws the entire transformation, because the rest of the grid is forced to
+follow.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % input unit square
+  \begin{scope}[shift={(0,0)}]
+    \draw[->,gray!55] (-0.4,0)--(2.6,0); \draw[->,gray!55] (0,-0.4)--(0,2.6);
+    \fill[sourceblue!12] (0,0)--(1,0)--(1,1)--(0,1)--cycle;
+    \draw[sourceblue,thick] (0,0)--(1,0)--(1,1)--(0,1)--cycle;
+    \draw[->,vecblue,very thick] (0,0)--(1,0) node[below right]{$\vec{e}_1$};
+    \draw[->,vecred,very thick] (0,0)--(0,1) node[above left]{$\vec{e}_2$};
+    \node at (1.3,-0.9) {input: unit square};
+  \end{scope}
+  % arrow between
+  \draw[->,thick,gray] (3.0,1.0)--(4.2,1.0) node[midway,above]{$\mat{A}$};
+  % output parallelogram for A = [[2,1],[0,1]] (a shear+stretch)
+  \begin{scope}[shift={(5.0,0)}]
+    \draw[->,gray!55] (-0.4,0)--(3.6,0); \draw[->,gray!55] (0,-0.4)--(0,2.6);
+    \fill[targetgreen!12] (0,0)--(2,0)--(3,1)--(1,1)--cycle;
+    \draw[targetgreen,thick] (0,0)--(2,0)--(3,1)--(1,1)--cycle;
+    \draw[->,vecblue,very thick] (0,0)--(2,0) node[below right]{$\mat{A}\vec{e}_1$};
+    \draw[->,vecred,very thick] (0,0)--(1,1) node[above left]{$\mat{A}\vec{e}_2$};
+    \node at (1.6,-0.9) {output: parallelogram};
+  \end{scope}
+\end{tikzpicture}
+\caption{Reading $\mat{A} = \protect\begin{bmatrix} 2 & 1 \\ 0 & 1\protect\end{bmatrix}$
+off the unit square. The columns $\protect\colvec{2\\0}$ and $\protect\colvec{1\\1}$
+are the images of $\vec{e}_1$ and $\vec{e}_2$; they form the two sides of the
+parallelogram that the square becomes. The whole grid follows.}
+\label{ch05:fig-unitsquare}
+\end{figure}
+
+\begin{walkbox}
+Picture the unit square and its two edge-arrows $\vec{e}_1,\vec{e}_2$. Now imagine
+sliding the tip of $\vec{e}_2$ straight up to $(0,3)$ while leaving $\vec{e}_1$
+alone. What $2\times 2$ matrix did you just describe, and what happens to the
+square's area? Then imagine instead swinging $\vec{e}_2$ down until it points
+\emph{along} $\vec{e}_1$. What is the matrix now, and why has the square gone
+flat?
+\end{walkbox}
+
+\section{The Action on the Grid}
+\label{ch05:grid}
+
+Let us make good on the promise that the image of a grid is a grid. Suppose
+$\mat{A}\vec{e}_1 = \vec{a}_1$ and $\mat{A}\vec{e}_2 = \vec{a}_2$ are the two
+columns. A grid point with integer coordinates $(m,n)$ is the input
+$m\vec{e}_1 + n\vec{e}_2$, and by linearity it lands at
+\[
+  \mat{A}(m\vec{e}_1 + n\vec{e}_2) = m\,\vec{a}_1 + n\,\vec{a}_2.
+\]
+So the original square lattice $\{m\vec{e}_1 + n\vec{e}_2\}$ becomes the
+\emph{sheared} lattice $\{m\vec{a}_1 + n\vec{a}_2\}$ -- still a perfectly regular
+grid, just built from the new edge-vectors $\vec{a}_1$ and $\vec{a}_2$ instead of
+the old $\vec{e}_1, \vec{e}_2$. Straight lines stay straight (a line is
+$\vec{p} + t\vec{d}$, and $\mat{A}(\vec{p}+t\vec{d}) = \mat{A}\vec{p} +
+t\,\mat{A}\vec{d}$ is again a line), and parallel lines stay parallel. This is
+the visual signature of linearity.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.62,>=Stealth]
+  % left: original grid
+  \begin{scope}
+    \foreach \i in {-2,...,2}{
+      \draw[gray!40] (\i,-2)--(\i,2);
+      \draw[gray!40] (-2,\i)--(2,\i);
+    }
+    \draw[->,vecblue,very thick] (0,0)--(1,0);
+    \draw[->,vecred,very thick] (0,0)--(0,1);
+    \node at (0,-2.9) {original grid};
+  \end{scope}
+  % arrow
+  \draw[->,thick,gray] (3.1,0)--(4.4,0) node[midway,above]{$\mat{A}$};
+  % right: sheared grid for A=[[1,1],[0.5,1]]
+  \begin{scope}[shift={(8.4,0)}]
+    \foreach \i in {-2,...,2}{
+      % lines of constant m: p = i*a1 + n*a2, vary n
+      \draw[gray!40] ({\i*1 + (-2)*1},{\i*0.5 + (-2)*1}) -- ({\i*1 + 2*1},{\i*0.5 + 2*1});
+      \draw[gray!40] ({(-2)*1 + \i*1},{(-2)*0.5 + \i*1}) -- ({2*1 + \i*1},{2*0.5 + \i*1});
+    }
+    \draw[->,vecblue,very thick] (0,0)--(1,0.5);
+    \draw[->,vecred,very thick] (0,0)--(1,1);
+    \node at (0,-2.9) {image grid};
+  \end{scope}
+\end{tikzpicture}
+\caption{A linear map turns the square grid into a slanted grid. With
+$\mat{A}=\protect\begin{bmatrix}1 & 1\\ 0.5 & 1\protect\end{bmatrix}$ the basis
+arrows tilt to the new columns $\protect\colvec{1\\0.5}$ and $\protect\colvec{1\\1}$,
+and every grid line follows. Lines stay straight and parallels stay parallel --
+the grid is sheared, never crumpled.}
+\label{ch05:fig-grid}
+\end{figure}
+
+\begin{strangbox}
+In Strang's course you will spend a lot of time on the equation
+$\mat{A}\vec{x} = \vec{b}$: \emph{which} input $\vec{x}$ produces a target output
+$\vec{b}$? This chapter is the other half of that conversation. Here we hold
+$\mat{A}$ fixed and watch it sweep over \emph{all} inputs at once -- the machine's
+view. When Strang draws the ``column picture'' of $\mat{A}\vec{x} = \vec{b}$ as a
+combination of columns, he is using exactly our identity $\mat{A}\vec{x} = x_1
+\vec{a}_1 + x_2 \vec{a}_2$. Carrying the moving-grid picture in beforehand makes
+his row/column pictures feel inevitable instead of arbitrary.
+\end{strangbox}
+
+\section{A Tour of $2\times 2$ Machines}
+\label{ch05:tour}
+
+We now meet the named transformations of the plane. For each one, the recipe is
+the same and it never gets old: \emph{find where $\vec{e}_1$ and $\vec{e}_2$ go,
+and stack those as columns.} Keep Figure~\ref{ch05:fig-unitsquare} in mind --
+every matrix below is just a different pair of edge-arrows for the unit square.
+
+\subsection{Scalings: stretch and squash}
+\label{ch05:scalings}
+
+The simplest machine multiplies each coordinate by a fixed factor. A
+\textbf{scaling} with horizontal factor $s$ and vertical factor $t$ sends
+$\vec{e}_1 \mapsto \colvec{s\\0}$ and $\vec{e}_2 \mapsto \colvec{0\\t}$, so
+\[
+  \mat{D} = \begin{bmatrix} s & 0 \\ 0 & t \end{bmatrix},
+  \qquad
+  \mat{D}\colvec{x\\y} = \colvec{sx\\ty}.
+\]
+This is a \emph{diagonal} matrix, $\mat{D} = \diag(s,t)$. When $s = t$ it is a
+uniform zoom (everything grows by the same factor, shapes preserved). When
+$s \neq t$ the plane stretches more in one direction than the other -- a circle
+becomes an ellipse, as in Figure~\ref{ch05:fig-scaling}. Our opening example
+$\diag(2,3)$ was exactly this: double across, triple up.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % input unit circle
+  \begin{scope}
+    \draw[->,gray!55] (-1.4,0)--(1.5,0) node[right]{$x$};
+    \draw[->,gray!55] (0,-1.4)--(0,1.5) node[above]{$y$};
+    \draw[sourceblue,thick] (0,0) circle (1);
+    \draw[->,vecblue,very thick] (0,0)--(1,0) node[below right]{$\vec{e}_1$};
+    \draw[->,vecred,very thick] (0,0)--(0,1) node[above left]{$\vec{e}_2$};
+    \node at (0,-1.85) {unit circle};
+  \end{scope}
+  % arrow between
+  \draw[->,thick,gray] (1.9,0)--(3.1,0) node[midway,above]{$\mat{D}=\diag(2,\tfrac12)$};
+  % output ellipse: 2 wide, 1/2 tall
+  \begin{scope}[shift={(5.6,0)}]
+    \draw[->,gray!55] (-2.4,0)--(2.5,0) node[right]{$x$};
+    \draw[->,gray!55] (0,-1.4)--(0,1.5) node[above]{$y$};
+    \draw[targetgreen,thick] (0,0) ellipse (2 and 0.5);
+    \draw[->,vecblue,very thick] (0,0)--(2,0) node[below right]{$\mat{D}\vec{e}_1$};
+    \draw[->,vecred,very thick] (0,0)--(0,0.5) node[above left]{$\mat{D}\vec{e}_2$};
+    \node at (0,-1.85) {stretched into an ellipse};
+  \end{scope}
+\end{tikzpicture}
+\caption{A non-uniform scaling $\mat{D}=\diag(2,\tfrac12)$ pulls the unit circle
+into an ellipse: $\vec{e}_1$ doubles in length while $\vec{e}_2$ is halved. The
+semi-axes of the ellipse are exactly the diagonal factors. The area changes by
+the product $2\cdot\tfrac12 = 1$, so this particular stretch keeps area fixed even
+though it badly distorts the shape.}
+\label{ch05:fig-scaling}
+\end{figure}
+
+A negative factor flips that axis: $\diag(-1,1)$ is the reflection across the
+$y$-axis from Example~\ref{ch05:three-machines}. A zero factor collapses that axis
+entirely: $\diag(1,0)$ flattens the whole plane onto the $x$-axis, which is the
+projection $\mat{P}$ from the same example.
+
+\begin{example}[A non-uniform scaling, step by step]
+\label{ch05:scaling-ex}
+Take $\mat{D} = \diag(\tfrac12, 2)$. The unit square's corner $(1,1)$ goes to
+$(\tfrac12, 2)$; the square (area $1$) becomes a rectangle $\tfrac12$ wide and $2$
+tall (area $1$ still, since $\tfrac12 \cdot 2 = 1$). The horizontal direction is
+squeezed, the vertical stretched, and -- a preview of determinants -- the area is
+unchanged because the product of the diagonal factors is $1$.
+\end{example}
+
+\subsection{Rotations}
+\label{ch05:rotations}
+
+A \textbf{rotation} spins the whole plane rigidly about the origin by an angle
+$\theta$ (counterclockwise for $\theta > 0$). Lengths and angles are preserved;
+the grid turns like a record on a turntable. To find its matrix, we only need to
+know where the two basis arrows swing to.
+
+Spin $\vec{e}_1 = \colvec{1\\0}$, which points east, by $\theta$. Its tip traces
+the unit circle, so it lands at $\colvec{\cos\theta\\\sin\theta}$. Spin
+$\vec{e}_2 = \colvec{0\\1}$, which points north, by $\theta$; it lands $90^\circ$
+ahead of the first arrow, at $\colvec{-\sin\theta\\\cos\theta}$. Stack these as
+columns:
+\[
+  \boxed{\ \mat{R}_\theta
+  = \begin{bmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{bmatrix}.\ }
+\]
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=2.0,>=Stealth]
+  \draw[->,gray!55] (-1.25,0)--(1.35,0) node[right]{$x$};
+  \draw[->,gray!55] (0,-0.35)--(0,1.35) node[above]{$y$};
+  \draw[gray!35] (0,0) circle (1);
+  % e1 and its image
+  \draw[->,vecblue,very thick] (0,0)--(1,0) node[below right]{$\vec{e}_1$};
+  \draw[->,sourceblue,very thick] (0,0)--({cos(35)},{sin(35)})
+       node[above right]{$\mat{R}\vec{e}_1$};
+  % e2 and its image
+  \draw[->,vecred,very thick] (0,0)--(0,1) node[above right]{$\vec{e}_2$};
+  \draw[->,trapred,very thick] (0,0)--({-sin(35)},{cos(35)})
+       node[above left]{$\mat{R}\vec{e}_2$};
+  % angle arc
+  \draw[->,targetgreen] (0.45,0) arc (0:35:0.45);
+  \node[targetgreen] at (0.62,0.18) {$\theta$};
+\end{tikzpicture}
+\caption{Building the rotation matrix from basis images. The east arrow
+$\vec{e}_1$ swings to $(\cos\theta,\sin\theta)$ and the north arrow $\vec{e}_2$
+swings to $(-\sin\theta,\cos\theta)$. These two images are the columns of
+$\mat{R}_\theta$.}
+\label{ch05:fig-rotation}
+\end{figure}
+
+\begin{example}[Rotation by $90^\circ$]
+\label{ch05:rot90}
+With $\theta = 90^\circ$ we have $\cos 90^\circ = 0$, $\sin 90^\circ = 1$, so
+\[
+  \mat{R}_{90^\circ} = \begin{bmatrix} 0 & -1 \\ 1 & 0 \end{bmatrix},
+  \qquad
+  \mat{R}_{90^\circ}\colvec{a\\b} = \colvec{-b\\a},
+\]
+matching the rotation we checked in Example~\ref{ch05:check-linear}. The east
+arrow $\colvec{1\\0}$ goes to north $\colvec{0\\1}$, and north goes to west
+$\colvec{-1\\0}$ -- exactly a quarter turn.
+\end{example}
+
+\begin{example}[Rotation by $45^\circ$]
+\label{ch05:rot45}
+Here $\cos 45^\circ = \sin 45^\circ = \tfrac{1}{\sqrt 2} \approx 0.707$, so
+\[
+  \mat{R}_{45^\circ} = \frac{1}{\sqrt 2}\begin{bmatrix} 1 & -1 \\ 1 & 1\end{bmatrix}.
+\]
+Apply it to $\colvec{1\\0}$: out comes $\tfrac{1}{\sqrt2}\colvec{1\\1}$, the
+arrow pointing exactly along the diagonal -- a $45^\circ$ tilt, as promised. Note
+the columns each have length $1$ and are perpendicular; rotations never change
+size or shape, only orientation.
+\end{example}
+
+\begin{connectionbox}
+The rotation matrices secretly encode the angle-addition formulas of
+trigonometry. Rotating by $\alpha$ and then by $\beta$ must be the same as
+rotating once by $\alpha + \beta$, i.e. $\mat{R}_\beta \mat{R}_\alpha =
+\mat{R}_{\alpha+\beta}$. Multiply the two matrices out and match the top-left
+entry:
+\[
+  \cos(\alpha+\beta) = \cos\beta\cos\alpha - \sin\beta\sin\alpha.
+\]
+The angle-sum identity you memorized in high school is just the statement that
+\emph{composing rotations adds angles}. The same product is how complex
+multiplication rotates the plane ($e^{i\alpha} e^{i\beta} = e^{i(\alpha+\beta)}$),
+a bridge to the complex-numbers chapter and, later, to the Fourier transform.
+\end{connectionbox}
+
+\subsection{Reflections}
+\label{ch05:reflections}
+
+A \textbf{reflection} flips the plane across a line through the origin, as if that
+line were a mirror. Points on the mirror stay fixed; everything else swaps to the
+opposite side. The easiest is reflection across the $x$-axis: it keeps
+$\vec{e}_1$ and flips $\vec{e}_2$ to $\colvec{0\\-1}$, giving
+\[
+  \mat{M}_x = \begin{bmatrix} 1 & 0 \\ 0 & -1 \end{bmatrix}.
+\]
+More generally, reflection across the line through the origin making angle
+$\phi$ with the $x$-axis has matrix
+\[
+  \mat{M}_\phi = \begin{bmatrix} \cos 2\phi & \sin 2\phi \\ \sin 2\phi & -\cos 2\phi \end{bmatrix}.
+\]
+(You can derive this by rotating the mirror line down to the $x$-axis, flipping,
+and rotating back -- a nice composition exercise once we have the product.) The
+$2\phi$ instead of $\phi$ is the famous quirk of reflections: a mirror tilted by
+$\phi$ flips directions through twice that angle.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.5,>=Stealth]
+  \draw[->,gray!55] (-1.4,0)--(1.5,0) node[right]{$x$};
+  \draw[->,gray!55] (0,-1.4)--(0,1.5) node[above]{$y$};
+  % mirror line: x-axis
+  \draw[structurepurple,thick,dashed] (-1.3,0)--(1.3,0) node[above left]{mirror};
+  % a point and its reflection
+  \fill[vecblue] (0.9,0.7) circle (1.3pt) node[above right]{$\vec{x}$};
+  \fill[targetgreen] (0.9,-0.7) circle (1.3pt) node[below right]{$\mat{M}_x\vec{x}$};
+  \draw[->,vecblue,thick] (0,0)--(0.9,0.7);
+  \draw[->,targetgreen,thick] (0,0)--(0.9,-0.7);
+  \draw[gray!50,dotted] (0.9,0.7)--(0.9,-0.7);
+\end{tikzpicture}
+\caption{Reflection across the $x$-axis. The mirror (the $x$-axis) is fixed; the
+point $\vec{x}=(0.9,0.7)$ is sent straight down to its mirror image $(0.9,-0.7)$.
+The horizontal coordinate is unchanged, the vertical coordinate flips sign.}
+\label{ch05:fig-reflection}
+\end{figure}
+
+\begin{trapbox}
+Rotations and reflections both keep lengths the same, so it is tempting to lump
+them together. The difference is \emph{orientation}. A rotation preserves
+handedness: a counterclockwise loop stays counterclockwise. A reflection reverses
+it: it turns a left hand into a right hand. Algebraically, the determinant of a
+rotation is $+1$ and of a reflection is $-1$ -- a sign you will meet again in the
+determinants chapter. If you ever confuse the two, ask: does my shape come out
+mirror-flipped? If yes, it was a reflection.
+\end{trapbox}
+
+\subsection{Shears}
+\label{ch05:shears}
+
+A \textbf{shear} slides points parallel to one axis by an amount proportional to
+their distance from that axis -- think of pushing the top of a deck of cards
+sideways while the bottom stays put. A horizontal shear keeps $\vec{e}_1$ fixed
+and tilts $\vec{e}_2$ to $\colvec{k\\1}$:
+\[
+  \mat{S}_k = \begin{bmatrix} 1 & k \\ 0 & 1 \end{bmatrix},
+  \qquad
+  \mat{S}_k\colvec{x\\y} = \colvec{x + ky\\y}.
+\]
+A point's height $y$ is unchanged, but it slides right by $ky$ -- higher points
+slide farther. The vertical axis stays put (when $y = 0$ nothing moves); the rest
+of the plane leans like italic type. Crucially, a shear does \emph{not} change
+area: the parallelogram the unit square becomes has the same base and height as
+the square (look back at Figure~\ref{ch05:fig-unitsquare} -- base $1$, height
+$1$). This area-preservation is the determinant $\det \mat{S}_k = 1$ again.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.1,>=Stealth]
+  \draw[->,gray!55] (-0.4,0)--(3.4,0) node[right]{$x$};
+  \draw[->,gray!55] (0,-0.4)--(0,2.4) node[above]{$y$};
+  % original square (faint)
+  \draw[sourceblue!50,thick,dashed] (0,0)--(1,0)--(1,1)--(0,1)--cycle;
+  % sheared square k=1.2
+  \fill[targetgreen!12] (0,0)--(1,0)--(2.2,1)--(1.2,1)--cycle;
+  \draw[targetgreen,thick] (0,0)--(1,0)--(2.2,1)--(1.2,1)--cycle;
+  \draw[->,vecblue,very thick] (0,0)--(1,0) node[below right]{$\vec{e}_1$ (fixed)};
+  \draw[->,vecred,very thick] (0,0)--(1.2,1) node[above right]{$\mat{S}\vec{e}_2$};
+  \draw[gray!50,->] (1.0,1.0) -- (1.2,1.0);
+  \node[gray] at (1.9,1.35) {top slides right by $k$};
+\end{tikzpicture}
+\caption{A horizontal shear $\mat{S}_k$ with $k=1.2$. The base $\vec{e}_1$ is
+nailed in place; the top edge slides right in proportion to its height. The dashed
+square becomes the green parallelogram -- same base, same height, so the same
+area.}
+\label{ch05:fig-shear}
+\end{figure}
+
+\begin{applicationbox}
+Every one of these named machines is a workhorse of modern computing.
+\emph{Computer graphics and games} build all 2D and 3D motion -- rotating a
+character, scaling a sprite, skewing a shadow -- out of exactly these matrices,
+applied to the vertices of meshes; a GPU does millions of these matrix--vector
+products per frame. \emph{Image processing} uses shears as the secret behind fast,
+high-quality image rotation: a rotation factors into three shears, and shearing
+an image is just sliding rows or columns of pixels, which is cheap and
+artifact-free. \emph{Data augmentation} for training neural networks deliberately
+applies small random rotations, scalings, reflections, and shears to each training
+image so the model learns features that survive these transformations. When you
+see a vision model that is robust to a tilted photo, you are seeing these
+$2\times 2$ machines at work in the training loop.
+\end{applicationbox}
+
+\begin{labbox}
+Compute these $2\times 2$ actions by hand and \emph{sketch} the unit square's
+image for each. \\[0.3em]
+(a) $\mat{R}_{180^\circ} = \begin{bmatrix} -1 & 0 \\ 0 & -1\end{bmatrix}$ on
+$\colvec{1\\2}$. \\
+(b) The shear $\mat{S}_2 = \begin{bmatrix} 1 & 2 \\ 0 & 1\end{bmatrix}$ on
+$\colvec{3\\1}$ and on $\colvec{3\\0}$ -- notice the second is unmoved. Why? \\
+(c) The reflection $\mat{M}_x = \begin{bmatrix} 1 & 0 \\ 0 & -1\end{bmatrix}$
+applied twice to $\colvec{a\\b}$. What do you get, and what does that say about
+$\mat{M}_x\mat{M}_x$? \\[0.3em]
+\emph{Answers:} (a) $\colvec{-1\\-2}$. (b) $\colvec{5\\1}$ and $\colvec{3\\0}$;
+the second has height $0$, and a shear moves nothing on the axis it fixes. (c)
+back to $\colvec{a\\b}$, so reflecting twice is the identity, $\mat{M}_x^2 =
+\mat{I}$.
+\end{labbox}
+
+\subsection{The identity and the zero map}
+\label{ch05:identity-zero}
+
+Two extreme machines bookend the tour. The \textbf{identity}
+$\mat{I} = \begin{bmatrix} 1 & 0 \\ 0 & 1\end{bmatrix}$ sends every basis vector
+to itself, so $\mat{I}\vec{x} = \vec{x}$: it does nothing, the ``leave it alone''
+machine. The \textbf{zero matrix} $\mat{0}$ sends every vector to $\vec{0}$: it
+crushes all of space to a single point. Between ``change nothing'' and ``destroy
+everything'' live all the interesting transformations.
+
+\section{Composition: Doing One Machine After Another}
+\label{ch05:composition}
+
+Machines are made to be chained. Apply $\mat{B}$ to a vector, then apply $\mat{A}$
+to the result: ``first $\mat{B}$, then $\mat{A}$.'' The combined effect is itself
+a linear map (a composition of linear maps is linear -- chase the definitions),
+so by Section~\ref{ch05:columns} it \emph{must} be some matrix. Which matrix?
+That matrix is the \textbf{product} $\mat{A}\mat{B}$, defined precisely so that
+\[
+  \mat{A}(\mat{B}\vec{x}) = (\mat{A}\mat{B})\vec{x} \quad\text{for every } \vec{x}.
+\]
+This is the real reason matrix multiplication is defined the way it is -- the row-
+times-column rule is not arbitrary, it is engineered to make ``compose the
+machines'' come out right. We will derive the full rule in the multiplication
+chapter; here we just watch it work on the cleanest case and absorb the order.
+
+\begin{example}[Rotate, then rotate: angles add]
+\label{ch05:compose-rot}
+Compose a $90^\circ$ rotation after another $90^\circ$ rotation. Each is
+$\mat{R}_{90^\circ} = \begin{bmatrix} 0 & -1 \\ 1 & 0\end{bmatrix}$, and the
+combined machine is found by tracking the basis vectors through both steps. Start
+with $\vec{e}_1 = \colvec{1\\0}$:
+\[
+  \colvec{1\\0}
+  \xrightarrow{\ \mat{R}_{90^\circ}\ } \colvec{0\\1}
+  \xrightarrow{\ \mat{R}_{90^\circ}\ } \colvec{-1\\0}.
+\]
+And $\vec{e}_2 = \colvec{0\\1}$:
+\[
+  \colvec{0\\1}
+  \xrightarrow{\ \mat{R}_{90^\circ}\ } \colvec{-1\\0}
+  \xrightarrow{\ \mat{R}_{90^\circ}\ } \colvec{0\\-1}.
+\]
+Stacking the two final images as columns gives the combined matrix
+$\begin{bmatrix} -1 & 0 \\ 0 & -1\end{bmatrix} = \mat{R}_{180^\circ}$. Two quarter
+turns make a half turn -- exactly what geometry demands, and exactly the
+angle-addition we met in the rotation connection box.
+\end{example}
+
+\begin{trapbox}
+\textbf{Order matters: $\mat{A}\mat{B}$ usually does not equal $\mat{B}\mat{A}$.}
+Putting on socks then shoes is not the same as shoes then socks. For a concrete
+clash, take a reflection $\mat{M}_x = \begin{bmatrix}1&0\\0&-1\end{bmatrix}$ and a
+$90^\circ$ rotation $\mat{R} = \begin{bmatrix}0&-1\\1&0\end{bmatrix}$. Tracking
+$\vec{e}_1$: ``rotate then reflect'' sends $\colvec{1\\0}\to\colvec{0\\1}\to
+\colvec{0\\-1}$, while ``reflect then rotate'' sends $\colvec{1\\0}\to\colvec{1\\0}
+\to\colvec{0\\1}$. Different outputs, so the two orders are different machines.
+Also note $\mat{A}\mat{B}$ means ``$\mat{B}$ first'' -- the matrix nearest the
+vector acts first. The notation runs right to left, like function composition
+$f(g(x))$.
+\end{trapbox}
+
+Figure~\ref{ch05:fig-order} draws this clash. The same arrow $\vec{e}_1$ is fed
+into both orders, and the two paths end at opposite places.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.4,>=Stealth]
+  \draw[->,gray!55] (-1.3,0)--(1.3,0) node[right]{$x$};
+  \draw[->,gray!55] (0,-1.3)--(0,1.3) node[above]{$y$};
+  \draw[gray!30] (0,0) circle (1);
+  % start arrow
+  \draw[->,black,very thick] (0,0)--(1,0) node[below right]{$\vec{e}_1$};
+  % path 1: rotate then reflect -> ends at (0,-1)
+  \draw[->,sourceblue,thick] (0,0)--(0,1);
+  \draw[->,sourceblue,very thick] (0,0)--(0,-1)
+       node[below left]{rotate, then reflect};
+  % path 2: reflect then rotate -> ends at (0,1)
+  \draw[->,quotientorange,very thick] (0,0)--(0.04,1)
+       node[above right]{reflect, then rotate};
+\end{tikzpicture}
+\caption{Order matters. Starting from $\vec{e}_1$, ``rotate $90^\circ$ then
+reflect across the $x$-axis'' lands at $(0,-1)$ (blue), while ``reflect then
+rotate'' lands at $(0,1)$ (orange). Same two machines, opposite destinations:
+$\mat{M}_x\mat{R}\neq\mat{R}\mat{M}_x$.}
+\label{ch05:fig-order}
+\end{figure}
+
+\begin{strangbox}
+After Strang, you will recognize this section as the doorway to nearly everything
+deep. Factoring a matrix is composition read backwards: $\mat{A} = \mat{L}\mat{U}$
+says ``$\mat{A}$ is a shear-like machine after another,'' $\mat{A} = \mat{Q}\mat{R}$
+splits it into a rotation/reflection after a triangular map, and the crown jewel
+$\mat{A} = \mat{U}\mathbf{\Sigma}\mat{V}\T$ (the SVD) says \emph{every} matrix is
+a rotation, then a pure scaling, then another rotation. Three of the machines from
+this very chapter -- rotate, stretch, rotate -- compose to give \emph{any} linear
+map at all. Hold onto that picture; it is where the book is headed.
+\end{strangbox}
+
+\begin{aestheticbox}
+Step back and see what we have built. A grid of numbers became a motion of space.
+The motion is pinned down by where it sends two little arrows. Naming the arrows
+gave us rotations, reflections, shears, and scalings. Chaining the motions became
+multiplication. From here the whole subject unfolds: solving $\mat{A}\vec{x} =
+\vec{b}$ asks which input a machine sends to a target; eigenvectors ask which
+inputs a machine merely scales; the SVD asks for the hidden axes along which any
+machine is pure stretch. You now hold the master image -- \emph{matrices are
+machines} -- that every later chapter will sharpen.
+\end{aestheticbox}
+
+\begin{connectionbox}
+The area-scaling factor of a linear map is the bridge to multivariable calculus.
+A smooth nonlinear map bends the grid, but zoom in close enough to any point and
+it looks linear -- its local linear approximation is the \emph{Jacobian matrix} of
+partial derivatives. The factor by which that Jacobian scales tiny areas (its
+determinant) is precisely the $\det\mat{A}$ you are about to rediscover in
+Exercise~\ref{ch05:ex-area}, and it is exactly the $\lvert\partial(x,y)/\partial(u,v)\rvert$
+that appears when you change variables in a double integral. ``Matrices as
+machines'' is the linearized skeleton of all of differential calculus in several
+variables.
+\end{connectionbox}
+
+\section{Cost and Intuition Recap}
+\label{ch05:recap}
+
+\begin{itemize}
+\item \textbf{A matrix is a verb.} An $m\times n$ matrix $\mat{A}$ is the function
+  $T(\vec{x})=\mat{A}\vec{x}$ sending $\R^n\to\R^m$. Read the shape first: $n$
+  columns in, $m$ rows out (Section~\ref{ch05:matrix-is-function}).
+\item \textbf{Linearity is ``the grid stays a grid.''} $T(c\vec{u}+d\vec{v}) =
+  cT(\vec{u})+dT(\vec{v})$, and every linear map fixes the origin
+  (Section~\ref{ch05:linearity}).
+\item \textbf{The columns are the basis images.} Column $j$ is $\mat{A}\vec{e}_j$;
+  knowing where the $n$ basis arrows go pins down the entire map
+  (Section~\ref{ch05:columns}). Cost to store a linear map on $\R^n\to\R^m$: just
+  $mn$ numbers.
+\item \textbf{Cost of one action.} Computing $\mat{A}\vec{x}$ for an $m\times n$
+  matrix takes $mn$ multiplications and $m(n-1)$ additions -- about $2mn$
+  arithmetic operations.
+\item \textbf{The named machines.} Scalings $\diag(s,t)$, rotations
+  $\mat{R}_\theta$, reflections $\mat{M}_\phi$, shears $\mat{S}_k$ -- each is just
+  a choice of two edge-arrows for the unit square (Section~\ref{ch05:tour}).
+\item \textbf{Composition is multiplication.} ``First $\mat{B}$, then $\mat{A}$''
+  is the matrix $\mat{A}\mat{B}$, and order matters:
+  $\mat{A}\mat{B}\neq\mat{B}\mat{A}$ in general (Section~\ref{ch05:composition}).
+\end{itemize}
+
+\section{Exercises}
+\label{ch05:exercises}
+
+\begin{exercise}[Warmup: act on a vector]
+\label{ch05:ex-act}
+Let $\mat{A} = \begin{bmatrix} 2 & -1 \\ 1 & 3 \end{bmatrix}$. Compute
+$\mat{A}\colvec{1\\0}$, $\mat{A}\colvec{0\\1}$, and $\mat{A}\colvec{1\\1}$. Verify
+that the third is the sum of the first two, and explain which property of linear
+maps guarantees this.
+\end{exercise}
+
+\begin{exercise}[Build the matrix from its action]
+\label{ch05:ex-build}
+A linear map $T$ on $\R^2$ satisfies $T\colvec{1\\0} = \colvec{2\\-1}$ and
+$T\colvec{0\\1} = \colvec{0\\4}$. Write down its matrix, then compute
+$T\colvec{3\\2}$ two ways (as a combination of basis images and as a matrix
+product) and confirm they agree.
+\end{exercise}
+
+\begin{exercise}[Linear or not?]
+\label{ch05:ex-linornot}
+For each map, decide whether it is linear; if not, give a specific numerical
+counterexample to additivity or homogeneity.
+(a) $T\colvec{x\\y} = \colvec{x+y\\x-y}$.
+(b) $T\colvec{x\\y} = \colvec{x\\y+1}$.
+(c) $T\colvec{x\\y} = \colvec{xy\\0}$.
+(d) $T\colvec{x\\y} = \colvec{2x\\0}$.
+\end{exercise}
+
+\begin{exercise}[Name that machine]
+\label{ch05:ex-name}
+Identify the geometric effect of each matrix (scaling, rotation, reflection, or
+shear), and state where it sends the unit square.
+(a) $\begin{bmatrix} 0 & 1 \\ 1 & 0\end{bmatrix}$,
+(b) $\begin{bmatrix} 3 & 0 \\ 0 & 3\end{bmatrix}$,
+(c) $\begin{bmatrix} 1 & 0 \\ -2 & 1\end{bmatrix}$,
+(d) $\begin{bmatrix} 0 & -1 \\ 1 & 0\end{bmatrix}$.
+(Hint for (a): where do $\vec{e}_1$ and $\vec{e}_2$ go? What line is the mirror?)
+\end{exercise}
+
+\begin{exercise}[Rotation practice]
+\label{ch05:ex-rotation}
+Write the rotation matrix $\mat{R}_{\theta}$ for $\theta = 30^\circ$ using
+$\cos 30^\circ = \tfrac{\sqrt 3}{2}$, $\sin 30^\circ = \tfrac12$. Apply it to
+$\colvec{2\\0}$ and verify the output has length $2$ (rotations preserve length).
+\end{exercise}
+
+\begin{exercise}[Composition by tracking the basis]
+\label{ch05:ex-compose}
+Let $\mat{S} = \begin{bmatrix} 1 & 1 \\ 0 & 1\end{bmatrix}$ (shear) and
+$\mat{M} = \begin{bmatrix} 1 & 0 \\ 0 & -1\end{bmatrix}$ (reflection). By tracking
+$\vec{e}_1$ and $\vec{e}_2$ through both steps, find the matrix for ``first
+$\mat{S}$, then $\mat{M}$'' and the matrix for ``first $\mat{M}$, then $\mat{S}$.''
+Confirm they are different, illustrating that order matters.
+\end{exercise}
+
+\begin{exercise}[Reflection twice]
+\label{ch05:ex-involution}
+Let $\mat{M}$ be reflection across the $x$-axis. By applying it twice to a general
+$\colvec{a\\b}$, show that $\mat{M}^2 = \mat{I}$. A transformation equal to its own
+inverse is called an \emph{involution}; name two other machines from this chapter
+that are involutions.
+\end{exercise}
+
+\begin{exercise}[Collapse and information loss]
+\label{ch05:ex-collapse}
+Let $\mat{P} = \begin{bmatrix} 1 & 0 \\ 0 & 0\end{bmatrix}$. (a) Where does
+$\mat{P}$ send the unit square? (b) Find two \emph{different} input vectors that
+$\mat{P}$ sends to the same output, and explain geometrically why $\mat{P}$ cannot
+be undone. (This is your first encounter with a non-invertible machine and its
+null space.)
+\end{exercise}
+
+\begin{exercise}[Proof: linear maps fix the origin]
+\label{ch05:ex-origin}
+Using only the homogeneity axiom, prove that every linear map satisfies
+$T(\vec{0}) = \vec{0}$. Then use additivity to prove $T(-\vec{v}) = -T(\vec{v})$.
+Explain in one sentence why this rules out the affine map
+$T(\vec{x}) = \vec{x} + \colvec{1\\1}$ being linear.
+\end{exercise}
+
+\begin{exercise}[Proof: composition is linear]
+\label{ch05:ex-compose-linear}
+Let $S, T : \R^2 \to \R^2$ be linear. Prove that their composition $(S \circ
+T)(\vec{x}) = S(T(\vec{x}))$ is linear by verifying additivity and homogeneity
+directly. (This is why the product of two matrices is again a matrix.)
+\end{exercise}
+
+\begin{exercise}[Challenge: derive the general reflection]
+\label{ch05:ex-genreflect}
+The reflection across the line through the origin at angle $\phi$ can be built as
+``rotate the line down to the $x$-axis (by $-\phi$), reflect across the $x$-axis,
+rotate back up (by $+\phi$).'' Granting the product rule
+$(S\circ T)$'s matrix is the product of the matrices, multiply
+$\mat{R}_{\phi}\,\mat{M}_x\,\mat{R}_{-\phi}$ and use double-angle identities to
+obtain $\mat{M}_\phi = \begin{bmatrix} \cos 2\phi & \sin 2\phi \\ \sin 2\phi &
+-\cos 2\phi\end{bmatrix}$.
+\end{exercise}
+
+\begin{exercise}[Challenge: area scaling]
+\label{ch05:ex-area}
+For each matrix, draw the image of the unit square and compute its area:
+$\begin{bmatrix} 2 & 0 \\ 0 & 3\end{bmatrix}$,
+$\begin{bmatrix} 1 & 4 \\ 0 & 1\end{bmatrix}$,
+$\begin{bmatrix} 2 & 1 \\ 0 & 3\end{bmatrix}$.
+Conjecture a formula for the area in terms of the entries $a,b,c,d$ of a $2\times
+2$ matrix. (You have just rediscovered the determinant.)
+\end{exercise}

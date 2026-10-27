@@ -1,0 +1,1080 @@
+\chapter{Matrix Multiplication and Inverses}
+
+You already know what a single matrix \emph{does}: it takes a vector and moves it
+somewhere. Feed in $\vec{x}$, get out $\mat{A}\vec{x}$. The matrix is a machine, and
+the vector is the raw material that goes through it.
+
+This chapter is about two questions that follow immediately.
+
+First: what happens if you run a vector through \emph{two} machines in a row? Push
+$\vec{x}$ through $\mat{B}$, then push the result through $\mat{A}$. You get
+$\mat{A}(\mat{B}\vec{x})$. It turns out there is a single matrix --- we will call it
+$\mat{A}\mat{B}$ --- that does the whole two-step journey in one shot. Finding that
+matrix \emph{is} matrix multiplication. Everything about how you multiply matrices,
+including the rule that feels so arbitrary the first time you see it, is forced on us
+the moment we demand $(\mat{A}\mat{B})\vec{x} = \mat{A}(\mat{B}\vec{x})$.
+
+Second: can we ever \emph{undo} a machine? If $\mat{A}$ sent $\vec{x}$ to $\vec{b}$,
+is there a machine that takes $\vec{b}$ back to $\vec{x}$? That machine, when it exists,
+is the \emph{inverse} $\mat{A}\inv$. We will see exactly when it exists, what it means
+geometrically, and how to compute it with the same elimination you already know.
+
+These two ideas are the grammar of everything that comes later. Factorizations like
+$\mat{A}=\mat{L}\mat{U}$ and $\mat{A}=\mat{Q}\mat{R}$ are sentences in this grammar:
+they say ``this complicated machine is really these simpler machines, one after another.''
+The grammar is worth learning carefully.
+
+\section{Where Matrix Multiplication Comes From}
+\label{ch08:origin}
+
+\subsection{Composition forces the rule}
+
+Forget formulas for a moment. Here is the only thing we want.
+
+\begin{intuitionbox}
+A matrix is a machine that transforms vectors. If $\mat{B}$ is one machine and
+$\mat{A}$ is another, then doing $\mat{B}$ \emph{first} and $\mat{A}$ \emph{second}
+is itself some transformation. \textbf{Matrix multiplication is the name of that
+combined transformation.} The product $\mat{A}\mat{B}$ is defined to be the single
+matrix that produces $\mat{A}(\mat{B}\vec{x})$ for every $\vec{x}$.
+\end{intuitionbox}
+
+Notice the order already looks backwards: $\mat{B}$ acts first but is written on the
+right, next to the $\vec{x}$ it touches first. That is not a typo and it is not a
+convention someone could have chosen differently. It comes straight from how we write
+function composition: $\,f(g(x))\,$ applies $g$ first, and $g$ sits on the inside,
+closest to $x$. Matrices inherit that.
+
+Let us make it concrete in two dimensions. Take
+
+\[
+\mat{B} = \begin{bmatrix} 2 & 0 \\ 0 & 1 \end{bmatrix}
+\qquad\text{(stretch horizontally by }2\text{)},
+\]
+\[
+\mat{A} = \begin{bmatrix} 0 & -1 \\ 1 & 0 \end{bmatrix}
+\qquad\text{(rotate by }90^\circ\text{ counterclockwise)}.
+\]
+
+Take a test vector $\vec{x} = \colvec{1 \\ 1}$. Run it through $\mat{B}$ first:
+
+\[
+\mat{B}\vec{x} = \begin{bmatrix} 2 & 0 \\ 0 & 1 \end{bmatrix}\colvec{1 \\ 1}
+= \colvec{2 \\ 1}.
+\]
+
+Now run \emph{that} through $\mat{A}$:
+
+\[
+\mat{A}(\mat{B}\vec{x}) = \begin{bmatrix} 0 & -1 \\ 1 & 0 \end{bmatrix}\colvec{2 \\ 1}
+= \colvec{-1 \\ 2}.
+\]
+
+So the two-step journey sends $\colvec{1 \\ 1}$ to $\colvec{-1 \\ 2}$. Can we find a
+\emph{single} matrix $\mat{C}$ that does this directly? Yes, and there is a quick
+trick for reading it off. A matrix is completely determined by what it does to the
+basis vectors $\vec{e}_1 = \colvec{1 \\ 0}$ and $\vec{e}_2 = \colvec{0 \\ 1}$, because
+the columns of any matrix \emph{are} the images of the basis vectors. So just push
+$\vec{e}_1$ and $\vec{e}_2$ through the whole pipeline and collect the answers as
+columns.
+
+\[
+\mat{B}\vec{e}_1 = \colvec{2 \\ 0},\qquad
+\mat{A}(\mat{B}\vec{e}_1) = \begin{bmatrix} 0 & -1 \\ 1 & 0 \end{bmatrix}\colvec{2\\0}
+= \colvec{0 \\ 2}.
+\]
+\[
+\mat{B}\vec{e}_2 = \colvec{0 \\ 1},\qquad
+\mat{A}(\mat{B}\vec{e}_2) = \begin{bmatrix} 0 & -1 \\ 1 & 0 \end{bmatrix}\colvec{0\\1}
+= \colvec{-1 \\ 0}.
+\]
+
+Stack those two images as columns:
+
+\[
+\mat{C} = \mat{A}\mat{B} = \begin{bmatrix} 0 & -1 \\ 2 & 0 \end{bmatrix}.
+\]
+
+Let us check it on our test vector: $\mat{C}\colvec{1\\1} = \colvec{0\cdot1 + (-1)\cdot1 \\ 2\cdot1 + 0\cdot1} = \colvec{-1 \\ 2}$. Exactly the two-step answer. The single
+machine $\mat{C}$ reproduces ``stretch then rotate'' perfectly.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.95,>=Stealth]
+% three panels
+\begin{scope}[xshift=0cm]
+  \draw[->,gray!50] (-0.4,0)--(2.6,0);
+  \draw[->,gray!50] (0,-0.4)--(0,2.6);
+  \draw[->,thick,vecblue] (0,0)--(1,1) node[above right]{$\vec{x}$};
+  \node at (1.2,-0.9) {start: $\colvec{1\\1}$};
+\end{scope}
+\begin{scope}[xshift=5cm]
+  \draw[->,gray!50] (-0.4,0)--(2.6,0);
+  \draw[->,gray!50] (0,-0.4)--(0,2.6);
+  \draw[->,thick,structurepurple] (0,0)--(2,1) node[above right]{$\mat{B}\vec{x}$};
+  \node at (1.2,-0.9) {after $\mat{B}$: $\colvec{2\\1}$};
+\end{scope}
+\begin{scope}[xshift=10cm]
+  \draw[->,gray!50] (-1.4,0)--(1.6,0);
+  \draw[->,gray!50] (0,-0.4)--(0,2.6);
+  \draw[->,thick,vecred] (0,0)--(-1,2) node[above left]{$\mat{A}\mat{B}\vec{x}$};
+  \node at (0.1,-0.9) {after $\mat{A}$: $\colvec{-1\\2}$};
+\end{scope}
+\draw[->,thick] (2.9,1.2)--(4.4,1.2) node[midway,above]{$\mat{B}$};
+\draw[->,thick] (7.9,1.2)--(9.4,1.2) node[midway,above]{$\mat{A}$};
+\end{tikzpicture}
+\caption{Two machines in a row. First $\mat{B}$ stretches, then $\mat{A}$ rotates.
+The single matrix $\mat{A}\mat{B}$ does the whole trip at once.}
+\label{ch08:pipeline}
+\end{figure}
+
+\begin{focusbox}
+To build $\mat{A}\mat{B}$, send each column of $\mat{B}$ through $\mat{A}$. The
+$j$-th column of $\mat{A}\mat{B}$ is $\mat{A}$ times the $j$-th column of $\mat{B}$.
+In symbols, if $\mat{B} = [\,\vec{b}_1 \ \vec{b}_2 \ \cdots \ \vec{b}_n\,]$, then
+\[
+\mat{A}\mat{B} = [\,\mat{A}\vec{b}_1 \ \ \mat{A}\vec{b}_2 \ \ \cdots \ \ \mat{A}\vec{b}_n\,].
+\]
+This is the single most useful way to think about a matrix product. Hold onto it.
+\end{focusbox}
+
+\subsection{Why the shapes have to match}
+
+For $\mat{A}\mat{B}$ to make sense, the output of $\mat{B}$ must be a legal input for
+$\mat{A}$. If $\mat{B}$ produces vectors in $\R^m$ (it has $m$ rows), then $\mat{A}$
+must accept vectors in $\R^m$ (it has $m$ columns). That is the famous shape rule:
+
+\[
+\underbrace{\mat{A}}_{p \times m}\ \underbrace{\mat{B}}_{m \times n}
+\;=\; \underbrace{\mat{A}\mat{B}}_{p \times n}.
+\]
+
+The inner dimensions ($m$ and $m$) must agree and they cancel; the outer dimensions
+($p$ and $n$) survive as the shape of the product. There is nothing to memorize here
+if you remember the machines: $\mat{B}$ maps $\R^n \to \R^m$, $\mat{A}$ maps
+$\R^m \to \R^p$, so the composition maps $\R^n \to \R^p$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.9,font=\small,>=Stealth]
+% A : p x m
+\draw[fill=vecblue!12,draw=vecblue!70] (0,0) rectangle (1.6,2.4);
+\node at (0.8,1.2) {$\mat{A}$};
+\node[below] at (0.8,-0.05) {$m$};
+\node[left] at (-0.05,1.2) {$p$};
+% B : m x n
+\draw[fill=structurepurple!14,draw=structurepurple!80] (2.4,0.4) rectangle (4.4,2.0);
+\node at (3.4,1.2) {$\mat{B}$};
+\node[below] at (3.4,0.35) {$n$};
+\node[left] at (2.35,1.2) {$m$};
+\node at (5.2,1.2) {$=$};
+% AB : p x n
+\draw[fill=vecred!12,draw=vecred!70] (6.0,0) rectangle (8.0,2.4);
+\node at (7.0,1.2) {$\mat{A}\mat{B}$};
+\node[below] at (7.0,-0.05) {$n$};
+\node[left] at (5.95,1.2) {$p$};
+% inner-dimension match callout
+\draw[->,thick,targetgreen] (1.7,-0.65) .. controls (1.9,-1.05) and (2.3,-1.05) .. (2.5,-0.65);
+\node[targetgreen,below] at (2.1,-1.0) {inner $m$ must match, then cancels};
+% outer dimensions survive
+\draw[->,gray!70,dashed] (0.4,2.7) -- (6.4,2.7);
+\node[gray!70,above] at (3.4,2.7) {outer $p$ and $n$ survive};
+\end{tikzpicture}
+\caption{The shape rule as a picture. The right edge of $\mat{A}$ ($m$ columns) must
+meet the left edge of $\mat{B}$ ($m$ rows); the shared inner dimension cancels, and the
+outer dimensions $p$ and $n$ become the shape of $\mat{A}\mat{B}$.}
+\label{ch08:shaperule}
+\end{figure}
+
+\begin{trapbox}
+``$\mat{A}\mat{B}$ exists'' does \emph{not} mean ``$\mat{B}\mat{A}$ exists.'' If
+$\mat{A}$ is $2\times 3$ and $\mat{B}$ is $3\times 4$, then $\mat{A}\mat{B}$ is
+$2\times 4$ --- fine --- but $\mat{B}\mat{A}$ asks a $3\times4$ to feed a $2\times3$,
+and $4 \ne 2$, so it is undefined. Order matters before we even get to the values.
+\end{trapbox}
+
+\section{Four Views of the Same Product}
+\label{ch08:fourviews}
+
+There is one product $\mat{A}\mat{B}$, but four ways to see it, and a fluent reader
+can switch between them at will. Each view illuminates a different chapter later in the
+book, so we walk through all four with the same small example. Throughout this section
+let
+
+\[
+\mat{A} = \begin{bmatrix} 1 & 2 \\ 3 & 4 \end{bmatrix},
+\qquad
+\mat{B} = \begin{bmatrix} 5 & 6 \\ 7 & 8 \end{bmatrix}.
+\]
+
+We will compute $\mat{A}\mat{B}$ four times and get the same answer each time:
+
+\[
+\mat{A}\mat{B} = \begin{bmatrix} 19 & 22 \\ 43 & 50 \end{bmatrix}.
+\]
+
+\subsection{View 1: the dot-product (entry) view}
+
+This is the rule you will use to grind out numbers by hand. The entry in row $i$,
+column $j$ of $\mat{A}\mat{B}$ is the dot product of row $i$ of $\mat{A}$ with column
+$j$ of $\mat{B}$:
+
+\[
+(\mat{A}\mat{B})_{ij} = \sum_{k} \mat{A}_{ik}\,\mat{B}_{kj}
+= (\text{row } i \text{ of } \mat{A}) \cdot (\text{column } j \text{ of } \mat{B}).
+\]
+
+Let us do all four entries of our example, slowly.
+
+\[
+(\mat{A}\mat{B})_{11} = \colvec{1 \\ 2}\cdot\colvec{5 \\ 7} = 1\cdot5 + 2\cdot7 = 5+14 = 19,
+\]
+\[
+(\mat{A}\mat{B})_{12} = \colvec{1 \\ 2}\cdot\colvec{6 \\ 8} = 1\cdot6 + 2\cdot8 = 6+16 = 22,
+\]
+\[
+(\mat{A}\mat{B})_{21} = \colvec{3 \\ 4}\cdot\colvec{5 \\ 7} = 3\cdot5 + 4\cdot7 = 15+28 = 43,
+\]
+\[
+(\mat{A}\mat{B})_{22} = \colvec{3 \\ 4}\cdot\colvec{6 \\ 8} = 3\cdot6 + 4\cdot8 = 18+32 = 50.
+\]
+
+\begin{intuitionbox}
+``Row $i$ dotted with column $j$.'' To find a single entry you reach across the row of
+the left matrix and down the column of the right matrix, multiply pairwise, and add.
+It is the most mechanical view, perfect for hand computation, but the worst for
+\emph{understanding} --- it hides the geometry. Use the next three views for meaning.
+\end{intuitionbox}
+
+\begin{marginnotebox}
+\textbf{The cost.} This view also lets us count the work. Multiplying a $p\times m$ by an
+$m\times n$ matrix fills $p\,n$ entries, and each entry is a dot product of length $m$:
+about $m$ multiplications and $m$ additions. So a full product costs on the order of
+$p\,m\,n$ multiply--adds, and for two $n\times n$ matrices that is roughly $n^3$
+operations. Keep that $n^3$ in mind; it is why the order you multiply a long chain
+matters, and why the rank-one and factored views below are not just pretty but
+\emph{cheaper}.
+\end{marginnotebox}
+
+\subsection{View 2: the column view (combinations of $\mat{A}$'s columns)}
+
+This is the view from Section~\ref{ch08:origin}: each column of $\mat{A}\mat{B}$ is
+$\mat{A}$ acting on the corresponding column of $\mat{B}$. And remember what $\mat{A}$
+times a vector means --- it is a \emph{linear combination of the columns of $\mat{A}$},
+with weights given by the entries of that vector.
+
+Write $\mat{A} = [\,\vec{a}_1 \ \vec{a}_2\,]$ with $\vec{a}_1 = \colvec{1\\3}$,
+$\vec{a}_2 = \colvec{2\\4}$. Column $1$ of $\mat{B}$ is $\colvec{5\\7}$, so:
+
+\[
+\text{col 1 of } \mat{A}\mat{B} \;=\; 5\,\vec{a}_1 + 7\,\vec{a}_2
+= 5\colvec{1\\3} + 7\colvec{2\\4}
+= \colvec{5\\15} + \colvec{14\\28} = \colvec{19\\43}.
+\]
+
+And column $2$ of $\mat{B}$ is $\colvec{6\\8}$, so:
+
+\[
+\text{col 2 of } \mat{A}\mat{B} \;=\; 6\,\vec{a}_1 + 8\,\vec{a}_2
+= 6\colvec{1\\3} + 8\colvec{2\\4}
+= \colvec{6\\18} + \colvec{16\\32} = \colvec{22\\50}.
+\]
+
+Same matrix $\begin{bmatrix}19 & 22\\ 43 & 50\end{bmatrix}$, built column by column.
+
+\begin{focusbox}
+\textbf{Every column of $\mat{A}\mat{B}$ lives in the column space of $\mat{A}$.}
+Each one is a combination of $\mat{A}$'s columns. This single fact is why
+$\col(\mat{A}\mat{B}) \subseteq \col(\mat{A})$ and therefore
+$\rank(\mat{A}\mat{B}) \le \rank(\mat{A})$ --- you cannot create new directions by
+multiplying on the right. We will lean on this hard when we study rank and the four
+subspaces.
+\end{focusbox}
+
+\subsection{View 3: the row view (combinations of $\mat{B}$'s rows)}
+
+By perfect symmetry, each \emph{row} of $\mat{A}\mat{B}$ is a combination of the
+\emph{rows} of $\mat{B}$, with weights from the corresponding row of $\mat{A}$.
+
+Row $1$ of $\mat{A}$ is $[\,1 \ \ 2\,]$. Rows of $\mat{B}$ are
+$\vec{r}_1 = [\,5 \ \ 6\,]$ and $\vec{r}_2 = [\,7 \ \ 8\,]$:
+
+\[
+\text{row 1 of } \mat{A}\mat{B} = 1\cdot[\,5 \ 6\,] + 2\cdot[\,7\ 8\,]
+= [\,5\ 6\,] + [\,14\ 16\,] = [\,19\ \ 22\,].
+\]
+
+Row $2$ of $\mat{A}$ is $[\,3\ \ 4\,]$:
+
+\[
+\text{row 2 of } \mat{A}\mat{B} = 3\cdot[\,5\ 6\,] + 4\cdot[\,7\ 8\,]
+= [\,15\ 18\,] + [\,28\ 32\,] = [\,43\ \ 50\,].
+\]
+
+\begin{focusbox}
+Mirror image of View 2: \textbf{every row of $\mat{A}\mat{B}$ lives in the row space
+of $\mat{B}$.} Multiplying on the \emph{left} by $\mat{A}$ cannot create new row
+directions, so $\rank(\mat{A}\mat{B}) \le \rank(\mat{B})$ too. Combine with View 2 and
+you get $\rank(\mat{A}\mat{B}) \le \min(\rank \mat{A}, \rank \mat{B})$ for free.
+\end{focusbox}
+
+\subsection{View 4: the outer-product (sum-of-rank-one) view}
+
+Here is the view that looks strangest and pays off the most later. Instead of building
+the answer entry by entry, build it as a \emph{sum of whole matrices}. Multiply column
+$k$ of $\mat{A}$ by row $k$ of $\mat{B}$ --- a column times a row is a full matrix, an
+\emph{outer product} --- and add up over $k$:
+
+\[
+\mat{A}\mat{B} = \sum_{k} (\text{col } k \text{ of } \mat{A})(\text{row } k \text{ of } \mat{B}).
+\]
+
+A column times a row, like $\colvec{1\\3}[\,5 \ 6\,]$, fills out a whole matrix:
+
+\[
+\colvec{1\\3}\,[\,5\ \ 6\,] = \begin{bmatrix} 1\cdot5 & 1\cdot6 \\ 3\cdot5 & 3\cdot6 \end{bmatrix}
+= \begin{bmatrix} 5 & 6 \\ 15 & 18 \end{bmatrix}.
+\]
+
+That is an outer product. It has rank one: every row is a multiple of $[\,5\ 6\,]$,
+and every column is a multiple of $\colvec{1\\3}$. Now form the second one from column
+$2$ of $\mat{A}$ and row $2$ of $\mat{B}$:
+
+\[
+\colvec{2\\4}\,[\,7\ \ 8\,] = \begin{bmatrix} 14 & 16 \\ 28 & 32 \end{bmatrix}.
+\]
+
+Add the two rank-one pieces:
+
+\[
+\mat{A}\mat{B} = \begin{bmatrix} 5 & 6 \\ 15 & 18 \end{bmatrix}
++ \begin{bmatrix} 14 & 16 \\ 28 & 32 \end{bmatrix}
+= \begin{bmatrix} 19 & 22 \\ 43 & 50 \end{bmatrix}.
+\]
+
+Same answer, fourth time. The product is a \emph{layered sum of simple rank-one slabs}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.62,font=\small]
+\tikzset{cell/.style={draw=gray!55,minimum size=0.95cm}}
+% outer product 1
+\matrix(P1)[matrix of nodes,nodes={cell},column sep=-\pgflinewidth,row sep=-\pgflinewidth] at (0,0)
+{ 5 & 6 \\ 15 & 18 \\};
+\node[above=2pt of P1]{$\vec{a}_1\,\vec{r}_1$ (rank 1)};
+\node at (3.0,-0.45){$+$};
+% outer product 2
+\matrix(P2)[matrix of nodes,nodes={cell},column sep=-\pgflinewidth,row sep=-\pgflinewidth] at (4.8,0)
+{ 14 & 16 \\ 28 & 32 \\};
+\node[above=2pt of P2]{$\vec{a}_2\,\vec{r}_2$ (rank 1)};
+\node at (7.8,-0.45){$=$};
+% result
+\matrix(R)[matrix of nodes,nodes={cell},column sep=-\pgflinewidth,row sep=-\pgflinewidth] at (9.6,0)
+{ 19 & 22 \\ 43 & 50 \\};
+\node[above=2pt of R]{$\mat{A}\mat{B}$};
+\end{tikzpicture}
+\caption{The outer-product view: $\mat{A}\mat{B}$ is a sum of rank-one layers, one per
+column of $\mat{A}$ paired with the matching row of $\mat{B}$.}
+\label{ch08:outerprod}
+\end{figure}
+
+\begin{applicationbox}
+\textbf{Low-rank approximation and recommender systems.} The outer-product view is the
+gateway to the most important idea in modern data science: a big matrix can often be
+\emph{well approximated} by a short sum of rank-one layers. The singular value
+decomposition (Chapter on the SVD) writes any matrix as
+$\mat{A} = \sum_k \sigma_k\, \vec{u}_k \vec{v}_k\T$, a sum of outer products weighted by
+the singular values $\sigma_k$. Keeping only the few largest terms gives the best
+low-rank approximation. When Netflix predicts how you would rate an unseen film, it is
+modeling the giant users-by-movies rating matrix as a short sum of such layers: a few
+hidden ``taste directions'' $\vec{u}_k$ times a few ``genre directions'' $\vec{v}_k\T$.
+Image compression, latent semantic analysis in search, and the embeddings inside
+language models all live in this same picture. View 4 is where it starts.
+\end{applicationbox}
+
+\begin{walkbox}
+Take a walk and try to feel why all four views must agree. Here is a hint to chew on:
+the dot-product entry $(\mat{A}\mat{B})_{ij} = \sum_k \mat{A}_{ik}\mat{B}_{kj}$ is a
+double sum. If you decide to do the sum over $j$ first, you get columns (View 2). Over
+$i$ first, rows (View 3). And if you pull out one $k$ at a time across all $i,j$ at
+once, you get the rank-one layers (View 4). Four views, one double sum, freedom to
+group it however you like.
+\end{walkbox}
+
+\section{The Algebra of Multiplication}
+\label{ch08:algebra}
+
+Now that we know what the product \emph{is}, what rules does it obey? Some are
+comforting, one is famously not.
+
+\subsection{It is associative (and the reason is composition)}
+
+\begin{theorem}[Associativity]
+\label{ch08:assoc}
+For any matrices of compatible shapes,
+\[
+(\mat{A}\mat{B})\mat{C} = \mat{A}(\mat{B}\mat{C}).
+\]
+\end{theorem}
+
+You could prove this by writing out triple sums of subscripts, and it works, but it is
+joyless. The real reason is composition. Each matrix is a function. $\mat{A}\mat{B}\mat{C}$
+means ``do $\mat{C}$, then $\mat{B}$, then $\mat{A}$,'' and \emph{that ordered sequence
+of three machines is the same sequence no matter how you mentally bracket it.} Grouping
+the first two or the last two does not change which machine runs when. Associativity of
+matrix multiplication is just associativity of ``and then'' for functions.
+
+\begin{formalbox}
+\textbf{Why composition is associative.} For functions, $((f\circ g)\circ h)(x) =
+(f\circ g)(h(x)) = f(g(h(x)))$ and $(f\circ(g\circ h))(x) = f((g\circ h)(x)) =
+f(g(h(x)))$. Both equal $f(g(h(x)))$. Since a matrix is exactly the function
+$\vec{x}\mapsto \mat{A}\vec{x}$, and matrix product is composition, associativity is
+inherited. No subscripts required.
+\end{formalbox}
+
+\begin{aestheticbox}
+Associativity quietly does enormous work. It is the reason a chain like $\mat{A}\mat{B}\mat{C}\mat{D}$ is unambiguous, so factorizations ($\mat{L}\mat{U}$, $\mat{Q}\mat{R}$,
+$\mat{U}\mat{\Sigma}\mat{V}\T$) are even meaningful. It is the reason you can choose the
+\emph{cheapest order} to multiply a long chain --- multiplying $\mat{A}(\mat{B}\vec{x})$
+as matrix-times-vector costs far less than forming $\mat{A}\mat{B}$ first --- a trick
+that powers efficient deep-learning forward passes. One small algebraic law, paid out
+across the entire subject.
+\end{aestheticbox}
+
+\subsection{It is NOT commutative}
+
+\begin{theorem}[Order matters]
+In general $\mat{A}\mat{B} \ne \mat{B}\mat{A}$.
+\end{theorem}
+
+The cleanest proof is one example, and our opening machines already do it. Rotating then
+stretching is genuinely different from stretching then rotating. Let
+
+\[
+\mat{A} = \begin{bmatrix} 0 & -1 \\ 1 & 0 \end{bmatrix}\ (\text{rotate } 90^\circ),
+\qquad
+\mat{B} = \begin{bmatrix} 2 & 0 \\ 0 & 1 \end{bmatrix}\ (\text{stretch } x).
+\]
+
+We already found $\mat{A}\mat{B} = \begin{bmatrix} 0 & -1 \\ 2 & 0 \end{bmatrix}$.
+Now the other order:
+
+\[
+\mat{B}\mat{A} = \begin{bmatrix} 2 & 0 \\ 0 & 1 \end{bmatrix}
+\begin{bmatrix} 0 & -1 \\ 1 & 0 \end{bmatrix}
+= \begin{bmatrix} 0 & -2 \\ 1 & 0 \end{bmatrix}.
+\]
+
+These are different matrices. Watch them act on $\vec{e}_1 = \colvec{1\\0}$. With
+$\mat{A}\mat{B}$: stretch $\vec{e}_1$ to $\colvec{2\\0}$, then rotate to $\colvec{0\\2}$.
+With $\mat{B}\mat{A}$: rotate $\vec{e}_1$ to $\colvec{0\\1}$, then stretch the
+\emph{x}-coordinate (which is already $0$) to get $\colvec{0\\1}$. One ends at
+$\colvec{0\\2}$, the other at $\colvec{0\\1}$. The stretch lands on a different
+direction depending on whether the rotation happened before or after it.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+\begin{scope}[xshift=0cm]
+  \draw[->,gray!50] (-0.4,0)--(2.6,0);
+  \draw[->,gray!50] (0,-0.4)--(0,2.6);
+  \draw[->,thick,vecblue] (0,0)--(0,2) node[right]{$\colvec{0\\2}$};
+  \node[align=center] at (1.3,-1.0) {$\mat{A}\mat{B}\,\vec{e}_1$\\ stretch \emph{then} rotate};
+\end{scope}
+\begin{scope}[xshift=6cm]
+  \draw[->,gray!50] (-0.4,0)--(2.6,0);
+  \draw[->,gray!50] (0,-0.4)--(0,2.6);
+  \draw[->,thick,vecred] (0,0)--(0,1) node[right]{$\colvec{0\\1}$};
+  \node[align=center] at (1.3,-1.0) {$\mat{B}\mat{A}\,\vec{e}_1$\\ rotate \emph{then} stretch};
+\end{scope}
+\end{tikzpicture}
+\caption{Non-commutativity you can see. The same starting vector $\vec{e}_1$ ends up in
+different places depending on the order of the rotation and the stretch.}
+\label{ch08:noncommute}
+\end{figure}
+
+\begin{trapbox}
+Because $\mat{A}\mat{B} \ne \mat{B}\mat{A}$, ordinary algebra identities can fail. For
+matrices,
+\[
+(\mat{A}+\mat{B})^2 = \mat{A}^2 + \mat{A}\mat{B} + \mat{B}\mat{A} + \mat{B}^2,
+\]
+\emph{not} $\mat{A}^2 + 2\mat{A}\mat{B} + \mat{B}^2$, because you may not merge
+$\mat{A}\mat{B}$ with $\mat{B}\mat{A}$. Likewise $(\mat{A}\mat{B})^2 = \mat{A}\mat{B}\mat{A}\mat{B}$, which you cannot rearrange into $\mat{A}^2\mat{B}^2$. When you find
+yourself ``swapping factors,'' stop and ask whether you earned it.
+\end{trapbox}
+
+\subsection{The rules that DO hold}
+
+Multiplication is still well behaved in every way except commuting. For compatible
+shapes and any scalar $c$:
+
+\begin{itemize}
+\item \textbf{Distributive (left):} $\ \mat{A}(\mat{B}+\mat{C}) = \mat{A}\mat{B} + \mat{A}\mat{C}$.
+\item \textbf{Distributive (right):} $\ (\mat{A}+\mat{B})\mat{C} = \mat{A}\mat{C} + \mat{B}\mat{C}$.
+\item \textbf{Scalars slide:} $\ c(\mat{A}\mat{B}) = (c\mat{A})\mat{B} = \mat{A}(c\mat{B})$.
+\item \textbf{Associative:} $\ (\mat{A}\mat{B})\mat{C} = \mat{A}(\mat{B}\mat{C})$.
+\end{itemize}
+
+Each follows because the entries are built from sums and products of real numbers, where
+these laws already hold; the matrix versions just package many scalar identities at once.
+Keep both distributive laws separate in your mind --- with no commuting, ``left'' and
+``right'' are genuinely different operations.
+
+\section{The Identity: the Machine That Does Nothing}
+\label{ch08:identity}
+
+Every kind of multiplication has a ``$1$.'' For $n\times n$ matrices it is the
+\emph{identity matrix} $\mat{I}$ --- ones on the diagonal, zeros elsewhere:
+
+\[
+\mat{I}_2 = \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix},
+\qquad
+\mat{I}_3 = \begin{bmatrix} 1 & 0 & 0 \\ 0 & 1 & 0 \\ 0 & 0 & 1 \end{bmatrix}.
+\]
+
+\begin{intuitionbox}
+$\mat{I}$ is the machine that leaves every vector exactly where it is: $\mat{I}\vec{x} = \vec{x}$ for all $\vec{x}$. Its columns are the basis vectors $\vec{e}_1,\dots,\vec{e}_n$
+sitting in their home positions. Geometrically it does nothing at all --- and that is
+precisely why it acts as the ``$1$'' of matrix multiplication.
+\end{intuitionbox}
+
+For any matrix $\mat{A}$ of the right shape, $\mat{I}\mat{A} = \mat{A}$ and
+$\mat{A}\mat{I} = \mat{A}$. Quick check via the column view: the $j$-th column of
+$\mat{A}\mat{I}$ is $\mat{A}$ times the $j$-th column of $\mat{I}$, which is
+$\mat{A}\vec{e}_j$ --- and $\mat{A}\vec{e}_j$ is just the $j$-th column of $\mat{A}$.
+So $\mat{A}\mat{I}$ has the same columns as $\mat{A}$. Done.
+
+\begin{remark}
+$\mat{I}$ is the rare matrix that commutes with \emph{everything}: $\mat{A}\mat{I} = \mat{I}\mat{A} = \mat{A}$. So is any scalar multiple $c\mat{I}$ (a uniform scaling). Apart
+from these, expecting two matrices to commute is the exception, not the rule.
+\end{remark}
+
+\section{The Inverse: Undoing a Machine}
+\label{ch08:inverse}
+
+We can now ask the chapter's second big question. The machine $\mat{A}$ sends $\vec{x}$
+to $\mat{A}\vec{x}$. Is there a machine that sends it back?
+
+\begin{definition}[Inverse matrix]
+\label{ch08:inv-def}
+A square matrix $\mat{A}$ is \emph{invertible} (or \emph{nonsingular}) if there is a
+square matrix $\mat{A}\inv$ of the same size with
+\[
+\mat{A}\inv \mat{A} = \mat{I} \qquad\text{and}\qquad \mat{A}\,\mat{A}\inv = \mat{I}.
+\]
+If no such matrix exists, $\mat{A}$ is \emph{singular}.
+\end{definition}
+
+\begin{intuitionbox}
+$\mat{A}\inv$ is the ``rewind'' machine. Run $\vec{x}$ forward through $\mat{A}$ to get
+$\vec{b} = \mat{A}\vec{x}$; run $\vec{b}$ through $\mat{A}\inv$ and you are back at
+$\vec{x}$, because $\mat{A}\inv\vec{b} = \mat{A}\inv\mat{A}\vec{x} = \mat{I}\vec{x} = \vec{x}$. The inverse exists exactly when the forward machine loses no information ---
+when you could always tell, from the output, what the input must have been.
+\end{intuitionbox}
+
+This information-loss picture is the whole story of \emph{when} an inverse exists. If
+$\mat{A}$ ever sends two different inputs to the same output, the rewind is impossible:
+seeing the output, you cannot know which input it came from. So $\mat{A}$ is invertible
+exactly when it is \emph{one-to-one} --- and for a square matrix, being one-to-one is the
+same as hitting every target, which is the same as having independent columns, which is
+the same as nonzero determinant. We collect these equivalences below.
+
+\subsection{The $2\times2$ formula}
+
+In two dimensions there is a clean closed form worth memorizing.
+
+\begin{theorem}[Inverse of a $2\times2$]
+\label{ch08:2x2inv}
+Let $\mat{A} = \begin{bmatrix} a & b \\ c & d \end{bmatrix}$ and let
+$\det\mat{A} = ad - bc$. If $\det\mat{A}\ne 0$, then
+\[
+\mat{A}\inv = \frac{1}{ad-bc}\begin{bmatrix} d & -b \\ -c & a \end{bmatrix}.
+\]
+If $ad - bc = 0$, then $\mat{A}$ has no inverse.
+\end{theorem}
+
+\begin{proof}
+Multiply and see. Let $\mat{M} = \begin{bmatrix} d & -b \\ -c & a \end{bmatrix}$. Then
+\[
+\mat{A}\mat{M} = \begin{bmatrix} a & b \\ c & d \end{bmatrix}
+\begin{bmatrix} d & -b \\ -c & a \end{bmatrix}
+= \begin{bmatrix} ad - bc & -ab + ab \\ cd - dc & -bc + ad \end{bmatrix}
+= (ad-bc)\,\mat{I}.
+\]
+So if $ad-bc \ne 0$ we may divide by it, and $\frac{1}{ad-bc}\mat{M}$ is the inverse.
+If $ad - bc = 0$ then $\mat{A}\mat{M} = \mat{0}$ with $\mat{M}\ne\mat{0}$ unless
+$\mat{A}=\mat{0}$; an invertible $\mat{A}$ could be cancelled to force $\mat{M}=\mat{0}$,
+a contradiction --- so $\mat{A}$ cannot be invertible.
+\end{proof}
+
+\begin{labbox}
+Invert $\mat{A} = \begin{bmatrix} 4 & 7 \\ 2 & 6 \end{bmatrix}$ by the formula. The
+determinant is $4\cdot6 - 7\cdot2 = 24 - 14 = 10$. Swap the diagonal, negate the
+off-diagonal, divide by $10$:
+\[
+\mat{A}\inv = \frac{1}{10}\begin{bmatrix} 6 & -7 \\ -2 & 4 \end{bmatrix}
+= \begin{bmatrix} 0.6 & -0.7 \\ -0.2 & 0.4 \end{bmatrix}.
+\]
+Now \emph{check it} (always check):
+\[
+\mat{A}\mat{A}\inv = \frac{1}{10}\begin{bmatrix} 4 & 7 \\ 2 & 6 \end{bmatrix}
+\begin{bmatrix} 6 & -7 \\ -2 & 4 \end{bmatrix}
+= \frac{1}{10}\begin{bmatrix} 24-14 & -28+28 \\ 12-12 & -14+24 \end{bmatrix}
+= \frac{1}{10}\begin{bmatrix} 10 & 0 \\ 0 & 10 \end{bmatrix} = \mat{I}.\ \checkmark
+\]
+\end{labbox}
+
+\subsection{The geometry of singular: area collapse}
+
+Why is $\det\mat{A} = ad - bc$ the make-or-break number? Because, as you will prove in
+the determinant chapter, $\abs{\det\mat{A}}$ is the \emph{area} of the parallelogram
+that $\mat{A}$ makes from the unit square --- the factor by which $\mat{A}$ scales area.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+% invertible: unit square -> parallelogram with area
+\begin{scope}[xshift=0cm]
+  \draw[->,gray!45] (-0.3,0)--(3.4,0);
+  \draw[->,gray!45] (0,-0.3)--(0,3.0);
+  \fill[vecblue!18] (0,0)--(2,0.5)--(2.5,2)--(0.5,1.5)--cycle;
+  \draw[->,thick,vecblue] (0,0)--(2,0.5);
+  \draw[->,thick,vecblue] (0,0)--(0.5,1.5);
+  \node at (1.55,0.95) {area $\ne 0$};
+  \node[align=center] at (1.5,-1.0){invertible\\ $\det\ne0$};
+\end{scope}
+% singular: collapse to a line
+\begin{scope}[xshift=6.2cm]
+  \draw[->,gray!45] (-0.3,0)--(3.4,0);
+  \draw[->,gray!45] (0,-0.3)--(0,3.0);
+  \draw[very thick,vecred] (0,0)--(2.6,1.3);
+  \draw[->,thick,vecred] (0,0)--(2,1.0);
+  \draw[->,thick,vecred] (0,0)--(1.0,0.5);
+  \node[vecred] at (2.0,2.0) {area $=0$};
+  \node[align=center] at (1.5,-1.0){singular\\ $\det=0$};
+\end{scope}
+\end{tikzpicture}
+\caption{Determinant as area. An invertible matrix turns the unit square into a
+parallelogram with nonzero area. A singular matrix flattens it onto a line --- the
+columns are parallel, area is zero, and the collapse cannot be undone.}
+\label{ch08:areacollapse}
+\end{figure}
+
+\begin{intuitionbox}
+If $\det\mat{A} = 0$, the matrix squashes the plane onto a line (or a point). A whole
+direction's worth of vectors gets crushed to zero. Once an entire line of inputs lands on
+a single output, no machine can pull them back apart --- the rewind would have to send
+one point to many. \textbf{Zero determinant means lost information means no inverse.}
+That is the geometry behind ``singular.''
+\end{intuitionbox}
+
+\subsection{The big equivalence (collect everything)}
+
+For square matrices, a long list of statements all say the same thing. You have met some
+already; the rest arrive in the chapters on subspaces, rank, and determinants. We gather
+them so you can see the unity.
+
+\begin{theorem}[The Invertible Matrix Theorem, first installment]
+\label{ch08:imt}
+For a square matrix $\mat{A}$ of size $n\times n$, the following are equivalent --- all
+true together or all false together:
+\begin{enumerate}
+\item $\mat{A}$ is invertible.
+\item $\mat{A}\vec{x} = \vec{b}$ has exactly one solution for every $\vec{b}$.
+\item $\mat{A}\vec{x} = \vec{0}$ has only the trivial solution $\vec{x} = \vec{0}$.
+\item The columns of $\mat{A}$ are linearly independent.
+\item The columns of $\mat{A}$ span all of $\R^n$.
+\item $\mat{A}$ row-reduces to the identity $\mat{I}$ (it has $n$ pivots).
+\item $\det\mat{A} \ne 0$.
+\end{enumerate}
+\end{theorem}
+
+We will not prove the whole chain here --- several links wait for later chapters --- but
+the spine is the rewind picture. Invertibility (1) is exactly ``no information lost,''
+which is exactly ``nothing nonzero gets crushed to zero'' (3), which is exactly
+``independent columns'' (4). Everything else hangs from that spine.
+
+\begin{strangbox}
+Strang loves to organize the whole course around this equivalence; he often calls it
+``the most important theorem in linear algebra'' and returns to it again and again,
+adding a new equivalent statement each time a new concept appears (pivots, rank,
+nullspace, eigenvalues, even singular values). \textbf{Before Strang:} read this list as
+seven ways of saying ``the machine is reversible.'' \textbf{After Strang:} you will be
+able to prove every arrow, and you will have added ``$0$ is not an eigenvalue'' and
+``all singular values positive'' to the bottom of the list.
+\end{strangbox}
+
+\section{Computing the Inverse with Gauss--Jordan}
+\label{ch08:gaussjordan}
+
+The $2\times2$ formula does not scale --- the $3\times3$ closed form is already ugly, and
+beyond that, hopeless. We need an algorithm. Happily it is just elimination, run with a
+clever bookkeeping trick.
+
+\subsection{The idea: solve $n$ systems at once}
+
+What is the inverse, really? Its columns $\vec{x}_1,\dots,\vec{x}_n$ must satisfy
+
+\[
+\mat{A}\vec{x}_1 = \vec{e}_1,\quad
+\mat{A}\vec{x}_2 = \vec{e}_2,\quad \dots,\quad
+\mat{A}\vec{x}_n = \vec{e}_n,
+\]
+
+because then $\mat{A}[\,\vec{x}_1\ \cdots\ \vec{x}_n\,] = [\,\vec{e}_1\ \cdots\ \vec{e}_n\,]
+= \mat{I}$, which says exactly that $[\,\vec{x}_1\ \cdots\ \vec{x}_n\,] = \mat{A}\inv$.
+So finding the inverse is the same as solving $n$ linear systems that share the same
+left-hand side $\mat{A}$. Since elimination on $\mat{A}$ is identical across all $n$
+systems, we do it once on all the right-hand sides simultaneously.
+
+\begin{focusbox}
+\textbf{The Gauss--Jordan recipe.} Form the wide \emph{augmented matrix}
+$[\,\mat{A}\mid\mat{I}\,]$. Row-reduce until the left block becomes $\mat{I}$. Whatever
+the right block has become is $\mat{A}\inv$:
+\[
+[\,\mat{A}\mid \mat{I}\,] \ \xrightarrow{\text{row operations}}\ [\,\mat{I}\mid \mat{A}\inv\,].
+\]
+If the left block cannot be reduced to $\mat{I}$ (a zero row appears), then $\mat{A}$ is
+singular and has no inverse.
+\end{focusbox}
+
+Why does the right block come out as $\mat{A}\inv$? Every row operation is itself
+multiplication on the left by some elementary matrix $\mat{E}$. If the full sequence is
+$\mat{E} = \mat{E}_k\cdots\mat{E}_2\mat{E}_1$, then reducing the left block to $\mat{I}$
+means $\mat{E}\mat{A} = \mat{I}$, so $\mat{E} = \mat{A}\inv$. But the \emph{same}
+$\mat{E}$ acts on the right block, turning $\mat{I}$ into $\mat{E}\mat{I} = \mat{E} =
+\mat{A}\inv$. The augmented matrix is a machine for applying $\mat{A}\inv$ to both
+blocks at once; we just watch what it does to the identity.
+
+\subsection{A full $3\times3$ worked example}
+
+Let us invert
+
+\[
+\mat{A} = \begin{bmatrix} 2 & 1 & 1 \\ 1 & 3 & 2 \\ 1 & 0 & 0 \end{bmatrix}.
+\]
+
+Start by augmenting with $\mat{I}$:
+
+\[
+\left[\begin{array}{ccc|ccc}
+2 & 1 & 1 & 1 & 0 & 0 \\
+1 & 3 & 2 & 0 & 1 & 0 \\
+1 & 0 & 0 & 0 & 0 & 1
+\end{array}\right].
+\]
+
+\textbf{Step 1.} The bottom row is the simplest, so swap rows $1$ and $3$ to put a clean
+pivot $1$ in the top-left ($R_1 \leftrightarrow R_3$):
+
+\[
+\left[\begin{array}{ccc|ccc}
+1 & 0 & 0 & 0 & 0 & 1 \\
+1 & 3 & 2 & 0 & 1 & 0 \\
+2 & 1 & 1 & 1 & 0 & 0
+\end{array}\right].
+\]
+
+\textbf{Step 2.} Clear the rest of column $1$. Replace $R_2 \to R_2 - R_1$ and
+$R_3 \to R_3 - 2R_1$:
+
+\[
+\left[\begin{array}{ccc|ccc}
+1 & 0 & 0 & 0 & 0 & 1 \\
+0 & 3 & 2 & 0 & 1 & -1 \\
+0 & 1 & 1 & 1 & 0 & -2
+\end{array}\right].
+\]
+
+\textbf{Step 3.} We want a clean pivot in column $2$. Row $3$ has a $1$ there, so swap
+$R_2 \leftrightarrow R_3$:
+
+\[
+\left[\begin{array}{ccc|ccc}
+1 & 0 & 0 & 0 & 0 & 1 \\
+0 & 1 & 1 & 1 & 0 & -2 \\
+0 & 3 & 2 & 0 & 1 & -1
+\end{array}\right].
+\]
+
+\textbf{Step 4.} Clear below the second pivot: $R_3 \to R_3 - 3R_2$:
+
+\[
+\left[\begin{array}{ccc|ccc}
+1 & 0 & 0 & 0 & 0 & 1 \\
+0 & 1 & 1 & 1 & 0 & -2 \\
+0 & 0 & -1 & -3 & 1 & 5
+\end{array}\right].
+\]
+
+\textbf{Step 5.} Make the third pivot $+1$: $R_3 \to -R_3$:
+
+\[
+\left[\begin{array}{ccc|ccc}
+1 & 0 & 0 & 0 & 0 & 1 \\
+0 & 1 & 1 & 1 & 0 & -2 \\
+0 & 0 & 1 & 3 & -1 & -5
+\end{array}\right].
+\]
+
+\textbf{Step 6.} Now eliminate \emph{upward} to clear above the third pivot. Only $R_2$
+has an entry there: $R_2 \to R_2 - R_3$:
+
+\[
+\left[\begin{array}{ccc|ccc}
+1 & 0 & 0 & 0 & 0 & 1 \\
+0 & 1 & 0 & -2 & 1 & 3 \\
+0 & 0 & 1 & 3 & -1 & -5
+\end{array}\right].
+\]
+
+The left block is now $\mat{I}$ (column $1$ was already clean above the pivot). Read off
+the right block:
+
+\[
+\mat{A}\inv = \begin{bmatrix} 0 & 0 & 1 \\ -2 & 1 & 3 \\ 3 & -1 & -5 \end{bmatrix}.
+\]
+
+\textbf{Always verify.} Multiply $\mat{A}\mat{A}\inv$ and demand $\mat{I}$:
+
+\[
+\begin{bmatrix} 2 & 1 & 1 \\ 1 & 3 & 2 \\ 1 & 0 & 0 \end{bmatrix}
+\begin{bmatrix} 0 & 0 & 1 \\ -2 & 1 & 3 \\ 3 & -1 & -5 \end{bmatrix}.
+\]
+Row $1$: $(2\cdot0 + 1\cdot(-2) + 1\cdot3,\ \ 2\cdot0 + 1\cdot1 + 1\cdot(-1),\ \
+2\cdot1 + 1\cdot3 + 1\cdot(-5)) = (1,0,0)$. Row $2$:
+$(0 - 6 + 6,\ 0 + 3 - 2,\ 1 + 9 - 10) = (0,1,0)$. Row $3$:
+$(0 + 0 + 0,\ 0,\ 1 + 0 + 0) = (0,0,1)$. Together that is exactly $\mat{I}$. $\checkmark$
+
+\begin{trapbox}
+Two classic Gauss--Jordan slips. First, \textbf{do the row operation to the whole row} ---
+both blocks, every time. It is fatally easy to update the left and forget the right.
+Second, watch your \textbf{direction}: ordinary elimination only clears \emph{below} each
+pivot (giving an upper-triangular $\mat{U}$); for the inverse you must also clear
+\emph{above}, all the way to a clean $\mat{I}$. ``Gauss'' goes down; ``Jordan'' adds the
+trip back up.
+\end{trapbox}
+
+\begin{labbox}
+Your turn, by hand. Invert $\mat{A} = \begin{bmatrix} 1 & 2 & 0 \\ 0 & 1 & 1 \\ 0 & 0 & 1 \end{bmatrix}$ with $[\,\mat{A}\mid\mat{I}\,]$. It is upper triangular, so you only ever
+clear upward; no row swaps needed. (Answer:
+$\mat{A}\inv = \begin{bmatrix} 1 & -2 & 2 \\ 0 & 1 & -1 \\ 0 & 0 & 1 \end{bmatrix}$ ---
+check it.) Notice how the $-2$ and the $+2$ track the two elimination steps; the inverse
+remembers exactly what you undid.
+\end{labbox}
+
+\subsection{What singular looks like in the algorithm}
+
+If $\mat{A}$ is singular, elimination cannot manufacture a missing pivot. Somewhere a
+row of the left block becomes all zeros. The moment that happens, stop --- there is no
+inverse. Try it on $\mat{A} = \begin{bmatrix} 1 & 2 \\ 2 & 4 \end{bmatrix}$ (note row
+$2$ is twice row $1$, so $\det = 4 - 4 = 0$):
+
+\[
+\left[\begin{array}{cc|cc}
+1 & 2 & 1 & 0 \\ 2 & 4 & 0 & 1
+\end{array}\right]
+\xrightarrow{R_2 \to R_2 - 2R_1}
+\left[\begin{array}{cc|cc}
+1 & 2 & 1 & 0 \\ 0 & 0 & -2 & 1
+\end{array}\right].
+\]
+
+The left block has a zero row; it can never become $\mat{I}$. The algorithm itself
+\emph{detects} singularity --- you do not need to compute a determinant first. The
+collapse you saw geometrically (the two columns $\colvec{1\\2}$ and $\colvec{2\\4}$ are
+parallel, so the unit square flattens onto a line) shows up as that fatal zero row.
+
+\section{The Inverse of a Product: Socks and Shoes}
+\label{ch08:product-inverse}
+
+We close with one identity you will use constantly, and it has the most memorable mnemonic
+in the subject.
+
+\begin{theorem}[Inverse of a product]
+\label{ch08:abinv}
+If $\mat{A}$ and $\mat{B}$ are both invertible (and the same size), then $\mat{A}\mat{B}$
+is invertible and
+\[
+(\mat{A}\mat{B})\inv = \mat{B}\inv \mat{A}\inv.
+\]
+The order reverses.
+\end{theorem}
+
+\begin{proof}
+Just multiply the proposed inverse against $\mat{A}\mat{B}$ and watch it collapse, using
+associativity to regroup:
+\[
+(\mat{A}\mat{B})(\mat{B}\inv\mat{A}\inv)
+= \mat{A}(\mat{B}\mat{B}\inv)\mat{A}\inv
+= \mat{A}\,\mat{I}\,\mat{A}\inv
+= \mat{A}\mat{A}\inv = \mat{I}.
+\]
+The same cancellation from the other side gives
+$(\mat{B}\inv\mat{A}\inv)(\mat{A}\mat{B}) = \mat{I}$. By
+Definition~\ref{ch08:inv-def}, $\mat{B}\inv\mat{A}\inv$ is the inverse of $\mat{A}\mat{B}$.
+\end{proof}
+
+\begin{intuitionbox}
+\textbf{Socks and shoes.} In the morning you put on socks ($\mat{B}$), then shoes
+($\mat{A}$). To undo it at night you cannot take off the socks first --- the shoes are in
+the way. You reverse the order: shoes off ($\mat{A}\inv$), then socks off ($\mat{B}\inv$).
+To undo a composition, undo the \emph{last} thing first. That is exactly
+$(\mat{A}\mat{B})\inv = \mat{B}\inv\mat{A}\inv$.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=8mm and 16mm,>=Stealth,font=\small]
+\node (x) {$\vec{x}$};
+\node[right=of x] (bx) {$\mat{B}\vec{x}$};
+\node[right=of bx] (abx) {$\mat{A}\mat{B}\vec{x}$};
+\draw[->,thick] (x)--(bx) node[midway,above]{$\mat{B}$};
+\draw[->,thick] (bx)--(abx) node[midway,above]{$\mat{A}$};
+\draw[->,thick,vecred,bend left=38] (abx) to node[midway,below]{$\mat{A}\inv$} (bx);
+\draw[->,thick,vecred,bend left=38] (bx) to node[midway,below]{$\mat{B}\inv$} (x);
+\end{tikzpicture}
+\caption{Forward (black) you apply $\mat{B}$ then $\mat{A}$. To rewind (red) you must
+peel them off in reverse: $\mat{A}\inv$ first, then $\mat{B}\inv$. Hence
+$(\mat{A}\mat{B})\inv = \mat{B}\inv\mat{A}\inv$.}
+\label{ch08:socksshoes}
+\end{figure}
+
+The pattern extends to any chain: $(\mat{A}\mat{B}\mat{C})\inv = \mat{C}\inv\mat{B}\inv\mat{A}\inv$, reverse the whole order. The same reversal governs transposes,
+$(\mat{A}\mat{B})\T = \mat{B}\T\mat{A}\T$, which you will meet in the next chapter ---
+two different operations, one shared ``order reverses'' rhythm.
+
+\begin{connectionbox}
+\textbf{Groups.} The invertible $n\times n$ matrices, with multiplication, form a
+\emph{group} --- the \emph{general linear group} $GL_n(\R)$. The four axioms are exactly
+what this chapter established: multiplication is associative (Theorem~\ref{ch08:assoc}),
+there is an identity $\mat{I}$, every element has an inverse, and the product of two
+invertibles is invertible with $(\mat{A}\mat{B})\inv = \mat{B}\inv\mat{A}\inv$. The
+order-reversing inverse rule is a \emph{general} feature of groups, not a quirk of
+matrices --- it holds for symmetries of a cube, permutations of a deck, and the
+rotations of space. When physicists speak of symmetry groups and Lie groups underlying
+the laws of nature, $GL_n$ and its subgroups (rotations $SO_n$, volume-preserving maps
+$SL_n$) are the founding examples. You have just verified the group axioms by hand.
+\end{connectionbox}
+
+\begin{remark}[A useful shortcut you have earned]
+To \emph{prove} a square matrix $\mat{C}$ is invertible with inverse $\mat{D}$, you do
+not have to check both $\mat{C}\mat{D}=\mat{I}$ and $\mat{D}\mat{C}=\mat{I}$. For square
+matrices, either one alone implies the other (a fact that follows from the equivalence in
+Theorem~\ref{ch08:imt}). That is why the one-sided check in the proof above was enough.
+Be careful, though: this rescue is for \emph{square} matrices only. Non-square matrices
+can have a one-sided inverse on the left or the right but never both at once.
+\end{remark}
+
+\section*{Looking Back, Looking Ahead}
+
+Two questions, two answers. \emph{What is two machines in a row?} A single matrix
+$\mat{A}\mat{B}$, best understood through the four views --- entries, columns, rows, and
+rank-one layers --- and obeying every algebra rule except commuting. \emph{Can we undo a
+machine?} Only when it loses no information; then the rewind is $\mat{A}\inv$, computed
+by Gauss--Jordan, and products rewind in reverse order.
+
+\begin{focusbox}
+\textbf{Cost and intuition, side by side.} The dot-product view tells you the
+\emph{price}: an $n\times n$ product is about $n^3$ multiply--adds, and inverting an
+$n\times n$ matrix by Gauss--Jordan is the same $n^3$ order of work (elimination on $n$
+right-hand sides at once). The other three views tell you the \emph{meaning}: columns of
+$\mat{A}\mat{B}$ live in $\col(\mat{A})$, rows live in $\row(\mat{B})$, and the whole
+product is a sum of rank-one layers. Price comes from View~1; understanding --- and every
+shortcut that beats the naive $n^3$ --- comes from Views 2--4.
+\end{focusbox}
+
+These tools turn the next several chapters into a story of \emph{factoring} machines into
+simpler ones. $\mat{A} = \mat{L}\mat{U}$ records elimination itself as a product.
+$\mat{A} = \mat{Q}\mat{R}$ separates rotation from stretch. And the crown jewel,
+$\mat{A} = \mat{U}\mat{\Sigma}\mat{V}\T$, says \emph{every} matrix is rotate, then
+stretch along axes, then rotate again --- three simple machines whose product is any
+linear map at all. All of it is built on the multiplication and inverses you
+now own.
+
+\section{Exercises}
+\label{ch08:exercises}
+
+\begin{exercise}[Warm-up by hand]
+Compute $\mat{A}\mat{B}$ and $\mat{B}\mat{A}$ for
+$\mat{A} = \begin{bmatrix} 1 & 2 \\ 0 & 1 \end{bmatrix}$,
+$\mat{B} = \begin{bmatrix} 1 & 0 \\ 3 & 1 \end{bmatrix}$. Confirm they are different, and
+say in one sentence why two shears in different orders give different results.
+\end{exercise}
+
+\begin{exercise}[All four views]
+For $\mat{A} = \begin{bmatrix} 2 & 0 \\ 1 & 3 \end{bmatrix}$ and
+$\mat{B} = \begin{bmatrix} 1 & 4 \\ 2 & 0 \end{bmatrix}$, compute $\mat{A}\mat{B}$
+\emph{four ways}: (a) entry by entry (dot products), (b) as combinations of $\mat{A}$'s
+columns, (c) as combinations of $\mat{B}$'s rows, (d) as a sum of two outer products.
+Verify all four agree.
+\end{exercise}
+
+\begin{exercise}[Shapes]
+$\mat{A}$ is $3\times 2$, $\mat{B}$ is $2\times 5$, $\mat{C}$ is $5\times 3$. Which of
+$\mat{A}\mat{B}$, $\mat{B}\mat{C}$, $\mat{C}\mat{A}$, $\mat{A}\mat{B}\mat{C}$,
+$\mat{C}\mat{A}\mat{B}$ are defined, and what is each one's shape? Which products
+$\mat{X}\mat{Y}$ from this list are square?
+\end{exercise}
+
+\begin{exercise}[$2\times2$ inverse]
+Use the formula to invert $\mat{A} = \begin{bmatrix} 3 & 5 \\ 1 & 2 \end{bmatrix}$, then
+check $\mat{A}\mat{A}\inv = \mat{I}$. What is $\det\mat{A}$, and how does it appear in the
+answer?
+\end{exercise}
+
+\begin{exercise}[Gauss--Jordan]
+Invert $\mat{A} = \begin{bmatrix} 1 & 1 & 1 \\ 0 & 2 & 1 \\ 1 & 0 & 1 \end{bmatrix}$ by
+augmenting with $\mat{I}$ and row-reducing to $[\,\mat{I}\mid\mat{A}\inv\,]$. Show every
+step, and verify your answer.
+\end{exercise}
+
+\begin{exercise}[Detecting singular]
+Run Gauss--Jordan on $\mat{A} = \begin{bmatrix} 1 & 2 & 3 \\ 2 & 4 & 6 \\ 0 & 1 & 1 \end{bmatrix}$ far enough to show it is singular. Identify the row that forces the
+collapse, and describe geometrically what $\mat{A}$ does to the unit cube.
+\end{exercise}
+
+\begin{exercise}[Socks and shoes, with numbers]
+Let $\mat{A} = \begin{bmatrix} 2 & 0 \\ 0 & 1 \end{bmatrix}$ and
+$\mat{B} = \begin{bmatrix} 1 & 1 \\ 0 & 1 \end{bmatrix}$. Compute $\mat{A}\inv$,
+$\mat{B}\inv$, and $\mat{A}\mat{B}$. Verify directly that $(\mat{A}\mat{B})\inv =
+\mat{B}\inv\mat{A}\inv$, and check that $\mat{A}\inv\mat{B}\inv$ gives the \emph{wrong}
+answer (it is not the inverse of $\mat{A}\mat{B}$).
+\end{exercise}
+
+\begin{exercise}[Rank cannot grow]
+Using the column view, explain why every column of $\mat{A}\mat{B}$ is a linear
+combination of the columns of $\mat{A}$. Conclude that $\rank(\mat{A}\mat{B}) \le
+\rank(\mat{A})$. Then give a $2\times2$ example where $\mat{A}\ne\mat{0}$, $\mat{B}\ne
+\mat{0}$, yet $\mat{A}\mat{B} = \mat{0}$ --- so rank can \emph{drop} all the way to zero.
+\end{exercise}
+
+\begin{exercise}[Inverse of a diagonal matrix]
+Let $\mat{D} = \diag(d_1,\dots,d_n)$. Show that $\mat{D}$ is invertible if and only if
+every $d_i \ne 0$, and that then $\mat{D}\inv = \diag(1/d_1,\dots,1/d_n)$. What goes
+wrong, geometrically and in Gauss--Jordan, if some $d_i = 0$?
+\end{exercise}
+
+\begin{exercise}[Proof: inverses are unique]
+Suppose $\mat{B}$ and $\mat{C}$ both satisfy $\mat{B}\mat{A} = \mat{I}$ and
+$\mat{A}\mat{C} = \mat{I}$. Prove $\mat{B} = \mat{C}$. (Hint: simplify the product
+$\mat{B}\mat{A}\mat{C}$ in two ways, using associativity.) Conclude that a matrix has at
+most one inverse.
+\end{exercise}
+
+\begin{exercise}[Challenge: a $2\times2$ identity]
+For an invertible $2\times2$ matrix $\mat{A} = \begin{bmatrix} a & b \\ c & d \end{bmatrix}$, prove the surprisingly clean fact that
+\[
+\mat{A}\inv = \frac{1}{\det\mat{A}}\bigl((\tr\mat{A})\,\mat{I} - \mat{A}\bigr),
+\]
+where $\tr\mat{A} = a + d$. (This is the $2\times2$ case of the Cayley--Hamilton
+theorem, which you will meet again after eigenvalues. Just expand both sides.)
+\end{exercise}
+
+\begin{exercise}[Challenge: commuting with everything]
+Prove that if a square matrix $\mat{M}$ satisfies $\mat{M}\mat{A} = \mat{A}\mat{M}$ for
+\emph{every} matrix $\mat{A}$ of the same size, then $\mat{M} = c\mat{I}$ for some scalar
+$c$. (Hint: try $\mat{A} = \vec{e}_i\vec{e}_j\T$, the matrix with a single $1$ in
+position $(i,j)$, and see what commuting forces on the entries of $\mat{M}$.)
+\end{exercise}

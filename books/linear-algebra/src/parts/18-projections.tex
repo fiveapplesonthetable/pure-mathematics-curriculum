@@ -1,0 +1,751 @@
+\chapter{Projections}
+
+Here is a question so ordinary you have probably never noticed it is a question. You are standing
+in a field, and there is a long straight fence. You want to know: \emph{which point on the fence is
+closest to me?} You do not measure every point and compare. You just drop a perpendicular. You walk
+straight toward the fence, meeting it at a right angle, and the spot where you hit it is the
+nearest point. Everyone knows this in their bones.
+
+That single move -- ``drop a perpendicular to find the closest point'' -- is the entire content of
+this chapter. We are going to take it apart slowly, turn it into algebra, and discover that the
+same trick that finds the nearest point on a line also finds the nearest point on a plane, in a
+hundred-dimensional subspace, or the best-fit line through a cloud of data. The geometry never
+changes. Only the number of dimensions grows.
+
+The reason projections matter so much is that the world rarely hands us a problem with an exact
+answer. We get $\mat{A}\vec{x}=\vec{b}$ where $\vec{b}$ is \emph{not} in the column space, so there
+is no solution at all. What do we do? We give up on hitting $\vec{b}$ exactly and instead aim for
+the closest reachable point -- the projection of $\vec{b}$ onto the column space. That is the seed
+of least squares, of regression, of the normal equations, of half of applied linear algebra. But
+all of it rests on the field-and-fence picture. Let us earn it.
+
+\section{Projecting onto a line}
+
+Start with the simplest case: a single line through the origin, and a single point we want to
+approximate. Let the line be the span of a vector $\vec{a}$, and let $\vec{b}$ be the point we are
+trying to reach. The line is $\set{\,t\vec{a} : t \in \R\,}$ -- all scalar multiples of $\vec{a}$.
+We want the point $\vec{p}$ on this line that is closest to $\vec{b}$.
+
+\begin{intuitionbox}
+Shine a light straight down onto the line and let $\vec{b}$ cast a shadow. The shadow is $\vec{p}$,
+the projection. The ``straight down'' is the crucial part: the light must hit the line
+\emph{perpendicularly}, so that the little segment from $\vec{b}$ down to its shadow makes a right
+angle with the line. That perpendicular segment is the \emph{error}, and making it perpendicular is
+exactly what makes the shadow the closest point.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.4,>=Stealth]
+  % the line through origin (direction a)
+  \draw[spacegray,thick] (-0.6,-0.3)--(3.4,1.7);
+  \node[spacegray] at (3.3,1.45){line $=\spn(\vec{a})$};
+  % a
+  \draw[->,vecblue,very thick] (0,0)--(1.6,0.8);
+  \node[vecblue,below right] at (0.9,0.4){$\vec{a}$};
+  % b
+  \draw[->,vecred,very thick] (0,0)--(1.2,2.0);
+  \node[vecred,above] at (1.15,2.0){$\vec{b}$};
+  % p = projection (foot of perpendicular)
+  % p is along a; choose p=(2.0,1.0)
+  \draw[->,targetgreen,very thick] (0,0)--(2.0,1.0);
+  \node[targetgreen,below right] at (1.95,0.95){$\vec{p}=\hat{x}\vec{a}$};
+  % error e = b - p, dashed, perpendicular
+  \draw[quotientorange,very thick,dashed] (1.2,2.0)--(2.0,1.0);
+  \node[quotientorange,above right] at (1.6,1.55){$\vec{e}=\vec{b}-\vec{p}$};
+  % right angle mark at p
+  \draw (2.0,1.0)++(-0.18,-0.09)--++(0.09,-0.18)--++(0.18,0.09);
+  \fill (2.0,1.0) circle (1.2pt);
+\end{tikzpicture}
+\caption{Projection onto a line. The shadow $\vec{p}$ is the point on $\spn(\vec{a})$ closest to
+$\vec{b}$. The error $\vec{e}=\vec{b}-\vec{p}$ (orange, dashed) meets the line at a right angle.}
+\label{ch18:project-line}
+\end{figure}
+
+\subsection{Finding the projection from the right angle}
+
+Because $\vec{p}$ lies on the line, it is \emph{some} multiple of $\vec{a}$:
+\[
+  \vec{p} = \hat{x}\,\vec{a}
+\]
+for an unknown scalar $\hat{x}$ (read ``$x$-hat''; the hat will always mean ``our best estimate'').
+The whole problem is to find this one number. We have one fact to pin it down: the error
+$\vec{e} = \vec{b} - \vec{p} = \vec{b} - \hat{x}\vec{a}$ must be \emph{perpendicular to the line},
+which means perpendicular to $\vec{a}$. Perpendicular means the dot product is zero:
+\[
+  \vec{a}\T(\vec{b} - \hat{x}\vec{a}) = 0.
+\]
+That is one linear equation in the one unknown $\hat{x}$. Expand it:
+\[
+  \vec{a}\T\vec{b} - \hat{x}\,\vec{a}\T\vec{a} = 0
+  \qquad\Longrightarrow\qquad
+  \hat{x} = \frac{\vec{a}\T\vec{b}}{\vec{a}\T\vec{a}}.
+\]
+And then the projection itself is
+\[
+  \boxed{\;\vec{p} = \hat{x}\,\vec{a} = \frac{\vec{a}\T\vec{b}}{\vec{a}\T\vec{a}}\,\vec{a}.\;}
+\]
+
+\begin{focusbox}
+The projection of $\vec{b}$ onto the line $\spn(\vec{a})$ is
+\[
+  \vec{p} = \frac{\vec{a}\T\vec{b}}{\vec{a}\T\vec{a}}\,\vec{a},
+  \qquad
+  \hat{x} = \frac{\vec{a}\T\vec{b}}{\vec{a}\T\vec{a}}.
+\]
+The numerator $\vec{a}\T\vec{b}$ measures how much $\vec{b}$ leans along $\vec{a}$; the denominator
+$\vec{a}\T\vec{a}=\norm{\vec{a}}^2$ normalizes for how long $\vec{a}$ is. Notice $\hat{x}$ does not
+change if you rescale $\vec{a}$ -- the line is what matters, not the particular arrow on it.
+\end{focusbox}
+
+\begin{example}\label{ch18:line-numeric}
+Project $\vec{b}=\colvec{2\\3}$ onto the line through $\vec{a}=\colvec{1\\0}$ (the $x$-axis).
+\[
+  \vec{a}\T\vec{b} = 1\cdot 2 + 0\cdot 3 = 2,
+  \qquad
+  \vec{a}\T\vec{a} = 1,
+  \qquad
+  \hat{x} = \tfrac{2}{1} = 2,
+\]
+so $\vec{p} = 2\colvec{1\\0} = \colvec{2\\0}$ and the error is
+$\vec{e} = \vec{b}-\vec{p} = \colvec{0\\3}$. Of course: projecting onto the $x$-axis just keeps the
+$x$-coordinate and drops the $y$-coordinate. And indeed $\vec{e}=\colvec{0\\3}$ is perpendicular to
+$\vec{a}=\colvec{1\\0}$, since their dot product is $0$. The formula reproduces what you already
+knew, which is exactly what a good formula should do on an easy case.
+\end{example}
+
+\begin{example}\label{ch18:line-diagonal}
+Now a case you could not eyeball. Project $\vec{b}=\colvec{1\\4}$ onto the line through
+$\vec{a}=\colvec{2\\1}$.
+\[
+  \vec{a}\T\vec{b} = 2\cdot1 + 1\cdot4 = 6,
+  \qquad
+  \vec{a}\T\vec{a} = 2^2 + 1^2 = 5,
+  \qquad
+  \hat{x} = \tfrac{6}{5}.
+\]
+So
+\[
+  \vec{p} = \tfrac{6}{5}\colvec{2\\1} = \colvec{12/5\\6/5},
+  \qquad
+  \vec{e} = \vec{b}-\vec{p} = \colvec{1-12/5\\ 4-6/5} = \colvec{-7/5\\14/5}.
+\]
+Check perpendicularity: $\vec{a}\T\vec{e} = 2(-7/5)+1(14/5) = -14/5+14/5 = 0$. The error really is
+orthogonal to the line. This check -- ``dot the error with $\vec{a}$ and get zero'' -- is the single
+most reliable way to catch an arithmetic slip in any projection problem.
+\end{example}
+
+\begin{walkbox}
+Take the formula $\vec{p} = \dfrac{\vec{a}\T\vec{b}}{\vec{a}\T\vec{a}}\,\vec{a}$ on a walk and ask:
+what happens if $\vec{b}$ is already \emph{on} the line, say $\vec{b}=5\vec{a}$? What should the
+shadow be, and does the formula give it? And what if $\vec{b}$ is perpendicular to $\vec{a}$ -- where
+does the shadow land then? Two sanity checks that a projection must pass.
+\end{walkbox}
+
+\subsection{Packaging the projection as a matrix}
+
+Look again at $\vec{p} = \dfrac{\vec{a}\T\vec{b}}{\vec{a}\T\vec{a}}\,\vec{a}$. The quantity
+$\vec{a}\T\vec{b}$ is a number, so we are free to slide it around. Watch:
+\[
+  \vec{p} = \vec{a}\,\frac{\vec{a}\T\vec{b}}{\vec{a}\T\vec{a}}
+          = \frac{\vec{a}\,\vec{a}\T}{\vec{a}\T\vec{a}}\,\vec{b}
+          = \mat{P}\,\vec{b},
+  \qquad\text{where}\qquad
+  \mat{P} = \frac{\vec{a}\,\vec{a}\T}{\vec{a}\T\vec{a}}.
+\]
+Look at what happened. The object $\vec{a}\,\vec{a}\T$ is a \emph{column times a row} -- an
+$n\times1$ times a $1\times n$ -- so it is an $n\times n$ \emph{matrix}, not a number. (Contrast
+$\vec{a}\T\vec{a}$, a row times a column, which is a single number.) Dividing that matrix by the
+number $\vec{a}\T\vec{a}$ gives the \textbf{projection matrix} $\mat{P}$. It does not depend on
+$\vec{b}$ at all. Build it once, and then projecting \emph{any} vector onto the line is a single
+matrix multiply $\vec{p}=\mat{P}\vec{b}$.
+
+\begin{trapbox}
+Keep the two products straight. $\vec{a}\T\vec{a}$ (row times column) is a \emph{scalar}; for
+$\vec{a}=\colvec{2\\1}$ it is $5$. But $\vec{a}\,\vec{a}\T$ (column times row) is a \emph{matrix}:
+\[
+  \vec{a}\,\vec{a}\T = \colvec{2\\1}\begin{bmatrix}2 & 1\end{bmatrix}
+  = \begin{bmatrix} 4 & 2 \\ 2 & 1\end{bmatrix}.
+\]
+Swapping them is the most common projection mistake. One collapses to a number; the other expands
+to a square matrix. Order matters with $\T$.
+\end{trapbox}
+
+\begin{example}\label{ch18:line-Pmatrix}
+For $\vec{a}=\colvec{2\\1}$ we found $\vec{a}\,\vec{a}\T=\begin{bmatrix}4&2\\2&1\end{bmatrix}$ and
+$\vec{a}\T\vec{a}=5$, so
+\[
+  \mat{P} = \frac{1}{5}\begin{bmatrix} 4 & 2 \\ 2 & 1\end{bmatrix}
+          = \begin{bmatrix} 0.8 & 0.4 \\ 0.4 & 0.2 \end{bmatrix}.
+\]
+Apply it to $\vec{b}=\colvec{1\\4}$ from Example~\ref{ch18:line-diagonal}:
+\[
+  \mat{P}\vec{b} = \frac{1}{5}\begin{bmatrix}4&2\\2&1\end{bmatrix}\colvec{1\\4}
+  = \frac{1}{5}\colvec{4+8\\2+4} = \frac{1}{5}\colvec{12\\6} = \colvec{12/5\\6/5}.
+\]
+Same $\vec{p}$ as before. The matrix has packaged the whole projection into one reusable object.
+\end{example}
+
+This little $\mat{P}$ already shows the two features that turn out to define every projection
+matrix. It is \textbf{symmetric}: $\mat{P}=\mat{P}\T$ (look at the $0.4$s off the diagonal). And
+projecting twice does nothing new -- once you are on the line, projecting again leaves you put -- so
+$\mat{P}^2=\mat{P}$. The second deserves a check:
+\[
+  \mat{P}^2 = \frac{1}{25}\begin{bmatrix}4&2\\2&1\end{bmatrix}\begin{bmatrix}4&2\\2&1\end{bmatrix}
+  = \frac{1}{25}\begin{bmatrix}16+4 & 8+2\\ 8+2 & 4+1\end{bmatrix}
+  = \frac{1}{25}\begin{bmatrix}20&10\\10&5\end{bmatrix}
+  = \frac{1}{5}\begin{bmatrix}4&2\\2&1\end{bmatrix} = \mat{P}.
+\]
+
+\begin{aestheticbox}
+There is something quietly beautiful here. A projection is a machine that \emph{forgets}. It throws
+away the component of $\vec{b}$ perpendicular to the line and keeps only the part along it. And the
+signature of forgetting is $\mat{P}^2=\mat{P}$: once you have forgotten, forgetting again costs
+nothing. Idempotence ($\mat{P}^2=\mat{P}$) is the algebraic fingerprint of ``this operation has
+already done all it will ever do.'' A matrix with $\mat{P}^2=\mat{P}$ earns the name
+\emph{idempotent}, and we will meet the idea once more when eigenvalues reveal that a projection can
+only stretch by $1$ (keep) or $0$ (forget).
+\end{aestheticbox}
+
+\section{Why the perpendicular is the closest point}
+
+We have been \emph{assuming} that ``drop a perpendicular'' gives the nearest point. It deserves a
+real argument, because this single fact is the load-bearing wall of the whole subject. The argument
+is short and it is pure Pythagoras.
+
+\begin{theorem}[The projection is the closest point]\label{ch18:closest-thm}
+Let $\vec{p}$ be the projection of $\vec{b}$ onto a subspace $S$, so that the error
+$\vec{e}=\vec{b}-\vec{p}$ is orthogonal to $S$. Then for \emph{every} other point $\vec{y}\in S$,
+\[
+  \norm{\vec{b}-\vec{y}} \;\ge\; \norm{\vec{b}-\vec{p}},
+\]
+with equality only when $\vec{y}=\vec{p}$. The projection is strictly the closest point of $S$ to
+$\vec{b}$.
+\end{theorem}
+
+\begin{proof}
+Pick any $\vec{y}\in S$ and split the trip from $\vec{b}$ to $\vec{y}$ into two legs through
+$\vec{p}$:
+\[
+  \vec{b}-\vec{y} = (\vec{b}-\vec{p}) + (\vec{p}-\vec{y}).
+\]
+The first leg $\vec{b}-\vec{p}=\vec{e}$ is orthogonal to $S$. The second leg $\vec{p}-\vec{y}$
+lives \emph{inside} $S$ (both $\vec{p}$ and $\vec{y}$ are in the subspace, and subspaces are closed
+under subtraction). Orthogonal-to-$S$ and inside-$S$ means these two legs are perpendicular to each
+other, so Pythagoras applies:
+\[
+  \norm{\vec{b}-\vec{y}}^2 = \norm{\vec{b}-\vec{p}}^2 + \norm{\vec{p}-\vec{y}}^2.
+\]
+The right side is $\norm{\vec{b}-\vec{p}}^2$ plus something that is never negative, so it is at
+least $\norm{\vec{b}-\vec{p}}^2$. It equals it only when $\norm{\vec{p}-\vec{y}}^2=0$, i.e.\ when
+$\vec{y}=\vec{p}$.
+\end{proof}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.3,>=Stealth]
+  \draw[spacegray,thick] (-0.6,0)--(4.2,0);
+  \node[spacegray,below] at (4.0,0){subspace $S$};
+  % p on the line
+  \fill (1.5,0) circle (1.4pt); \node[below] at (1.5,-0.05){$\vec{p}$};
+  % y another point on the line
+  \fill (3.2,0) circle (1.4pt); \node[below] at (3.2,-0.05){$\vec{y}$};
+  % b above p
+  \fill[vecred] (1.5,1.6) circle (1.4pt); \node[vecred,above] at (1.5,1.6){$\vec{b}$};
+  % error leg (perpendicular)
+  \draw[quotientorange,very thick] (1.5,1.6)--(1.5,0);
+  \node[quotientorange,right] at (1.5,0.8){$\vec{e}$};
+  % hypotenuse b to y
+  \draw[vecblue,very thick] (1.5,1.6)--(3.2,0);
+  \node[vecblue,above right] at (2.4,0.85){$\vec{b}-\vec{y}$};
+  % in-subspace leg
+  \draw[targetgreen,very thick] (1.5,0)--(3.2,0);
+  \node[targetgreen,below] at (2.35,0.0){$\vec{p}-\vec{y}$};
+  % right angle
+  \draw (1.5,0)++(0,0.16)--++(0.16,0)--++(0,-0.16);
+\end{tikzpicture}
+\caption{Why the perpendicular wins. Any other point $\vec{y}$ in $S$ sits at the far end of a
+right triangle whose legs are the perpendicular error $\vec{e}$ and an in-subspace step. The
+hypotenuse $\vec{b}-\vec{y}$ is always longer than the leg $\vec{e}$.}
+\label{ch18:pythagoras}
+\end{figure}
+
+\begin{focusbox}
+The entire theory of projection rests on one sentence: \textbf{the error is orthogonal to the
+space}. From that one geometric demand we will derive every formula. ``Closest point'' and
+``perpendicular error'' are two names for the same thing, married by Pythagoras.
+\end{focusbox}
+
+\section{Projecting onto a subspace}
+
+Now we leave the line behind. Suppose $S$ is not a single direction but a whole subspace -- a plane
+in $\R^3$, or an $r$-dimensional flat slab inside $\R^n$. Give $S$ a set of basis vectors and stack
+them as the columns of a matrix:
+\[
+  \mat{A} = \begin{bmatrix} \vec{a}_1 & \vec{a}_2 & \cdots & \vec{a}_r \end{bmatrix},
+  \qquad
+  S = \col(\mat{A}).
+\]
+Every point of $S$ is a combination of the columns, i.e.\ has the form $\mat{A}\vec{x}$ for some
+coefficient vector $\vec{x}\in\R^r$. So projecting $\vec{b}$ onto $S$ means: find the coefficient
+vector $\hat{\vec{x}}$ that makes $\vec{p}=\mat{A}\hat{\vec{x}}$ as close to $\vec{b}$ as possible.
+
+\begin{intuitionbox}
+On a line we had one knob, $\hat{x}$. On an $r$-dimensional subspace we have $r$ knobs,
+$\hat{\vec{x}}=(\hat{x}_1,\dots,\hat{x}_r)$ -- one for how much of each basis direction to use. We
+turn all the knobs at once to drive $\vec{b}$'s shadow $\vec{p}=\mat{A}\hat{\vec{x}}$ to the floor
+of $S$ directly beneath $\vec{b}$. The condition that pins the knobs is the same as before: the
+leftover error must be perpendicular to the floor.
+\end{intuitionbox}
+
+\subsection{The normal equations}
+
+The error is $\vec{e}=\vec{b}-\mat{A}\hat{\vec{x}}$. ``Perpendicular to $S$'' now means
+perpendicular to \emph{every} column of $\mat{A}$, because the columns span $S$. So we need
+$\vec{a}_1\T\vec{e}=0$, $\vec{a}_2\T\vec{e}=0$, all the way to $\vec{a}_r\T\vec{e}=0$. Stacking
+these $r$ equations is exactly what $\mat{A}\T\vec{e}=\vec{0}$ says:
+\[
+  \mat{A}\T\vec{e}
+  = \begin{bmatrix} \vec{a}_1\T \\ \vdots \\ \vec{a}_r\T \end{bmatrix}\vec{e}
+  = \begin{bmatrix} \vec{a}_1\T\vec{e} \\ \vdots \\ \vec{a}_r\T\vec{e} \end{bmatrix}
+  = \vec{0}.
+\]
+Substitute $\vec{e}=\vec{b}-\mat{A}\hat{\vec{x}}$ and expand:
+\[
+  \mat{A}\T(\vec{b}-\mat{A}\hat{\vec{x}}) = \vec{0}
+  \qquad\Longrightarrow\qquad
+  \boxed{\;\mat{A}\T\mat{A}\,\hat{\vec{x}} = \mat{A}\T\vec{b}.\;}
+\]
+These are the famous \textbf{normal equations}. They are ``normal'' in the old sense of the word --
+\emph{normal} means \emph{perpendicular}, and the whole system was born from the perpendicularity
+condition $\mat{A}\T\vec{e}=\vec{0}$. Compare line and subspace side by side and feel how little
+changed:
+\[
+  \text{line:}\quad (\vec{a}\T\vec{a})\,\hat{x} = \vec{a}\T\vec{b},
+  \qquad\qquad
+  \text{subspace:}\quad (\mat{A}\T\mat{A})\,\hat{\vec{x}} = \mat{A}\T\vec{b}.
+\]
+The scalar $\vec{a}\T\vec{a}$ grew into the $r\times r$ matrix $\mat{A}\T\mat{A}$; the number
+$\vec{a}\T\vec{b}$ grew into the vector $\mat{A}\T\vec{b}$. Same skeleton, more dimensions.
+
+\begin{formalbox}
+\textbf{The projection matrix.} If the columns of $\mat{A}$ are independent, then $\mat{A}\T\mat{A}$
+is invertible, and we may solve the normal equations:
+\[
+  \hat{\vec{x}} = (\mat{A}\T\mat{A})\inv\mat{A}\T\vec{b},
+  \qquad
+  \vec{p} = \mat{A}\hat{\vec{x}} = \mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T\,\vec{b}.
+\]
+The matrix that projects any $\vec{b}$ onto $\col(\mat{A})$ is therefore
+\[
+  \boxed{\;\mat{P} = \mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T.\;}
+\]
+\end{formalbox}
+
+Notice how this collapses to the line formula when $\mat{A}$ is a single column $\vec{a}$. Then
+$\mat{A}\T\mat{A}=\vec{a}\T\vec{a}$ is the scalar we divide by, $(\mat{A}\T\mat{A})\inv$ is just
+$1/(\vec{a}\T\vec{a})$, and $\mat{P}=\vec{a}(\vec{a}\T\vec{a})\inv\vec{a}\T
+= \dfrac{\vec{a}\,\vec{a}\T}{\vec{a}\T\vec{a}}$. The grand formula and the baby formula are the same
+formula.
+
+\begin{trapbox}
+You might be tempted to ``simplify''
+$\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T$ by distributing the inverse:
+$\mat{A}\mat{A}\inv(\mat{A}\T)\inv\mat{A}\T = \mat{I}$. \textbf{Do not.} That algebra is illegal
+unless $\mat{A}$ is square and invertible -- and if $\mat{A}$ were square and invertible, its column
+space would be \emph{all} of $\R^n$, every $\vec{b}$ would already be in $S$, and projection would
+indeed be the identity. The interesting case is the rectangular one ($m>r$): $\mat{A}$ has more
+rows than columns, $\mat{A}\inv$ does not exist, and $\mat{P}$ is genuinely \emph{not} the
+identity. Treat $(\mat{A}\T\mat{A})\inv$ as one indivisible block.
+\end{trapbox}
+
+\subsection{Why $\mat{A}\T\mat{A}$ is invertible when the columns are independent}
+
+We leaned on ``$\mat{A}\T\mat{A}$ is invertible'' -- let us not leave it dangling. It is a small gem
+of an argument and it tells you exactly when projection works.
+
+\begin{lemma}\label{ch18:ata-invertible}
+If the columns of $\mat{A}$ are linearly independent, then $\mat{A}\T\mat{A}$ is invertible.
+\end{lemma}
+
+\begin{proof}
+$\mat{A}\T\mat{A}$ is a square $r\times r$ matrix, so it suffices to show its nullspace is trivial:
+the only $\vec{x}$ with $\mat{A}\T\mat{A}\vec{x}=\vec{0}$ is $\vec{x}=\vec{0}$. Suppose
+$\mat{A}\T\mat{A}\vec{x}=\vec{0}$. Dot both sides with $\vec{x}$:
+\[
+  \vec{x}\T\mat{A}\T\mat{A}\vec{x} = 0
+  \qquad\Longrightarrow\qquad
+  (\mat{A}\vec{x})\T(\mat{A}\vec{x}) = 0
+  \qquad\Longrightarrow\qquad
+  \norm{\mat{A}\vec{x}}^2 = 0.
+\]
+A vector with zero length is the zero vector, so $\mat{A}\vec{x}=\vec{0}$. But the columns of
+$\mat{A}$ are independent, which means the \emph{only} combination of them giving zero is the
+trivial one: $\vec{x}=\vec{0}$. Hence $\mat{A}\T\mat{A}$ has trivial nullspace and is invertible.
+\end{proof}
+
+The middle step is a trick worth keeping: $\vec{x}\T\mat{A}\T\mat{A}\vec{x}=\norm{\mat{A}\vec{x}}^2$
+turns a matrix expression into a squared length, which can only be zero one way. You will see this
+move again in the chapter on positive-definite matrices, where it is the whole show.
+
+\section{The two properties that define a projection}
+
+Whatever $\mat{A}$ is, the matrix $\mat{P}=\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T$ has two
+properties, and they are so characteristic that they \emph{define} what it means to be an
+orthogonal projection.
+
+\begin{theorem}[Symmetry and idempotence]\label{ch18:P-props}
+The projection matrix $\mat{P}=\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T$ satisfies
+\[
+  \text{(1)}\quad \mat{P}\T = \mat{P}
+  \qquad\text{and}\qquad
+  \text{(2)}\quad \mat{P}^2 = \mat{P}.
+\]
+\end{theorem}
+
+\begin{proof}
+\emph{Symmetry.} Transpose, remembering that $(\mat{XYZ})\T=\mat{Z}\T\mat{Y}\T\mat{X}\T$ and that
+$\mat{A}\T\mat{A}$ is itself symmetric (so its inverse is too):
+\[
+  \mat{P}\T = \big(\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T\big)\T
+  = (\mat{A}\T)\T\,\big((\mat{A}\T\mat{A})\inv\big)\T\,\mat{A}\T
+  = \mat{A}\,(\mat{A}\T\mat{A})\inv\,\mat{A}\T = \mat{P}.
+\]
+\emph{Idempotence.} Multiply $\mat{P}$ by itself and watch the middle collapse. Let
+$\mat{M}=(\mat{A}\T\mat{A})\inv$ for brevity:
+\[
+  \mat{P}^2 = \mat{A}\mat{M}\mat{A}\T\,\mat{A}\mat{M}\mat{A}\T
+  = \mat{A}\mat{M}\,(\mat{A}\T\mat{A})\,\mat{M}\,\mat{A}\T.
+\]
+But $\mat{M}(\mat{A}\T\mat{A}) = (\mat{A}\T\mat{A})\inv(\mat{A}\T\mat{A}) = \mat{I}$, so the middle
+three factors $\mat{M}(\mat{A}\T\mat{A})\mat{M}$ collapse to $\mat{M}$, leaving
+$\mat{P}^2 = \mat{A}\mat{M}\mat{A}\T = \mat{P}$.
+\end{proof}
+
+\begin{intuitionbox}
+Both properties are obvious \emph{geometrically}, which is the best kind of proof to carry in your
+head. Idempotence $\mat{P}^2=\mat{P}$: once $\vec{b}$'s shadow has landed in $S$, it is already in
+$S$, so projecting it again does nothing. Symmetry $\mat{P}\T=\mat{P}$ is subtler but says the
+projection ``treats both directions fairly'': the part of $\vec{b}$ that points into $\vec{c}$'s
+shadow equals the part of $\vec{c}$ that points into $\vec{b}$'s shadow, i.e.\
+$\vec{c}\T\mat{P}\vec{b} = (\mat{P}\vec{c})\T\vec{b}$. Drop symmetry and you get a \emph{slanted}
+(oblique) projection that still satisfies $\mat{P}^2=\mat{P}$ but no longer drops a true
+perpendicular -- and no longer finds the closest point.
+\end{intuitionbox}
+
+\begin{remark}
+The complementary matrix $\mat{I}-\mat{P}$ is \emph{also} a projection -- it projects onto the
+orthogonal complement of $S$, the space where the errors live. Check:
+$(\mat{I}-\mat{P})^2 = \mat{I}-2\mat{P}+\mat{P}^2 = \mat{I}-2\mat{P}+\mat{P} = \mat{I}-\mat{P}$,
+and it is symmetric because $\mat{P}$ is. So $\mat{P}$ keeps the part of $\vec{b}$ inside $S$, and
+$\mat{I}-\mat{P}$ keeps the part orthogonal to $S$; together they split every vector cleanly,
+$\vec{b} = \mat{P}\vec{b} + (\mat{I}-\mat{P})\vec{b} = \vec{p} + \vec{e}$.
+\end{remark}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.3,>=Stealth]
+  % subspace S as a horizontal line, S-perp as vertical
+  \draw[targetgreen,thick] (-2.6,0)--(2.6,0);
+  \node[targetgreen,right] at (2.6,0){$S$ \small(eigenvalue $1$)};
+  \draw[structurepurple,thick] (0,-0.4)--(0,2.6);
+  \node[structurepurple,above] at (0,2.6){$S^\perp$ \small(eigenvalue $0$)};
+  % b
+  \draw[->,vecred,very thick] (0,0)--(2.0,1.8);
+  \node[vecred,above right] at (2.0,1.8){$\vec{b}$};
+  % p = P b on S
+  \draw[->,targetgreen!60!black,very thick] (0,0)--(2.0,0);
+  \node[targetgreen!60!black,below] at (1.0,0){$\vec{p}=\mat{P}\vec{b}$};
+  % e = (I-P) b on S-perp
+  \draw[->,quotientorange,very thick] (0,0)--(0,1.8);
+  \node[quotientorange,left] at (0,1.0){$\vec{e}=(\mat{I}-\mat{P})\vec{b}$};
+  % dashed parallelogram closure
+  \draw[spacegray,dashed] (2.0,0)--(2.0,1.8);
+  \draw[spacegray,dashed] (0,1.8)--(2.0,1.8);
+  % right angle at origin
+  \draw (0,0)++(0.16,0)--++(0,0.16)--++(-0.16,0);
+\end{tikzpicture}
+\caption{One projection splits space in two. The kept part $\vec{p}=\mat{P}\vec{b}$ lives in $S$
+(where $\mat{P}$ acts as the identity, eigenvalue $1$); the forgotten part
+$\vec{e}=(\mat{I}-\mat{P})\vec{b}$ lives in the orthogonal complement $S^\perp$ (where $\mat{P}$
+sends everything to zero, eigenvalue $0$). Their right-angled sum rebuilds $\vec{b}$.}
+\label{ch18:decomp-fig}
+\end{figure}
+
+\section{A fully worked plane in three dimensions}
+
+Abstractions earn their keep on numbers. Let us project a point onto a plane in $\R^3$ from start
+to finish.
+
+\begin{example}\label{ch18:plane-worked}
+Project $\vec{b}=\colvec{6\\0\\0}$ onto the plane $S$ spanned by
+$\vec{a}_1=\colvec{1\\1\\0}$ and $\vec{a}_2=\colvec{0\\1\\1}$. Assemble
+\[
+  \mat{A} = \begin{bmatrix} 1 & 0 \\ 1 & 1 \\ 0 & 1 \end{bmatrix}.
+\]
+\textbf{Step 1: form $\mat{A}\T\mat{A}$.}
+\[
+  \mat{A}\T\mat{A}
+  = \begin{bmatrix} 1 & 1 & 0 \\ 0 & 1 & 1 \end{bmatrix}
+    \begin{bmatrix} 1 & 0 \\ 1 & 1 \\ 0 & 1 \end{bmatrix}
+  = \begin{bmatrix} 2 & 1 \\ 1 & 2 \end{bmatrix}.
+\]
+\textbf{Step 2: form $\mat{A}\T\vec{b}$.}
+\[
+  \mat{A}\T\vec{b}
+  = \begin{bmatrix} 1 & 1 & 0 \\ 0 & 1 & 1 \end{bmatrix}\colvec{6\\0\\0}
+  = \colvec{6\\0}.
+\]
+\textbf{Step 3: solve the normal equations $\mat{A}\T\mat{A}\,\hat{\vec{x}}=\mat{A}\T\vec{b}$.}
+The inverse of $\begin{bmatrix}2&1\\1&2\end{bmatrix}$ is
+$\frac{1}{3}\begin{bmatrix}2&-1\\-1&2\end{bmatrix}$ (determinant $4-1=3$), so
+\[
+  \hat{\vec{x}} = \frac{1}{3}\begin{bmatrix}2&-1\\-1&2\end{bmatrix}\colvec{6\\0}
+  = \frac{1}{3}\colvec{12\\-6} = \colvec{4\\-2}.
+\]
+\textbf{Step 4: form the projection $\vec{p}=\mat{A}\hat{\vec{x}}$.}
+\[
+  \vec{p} = \begin{bmatrix}1&0\\1&1\\0&1\end{bmatrix}\colvec{4\\-2}
+  = \colvec{4\\\,4-2\,\\-2} = \colvec{4\\2\\-2}.
+\]
+\textbf{Step 5: the error and the all-important check.}
+\[
+  \vec{e} = \vec{b}-\vec{p} = \colvec{6\\0\\0}-\colvec{4\\2\\-2} = \colvec{2\\-2\\2}.
+\]
+Is $\vec{e}$ perpendicular to the plane? Dot it with each basis vector:
+\[
+  \vec{a}_1\T\vec{e} = 1\cdot2 + 1\cdot(-2) + 0\cdot2 = 0,
+  \qquad
+  \vec{a}_2\T\vec{e} = 0\cdot2 + 1\cdot(-2) + 1\cdot2 = 0.
+\]
+Both zero. The error is genuinely orthogonal to the plane, so $\vec{p}=\colvec{4\\2\\-2}$ is the
+closest point of $S$ to $\vec{b}$. Notice $\vec{e}=\colvec{2\\-2\\2}=2\colvec{1\\-1\\1}$ points along
+the plane's \emph{normal} direction $\colvec{1\\-1\\1}$ -- exactly the direction perpendicular to
+both $\vec{a}_1$ and $\vec{a}_2$, as it must.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % a plane drawn as a parallelogram
+  \fill[targetgreen!12] (-2.0,-0.9) -- (2.4,-0.5) -- (3.4,1.5) -- (-1.0,1.1) -- cycle;
+  \draw[targetgreen!60!black,thick] (-2.0,-0.9) -- (2.4,-0.5) -- (3.4,1.5) -- (-1.0,1.1) -- cycle;
+  \node[targetgreen!60!black] at (3.0,1.1){$S$};
+  % foot p in the plane
+  \fill (0.6,0.2) circle (1.6pt); \node[below right] at (0.6,0.2){$\vec{p}$};
+  % b above
+  \fill[vecred] (1.1,2.1) circle (1.6pt); \node[vecred,right] at (1.1,2.1){$\vec{b}$};
+  % error perpendicular
+  \draw[quotientorange,very thick,->] (0.6,0.2)--(1.1,2.1);
+  \node[quotientorange,left] at (0.78,1.2){$\vec{e}$};
+  % normal direction dashed
+  \draw[spacegray,dashed,->] (0.6,0.2)--(0.95,1.6);
+  % right angle hint
+  \draw (0.6,0.2)++(0.06,0.22)--++(0.2,0.05)--++(0.05,-0.2);
+  % b as arrow from origin-ish? keep simple: show vertical drop
+\end{tikzpicture}
+\caption{Projecting a point onto a plane $S$ in $\R^3$. The foot $\vec{p}$ sits in the plane
+directly ``beneath'' $\vec{b}$; the error $\vec{e}$ rises along the plane's normal, perpendicular
+to every direction in $S$.}
+\label{ch18:plane-fig}
+\end{figure}
+
+\begin{labbox}
+Build the full $3\times3$ projection matrix for that plane and feel it work. With
+$\mat{A}\T\mat{A}=\begin{bmatrix}2&1\\1&2\end{bmatrix}$ and inverse
+$\frac13\begin{bmatrix}2&-1\\-1&2\end{bmatrix}$, multiply out
+$\mat{P}=\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T$. You should land on
+\[
+  \mat{P} = \frac{1}{3}\begin{bmatrix} 2 & 1 & -1 \\ 1 & 2 & 1 \\ -1 & 1 & 2 \end{bmatrix}.
+\]
+Check three things by hand: (a) $\mat{P}$ is symmetric; (b) $\mat{P}\vec{b}=\colvec{4\\2\\-2}$ for
+$\vec{b}=\colvec{6\\0\\0}$, matching Step~4; (c) the trace is $\frac13(2+2+2)=2$, which (no
+accident!) equals the dimension of the plane. The trace of a projection always counts the
+dimension of the space it projects onto.
+\end{labbox}
+
+\section{Two special cases worth checking}
+
+Two extreme cases test whether you really understand $\mat{P}=\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T$.
+
+\textbf{When $\vec{b}$ is already in the space.} If $\vec{b}\in\col(\mat{A})$ then its closest point
+is itself, so we expect $\mat{P}\vec{b}=\vec{b}$. Indeed, $\vec{b}=\mat{A}\vec{c}$ for some
+$\vec{c}$, and
+\[
+  \mat{P}\vec{b} = \mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T\mat{A}\vec{c}
+  = \mat{A}(\mat{A}\T\mat{A})\inv(\mat{A}\T\mat{A})\vec{c}
+  = \mat{A}\vec{c} = \vec{b}.
+\]
+Projection leaves the space it projects onto fixed.
+
+\textbf{When $\vec{b}$ is orthogonal to the space.} If $\vec{b}\perp\col(\mat{A})$ then
+$\mat{A}\T\vec{b}=\vec{0}$ (every column dots to zero with $\vec{b}$), so $\hat{\vec{x}}=\vec{0}$
+and $\vec{p}=\vec{0}$. The shadow collapses to the origin. All of $\vec{b}$ becomes error.
+
+\begin{aestheticbox}
+These two cases are eigenvectors in disguise, and Figure~\ref{ch18:decomp-fig} drew them already.
+Vectors \emph{in} the space satisfy
+$\mat{P}\vec{b}=1\cdot\vec{b}$ (eigenvalue $1$, ``kept''); vectors \emph{orthogonal} to it satisfy
+$\mat{P}\vec{b}=0\cdot\vec{b}$ (eigenvalue $0$, ``forgotten''). Every orthogonal projection has
+eigenvalues that are only ever $0$ or $1$ -- which is the spectral way of saying $\mat{P}^2=\mat{P}$
+(since $\lambda^2=\lambda$ forces $\lambda\in\set{0,1}$). The number of $1$'s is the dimension of
+$S$; their sum is the trace. The whole personality of a projection lives in those two numbers.
+\end{aestheticbox}
+
+\section{Where this is heading: the inconsistent system}
+
+We opened with the promise that projection rescues the unsolvable equation $\mat{A}\vec{x}=\vec{b}$.
+Let us close the loop. When $\vec{b}$ is not in the column space, no $\vec{x}$ makes
+$\mat{A}\vec{x}=\vec{b}$. The sensible move is to solve instead the \emph{nearest} solvable problem:
+replace $\vec{b}$ by its projection $\vec{p}$ onto $\col(\mat{A})$, and solve $\mat{A}\hat{\vec{x}}
+=\vec{p}$. By construction $\vec{p}$ \emph{is} in the column space, so this has a solution -- and it
+is the very $\hat{\vec{x}}$ from the normal equations. We have, almost without trying, derived the
+least-squares solution.
+
+\begin{focusbox}
+\textbf{The bridge to least squares.} To ``solve'' an inconsistent $\mat{A}\vec{x}=\vec{b}$, project
+$\vec{b}$ onto $\col(\mat{A})$ and accept the projection $\vec{p}$ as the best we can hit. The
+best-fit coefficients are
+\[
+  \hat{\vec{x}} = (\mat{A}\T\mat{A})\inv\mat{A}\T\vec{b},
+\]
+and they minimize the squared error $\norm{\mat{A}\vec{x}-\vec{b}}^2$ -- because, by
+Theorem~\ref{ch18:closest-thm}, the projection is the closest point. The next chapter spends itself
+unfolding this one idea into curve fitting and regression.
+\end{focusbox}
+
+\begin{applicationbox}
+\textbf{Least squares is everywhere a model meets noisy data.} Suppose you measure a quantity that
+you believe depends linearly on inputs -- house price versus square footage and number of bedrooms,
+say. Each data point is a row of $\mat{A}$ (the features) and an entry of $\vec{b}$ (the observed
+price). There are far more houses than features, so $\mat{A}\vec{x}=\vec{b}$ is wildly
+overdetermined and has no exact solution: no single line passes through every messy point. The
+linear-regression coefficients that every spreadsheet, statistics package, and machine-learning
+library computes are \emph{exactly} $\hat{\vec{x}}=(\mat{A}\T\mat{A})\inv\mat{A}\T\vec{b}$. The
+``predictions'' $\hat{\vec{b}}=\mat{P}\vec{b}$ are the projection of reality onto the span of your
+features, and the residuals $\vec{e}=\vec{b}-\hat{\vec{b}}$ are the part of reality your model
+cannot explain -- guaranteed orthogonal to every feature, which is why a well-fit linear model's
+residuals show no leftover linear trend. The matrix $\mat{P}$ even has a name in statistics: the
+\emph{hat matrix}, because it puts the hat on $\vec{b}$ to make $\hat{\vec{b}}$.
+\end{applicationbox}
+
+\begin{connectionbox}
+\textbf{Projection in function spaces: Fourier series.} The same perpendicular-drop works when the
+``vectors'' are functions. Take the inner product $\inner{f}{g}=\int_0^{2\pi} f(t)g(t)\,dt$. The
+functions $1,\cos t,\sin t,\cos 2t,\sin 2t,\dots$ are mutually orthogonal under this inner product
+-- just like an orthogonal basis of $\R^n$, but infinite. A Fourier series approximation of a
+signal $f$ is nothing but the \emph{projection} of $f$ onto the finite-dimensional subspace spanned
+by the first few of these waves. Each Fourier coefficient is a one-dimensional projection,
+$\hat{x}_k = \inner{f}{\phi_k}/\inner{\phi_k}{\phi_k}$ -- the very formula from
+Section~\ref{ch18:project-line}, now with integrals for dot products. ``Find the closest combination
+of sines and cosines'' \emph{is} least squares in a space of functions, and the leftover (the part
+$f$ minus its truncated series) is orthogonal to every wave you kept. This is the doorway from
+linear algebra into Fourier analysis and the whole field of signal processing.
+\end{connectionbox}
+
+\begin{strangbox}
+Strang builds projections in essentially this order -- line first, then subspace, then the matrix
+$\mat{P}=\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T$ -- and he hammers the same two properties,
+$\mat{P}\T=\mat{P}$ and $\mat{P}^2=\mat{P}$. If you are reading this \emph{before} Strang, the move
+to internalize is ``error orthogonal to the space $\Rightarrow$ closest point $\Rightarrow$ normal
+equations.'' Everything in his projection and least-squares lectures hangs on that chain. If you are
+reading this \emph{after} Strang, look ahead: $\mat{P}$ is your first nontrivial example of a matrix
+whose action is completely described by its eigenvalues ($0$ and $1$) and eigenspaces ($S$ and
+$S^\perp$). When you reach the spectral theorem and the SVD, you will recognize projection as the
+simplest member of the family of symmetric matrices, and you will write any symmetric matrix as a
+weighted sum of projections onto its eigenvectors. Projection is not a side topic; it is the
+seed crystal.
+\end{strangbox}
+
+\section{What to carry forward}
+
+\begin{focusbox}
+\textbf{The chapter in one breath.}
+\begin{itemize}
+  \item To find the closest point of a subspace $S$ to $\vec{b}$, drop a perpendicular: demand
+        that the error $\vec{e}=\vec{b}-\vec{p}$ be orthogonal to $S$.
+  \item \textbf{Onto a line} $\spn(\vec{a})$:
+        $\;\vec{p}=\dfrac{\vec{a}\T\vec{b}}{\vec{a}\T\vec{a}}\,\vec{a}$,
+        \; $\mat{P}=\dfrac{\vec{a}\,\vec{a}\T}{\vec{a}\T\vec{a}}$.
+  \item \textbf{Onto a subspace} $\col(\mat{A})$: solve the normal equations
+        $\mat{A}\T\mat{A}\,\hat{\vec{x}}=\mat{A}\T\vec{b}$, then
+        $\mat{P}=\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T$.
+  \item Every projection matrix is \textbf{symmetric} ($\mat{P}\T=\mat{P}$) and \textbf{idempotent}
+        ($\mat{P}^2=\mat{P}$); its eigenvalues are $0$ and $1$; its trace is $\dim S$.
+  \item The closest-point guarantee (Pythagoras) is what turns projection into \textbf{least
+        squares}, the engine of regression and data fitting.
+\end{itemize}
+\end{focusbox}
+
+\section{Exercises}
+
+\begin{exercise}\label{ch18:ex-line-basic}
+Project $\vec{b}=\colvec{3\\4}$ onto the line through $\vec{a}=\colvec{1\\1}$. Find $\hat{x}$,
+$\vec{p}$, and $\vec{e}$, and verify that $\vec{a}\T\vec{e}=0$.
+\end{exercise}
+
+\begin{exercise}\label{ch18:ex-Pmatrix}
+For $\vec{a}=\colvec{3\\4}$, build the line-projection matrix
+$\mat{P}=\dfrac{\vec{a}\,\vec{a}\T}{\vec{a}\T\vec{a}}$ explicitly as a $2\times2$ matrix. Confirm by
+direct multiplication that $\mat{P}^2=\mat{P}$ and that $\mat{P}\T=\mat{P}$.
+\end{exercise}
+
+\begin{exercise}\label{ch18:ex-already-in}
+Let $\mat{P}$ be the matrix from Exercise~\ref{ch18:ex-Pmatrix}. Compute $\mat{P}\colvec{3\\4}$ and
+explain geometrically why the answer is what it is. Then compute $\mat{P}\colvec{4\\-3}$ and explain
+that answer too. (Hint: how is $\colvec{4\\-3}$ related to $\colvec{3\\4}$?)
+\end{exercise}
+
+\begin{exercise}\label{ch18:ex-plane}
+Project $\vec{b}=\colvec{0\\0\\3}$ onto the plane spanned by $\vec{a}_1=\colvec{1\\0\\1}$ and
+$\vec{a}_2=\colvec{0\\1\\1}$. Form $\mat{A}\T\mat{A}$ and $\mat{A}\T\vec{b}$, solve for
+$\hat{\vec{x}}$, find $\vec{p}$ and $\vec{e}$, and check that $\vec{e}$ is orthogonal to both basis
+vectors. (You should find $\hat{\vec{x}}=\colvec{1\\1}$, $\vec{p}=\colvec{1\\1\\2}$, and
+$\vec{e}=\colvec{-1\\-1\\1}$; note that $\vec{b}$ does \emph{not} lie in the plane, so the projection
+genuinely moves it.)
+\end{exercise}
+
+\begin{exercise}\label{ch18:ex-trace}
+Show that for the plane in Exercise~\ref{ch18:ex-plane} the trace of the projection matrix
+$\mat{P}=\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T$ equals $2$, without computing all nine entries.
+(Hint: $\tr(\mat{A}\mat{B})=\tr(\mat{B}\mat{A})$; apply it to push the $\mat{A}$ to the right and
+watch the expression telescope.)
+\end{exercise}
+
+\begin{exercise}\label{ch18:ex-complement}
+Let $\mat{P}$ project onto a subspace $S$. Prove that $\mat{Q}=\mat{I}-\mat{P}$ is also a projection
+matrix (symmetric and idempotent), and argue geometrically that $\mat{Q}$ projects onto the
+orthogonal complement $S^\perp$. What is $\mat{P}\mat{Q}$, and why does the answer make geometric
+sense?
+\end{exercise}
+
+\begin{exercise}\label{ch18:ex-closest-num}
+For the line through $\vec{a}=\colvec{2\\1}$ and the point $\vec{b}=\colvec{1\\4}$ (from
+Example~\ref{ch18:line-diagonal}), pick any \emph{other} point on the line, say $\vec{y}=2\vec{a}$,
+and verify numerically that $\norm{\vec{b}-\vec{y}} > \norm{\vec{b}-\vec{p}}$. Then confirm the
+Pythagorean identity $\norm{\vec{b}-\vec{y}}^2 = \norm{\vec{e}}^2 + \norm{\vec{p}-\vec{y}}^2$ with
+your numbers.
+\end{exercise}
+
+\begin{exercise}\label{ch18:ex-eigen}
+Using only $\mat{P}^2=\mat{P}$, prove that every eigenvalue $\lambda$ of a projection matrix
+satisfies $\lambda^2=\lambda$, hence $\lambda\in\set{0,1}$. (Hint: if $\mat{P}\vec{v}=\lambda\vec{v}$
+with $\vec{v}\neq\vec{0}$, apply $\mat{P}$ again.) Interpret the two eigenvalues geometrically.
+\end{exercise}
+
+\begin{exercise}\label{ch18:ex-oblique}
+\textbf{(Challenge: why symmetry matters.)} Consider $\mat{P}=\begin{bmatrix}1 & 1\\ 0 & 0\end{bmatrix}$.
+Verify that $\mat{P}^2=\mat{P}$, so $\mat{P}$ is idempotent, but $\mat{P}\T\neq\mat{P}$. Show that
+$\mat{P}$ maps every vector onto the $x$-axis, yet does \emph{not} send $\vec{b}=\colvec{0\\1}$ to
+its \emph{closest} point on the $x$-axis (which is the origin). Conclude that idempotence alone
+gives a projection, but only \emph{symmetry} makes it the orthogonal, closest-point projection.
+\end{exercise}
+
+\begin{exercise}\label{ch18:ex-orthonormal}
+\textbf{(Challenge.)} Suppose the columns of $\mat{A}$ are not just independent but
+\emph{orthonormal}: $\mat{A}\T\mat{A}=\mat{I}$. Show that the projection matrix simplifies to
+$\mat{P}=\mat{A}\mat{A}\T$, and that $\hat{\vec{x}}=\mat{A}\T\vec{b}$ -- each coefficient is just a
+single dot product $\vec{a}_i\T\vec{b}$, with no matrix inverse anywhere. Explain why this is the
+computational reason the next-but-one chapter works so hard to build orthonormal bases via
+Gram--Schmidt.
+\end{exercise}

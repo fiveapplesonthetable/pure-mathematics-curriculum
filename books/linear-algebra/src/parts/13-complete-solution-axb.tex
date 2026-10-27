@@ -1,0 +1,755 @@
+\chapter{The Complete Solution to Ax = b}
+
+So far you have learned to ask two separate questions about a matrix $\mat{A}$. The
+column space told you which right-hand sides $\vec{b}$ are reachable: $\mat{A}\vec{x}=\vec{b}$
+has \emph{some} solution exactly when $\vec{b}$ lies in $\col(\mat{A})$. The nullspace told
+you about the slack: $\mat{A}\vec{x}=\vec{0}$ has nontrivial solutions exactly when the
+columns are dependent. In this chapter we glue those two ideas together and answer the
+question that systems of equations were invented to answer: \emph{given a matrix $\mat{A}$
+and a vector $\vec{b}$, describe every $\vec{x}$ with $\mat{A}\vec{x}=\vec{b}$ -- all of
+them, no more and no fewer.}
+
+That full description is called the \emph{complete solution}, and it has a shape you can
+draw. It is always
+
+\[
+  \vec{x} \;=\; \underbrace{\vec{x}_p}_{\text{one particular solution}}
+        \;+\; \underbrace{\vec{x}_n}_{\text{anything in the nullspace}}.
+\]
+
+One special solution, plus the entire nullspace, slid over to sit on top of it. The rest of
+the chapter unpacks that one line: why it is true, how to compute each piece, and what the
+geometry looks like in every case (no solution, one solution, infinitely many).
+
+\section{One picture to hold onto}
+
+Before any algebra, here is the mental image. The map $\vec{x}\mapsto \mat{A}\vec{x}$ takes
+the input space and folds it down onto the column space. Solving $\mat{A}\vec{x}=\vec{b}$
+means: find every input that lands exactly on the target point $\vec{b}$.
+
+\begin{intuitionbox}
+Think of $\mat{A}$ as a machine that flattens. If two different inputs $\vec{x}_1$ and
+$\vec{x}_2$ both produce $\vec{b}$, then their difference satisfies
+\[
+  \mat{A}(\vec{x}_1-\vec{x}_2)=\mat{A}\vec{x}_1-\mat{A}\vec{x}_2=\vec{b}-\vec{b}=\vec{0}.
+\]
+So the difference lives in the nullspace. Two solutions can differ \emph{only} by a
+nullspace vector. Turn that around: take one solution $\vec{x}_p$ and add any nullspace
+vector $\vec{x}_n$; then $\mat{A}(\vec{x}_p+\vec{x}_n)=\vec{b}+\vec{0}=\vec{b}$, so you get
+another solution. \textbf{The solution set is the nullspace, picked up and translated to
+pass through $\vec{x}_p$.}
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % nullspace line through origin
+  \draw[spacegray,thick] (-2.2,-2.2) -- (2.2,2.2);
+  \node[spacegray] at (2.0,2.45) {$\nullsp(\mat{A})$};
+  \fill (0,0) circle (1.6pt) node[below left]{\small $\vec 0$};
+  % solution set: parallel line through x_p
+  \draw[vecblue,very thick] (-1.0,-2.2) -- (3.4,2.2);
+  \node[vecblue] at (3.3,2.45) {solution set of $\mat{A}\vec x=\vec b$};
+  % particular solution
+  \draw[->,vecred,very thick] (0,0) -- (1.3,0.5);
+  \fill[vecred] (1.3,0.5) circle (1.8pt) node[below right]{\small $\vec x_p$};
+  % a nullspace vector added
+  \draw[->,spacegray,thick,dashed] (1.3,0.5) -- (2.3,1.5);
+  \fill (2.3,1.5) circle (1.6pt) node[right]{\small $\vec x_p+\vec x_n$};
+  \node[spacegray] at (2.15,0.85) {\small $\vec x_n$};
+\end{tikzpicture}
+\caption{The complete solution set (blue) is the nullspace (gray, through the origin)
+slid over so it passes through one particular solution $\vec x_p$. Adding any nullspace
+vector $\vec x_n$ to $\vec x_p$ keeps you on the blue line.}
+\label{ch13:translate}
+\end{figure}
+
+A set like the blue line in Figure~\ref{ch13:translate} -- a subspace shifted off the
+origin -- is called an \emph{affine subspace} (or a \emph{coset}). It is parallel to the
+nullspace but generally does \emph{not} pass through $\vec{0}$. The only time it passes
+through the origin is when $\vec{b}=\vec{0}$, because then $\vec{x}_p=\vec{0}$ works and the
+solution set \emph{is} the nullspace.
+
+\begin{focusbox}
+Two questions, two subspaces, one formula.
+\begin{itemize}
+  \item \textbf{Existence} (does a solution exist?) is a question about the \emph{column
+    space}: solvable $\iff \vec{b}\in\col(\mat{A})$.
+  \item \textbf{Uniqueness} (is it the only one?) is a question about the
+    \emph{nullspace}: unique $\iff \nullsp(\mat{A})=\{\vec{0}\}$.
+  \item When both succeed for a given $\vec{b}$, the answer set is
+    $\vec{x}_p+\nullsp(\mat{A})$.
+\end{itemize}
+\end{focusbox}
+
+\section{Why particular plus nullspace is everything}
+
+Now turn the picture into a theorem. The argument is short, and it is the same one that
+reappears for differential equations, recurrences, and every other linear problem you will
+meet.
+
+\begin{theorem}[Structure of the solution set]
+\label{ch13:structure}
+Suppose $\mat{A}\vec{x}_p=\vec{b}$ for some particular vector $\vec{x}_p$ (that is,
+$\vec{b}$ is reachable). Then the complete set of solutions to $\mat{A}\vec{x}=\vec{b}$ is
+\[
+  \set{\vec{x}_p+\vec{x}_n \;:\; \vec{x}_n\in\nullsp(\mat{A})}.
+\]
+If instead no particular solution exists, the solution set is empty.
+\end{theorem}
+
+\begin{proof}
+We prove the two halves of set equality.
+
+\emph{Every $\vec{x}_p+\vec{x}_n$ is a solution.} If $\mat{A}\vec{x}_n=\vec{0}$, then by
+linearity
+\[
+  \mat{A}(\vec{x}_p+\vec{x}_n)=\mat{A}\vec{x}_p+\mat{A}\vec{x}_n=\vec{b}+\vec{0}=\vec{b}.
+\]
+
+\emph{Every solution has this form.} Suppose $\mat{A}\vec{x}=\vec{b}$. Set
+$\vec{x}_n:=\vec{x}-\vec{x}_p$. Then
+\[
+  \mat{A}\vec{x}_n=\mat{A}\vec{x}-\mat{A}\vec{x}_p=\vec{b}-\vec{b}=\vec{0},
+\]
+so $\vec{x}_n\in\nullsp(\mat{A})$, and $\vec{x}=\vec{x}_p+\vec{x}_n$ is of the claimed
+form. The two inclusions together give equality.
+\end{proof}
+
+Notice what the proof did \emph{not} need: it never used the size of $\mat{A}$, never
+assumed a square matrix, never assumed invertibility. It used only linearity. That is why
+the formula is universal.
+
+\begin{trapbox}
+The complete solution is $\vec{x}_p+\nullsp(\mat{A})$, \textbf{not} $\nullsp(\mat{A})$ and
+\textbf{not} ``the span of $\vec{x}_p$ and the nullspace.'' You do not scale $\vec{x}_p$.
+You add it once, as a fixed offset, and let only the nullspace part vary. Writing
+$c\vec{x}_p+(\text{nullspace})$ is wrong: $2\vec{x}_p$ usually solves
+$\mat{A}\vec{x}=2\vec{b}$, not $\mat{A}\vec{x}=\vec{b}$.
+\end{trapbox}
+
+\begin{strangbox}
+Strang states this as ``\emph{complete solution} $=$ \emph{particular} $+$
+\emph{special}.'' His ``particular solution'' is our $\vec{x}_p$, gotten by setting all the
+free variables to zero. His ``special solutions'' $\vec{s}_1,\vec{s}_2,\dots$ are a basis
+for the nullspace, gotten by setting one free variable to $1$ and the rest to $0$. So
+$\vec{x}_n=c_1\vec{s}_1+\cdots+c_k\vec{s}_k$, and the complete solution is
+$\vec{x}_p+c_1\vec{s}_1+\cdots+c_k\vec{s}_k$. Reading this chapter \emph{before} Strang,
+you now know \emph{why} that recipe produces everything; reading it \emph{after}, you can
+see it is Theorem~\ref{ch13:structure} with the nullspace written in a basis.
+\end{strangbox}
+
+\section{Existence: is \texorpdfstring{$\vec b$}{b} in the column space?}
+
+A solution exists if and only if $\vec{b}=\mat{A}\vec{x}$ for some $\vec{x}$ -- and
+$\mat{A}\vec{x}$ is, by definition, a linear combination of the columns of $\mat{A}$. So
+the reachable right-hand sides are exactly the column space. There is nothing more to it
+conceptually; the work is in \emph{detecting} membership, which elimination does for you.
+
+When you row-reduce the augmented matrix $[\,\mat{A}\mid\vec{b}\,]$, watch the rows that
+become all zeros on the $\mat{A}$ side. If such a zero row has a nonzero entry on the
+$\vec{b}$ side, you have produced the equation $0=(\text{nonzero})$, which is a
+contradiction: $\vec{b}$ was \emph{not} in the column space, and there is no solution. If
+every all-zero row of $\mat{A}$ pairs with a zero in $\vec{b}$, the system is consistent.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % a plane = column space in 3D-ish view
+  \begin{scope}[shift={(0,0)}]
+    \fill[targetgreen!12] (-1.6,-0.9) -- (2.4,-0.4) -- (2.0,1.6) -- (-2.0,1.1) -- cycle;
+    \draw[targetgreen!70] (-1.6,-0.9) -- (2.4,-0.4) -- (2.0,1.6) -- (-2.0,1.1) -- cycle;
+    \node[targetgreen!60!black] at (1.5,1.35) {\small $\col(\mat A)$};
+    \fill (0,0) circle (1.4pt) node[below left]{\small $\vec0$};
+    % b in the plane
+    \draw[->,vecblue,very thick] (0,0) -- (1.1,0.35);
+    \node[vecblue] at (1.25,0.05) {\small $\vec b_{\text{in}}$};
+    % b off the plane
+    \draw[->,vecred,very thick] (0,0) -- (0.4,1.9);
+    \node[vecred] at (0.55,2.05) {\small $\vec b_{\text{off}}$};
+    \draw[vecred,dashed] (0.4,1.9) -- (0.0,0.55);
+  \end{scope}
+\end{tikzpicture}
+\caption{Existence is a hit-or-miss question. If $\vec b$ lies in the plane
+$\col(\mat A)$ (blue), the system is solvable. If $\vec b$ sticks up out of the plane
+(red), no input can reach it and $\mat A\vec x=\vec b$ has no solution.}
+\label{ch13:existence}
+\end{figure}
+
+\begin{example}[Spotting an inconsistent system]
+\label{ch13:incon}
+Take
+\[
+  \mat{A}=\begin{bmatrix}1&2\\2&4\\3&6\end{bmatrix},\qquad
+  \vec{b}=\colvec{1\\3\\3}.
+\]
+Every column of $\mat{A}$ is a multiple of $\colvec{1\\2\\3}$, so the column space is the
+single line through $\colvec{1\\2\\3}$. Is $\vec{b}$ on that line? It would need
+$\vec{b}=t\colvec{1\\2\\3}$, forcing $t=1$ from the first entry but $t=\tfrac32$ from the
+second. No single $t$ works, so $\vec{b}\notin\col(\mat{A})$ and there is \emph{no}
+solution. Elimination confirms it: subtract $2\times$row~1 from row~2 and $3\times$row~1
+from row~3 in $[\,\mat{A}\mid\vec{b}\,]$:
+\[
+  \left[\begin{array}{cc|c}1&2&1\\2&4&3\\3&6&3\end{array}\right]
+  \;\longrightarrow\;
+  \left[\begin{array}{cc|c}1&2&1\\0&0&1\\0&0&0\end{array}\right].
+\]
+Row~2 now reads $0x_1+0x_2=1$, i.e.\ $0=1$. Contradiction; inconsistent.
+\end{example}
+
+\begin{example}[Same $\mat A$, a reachable $\vec b$]
+\label{ch13:con}
+Keep the same $\mat{A}$ but use $\vec{b}=\colvec{2\\4\\6}=2\colvec{1\\2\\3}$, which
+\emph{is} on the column line. Reducing,
+\[
+  \left[\begin{array}{cc|c}1&2&2\\2&4&4\\3&6&6\end{array}\right]
+  \;\longrightarrow\;
+  \left[\begin{array}{cc|c}1&2&2\\0&0&0\\0&0&0\end{array}\right].
+\]
+Now the zero rows of $\mat{A}$ pair with zeros in $\vec{b}$: consistent. The one surviving
+equation is $x_1+2x_2=2$, which has infinitely many solutions -- a whole line of them. We
+will write that line out in the next section.
+\end{example}
+
+\begin{walkbox}
+On your walk, fix the $3\times2$ matrix $\mat{A}$ from the examples in your head -- its
+column space is one line in $\R^3$. Now imagine sweeping $\vec{b}$ all over $\R^3$. For how
+many $\vec{b}$ is the system solvable: none, a line's worth, a plane's worth, or all of
+$\R^3$? And of the solvable ones, how many have a \emph{unique} solution? (Hint: the
+nullspace of this $\mat A$ is not just the origin.)
+\end{walkbox}
+
+\section{Uniqueness: is the nullspace trivial?}
+
+Existence was about $\vec{b}$ and the columns reaching far enough. Uniqueness is about the
+columns being non-redundant. By Theorem~\ref{ch13:structure}, once a solution exists, the
+number of solutions equals the number of nullspace vectors:
+
+\[
+  \nullsp(\mat{A})=\{\vec{0}\}\;\Longrightarrow\;\text{at most one solution};\qquad
+  \nullsp(\mat{A})\neq\{\vec{0}\}\;\Longrightarrow\;\text{either none or infinitely many}.
+\]
+
+There is never a system with exactly two or exactly seventeen solutions. The solution set
+is an affine copy of a subspace, and a nonzero subspace already contains infinitely many
+vectors (you can scale any nonzero element). So the count is always $0$, $1$, or $\infty$.
+
+\begin{aestheticbox}
+This trichotomy -- zero, one, or infinitely many -- is one of the things linearity buys
+you. Nonlinear equations are wild: $x^2=c$ can have $0$, $1$, or $2$ roots; $\sin
+x=c$ can have infinitely many \emph{isolated} roots. Linear systems are tame because
+straightness is preserved: if two solutions exist, the entire line through them solves the
+system too. The geometry of the answer set is always flat. Hold onto this; it is the reason
+linear models are the workhorses of science.
+\end{aestheticbox}
+
+\begin{trapbox}
+``Square matrix'' does not mean ``unique solution.'' A $3\times3$ matrix can have a
+nontrivial nullspace (when its columns are dependent), giving zero or infinitely many
+solutions. Uniqueness is controlled by the nullspace, which is controlled by
+\emph{independence of the columns}, not by the matrix being square. We will see all four
+combinations below.
+\end{trapbox}
+
+\section{Rank decides the shape}
+
+Everything -- existence, uniqueness, and the dimension of the solution set -- is governed
+by one number and the two dimensions of $\mat{A}$. Let $\mat{A}$ be $m\times n$ (that is,
+$m$ equations in $n$ unknowns) with rank $r$. Recall the two facts you have already proved
+about $r$:
+
+\begin{itemize}
+  \item $r=\dim\col(\mat{A})$: the number of pivots, the number of independent columns,
+    the dimension of the reachable target space.
+  \item $\dim\nullsp(\mat{A})=n-r$: the number of free (non-pivot) columns. This is the
+    \emph{rank--nullity} count, and it is exactly the number of free variables in the
+    solution.
+\end{itemize}
+
+Combining these with Theorem~\ref{ch13:structure} gives the master statement of the
+chapter.
+
+\begin{formalbox}
+\textbf{The shape of the solution set.} For $\mat{A}\in\R^{m\times n}$ of rank $r$ and a
+\emph{consistent} right-hand side $\vec{b}$, the solution set is an affine subspace of
+dimension $n-r$:
+\[
+  \vec{x}_p+\nullsp(\mat{A}),\qquad \dim=n-r.
+\]
+In particular:
+\begin{itemize}
+  \item solvable for \emph{every} $\vec{b}\in\R^m$ $\iff$ $r=m$ (the columns span $\R^m$;
+    \emph{full row rank});
+  \item solution unique whenever it exists $\iff$ $r=n$ (the columns are independent;
+    \emph{full column rank}).
+\end{itemize}
+\end{formalbox}
+
+Read the two bullets as ``existence for all $\vec b$ is about rows'' and ``uniqueness is
+about columns.'' The number $r$ can be at most $\min(m,n)$, so a matrix can be full row
+rank, full column rank, both (then it is square and invertible), or neither.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.95,>=Stealth]
+  \tikzset{cell/.style={draw,minimum width=3.3cm,minimum height=2.0cm,align=center,font=\small}}
+  % header row/col
+  \node at (-2.2,1.0) {\small full column rank};
+  \node at (-2.2,-1.0) {\small not full column rank};
+  \node at (0,2.45) {\small full row rank ($r=m$)};
+  \node at (3.6,2.45) {\small not full row rank};
+  % cells
+  \node[cell,fill=green!8] at (0,1.0) {$r=m=n$\\[2pt]\textbf{square, invertible}\\exactly one solution\\for every $\vec b$};
+  \node[cell,fill=blue!8] at (3.6,1.0) {$r=n<m$\\[2pt]tall, indep.\ columns\\$0$ or $1$ solution};
+  \node[cell,fill=orange!10] at (0,-1.0) {$r=m<n$\\[2pt]wide, columns span\\$\infty$ solutions\\for every $\vec b$};
+  \node[cell,fill=red!8] at (3.6,-1.0) {$r<m,\ r<n$\\[2pt]\textbf{the general case}\\$0$ or $\infty$ solutions};
+\end{tikzpicture}
+\caption{The four cases of $\mat A\vec x=\vec b$, sorted by whether the rank is full in the
+column direction (uniqueness) and the row direction (existence-for-all-$\vec b$).}
+\label{ch13:fourcases}
+\end{figure}
+
+\subsection{The four cases, one at a time}
+
+\textbf{Case 1: $r=m=n$ (square and invertible).} Full row rank gives existence for every
+$\vec{b}$; full column rank gives uniqueness. Together: \emph{exactly one} solution for
+every $\vec{b}$, namely $\vec{x}=\mat{A}\inv\vec{b}$. The nullspace is $\{\vec 0\}$, so
+$\vec{x}_p$ is the whole story. These are the comfortable square invertible systems.
+
+\textbf{Case 2: $r=n<m$ (tall, full column rank).} More equations than unknowns. The
+columns are independent, so the nullspace is trivial and any solution is unique -- but the
+columns may not reach every $\vec b$, so existence can fail. Outcome: \emph{$0$ or $1$}
+solution. Either $\vec{b}$ lies in the $n$-dimensional column space (one solution) or it
+does not (none). This is the setting of \emph{least squares}: when no exact solution
+exists, you will later settle for the closest reachable point.
+
+\textbf{Case 3: $r=m<n$ (wide, full row rank).} More unknowns than equations. The columns
+span all of $\R^m$, so existence holds for \emph{every} $\vec{b}$ -- but there are
+$n-m>0$ free variables, so the nullspace is nonzero and solutions are never unique.
+Outcome: \emph{$\infty$} solutions for every $\vec{b}$. These are the
+\emph{underdetermined} systems, where the minimum-norm solution earns its keep.
+
+\textbf{Case 4: $r<m$ and $r<n$ (the general rectangular case).} Neither full. Existence
+can fail \emph{and} uniqueness fails whenever existence holds. Outcome: \emph{$0$ or
+$\infty$}. Almost every real-world data matrix is here.
+
+\begin{labbox}
+Build a tiny example of each case with your own hands and confirm the count.
+\begin{enumerate}
+  \item Case~1: $\mat{A}=\begin{bmatrix}2&0\\0&3\end{bmatrix}$, $\vec b=\colvec{4\\3}$.
+    Solve; you should get the single point $\colvec{2\\1}$.
+  \item Case~2: $\mat{A}=\begin{bmatrix}1&0\\0&1\\1&1\end{bmatrix}$. Try
+    $\vec{b}=\colvec{1\\2\\3}$ (consistent) and $\vec{b}=\colvec{1\\2\\4}$ (inconsistent).
+    What is special about the first $\vec b$?
+  \item Case~3: $\mat{A}=\begin{bmatrix}1&1&1\end{bmatrix}$, $\vec{b}=[2]$. Write the whole
+    plane of solutions in the form $\vec{x}_p+\nullsp(\mat A)$.
+  \item Case~4: $\mat{A}=\begin{bmatrix}1&2\\2&4\end{bmatrix}$. Find a $\vec b$ with no
+    solution and a $\vec b$ with infinitely many.
+\end{enumerate}
+\end{labbox}
+
+\section{A full worked example: building the complete solution}
+
+Let us run the whole machine once, slowly, on a matrix that is neither square nor full
+rank, so you see every moving part. Take
+
+\[
+  \mat{A}=\begin{bmatrix}1&3&0&2\\0&0&1&4\\1&3&1&6\end{bmatrix},
+  \qquad
+  \vec{b}=\colvec{1\\6\\7}.
+\]
+
+This is $3\times4$: three equations, four unknowns. We expect free variables.
+
+\paragraph{Step 1 -- eliminate.} Work on the augmented matrix. Subtract row~1 from row~3:
+\[
+  \left[\begin{array}{cccc|c}
+    1&3&0&2&1\\ 0&0&1&4&6\\ 1&3&1&6&7
+  \end{array}\right]
+  \xrightarrow{\,R_3-R_1\,}
+  \left[\begin{array}{cccc|c}
+    1&3&0&2&1\\ 0&0&1&4&6\\ 0&0&1&4&6
+  \end{array}\right]
+  \xrightarrow{\,R_3-R_2\,}
+  \left[\begin{array}{cccc|c}
+    1&3&0&2&1\\ 0&0&1&4&6\\ 0&0&0&0&0
+  \end{array}\right].
+\]
+The last row is all zeros, including the augmented entry: \textbf{consistent}. The pivots
+sit in columns $1$ and $3$, so the rank is $r=2$. Columns $2$ and $4$ have no pivot --
+those are the \emph{free} columns, and $x_2,x_4$ are the \emph{free variables}. The
+nullspace will have dimension $n-r=4-2=2$.
+
+\paragraph{Step 2 -- a particular solution (free variables $=0$).} Set $x_2=0$ and
+$x_4=0$. The reduced equations read
+\[
+  x_1+3x_2+2x_4 = 1 \;\Rightarrow\; x_1=1,\qquad
+  x_3+4x_4 = 6 \;\Rightarrow\; x_3=6.
+\]
+So
+\[
+  \vec{x}_p=\colvec{1\\0\\6\\0}.
+\]
+Sanity check: $\mat{A}\vec{x}_p$ should be $\vec{b}$. First entry
+$1\cdot1+3\cdot0+0\cdot6+2\cdot0=1$; second $0+0+1\cdot6+0=6$; third
+$1+0+6+0=7$. Indeed $\colvec{1\\6\\7}=\vec b$. Good.
+
+\paragraph{Step 3 -- the special solutions (nullspace basis).} Now solve
+$\mat{A}\vec{x}=\vec{0}$. Same pivots; the homogeneous equations are
+\[
+  x_1=-3x_2-2x_4,\qquad x_3=-4x_4.
+\]
+Turn each free variable on by itself.
+
+Set $x_2=1,\ x_4=0$: then $x_1=-3,\ x_3=0$, giving
+$\vec{s}_1=\colvec{-3\\1\\0\\0}$.
+
+Set $x_2=0,\ x_4=1$: then $x_1=-2,\ x_3=-4$, giving
+$\vec{s}_2=\colvec{-2\\0\\-4\\1}$.
+
+These two special solutions are a basis for the nullspace, so
+$\nullsp(\mat{A})=\spn\{\vec{s}_1,\vec{s}_2\}$ -- a $2$-dimensional plane through the
+origin in $\R^4$, exactly as the count $n-r=2$ predicted.
+
+\paragraph{Step 4 -- assemble the complete solution.} By
+Theorem~\ref{ch13:structure},
+\[
+  \boxed{\;
+  \vec{x}=\colvec{1\\0\\6\\0}
+     + c_1\colvec{-3\\1\\0\\0}
+     + c_2\colvec{-2\\0\\-4\\1},
+  \qquad c_1,c_2\in\R.\;}
+\]
+That is \emph{every} solution: a particular point in $\R^4$ plus a $2$-dimensional plane of
+freedom. Pick any $c_1,c_2$ and you get a valid $\vec{x}$; conversely every valid $\vec{x}$
+arises from some choice. There are infinitely many solutions, organized as a flat
+$2$-dimensional sheet.
+
+\begin{remark}
+Notice the bookkeeping that made this painless: the \emph{same} elimination served both
+jobs. The pivots told us the rank and which variables are free; setting free variables to
+$0$ produced $\vec{x}_p$; turning them on one at a time produced the nullspace basis. You
+never reduce twice.
+\end{remark}
+
+\begin{trapbox}
+A frequent slip: forgetting to put the free variables \emph{into} the special solutions.
+When you set $x_2=1$, the special solution's second entry must be $1$, not $0$ -- the free
+variable is part of the vector. Each special solution has a single $1$ in its own free slot
+and $0$ in the other free slots; the pivot slots are then forced. If your special solutions
+do not have those isolated $1$s, recheck.
+\end{trapbox}
+
+\section{Reading the four cases off your worked example}
+
+The example above had $m=3$, $n=4$, $r=2$. Since $r<m$ ($2<3$) it is not full row rank, so
+some right-hand sides have \emph{no} solution. Since $r<n$ ($2<4$) it is not full column
+rank, so when a solution exists it is never unique. That is Case~4. Our chosen $\vec{b}$
+happened to be consistent, so we landed in the ``$\infty$'' branch. Had we used, say,
+$\vec{b}=\colvec{1\\6\\99}$, the last augmented row would have read $0=92$ and we would
+have been in the ``$0$'' branch.
+
+\begin{example}[Flipping a case by changing the shape]
+\label{ch13:flip}
+Delete the last column of the worked $\mat{A}$ to get the $3\times3$ matrix
+$\mat{A}'=\begin{bmatrix}1&3&0\\0&0&1\\1&3&1\end{bmatrix}$. Column~2 is still a non-pivot
+(it equals $3\times$ column~1), so $r=2$ \emph{again}, and now $r<n=3$ and $r<m=3$: still
+Case~4, still $0$ or $\infty$. Squareness did not buy uniqueness, because the columns are
+still dependent. To reach Case~1 you must make the columns independent, e.g.\ replace
+column~2 by $\colvec{0\\1\\0}$, which gives a pivot in every column.
+\end{example}
+
+\section{The two ``nice'' rectangular extremes}
+
+The full-row-rank and full-column-rank cases are worth a moment alone, because they are the
+backbone of regression and of underdetermined inverse problems. Figure~\ref{ch13:extremes}
+contrasts their geometry: a tall full-column-rank matrix can \emph{miss} $\vec b$ but never
+offers a choice, while a wide full-row-rank matrix always \emph{reaches} $\vec b$ but always
+offers a whole line (or more) of choices.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % LEFT: full column rank -- point off a plane in R^3
+  \begin{scope}[shift={(0,0)}]
+    \node[font=\small\bfseries] at (0,2.5) {full column rank ($r=n$)};
+    \fill[targetgreen!12] (-1.7,-0.9) -- (1.9,-0.5) -- (1.6,1.4) -- (-2.0,1.0) -- cycle;
+    \draw[targetgreen!70] (-1.7,-0.9) -- (1.9,-0.5) -- (1.6,1.4) -- (-2.0,1.0) -- cycle;
+    \node[targetgreen!60!black] at (1.0,1.2) {\small $\col(\mat A)$};
+    \fill (0,0) circle (1.2pt);
+    \draw[->,vecblue,very thick] (0,0) -- (0.9,0.2);
+    \node[vecblue] at (1.15,0.0) {\small reachable};
+    \draw[->,vecred,very thick] (0,0) -- (-0.3,1.8);
+    \node[vecred] at (-0.3,2.05) {\small $\vec b$ off plane};
+    \draw[vecred,dashed] (-0.3,1.8) -- (-0.6,0.45);
+    \node[align=center,font=\small] at (0,-1.6) {$0$ or $1$ solution\\(never a choice)};
+  \end{scope}
+  % RIGHT: full row rank -- line of solutions
+  \begin{scope}[shift={(6.4,0)}]
+    \node[font=\small\bfseries] at (0,2.5) {full row rank ($r=m$)};
+    \draw[spacegray,thick] (-1.8,-1.4) -- (1.8,1.4);
+    \node[spacegray] at (1.7,1.65) {\small $\nullsp(\mat A)$};
+    \fill (0,0) circle (1.2pt) node[below left]{\small $\vec0$};
+    \draw[vecblue,very thick] (-1.0,-1.4) -- (2.6,1.4);
+    \node[vecblue] at (2.5,1.65) {\small solution line};
+    \draw[->,vecred,very thick] (0,0) -- (0.8,-0.3);
+    \fill[vecred] (0.8,-0.3) circle (1.6pt) node[below]{\small $\vec x_p$};
+    \node[align=center,font=\small] at (0.4,-1.85) {always $\infty$ solutions\\(for every $\vec b$)};
+  \end{scope}
+\end{tikzpicture}
+\caption{The two rectangular extremes. \emph{Left:} full column rank --- the column space
+may not contain $\vec b$ (no solution), but when it does the answer is a single point, since
+the nullspace is just $\{\vec 0\}$. \emph{Right:} full row rank --- every $\vec b$ is
+reachable, but the nonzero nullspace slides $\vec x_p$ into a whole flat of solutions.}
+\label{ch13:extremes}
+\end{figure}
+
+\subsection{Full column rank: at most one solution}
+
+If $\rank(\mat{A})=n$ (every column is a pivot column), there are no free variables, so the
+nullspace is just $\{\vec{0}\}$. The complete solution collapses to a single point
+$\vec{x}_p$ whenever $\vec{b}$ is reachable. The tall, thin matrix
+\[
+  \mat{A}=\begin{bmatrix}1&0\\1&1\\1&2\end{bmatrix}
+\]
+has two independent columns ($r=2=n$). For $\vec{b}=\colvec{1\\2\\3}$ you can check
+$\vec{x}=\colvec{1\\1}$ works and is the \emph{only} solution. For
+$\vec{b}=\colvec{1\\2\\4}$, elimination produces a contradiction and there is no exact
+solution at all -- the point sticks up out of the $2$-dimensional column plane in $\R^3$.
+
+\subsection{Full row rank: always at least one solution}
+
+If $\rank(\mat{A})=m$ (every row has a pivot), the columns span all of $\R^m$, so every
+$\vec{b}$ is reachable and the system is \emph{always} consistent. The wide matrix
+\[
+  \mat{A}=\begin{bmatrix}1&1&1\\0&1&2\end{bmatrix}
+\]
+has $r=2=m$. Both rows pivot, so for any $\vec b\in\R^2$ a solution exists; and since
+$n-r=3-2=1$, the solution set is always a line. For $\vec b=\colvec{3\\3}$ one particular
+solution is found by setting the lone free variable $x_3=0$: back-substitution gives
+$x_2=3,\ x_1=0$, so $\vec{x}_p=\colvec{0\\3\\0}$. The nullspace special solution (set
+$x_3=1$) is $\vec{s}=\colvec{1\\-2\\1}$, so the complete solution is the line
+$\colvec{0\\3\\0}+c\colvec{1\\-2\\1}$.
+
+\begin{connectionbox}
+The split ``$\vec{x}_p+$ homogeneous solutions'' is not special to matrices -- it is the
+signature of \emph{any} linear operator $L$ with $L\vec{x}=\vec{b}$. In a differential
+equations course you meet exactly this when solving $y''+y=\cos t$: the general solution is
+one \emph{particular} solution (a response forced by $\cos t$) plus the general solution of
+the \emph{homogeneous} equation $y''+y=0$ (the nullspace of the operator
+$L=\tfrac{d^2}{dt^2}+1$, namely $c_1\cos t+c_2\sin t$). Same theorem, same proof: $L$ is
+linear, so $L(y_p+y_h)=\vec b+\vec 0$. Once you see that $\tfrac{d^2}{dt^2}+1$ is a linear
+operator with a $2$-dimensional nullspace, the ODE recipe and the matrix recipe are
+literally the same recipe. This is the bridge to Chapter~25.
+\end{connectionbox}
+
+\begin{applicationbox}
+\textbf{Underdetermined systems in machine learning and imaging.} Modern problems are
+routinely \emph{wide}: you have far more unknowns $n$ than measurements $m$, so
+$\mat{A}\vec{x}=\vec{b}$ has $r=m<n$ and an entire $(n-m)$-dimensional sheet of exact
+solutions (Case~3). Examples: reconstructing a high-resolution image from a few sensor
+readings (compressed sensing), or fitting an over-parameterized neural network where there
+are more weights than training equations. Theorem~\ref{ch13:structure} says all these
+solutions are equally valid \emph{as far as the equations are concerned} -- so you must add
+a preference to pick one. Choosing the solution of smallest length $\norm{\vec{x}}$ gives
+the \emph{minimum-norm} solution and lands you back on the row space; choosing the sparsest
+$\vec{x}$ (fewest nonzeros) is the $\ell_1$ idea behind compressed sensing. Either way, you
+are selecting one point $\vec{x}_p$ out of the affine sheet $\vec{x}_p+\nullsp(\mat{A})$.
+The nullspace is not noise to be ignored; it is the precise space of ambiguity your prior
+must resolve.
+\end{applicationbox}
+
+\section{Recipe: the complete solution in five steps}
+
+\begin{focusbox}
+Given $\mat{A}\vec{x}=\vec{b}$ with $\mat{A}\in\R^{m\times n}$:
+\begin{enumerate}
+  \item \textbf{Augment and reduce.} Row-reduce $[\,\mat{A}\mid\vec{b}\,]$ to a
+    row echelon (or reduced) form. Identify the pivot columns; let $r$ be their number.
+  \item \textbf{Check consistency.} If any zero row of $\mat{A}$ has a nonzero augmented
+    entry, \textbf{stop: no solution}. Otherwise continue.
+  \item \textbf{Particular solution.} Set all free variables to $0$ and solve for the pivot
+    variables. Call the result $\vec{x}_p$.
+  \item \textbf{Special solutions.} For each free variable, set it to $1$ and the other
+    free variables to $0$; solve $\mat{A}\vec{x}=\vec{0}$ for the pivot variables. This
+    gives $\vec{s}_1,\dots,\vec{s}_{n-r}$, a basis of the nullspace.
+  \item \textbf{Assemble.} The complete solution is
+    $\vec{x}=\vec{x}_p+c_1\vec{s}_1+\cdots+c_{n-r}\vec{s}_{n-r}$, $c_i\in\R$.
+\end{enumerate}
+If $r=n$ there are no free variables and $\vec{x}=\vec{x}_p$ is unique. If $r=m$ the
+consistency check in step~2 can never fail.
+\end{focusbox}
+
+\begin{example}[A clean square singular system, start to finish]
+\label{ch13:square}
+\[
+  \mat{A}=\begin{bmatrix}1&2&1\\2&4&3\\1&2&2\end{bmatrix},\qquad
+  \vec{b}=\colvec{2\\5\\3}.
+\]
+Reduce $[\,\mat A\mid\vec b\,]$. Subtract $2R_1$ from $R_2$ and $R_1$ from $R_3$:
+\[
+  \left[\begin{array}{ccc|c}1&2&1&2\\2&4&3&5\\1&2&2&3\end{array}\right]
+  \longrightarrow
+  \left[\begin{array}{ccc|c}1&2&1&2\\0&0&1&1\\0&0&1&1\end{array}\right]
+  \xrightarrow{R_3-R_2}
+  \left[\begin{array}{ccc|c}1&2&1&2\\0&0&1&1\\0&0&0&0\end{array}\right].
+\]
+Pivots in columns $1$ and $3$; column $2$ is free, so $r=2$, and the last row reads $0=0$
+-- consistent. \emph{Particular} (set $x_2=0$): from $R_2$, $x_3=1$; from $R_1$,
+$x_1+2(0)+1=2\Rightarrow x_1=1$. So $\vec{x}_p=\colvec{1\\0\\1}$. \emph{Special} (set
+$x_2=1$, $\vec b\to\vec 0$): $x_3=0$ and $x_1+2(1)+0=0\Rightarrow x_1=-2$, giving
+$\vec{s}=\colvec{-2\\1\\0}$. Complete solution:
+\[
+  \vec{x}=\colvec{1\\0\\1}+c\colvec{-2\\1\\0},\qquad c\in\R.
+\]
+A line of solutions in $\R^3$ -- this square matrix had $r=2<3$, dependent columns, so it
+is squarely in Case~4 despite being $3\times 3$.
+\end{example}
+
+\section{Counting, sanity checks, and what can go wrong}
+
+A few quick mental checks save you from most errors.
+
+\begin{itemize}
+  \item \textbf{Dimension check.} The number of special solutions must equal the number of
+    free columns, $n-r$. If you produced three special solutions but only two columns were
+    free, you double-counted.
+  \item \textbf{Plug $\vec{x}_p$ back in.} It costs one matrix-vector product and catches
+    arithmetic slips immediately. $\mat{A}\vec{x}_p$ must equal $\vec{b}$ on the nose.
+  \item \textbf{Plug each $\vec{s}_i$ in.} Each must give $\mat{A}\vec{s}_i=\vec{0}$. If
+    not, you mishandled a sign during back-substitution.
+  \item \textbf{Consistency is about $\vec{b}$ only.} Changing $\vec{b}$ never changes the
+    nullspace or the special solutions -- those come from $\mat{A}$ alone. So if you solve
+    $\mat{A}\vec{x}=\vec{b}$ for several right-hand sides, you reduce $\mat A$ once and
+    reuse the special solutions every time; only $\vec{x}_p$ and the consistency verdict
+    change.
+\end{itemize}
+
+\begin{walkbox}
+Here is a puzzle to chew on. You are told $\mat{A}$ is $4\times6$ and that
+$\mat{A}\vec{x}=\vec{b}$ has a solution for the specific $\vec{b}=\colvec{1\\1\\1\\1}$, and
+that the solution is \emph{not} unique. What is the smallest the solution set's dimension
+could be? Could the solution ever be unique for some \emph{other} right-hand side while
+staying non-unique for this one? (Think about whether ``unique'' is a property of
+$\mat{A}$ or of $\vec{b}$.)
+\end{walkbox}
+
+\begin{aestheticbox}
+Step back and admire the division of labor. Two subspaces attached to $\mat{A}$ -- the
+column space living in the output $\R^m$ and the nullspace living in the input $\R^n$ --
+between them answer \emph{every} question you can ask about $\mat{A}\vec{x}=\vec{b}$. The
+column space decides \emph{whether}; the nullspace decides \emph{how many}; and the single
+number $r$ ties them together through $r=\dim\col$ and $n-r=\dim\nullsp$. When you meet the
+four fundamental subspaces and the rank theorem in the next chapters, you will see this same
+$r$ orchestrating the row space and left nullspace too. The complete solution is your first
+full sighting of that hidden organizing number.
+\end{aestheticbox}
+
+\section{Summary}
+
+\begin{itemize}
+  \item Every solution of $\mat{A}\vec{x}=\vec{b}$ is one particular solution plus a
+    nullspace vector: $\vec{x}=\vec{x}_p+\vec{x}_n$. The solution set is the nullspace
+    translated to pass through $\vec{x}_p$ -- an affine subspace of dimension $n-r$.
+  \item \textbf{Existence} $\iff \vec{b}\in\col(\mat{A})$; detectable as ``no zero-row
+    contradiction'' after augmented elimination. Existence for \emph{all} $\vec{b}$ means
+    full row rank $r=m$.
+  \item \textbf{Uniqueness} $\iff \nullsp(\mat{A})=\{\vec{0}\}$, i.e.\ no free variables,
+    i.e.\ full column rank $r=n$.
+  \item The number of solutions is always $0$, $1$, or $\infty$ -- never any other finite
+    count.
+  \item The four cases sort by $(r=m?)$ and $(r=n?)$: square-invertible (exactly one for
+    all $\vec b$), tall full-column-rank ($0$ or $1$), wide full-row-rank ($\infty$ for
+    all $\vec b$), and the general case ($0$ or $\infty$).
+  \item The five-step recipe -- reduce, check consistency, particular, special, assemble --
+    produces the complete solution from a \emph{single} elimination.
+\end{itemize}
+
+\section{Exercises}
+
+\begin{exercise}[Warmup: read the verdict]
+\label{ch13:ex-verdict}
+For each reduced augmented matrix, state whether the system is consistent, and if so how
+many solutions it has.
+\[
+\text{(a)}\;\left[\begin{array}{cc|c}1&2&3\\0&0&0\end{array}\right]\quad
+\text{(b)}\;\left[\begin{array}{cc|c}1&0&5\\0&1&2\end{array}\right]\quad
+\text{(c)}\;\left[\begin{array}{ccc|c}1&0&4&1\\0&1&2&3\\0&0&0&7\end{array}\right]
+\]
+\end{exercise}
+
+\begin{exercise}[Particular plus special]
+\label{ch13:ex-pns}
+Find the complete solution of
+$\begin{bmatrix}1&1&2\\2&2&5\end{bmatrix}\vec{x}=\colvec{3\\7}$. Identify $\vec{x}_p$, the
+special solution(s), and the dimension of the solution set.
+\end{exercise}
+
+\begin{exercise}[Consistency depends on $\vec b$]
+\label{ch13:ex-bvary}
+Let $\mat{A}=\begin{bmatrix}1&2\\2&4\\-1&-2\end{bmatrix}$. Describe \emph{all} vectors
+$\vec{b}\in\R^3$ for which $\mat{A}\vec{x}=\vec{b}$ is consistent. (Hint: what is
+$\col(\mat A)$, and what linear conditions on $b_1,b_2,b_3$ cut it out?)
+\end{exercise}
+
+\begin{exercise}[A square singular system]
+\label{ch13:ex-sq}
+For $\mat{A}=\begin{bmatrix}1&1&1\\1&2&3\\2&3&4\end{bmatrix}$, decide which case
+(of the four) it is, then give the complete solution of $\mat{A}\vec{x}=\colvec{0\\1\\1}$.
+\end{exercise}
+
+\begin{exercise}[Full column rank]
+\label{ch13:ex-fcr}
+The matrix $\mat{A}=\begin{bmatrix}1&1\\1&2\\1&3\end{bmatrix}$ has full column rank. For
+which of $\vec{b}=\colvec{2\\3\\4}$ and $\vec{b}=\colvec{2\\3\\5}$ is the system
+consistent? When it is, find the unique solution. When it is not, explain geometrically
+what fails.
+\end{exercise}
+
+\begin{exercise}[Full row rank, every $\vec b$]
+\label{ch13:ex-frr}
+Show that $\mat{A}=\begin{bmatrix}1&0&2\\0&1&-1\end{bmatrix}$ has a solution for every
+$\vec{b}\in\R^2$, and write the complete solution of $\mat{A}\vec{x}=\colvec{1\\1}$ as a
+particular solution plus a line.
+\end{exercise}
+
+\begin{exercise}[Why only $0$, $1$, or $\infty$]
+\label{ch13:ex-trichotomy}
+Prove that a system $\mat{A}\vec{x}=\vec{b}$ cannot have exactly two distinct solutions.
+(Hint: if $\vec{x}_1\neq\vec{x}_2$ both solve it, consider
+$\vec{x}_1+t(\vec{x}_2-\vec{x}_1)$ for $t\in\R$ and use linearity.)
+\end{exercise}
+
+\begin{exercise}[Reusing one elimination]
+\label{ch13:ex-reuse}
+Let $\mat{A}=\begin{bmatrix}1&3\\2&6\end{bmatrix}$. Find the nullspace once. Then, without
+re-reducing $\mat{A}$, determine the complete solution set for
+$\vec{b}=\colvec{1\\2}$ and for $\vec{b}=\colvec{1\\3}$. Explain why the special solution is
+identical in both cases.
+\end{exercise}
+
+\begin{exercise}[The shape from rank alone]
+\label{ch13:ex-shape}
+A matrix $\mat{A}$ is $5\times7$ with rank $r=4$. (a) What is the dimension of the nullspace?
+(b) For a consistent $\vec{b}$, what is the dimension of the solution set? (c) Is the system
+solvable for \emph{every} $\vec{b}\in\R^5$? (d) Can any right-hand side give a unique
+solution? Justify each answer from the four-case framework.
+\end{exercise}
+
+\begin{exercise}[Challenge: prescribe the solution set]
+\label{ch13:ex-prescribe}
+Construct a $3\times3$ matrix $\mat{A}$ and a vector $\vec{b}$ so that the complete solution
+of $\mat{A}\vec{x}=\vec{b}$ is exactly the line
+$\colvec{1\\0\\-1}+c\colvec{2\\1\\1}$, $c\in\R$. (Hint: you need
+$\colvec{2\\1\\1}$ in $\nullsp(\mat A)$ and $\mat A\colvec{1\\0\\-1}=\vec b$. Build the rows
+so each is orthogonal to the nullspace direction, then read off $\vec b$.)
+\end{exercise}
+
+\begin{exercise}[Challenge: a uniqueness criterion without elimination]
+\label{ch13:ex-criterion}
+Suppose $\mat{A}$ is $m\times n$ and you are told that $\mat{A}\T\mat{A}$ is invertible.
+Prove that $\mat{A}\vec{x}=\vec{b}$ has \emph{at most} one solution for every $\vec{b}$.
+(Hint: show $\mat{A}\vec{x}=\vec 0$ forces $\vec{x}=\vec 0$ by hitting it with $\mat{A}\T$,
+or by looking at $\norm{\mat A\vec x}^2=\vec x\T\mat A\T\mat A\vec x$.) Which of the four
+cases does this rule out?
+\end{exercise}
