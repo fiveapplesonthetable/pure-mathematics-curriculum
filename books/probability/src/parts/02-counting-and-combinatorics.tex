@@ -1,0 +1,874 @@
+\chapter{Counting and Combinatorics}
+
+There is a secret hiding in the first probability you ever computed. When you said
+``a fair coin lands heads with probability $1/2$,'' or ``a die shows a four with
+probability $1/6$,'' you were not really doing probability at all. You were
+\emph{counting}. You counted the outcomes you cared about (one: heads), you counted
+all the outcomes there were (two: heads, tails), and you divided. The whole edifice
+of discrete probability rests on this one humble act.
+
+That is the thesis of this chapter, and I want you to feel its weight before we start.
+Whenever the outcomes of an experiment are \emph{equally likely} -- every card equally
+probable to be drawn, every seating arrangement equally probable, every poker hand
+equally probable -- the probability of an event is nothing more than
+\[
+  \P(\text{event}) \;=\; \frac{\text{number of outcomes in the event}}{\text{total number of outcomes}}.
+\]
+This is sometimes called the \emph{naive definition of probability}, and we will sharpen
+it in the next chapter. But ``naive'' is a misleading name. The formula is exactly right
+whenever the symmetry of the setup justifies it, and an astonishing fraction of real
+problems -- cards, dice, lotteries, random samples, shuffles, hashing, password
+strength -- have exactly that symmetry. The catch is the word \emph{number}. To use the
+formula you must be able to count, and counting large structured sets is a genuine
+mathematical art. That art is \emph{combinatorics}, and this chapter builds it up from
+scratch.
+
+\begin{focusbox}
+By the end of this chapter you will be able to count: arrangements (permutations),
+selections (combinations), things drawn with or without replacement, ordered or
+unordered. You will know the binomial coefficient inside and out, build Pascal's
+triangle and read its secrets, resolve the famous birthday paradox, wield
+inclusion--exclusion to count overlapping things, and use ``stars and bars'' to count
+the ways of distributing identical objects. Every technique will be tied back to the
+counting-equals-probability idea above.
+\end{focusbox}
+
+\section{The Multiplication Principle}
+\label{ch2:multiplication}
+
+Everything in this chapter grows from a single seed, and the seed is so simple it feels
+like a tautology. Suppose you are getting dressed and you own $3$ shirts and $4$ pairs of
+trousers. How many distinct outfits can you assemble? For each of the $3$ shirts you may
+pair any of the $4$ trousers, so the outfits come in $3$ groups of $4$, giving $3 \times 4 = 12$.
+
+\begin{intuitionbox}
+The picture to keep in your head is a \emph{tree}. From a single root you draw one branch
+for each shirt; from the end of each shirt-branch you draw one branch for each pair of
+trousers. The number of complete root-to-leaf paths is the number of outfits. Because
+every shirt-branch sprouts the same number of trouser-branches, you do not add, you
+\emph{multiply}.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[level distance=14mm, sibling distance=10mm,
+  every node/.style={font=\small}, grow'=right]
+\node[circle,draw,fill=sourceblue!20] {start}
+  child {node[circle,draw,fill=green!15] {$S_1$}
+    child {node[fill=orange!12,draw,rounded corners] {$T_1$}}
+    child {node[fill=orange!12,draw,rounded corners] {$T_2$}}
+    child {node[fill=orange!12,draw,rounded corners] {$T_3$}}
+    child {node[fill=orange!12,draw,rounded corners] {$T_4$}}
+  }
+  child {node[circle,draw,fill=green!15] {$S_2$}
+    child {node[fill=orange!12,draw,rounded corners] {$T_1$}}
+    child {node[fill=orange!12,draw,rounded corners] {$T_2$}}
+    child {node[fill=orange!12,draw,rounded corners] {$T_3$}}
+    child {node[fill=orange!12,draw,rounded corners] {$T_4$}}
+  }
+  child {node[circle,draw,fill=green!15] {$S_3$}
+    child {node[fill=orange!12,draw,rounded corners] {$T_1$}}
+    child {node[fill=orange!12,draw,rounded corners] {$T_2$}}
+    child {node[fill=orange!12,draw,rounded corners] {$T_3$}}
+    child {node[fill=orange!12,draw,rounded corners] {$T_4$}}
+  }
+;
+\end{tikzpicture}
+\caption{The multiplication principle as a tree. Three shirts, each branching into four
+trousers, give $3 \times 4 = 12$ leaves, one per outfit.}
+\label{ch2:fig-tree}
+\end{figure}
+
+\begin{theorem}[Multiplication Principle]
+\label{ch2:thm-mult}
+Suppose a procedure consists of $k$ successive stages, and suppose that
+\begin{itemize}
+  \item stage $1$ can be carried out in $n_1$ ways, and
+  \item for each outcome of stage $1$, stage $2$ can be carried out in $n_2$ ways, and
+  \item in general, for each outcome of the first $i-1$ stages, stage $i$ can be carried
+        out in $n_i$ ways.
+\end{itemize}
+Then the whole procedure can be carried out in $n_1 \cdot n_2 \cdots n_k$ ways.
+\end{theorem}
+
+\begin{whybox}
+Why is the product right, and not, say, the sum? Induct on the number of stages. With one
+stage there are obviously $n_1$ ways. Now suppose the claim holds for $k-1$ stages, so the
+first $k-1$ stages can be completed in $N = n_1 \cdots n_{k-1}$ ways. Fix any one of those
+$N$ partial completions. The crucial hypothesis is that \emph{no matter which} of the $N$
+we fixed, stage $k$ offers exactly $n_k$ continuations. So each of the $N$ partial paths
+fans out into $n_k$ full paths, and these groups of $n_k$ never overlap (they start from
+different partial paths). Total full paths: $N \cdot n_k = n_1 \cdots n_k$. The induction
+closes.
+\end{whybox}
+
+The hypothesis I emphasized in the proof -- ``$n_i$ ways \emph{regardless of} the earlier
+choices'' -- is the only thing that can trip you up. The \emph{number} of options at stage
+$i$ must be constant; the options themselves may change.
+
+\begin{example}[License plates]
+\label{ch2:ex-plates}
+A license plate has the form letter-letter-digit-digit-digit. How many plates are there
+if repeats are allowed? Five stages: $26 \times 26 \times 10 \times 10 \times 10 =
+676{,}000$. Now suppose no symbol may repeat. The letters: $26$ then $25$ (any letter but
+the first). The digits: $10$, then $9$, then $8$. The count is $26 \times 25 \times 10
+\times 9 \times 8 = 468{,}000$. Notice the option \emph{count} at the second letter stage
+is $25$ no matter which first letter you chose -- so the multiplication principle still
+applies cleanly even though \emph{which} $25$ letters are available changes.
+\end{example}
+
+\begin{example}[Subsets and the power of two]
+\label{ch2:ex-subsets}
+How many subsets does a set of $n$ elements have? Build a subset by walking through the
+elements one at a time and, for each, deciding \emph{in} or \emph{out}. That is $n$ stages
+of $2$ choices each, so $2^n$ subsets. This includes the empty set (everyone ``out'') and
+the full set (everyone ``in''). A set of $10$ elements has $1024$ subsets; this exponential
+blow-up is exactly why brute-force search over subsets becomes hopeless fast, and why we
+will need cleverer counting.
+\end{example}
+
+\begin{happeningbox}
+What is really happening is that \emph{independent choices compose by multiplication}.
+This is the combinatorial shadow of a fact you will meet again and again in probability:
+when events are independent, their probabilities multiply. The multiplication principle is
+independence \emph{before} we have even mentioned chance. Keep that resonance in mind; in
+the next chapter ``equally likely outcomes built from independent stages'' will turn
+products of counts into products of probabilities.
+\end{happeningbox}
+
+\section{Permutations: Counting Arrangements}
+\label{ch2:permutations}
+
+An \emph{arrangement} is an ordering. In how many orders can $n$ distinct books be placed
+on a shelf? Fill the leftmost slot first: $n$ choices. The next slot: $n-1$ books remain.
+Then $n-2$, and so on down to $1$ for the last slot. By the multiplication principle the
+number of orderings is
+\[
+  n \cdot (n-1) \cdot (n-2) \cdots 2 \cdot 1 \;=\; n!,
+\]
+read ``$n$ factorial.'' We define $0! = 1$, the empty arrangement; there is exactly one
+way to arrange nothing, and as we will see this convention makes every later formula come
+out right.
+
+\begin{definition}[Factorial and $k$-permutations]
+\label{ch2:def-perm}
+For an integer $n \ge 0$, $n! = n(n-1)\cdots 1$ with $0! = 1$. The number of ways to choose
+and arrange $k$ of $n$ distinct objects in order, written $P(n,k)$ or $(n)_k$, is
+\[
+  P(n,k) \;=\; n(n-1)\cdots(n-k+1) \;=\; \frac{n!}{(n-k)!}, \qquad 0 \le k \le n.
+\]
+\end{definition}
+
+The product $n(n-1)\cdots(n-k+1)$ has exactly $k$ factors -- one per filled slot -- counting
+down from $n$. The closed form $n!/(n-k)!$ is the same product with the unused tail
+$(n-k)(n-k-1)\cdots 1$ canceling top and bottom. When $k = n$ the tail is $0! = 1$ and we
+recover $P(n,n) = n!$, the full arrangement.
+
+\begin{example}[Race podium]
+\label{ch2:ex-podium}
+Ten sprinters race; how many ways can gold, silver, bronze be awarded (no ties)?
+Order matters -- gold then silver is different from silver then gold -- so this is
+$P(10,3) = 10 \cdot 9 \cdot 8 = 720$.
+\end{example}
+
+\begin{trapbox}
+The single most common error in counting is failing to ask: \textbf{does order matter?}
+``Arrange three of ten runners on a podium'' (order matters: $P(10,3)=720$) is a different
+question from ``choose three of ten runners for a relay pool'' (order does not matter, and
+the answer will be $720/3! = 120$). Before you compute anything, decide whether two
+selections that differ only in order should be counted once or twice. Get this wrong and
+your count is off by a factor of $k!$ -- a mistake that scales catastrophically.
+\end{trapbox}
+
+\begin{historybox}
+Factorials and arrangements are ancient. The Indian mathematician and astronomer
+\emph{Bhaskara II} (12th century), and earlier Jain mathematicians, knew rules for
+counting permutations and combinations; the medieval Hebrew scholar \emph{Abraham ibn Ezra}
+computed combinations in an astrological context. The notation ``$n!$'' is far younger --
+introduced by Christian Kramp in 1808 precisely because writing out the long product was
+tedious. The \emph{idea} of counting arrangements long predates probability theory itself;
+Cardano, Pascal, and Fermat inherited a rich counting tradition and pointed it at games of
+chance.
+\end{historybox}
+
+\subsection{Permutations with repeated objects}
+
+Suppose some objects are identical. How many distinct ``words'' can you make by rearranging
+the letters of \texttt{MISSISSIPPI}? There are $11$ letters, so if all were distinct there
+would be $11!$ arrangements. But the four \texttt{S}'s are interchangeable: any of their
+$4!$ internal orderings produces the \emph{same} word, so we have overcounted by a factor
+of $4!$. Likewise the four \texttt{I}'s overcount by $4!$ and the two \texttt{P}'s by $2!$.
+The correct count is
+\[
+  \frac{11!}{4!\,4!\,2!\,1!} \;=\; 34650.
+\]
+This is the \emph{multinomial} count, and it embodies a principle worth naming.
+
+\begin{intuitionbox}
+\textbf{Overcount, then divide by the symmetry.} Few counting strategies are this general:
+pretend everything is distinguishable and count the easy (larger) number, then divide by
+the number of ways the indistinguishable items could be permuted among themselves without
+changing anything. We will use this exact move to derive combinations in a moment.
+\end{intuitionbox}
+
+\section{Combinations: Counting Selections}
+\label{ch2:combinations}
+
+Now order stops mattering. A \emph{combination} is an unordered selection -- a subset. How
+many $3$-person committees can be formed from $10$ people? If order mattered we computed
+$P(10,3) = 720$ ordered selections. But a committee $\{A,B,C\}$ is the same committee no
+matter the order we named its members, and there are $3! = 6$ orderings of any given trio.
+So each committee was counted $6$ times among the $720$, and the true count is $720/6 = 120$.
+
+\begin{definition}[Binomial coefficient]
+\label{ch2:def-binom}
+The number of $k$-element subsets of an $n$-element set is the \emph{binomial coefficient}
+\[
+  \binom{n}{k} \;=\; \frac{P(n,k)}{k!} \;=\; \frac{n!}{k!\,(n-k)!}, \qquad 0 \le k \le n,
+\]
+read ``$n$ choose $k$.'' By convention $\binom{n}{k} = 0$ when $k < 0$ or $k > n$.
+\end{definition}
+
+\begin{whybox}
+The derivation is the overcount-then-divide move in its purest form. To build an ordered
+selection of $k$ from $n$ you may first \emph{choose} the unordered set of $k$ ($\binom{n}{k}$
+ways) and then \emph{order} it ($k!$ ways). By the multiplication principle the ordered count
+factors as
+\[
+  P(n,k) \;=\; \binom{n}{k}\cdot k!.
+\]
+Solving for $\binom{n}{k}$ gives $P(n,k)/k! = n!/(k!(n-k)!)$. Every binomial coefficient is
+therefore a count of ordered things with the order divided back out.
+\end{whybox}
+
+\begin{example}[Poker hands]
+\label{ch2:ex-poker}
+A standard deck has $52$ cards. A five-card hand is an unordered selection, so the number of
+distinct hands is
+\[
+  \binom{52}{5} \;=\; \frac{52!}{5!\,47!} \;=\; \frac{52\cdot 51\cdot 50\cdot 49\cdot 48}
+  {120} \;=\; 2{,}598{,}960.
+\]
+Now we can do real probability. How many hands are four-of-a-kind? Choose the rank that
+appears four times ($13$ ways), take all four of its cards (one way), then choose the fifth
+card from the remaining $48$ ($48$ ways): $13 \cdot 48 = 624$ hands. Because all
+$\binom{52}{5}$ hands are equally likely,
+\[
+  \P(\text{four of a kind}) \;=\; \frac{624}{2{,}598{,}960} \;\approx\; 0.00024.
+\]
+Counting and probability are one motion: count the event, count the whole, divide.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6.5cm,
+  ybar, bar width=14pt,
+  ymode=log, log origin=infty,
+  ymin=1e-4, ymax=1,
+  ylabel={probability (log scale)},
+  symbolic x coords={4 of a kind, full house, flush, straight, 3 of a kind, two pair, one pair},
+  xtick=data, x tick label style={rotate=35, anchor=east, font=\footnotesize},
+  enlarge x limits=0.09,
+  ymajorgrids, grid style={gray!18},
+]
+\addplot[fill=distblue!55, draw=distblue] coordinates {
+  (4 of a kind, 0.00024) (full house, 0.001441) (flush, 0.001981)
+  (straight, 0.003940) (3 of a kind, 0.021128) (two pair, 0.047539)
+  (one pair, 0.422569)};
+\end{axis}
+\end{tikzpicture}
+\caption{Probabilities of seven poker hands, each obtained by the same recipe: count the
+hands of that type, divide by $\binom{52}{5}=2{,}598{,}960$. The vertical axis is
+logarithmic because the rarities span more than three orders of magnitude -- four of a kind
+is roughly $1760$ times rarer than one pair. (Here ``flush'' counts all five-same-suit hands
+and ``straight'' all five-in-sequence hands; you will count two of these yourself in the
+exercises.)}
+\label{ch2:fig-poker}
+\end{figure}
+
+\begin{aestheticbox}
+The notation $\binom{n}{k}$ is more telling than ``$nCk$'' because it reminds you the answer
+is a single number attached to a pair $(n,k)$, and because it slots straight into the
+binomial theorem
+$(x+y)^n = \sum_{k=0}^n \binom{n}{k} x^k y^{n-k}$ that gave it its name. We will return to
+that theorem; for now notice that the very same numbers count subsets \emph{and} expand
+powers. When one quantity answers two unrelated-looking questions, mathematics is telling
+you the questions were secretly the same.
+\end{aestheticbox}
+
+The same divide-by-the-whole recipe ranks every poker hand at once.
+Figure~\ref{ch2:fig-poker} plots the probabilities of seven of them on a logarithmic
+scale; the steep staircase down to four of a kind is a picture of why rare hands beat
+common ones.
+
+\subsection{Symmetry: choosing what to leave out}
+
+A small identity carries a large idea:
+\[
+  \binom{n}{k} \;=\; \binom{n}{n-k}.
+\]
+Algebraically it is immediate from the formula, since swapping $k$ and $n-k$ leaves
+$k!(n-k)!$ unchanged. But the \emph{reason} is prettier than the algebra. To choose $k$
+objects to take is exactly to choose $n-k$ objects to leave behind; each selection of a
+committee is simultaneously a selection of the non-committee. The two acts are the same act
+seen from opposite sides, so they must have the same count. This is a \emph{bijective}
+proof -- we exhibited a one-to-one correspondence rather than manipulating symbols -- and
+bijective arguments are the soul of combinatorics. Whenever two counts are equal, ask
+whether you can \emph{see} why by pairing the things up.
+
+\section{The Binomial Coefficient and Pascal's Triangle}
+\label{ch2:pascal}
+
+Arrange the binomial coefficients in a triangle, row $n$ holding $\binom{n}{0}, \binom{n}{1},
+\dots, \binom{n}{n}$:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[every node/.style={font=\small}]
+\foreach \r [count=\ri from 0] in {
+  {1},
+  {1,1},
+  {1,2,1},
+  {1,3,3,1},
+  {1,4,6,4,1},
+  {1,5,10,10,5,1},
+  {1,6,15,20,15,6,1}
+}{
+  \foreach \v [count=\ci from 0] in \r {
+    \node at ({\ci*1.05 - \ri*0.525}, {-\ri*0.8})
+      [draw, circle, inner sep=1.2pt, fill=sourceblue!10, minimum size=7mm] {\v};
+  }
+}
+\draw[->,structurepurple,thick]
+  ({2*1.05 - 5*0.525 - 0.45},{-5*0.8+0.35}) -- ++(0.7,0.55)
+  node[midway,above,xshift=-6pt,structurepurple]{};
+\node[structurepurple,font=\footnotesize] at (4.2,-3.0)
+  {$\binom{5}{2}=\binom{4}{1}+\binom{4}{2}=4+6=10$};
+\end{tikzpicture}
+\caption{Pascal's triangle. Each entry is the sum of the two entries above it: the edges
+are all $1$'s ($\binom{n}{0}=\binom{n}{n}=1$), and each interior number is born from the
+pair diagonally above. Row $n$ sums to $2^n$.}
+\label{ch2:fig-pascal}
+\end{figure}
+
+The defining miracle of the triangle is that each number is the sum of the two above it.
+In symbols this is \emph{Pascal's rule}.
+
+\begin{theorem}[Pascal's rule]
+\label{ch2:thm-pascal}
+For $1 \le k \le n$,
+\[
+  \binom{n}{k} \;=\; \binom{n-1}{k-1} + \binom{n-1}{k}.
+\]
+\end{theorem}
+
+\begin{whybox}
+You could prove this by grinding the factorials together over a common denominator, and it
+works. But the \emph{combinatorial} proof tells you why it is true. We are counting
+$k$-element subsets of $\{1,2,\dots,n\}$, which is $\binom{n}{k}$ by definition. Now sort
+those subsets by a single question: \emph{does the subset contain the element $n$?}
+\begin{itemize}
+  \item If it \emph{does} contain $n$, the remaining $k-1$ members come from $\{1,\dots,n-1\}$:
+        there are $\binom{n-1}{k-1}$ such subsets.
+  \item If it \emph{does not} contain $n$, all $k$ members come from $\{1,\dots,n-1\}$:
+        there are $\binom{n-1}{k}$ such subsets.
+\end{itemize}
+Every $k$-subset falls into exactly one case (it either has $n$ or it does not), so the two
+counts add to the total. That is Pascal's rule, and the ``two entries above'' in the
+picture are precisely these two cases.
+\end{whybox}
+
+This conditioning move -- split a count by whether some particular element is in or out -- is
+a recurring theme, and it foreshadows \emph{conditioning} on an event, the engine of the
+next chapters. Pascal's rule also gives a fast, multiplication-free way to compute the
+coefficients: just add your way down the triangle.
+
+\begin{historybox}
+The triangle is named for Blaise Pascal, who in his 1654 \emph{Trait\'e du triangle
+arithm\'etique} organized these numbers and used them to solve the ``problem of points'' (how
+to fairly split the stakes of an interrupted game) in his famous correspondence with Pierre
+de Fermat -- correspondence usually marked as the birth of probability theory. But the
+triangle is much older: it appears in the work of the Persian mathematicians al-Karaji and
+Omar Khayyam, in China as ``Yang Hui's triangle'' (13th century, citing earlier sources),
+and in India centuries before. Pascal's contribution was not discovery but systematic use --
+turning a numerical curiosity into a tool for reasoning about chance.
+\end{historybox}
+
+\subsection{Two identities you should be able to see}
+
+\textbf{The row sum.} Adding across row $n$,
+\[
+  \sum_{k=0}^{n} \binom{n}{k} \;=\; 2^n.
+\]
+Why? The left side counts subsets of an $n$-set grouped by size; the right side counts all
+subsets at once (in/out for each element, Example~\ref{ch2:ex-subsets}). Same set, two
+counts, so they are equal. No algebra needed.
+
+\textbf{The hockey-stick.} Summing down a diagonal,
+\[
+  \sum_{i=r}^{n} \binom{i}{r} \;=\; \binom{n+1}{r+1}.
+\]
+The picture (a straight diagonal of entries that ``bends'' at the bottom into the answer)
+gives the rule its name. We will not belabor the proof, but it follows by repeatedly
+applying Pascal's rule, and it is a handy closed form for sums that look intimidating.
+
+\section{The Four Sampling Scenarios}
+\label{ch2:four}
+
+Almost every elementary counting problem is one of four flavors, indexed by two yes/no
+questions. Are we sampling \emph{with replacement} (can an item be chosen more than once)?
+Does \emph{order matter}? Here are all four, for choosing $k$ items from $n$.
+
+\begin{figure}[H]
+\centering
+\renewcommand{\arraystretch}{1.8}
+\begin{tabular}{l|c|c}
+ & \textbf{Order matters} & \textbf{Order does not matter} \\
+\hline
+\textbf{Without replacement} & $\dfrac{n!}{(n-k)!}$ & $\dbinom{n}{k}$ \\
+\hline
+\textbf{With replacement} & $n^k$ & $\dbinom{n+k-1}{k}$ \\
+\end{tabular}
+\caption{The four ways to sample $k$ objects from $n$. The bottom-right cell -- ordered
+\emph{no}, replacement \emph{yes} -- is the surprising one and is the subject of the
+``stars and bars'' section below.}
+\label{ch2:fig-four}
+\end{figure}
+
+Three of the four we have essentially seen. Ordered without replacement is the permutation
+$P(n,k) = n!/(n-k)!$ (each pick removes an option, and order is recorded). Unordered without
+replacement is the combination $\binom{n}{k}$. Ordered with replacement is the simplest of
+all: $k$ independent stages of $n$ choices each, so $n^k$ -- this is the license-plate count,
+the password count, the ``rolls of a die'' count. The fourth, unordered \emph{with}
+replacement, is genuinely subtle and we devote a full section to it.
+
+\begin{example}[Three flavors of ``three from a deck'']
+\label{ch2:ex-three}
+\emph{Deal $3$ cards, recording order, no card reused:} $52 \cdot 51 \cdot 50 = 132600$.
+\emph{Deal $3$ cards as an unordered hand:} $\binom{52}{3} = 22100 = 132600/3!$.
+\emph{Draw a card, note it, replace, reshuffle, repeat $3$ times, recording order:}
+$52^3 = 140608$. The same deck, three different questions, three different counts -- and
+each is the denominator of a different probability calculation.
+\end{example}
+
+\section{The Birthday Problem}
+\label{ch2:birthday}
+
+Here is a question that has been startling people for a century. In a room of just $23$
+people, the probability that \emph{some two of them share a birthday} is already better
+than even. Most people guess you would need around $180$ people (half of $365$). The gap
+between intuition and truth is so large that the result is called the \emph{birthday
+paradox} -- though, as with all good paradoxes, nothing is actually contradictory; our
+intuition is simply miscalibrated.
+
+\begin{paradoxbox}
+\textbf{The birthday paradox.} Assume $365$ equally likely birthdays and ignore leap years
+and twins. With $23$ people in a room, the chance that at least two share a birthday is
+about $50.7\%$. With $50$ people it is $97\%$; with $70$ people it is $99.9\%$. How can so
+few people suffice? The resolution: you are not comparing your birthday to one other
+person's. You are comparing \emph{every pair} of people, and the number of pairs grows
+quadratically. With $23$ people there are $\binom{23}{2} = 253$ pairs -- already comfortably
+more than half of $365$ -- and each pair is a fresh chance for a collision.
+\end{paradoxbox}
+
+Now compute it. The trick is to count the \emph{complement}. Asking for ``at least
+one shared birthday'' invites messy overlaps (maybe two pairs match, maybe three people all
+match). The opposite event -- ``all $n$ birthdays distinct'' -- is clean: it is just an
+ordered sampling without replacement. The first person can have any of $365$ birthdays, the
+second any of the remaining $364$, and so on, while the total number of birthday assignments
+(with replacement, since people may repeat) is $365^n$. So
+\[
+  \P(\text{all distinct})
+  \;=\; \frac{365 \cdot 364 \cdots (365 - n + 1)}{365^n}
+  \;=\; \prod_{i=0}^{n-1}\Bigl(1 - \frac{i}{365}\Bigr),
+\]
+and the probability of at least one match is $1$ minus that.
+
+\begin{walkbox}
+Before reading on, predict the shape of the curve. Each factor $(1 - i/365)$ is slightly
+less than $1$, and you are multiplying $n$ of them. With many near-$1$ factors multiplied
+together, the product drops faster than you would think -- a fact captured by
+$\prod (1 - i/365) \approx \exp\!\bigl(-\sum i/365\bigr) = \exp\!\bigl(-\tfrac{n(n-1)}{2 \cdot 365}\bigr)$.
+The exponent has $n(n-1)/2 = \binom{n}{2}$ in it -- the number of pairs! That is the
+paradox in one line: the collision probability is governed by the \emph{number of pairs},
+which is quadratic in $n$.
+\end{walkbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=7cm,
+  xlabel={number of people $n$}, ylabel={$\P(\text{at least one shared birthday})$},
+  xmin=0, xmax=80, ymin=0, ymax=1.02,
+  grid=both, grid style={gray!18},
+  legend pos=south east, legend style={font=\small},
+  samples=81, domain=1:80,
+]
+% closed-form approximation 1 - exp(-n(n-1)/730), accurate to <1% in this range
+\addplot[densityred, thick, smooth] {1 - exp(-x*(x-1)/730)};
+\addlegendentry{$\P(\ge 1\text{ match})$}
+\addplot[dashed, gray] coordinates {(0,0.5) (80,0.5)};
+\addplot[dashed, structurepurple] coordinates {(23,0) (23,1.02)};
+\node[structurepurple, font=\footnotesize, anchor=west] at (axis cs:24,0.27)
+  {$n=23$};
+\node[font=\footnotesize, anchor=west] at (axis cs:2,0.55) {$50\%$ line};
+\end{axis}
+\end{tikzpicture}
+\caption{The birthday curve (closed-form approximation $1 - e^{-n(n-1)/730}$). It crosses
+$50\%$ near $n=23$ and is essentially certain by $n \approx 60$. The steep rise is the
+signature of the quadratic number of pairs.}
+\label{ch2:fig-birthday}
+\end{figure}
+
+\begin{example}[The numbers]
+\label{ch2:ex-birthday-numbers}
+For $n=23$, the exact product gives $\P(\text{all distinct}) = 0.4927$, so
+$\P(\text{match}) = 0.5073$ -- just over half. For $n=30$ it is $0.706$; for $n=50$ it is
+$0.970$; for $n=57$ it has passed $0.99$. The crossover at $23$ is the headline, but the
+\emph{speed} of the climb afterwards is just as striking.
+\end{example}
+
+\begin{applicationbox}
+\textbf{The birthday attack in cryptography.} This is not a parlor trick. A hash function
+maps data to one of $N$ possible fingerprints; a ``collision'' is two different inputs with
+the same fingerprint, and collisions can break digital signatures. The birthday math says
+you expect a collision after hashing only about $\sqrt{N}$ random inputs, not $N$ -- because,
+again, it is the number of \emph{pairs} that matters. To make collisions infeasible a hash
+therefore needs roughly \emph{twice} as many output bits as you might naively demand: a
+$128$-bit security target needs a $256$-bit hash. The phrase ``birthday bound'' is standard
+in cryptography, and it traces directly to the count $\binom{n}{2}$ we did above. The same
+$\sqrt{N}$ scaling appears in hash-table load analysis and in distributed systems that
+assign random IDs.
+\end{applicationbox}
+
+\section{Inclusion--Exclusion}
+\label{ch2:incexc}
+
+The multiplication and combination tools count things that fit cleanly into stages or
+subsets. But many counts involve \emph{overlap}: ``how many integers up to $100$ are
+divisible by $2$ or $3$?'' If you add the multiples of $2$ ($50$ of them) to the multiples
+of $3$ ($33$), you have double-counted everything divisible by both $2$ and $3$, i.e. by
+$6$ ($16$ of them). Subtract those once and the count is $50 + 33 - 16 = 67$.
+
+\begin{intuitionbox}
+Picture two overlapping circles. To find the area of the union you add the two circle areas
+and then \emph{subtract the lens} where they overlap, because you counted it twice. With
+three circles you add the three, subtract the three pairwise overlaps, then add back the
+triple overlap (which you removed one time too many). The alternating add--subtract--add
+pattern is inclusion--exclusion.
+\end{intuitionbox}
+
+\begin{theorem}[Inclusion--Exclusion]
+\label{ch2:thm-incexc}
+For finite sets $A_1, \dots, A_n$,
+\[
+  \abs[\big]{A_1 \cup \cdots \cup A_n}
+  \;=\; \sum_{i} \abs{A_i}
+  \;-\; \sum_{i<j} \abs{A_i \cap A_j}
+  \;+\; \sum_{i<j<k} \abs{A_i \cap A_j \cap A_k}
+  \;-\; \cdots
+  \;+\; (-1)^{n+1}\abs[\big]{A_1 \cap \cdots \cap A_n}.
+\]
+The same identity holds with $\abs{\cdot}$ replaced by $\P(\cdot)$, giving the
+inclusion--exclusion formula for the probability of a union.
+\end{theorem}
+
+\begin{whybox}
+The cleanest proof tracks a single element $x$ and asks: \emph{how many times does $x$ get
+counted on the right-hand side?} Suppose $x$ lies in exactly $m \ge 1$ of the sets. Then $x$
+is counted $\binom{m}{1}$ times in the singles, $\binom{m}{2}$ times in the pairs (once for
+each pair of the $m$ sets containing it), $\binom{m}{3}$ in the triples, and so on. Its net
+contribution to the right side is
+\[
+  \binom{m}{1} - \binom{m}{2} + \binom{m}{3} - \cdots
+  \;=\; -\sum_{j=1}^{m} (-1)^{j}\binom{m}{j}
+  \;=\; 1 - \sum_{j=0}^{m} (-1)^{j}\binom{m}{j}
+  \;=\; 1 - 0 \;=\; 1,
+\]
+where we used the alternating row-sum $\sum_{j=0}^{m}(-1)^j\binom{m}{j} = (1-1)^m = 0$ for
+$m \ge 1$ (the binomial theorem at $x=-1$, $y=1$). So every element of the union is counted
+exactly once on the right, which means the right side equals $\abs{A_1\cup\cdots\cup A_n}$.
+Elements in \emph{no} set contribute $0$ on both sides. Done.
+\end{whybox}
+
+\begin{example}[The hat-check problem / derangements]
+\label{ch2:ex-derange}
+$n$ guests check identical-looking hats; the absent-minded attendant returns them at
+random. What is the probability that \emph{no one} gets their own hat back? Let $A_i$ be the
+event that guest $i$ \emph{does} get their own hat. We want $\P(\text{none}) = 1 -
+\P(A_1 \cup \cdots \cup A_n)$. By symmetry $\P(A_i) = 1/n$ (guest $i$'s hat is equally likely
+to land anywhere), $\P(A_i \cap A_j) = \frac{(n-2)!}{n!} = \frac{1}{n(n-1)}$, and in general
+the intersection of any $k$ of them has probability $(n-k)!/n!$. There are $\binom{n}{k}$
+such $k$-fold intersections, and $\binom{n}{k}\frac{(n-k)!}{n!} = \frac{1}{k!}$. Inclusion--exclusion gives
+\[
+  \P(A_1\cup\cdots\cup A_n) = \sum_{k=1}^{n} (-1)^{k+1}\frac{1}{k!},
+  \qquad\text{so}\qquad
+  \P(\text{no match}) = \sum_{k=0}^{n}\frac{(-1)^k}{k!}.
+\]
+\end{example}
+
+\begin{paradoxbox}
+\textbf{The hat-check limit.} As $n \to \infty$ the no-match probability is
+$\sum_{k\ge 0}(-1)^k/k! = e^{-1} \approx 0.3679$. The startling part: the answer barely
+depends on $n$. Whether $5$ guests or $5$ million guests check their hats, the probability
+that the random return gives \emph{nobody} their own hat hovers near $37\%$. Adding more
+guests does not wash out the chance of a total mismatch, because each new guest brings both
+a new chance to match \emph{and} a new hat to be mismatched, and these effects almost
+perfectly cancel. The constant $e$ -- the hero of calculus -- shows up unbidden in a pure
+counting problem.
+\end{paradoxbox}
+
+\begin{connectionbox}
+That appearance of $e^{-1}$ is your first sighting of a bridge we will cross repeatedly:
+the link between combinatorics and \emph{analysis}. The series $\sum (-1)^k/k!$ is the
+Taylor expansion of $e^x$ evaluated at $x=-1$ -- the very series the companion calculus
+book derives. Throughout probability, finite counting identities have limits that are
+calculus objects: factorials smooth into the Gamma function, binomial coefficients smooth
+into the Beta function, and the binomial distribution we build from $\binom{n}{k}$ will, in
+the limit, become the bell curve via the Central Limit Theorem. Counting is discrete
+probability; calculus is its continuous shadow.
+\end{connectionbox}
+
+\section{Stars and Bars}
+\label{ch2:starsbars}
+
+We saved the strangest cell of Figure~\ref{ch2:fig-four} for last: counting
+\emph{unordered selections with replacement}. Equivalently -- and this is the framing that
+unlocks it -- how many ways can we distribute $k$ identical objects into $n$ distinct boxes?
+
+Concretely: you buy $k = 7$ identical doughnuts from a shop with $n = 3$ varieties. A
+purchase is determined entirely by \emph{how many of each variety} you take, say $(3,2,2)$
+or $(7,0,0)$ -- order of buying is irrelevant and you may repeat a variety. How many
+purchases are possible?
+
+\begin{intuitionbox}
+Represent a purchase as a row of $7$ stars (the doughnuts) separated into $3$ groups by
+$2$ bars (the dividers between varieties). For instance
+\[
+  \star\star\star \mid \star\star \mid \star\star
+  \qquad\text{means } (3,2,2),
+\]
+\[
+  \star\star\star\star\star\star\star \mid\, \mid
+  \qquad\text{means } (7,0,0).
+\]
+Every purchase is one arrangement of $7$ stars and $2$ bars in a row; every such
+arrangement is one purchase. To count the purchases, just count the arrangements of stars
+and bars!
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\large]
+\foreach \x/\sym/\col in {
+  0/$\star$/sourceblue, 0.55/$\star$/sourceblue, 1.1/$\star$/sourceblue,
+  1.75/$\mid$/trapred,
+  2.4/$\star$/sourceblue, 2.95/$\star$/sourceblue,
+  3.6/$\mid$/trapred,
+  4.25/$\star$/sourceblue, 4.8/$\star$/sourceblue}{
+  \node[\col] at (\x,0) {\sym};
+}
+\draw[decorate,decoration={brace,amplitude=4pt},gray] (-0.2,-0.35) -- (1.3,-0.35)
+  node[midway,below,font=\footnotesize,black]{$3$};
+\draw[decorate,decoration={brace,amplitude=4pt},gray] (2.2,-0.35) -- (3.15,-0.35)
+  node[midway,below,font=\footnotesize,black]{$2$};
+\draw[decorate,decoration={brace,amplitude=4pt},gray] (4.05,-0.35) -- (5.0,-0.35)
+  node[midway,below,font=\footnotesize,black]{$2$};
+\end{tikzpicture}
+\caption{Stars and bars for the purchase $(3,2,2)$: seven stars (doughnuts) and two bars
+(dividers) in a row of nine positions. Each distinct arrangement of stars and bars is one
+purchase, so the count is the number of ways to place the $2$ bars among $9$ slots,
+$\binom{9}{2}$.}
+\label{ch2:fig-starsbars}
+\end{figure}
+
+A row has $7 + 2 = 9$ positions, and we choose which $2$ of them hold bars (the rest are
+stars). That is $\binom{9}{2} = 36$ (Figure~\ref{ch2:fig-starsbars}). In general:
+
+\begin{theorem}[Stars and bars]
+\label{ch2:thm-stars}
+The number of ways to write a nonnegative integer $k$ as an ordered sum of $n$ nonnegative
+parts $x_1 + x_2 + \cdots + x_n = k$ -- equivalently, the number of ways to place $k$
+identical objects into $n$ distinct boxes, equivalently the number of unordered samples of
+size $k$ from $n$ types with replacement -- is
+\[
+  \binom{n+k-1}{k} \;=\; \binom{n+k-1}{n-1}.
+\]
+\end{theorem}
+
+\begin{whybox}
+A configuration is a row of $k$ stars and $n-1$ bars: the $n-1$ bars cut the row into $n$
+(possibly empty) groups, and the group sizes are exactly the $x_i$. There are $k + (n-1)$
+total symbols, and a configuration is fixed once we decide which $n-1$ positions are bars --
+that is $\binom{n+k-1}{n-1}$ -- or equivalently which $k$ positions are stars, which is
+$\binom{n+k-1}{k}$ (the two are equal by the choosing-what-to-leave-out symmetry). The map
+from configurations to solutions $(x_1,\dots,x_n)$ is a bijection: each star-and-bar row
+yields exactly one tuple, and each tuple yields exactly one row. Bijection means equal
+counts.
+\end{whybox}
+
+\begin{trapbox}
+Stars and bars counts \emph{nonnegative} solutions (boxes may be empty). If every box must
+be nonempty -- every variety bought at least once, every $x_i \ge 1$ -- first hand one
+object to each box ($n$ objects spent), then distribute the remaining $k - n$ freely:
+$\binom{(k-n)+n-1}{n-1} = \binom{k-1}{n-1}$. Forgetting which regime you are in (boxes
+allowed empty vs. forced nonempty) is a classic slip. Always ask: can a part be zero?
+\end{trapbox}
+
+\begin{example}[Distributing identical gifts]
+\label{ch2:ex-gifts}
+In how many ways can $10$ identical candies be split among $4$ children (some children may
+get none)? Stars and bars with $k=10$, $n=4$: $\binom{10+4-1}{4-1} = \binom{13}{3} = 286$.
+If every child must get at least one candy, give one to each first and distribute the
+remaining $6$: $\binom{6+4-1}{4-1} = \binom{9}{3} = 84$.
+\end{example}
+
+\begin{happeningbox}
+Why does ``unordered with replacement'' equal stars and bars? An unordered sample with
+replacement does not care which doughnut you grabbed first; it cares only about the
+\emph{multiplicities} -- how many of each type. A list of multiplicities $(x_1,\dots,x_n)$
+that sums to $k$ is exactly a stars-and-bars configuration. So the seemingly exotic
+bottom-right cell of the sampling table is the same object as the down-to-earth ``how many
+of each'' question. This is also why this count is $\binom{n+k-1}{k}$ and \emph{not}
+$\binom{n}{k}$: with replacement the pool effectively grows, and the algebra records that
+with the $+k-1$ in the top.
+\end{happeningbox}
+
+\section{Why Counting Is the Backbone of Discrete Probability}
+\label{ch2:backbone}
+
+Here, finally, is the payoff promised at the start. Whenever a finite experiment has equally
+likely outcomes, every probability question becomes two counting questions: count the
+favorable outcomes, count all outcomes, divide. The techniques of this chapter are
+therefore not a warm-up \emph{before} probability; for equally-likely models they \emph{are}
+probability.
+
+\begin{formalbox}
+\textbf{The naive model, stated.} Let the sample space $\Omega$ be a finite set of outcomes,
+all assumed equally likely. For any event $A \subseteq \Omega$,
+\[
+  \P(A) \;=\; \frac{\abs{A}}{\abs{\Omega}}.
+\]
+Every fact you need follows. Nonnegativity: $\abs{A} \ge 0$. Normalization:
+$\P(\Omega) = \abs{\Omega}/\abs{\Omega} = 1$. Additivity for disjoint events:
+$\abs{A \cup B} = \abs{A} + \abs{B}$ when $A \cap B = \varnothing$, so the probabilities
+add. These are exactly the axioms of probability we develop in the next chapter -- here
+they are theorems about counting.
+\end{formalbox}
+
+\begin{example}[Two dice, the long way and the right way]
+\label{ch2:ex-twodice}
+Roll two fair dice. What is $\P(\text{sum} = 7)$? The sample space is the $6 \times 6 = 36$
+ordered pairs (multiplication principle), all equally likely. The sum-$7$ outcomes are
+$(1,6),(2,5),(3,4),(4,3),(5,2),(6,1)$ -- six of them. So $\P = 6/36 = 1/6$. The reason a
+naive count over \emph{unordered} pairs would mislead you here is that unordered pairs are
+\emph{not} equally likely (you can roll a $\{3,4\}$ two ways but a $\{3,3\}$ only one way).
+The art is choosing a sample space whose outcomes truly are equally likely, and ordered
+pairs are that space. \textbf{Choose the equally-likely space first; then count.}
+\end{example}
+
+\begin{aestheticbox}
+Counting is the backbone for a deeper reason than convenience. The hardest part of applied
+probability is rarely the arithmetic -- it is building an accurate model of the situation:
+What are the outcomes? Are they equally likely? Does order matter? Can things repeat? Those
+four questions are the very ones combinatorics forces you to answer precisely. Master
+counting and you have mastered the discipline of stating a probability problem cleanly,
+which is most of the battle. Everything later -- random variables, expectation,
+distributions -- is built on sample spaces, and sample spaces are counted things.
+\end{aestheticbox}
+
+\begin{labbox}
+Pick a small experiment of your own -- drawing $2$ cards, flipping $4$ coins, rolling $3$
+dice -- and do the following before computing any probability. (1) Write down the sample
+space explicitly enough to count it. (2) Argue why its outcomes are equally likely (or fix
+the space until they are). (3) Express your event as a subset and count it with one of this
+chapter's tools. (4) Only then divide. Doing this slowly a few times builds the reflex that
+makes hard problems easy.
+\end{labbox}
+
+\section{Exercises}
+\label{ch2:exercises}
+
+\begin{exercise}[Warm-up counts]
+\label{ch2:exr-warmup}
+(a) How many $4$-digit PINs are there if digits may repeat? If they may not?
+(b) How many ways can $7$ people sit in a row? Around a round table (rotations counted as
+the same)?
+(c) How many distinct rearrangements are there of the letters in \texttt{BOOKKEEPER}?
+\end{exercise}
+
+\begin{exercise}[Order or not]
+\label{ch2:exr-order}
+A class has $20$ students. (a) In how many ways can a President, Vice-President, and
+Treasurer be chosen (distinct roles)? (b) In how many ways can a committee of $3$
+(no roles) be chosen? (c) Explain the exact numerical relationship between your two answers
+and why it is what it is.
+\end{exercise}
+
+\begin{exercise}[Poker probabilities]
+\label{ch2:exr-poker}
+Using the $\binom{52}{5} = 2{,}598{,}960$ hands, count and then find the probability of:
+(a) a flush (all five cards the same suit, including straight flushes);
+(b) exactly one pair (one rank twice, the other three cards of three distinct other ranks);
+(c) compare your one-pair probability to the four-of-a-kind probability from
+Example~\ref{ch2:ex-poker} and comment.
+\end{exercise}
+
+\begin{exercise}[Birthday variations]
+\label{ch2:exr-birthday}
+(a) Using the approximation $\P(\ge 1\text{ match}) \approx 1 - e^{-n(n-1)/730}$, estimate
+the smallest $n$ giving probability at least $0.5$, and compare with the exact answer $23$.
+(b) Suppose instead birthdays are spread over a planet with $D$ equally likely ``days.''
+Show that the number of people needed for an even-chance collision grows like
+$\sqrt{D}$, and state the constant in front of $\sqrt{D}$.
+\end{exercise}
+
+\begin{exercise}[Inclusion--exclusion in the wild]
+\label{ch2:exr-incexc}
+How many integers from $1$ to $1000$ are divisible by at least one of $2$, $3$, or $5$?
+Then find how many are divisible by \emph{none} of them. (Hint: count the divisible ones
+with inclusion--exclusion and subtract from $1000$.)
+\end{exercise}
+
+\begin{exercise}[Stars and bars]
+\label{ch2:exr-stars}
+(a) How many nonnegative integer solutions does $x_1 + x_2 + x_3 + x_4 = 12$ have?
+(b) How many with every $x_i \ge 1$? (c) How many with $x_1 \ge 2$ and the rest $\ge 0$?
+(Hint for (c): pre-assign the required minimum, then count freely.)
+\end{exercise}
+
+\begin{exercise}[A bijective proof]
+\label{ch2:exr-bijection}
+Prove the identity $\sum_{k=0}^{n} \binom{n}{k} = 2^n$ \emph{combinatorially} -- that is,
+by describing a single set that both sides count -- rather than by algebra. Then prove
+$\binom{n}{k} = \binom{n}{n-k}$ the same way, exhibiting an explicit bijection between the
+two families of subsets.
+\end{exercise}
+
+\begin{exercise}[Vandermonde's identity]
+\label{ch2:exr-vandermonde}
+Prove Vandermonde's identity
+$\binom{m+n}{r} = \sum_{j=0}^{r}\binom{m}{j}\binom{n}{r-j}$
+by a counting argument. (Hint: you have $m$ red balls and $n$ blue balls and want to choose
+$r$ in total; condition on how many of the chosen are red.) Then deduce the special case
+$\sum_{k=0}^{n}\binom{n}{k}^2 = \binom{2n}{n}$.
+\end{exercise}
+
+\begin{exercise}[Derangement check]
+\label{ch2:exr-derange}
+Using Example~\ref{ch2:ex-derange}, compute the exact probability that no guest gets their
+own hat for $n = 3, 4, 5$ guests, and verify that the values are already very close to
+$e^{-1} \approx 0.3679$. How large must $n$ be for the answer to be within $0.001$ of
+$e^{-1}$?
+\end{exercise}
+
+\begin{exercise}[Modeling care]
+\label{ch2:exr-model}
+A bag has $3$ red and $2$ blue marbles. You draw $2$ without replacement. A student argues:
+``There are three unordered outcomes -- two red, two blue, one of each -- so each has
+probability $1/3$.'' Explain precisely why this reasoning is wrong, identify the correct
+equally-likely sample space, and compute the right probability of ``one of each.''
+\end{exercise}

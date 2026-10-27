@@ -1,0 +1,723 @@
+\chapter{Martingales}
+
+There is a particular fantasy that has bankrupted more people than any other in the history of
+gambling. It goes like this. You walk up to a roulette table and bet one dollar on red. If you win,
+great --- pocket the dollar and start over. If you lose, you simply double your bet to two dollars.
+Lose again? Bet four. Lose again? Bet eight. The first time red finally comes up, you recover
+everything you have lost \emph{plus} one dollar of profit. Since red is essentially certain to appear
+\emph{eventually}, you have apparently discovered a way to extract guaranteed money from a game with
+no edge. This strategy is so famous it has a name: the \textbf{martingale}.
+
+It does not work. And the reason it does not work --- the reason \emph{nothing} works against a fair
+game --- is one of the deepest facts in probability. To understand it, we will spend this chapter
+building the mathematical object that, by an irony worth savoring, inherited the name of the betting
+system it destroys: the martingale.
+
+A martingale is the precise mathematical formalization of a \emph{fair game}: a running fortune whose
+expected next value, given everything you currently know, is exactly its present value. ``On average,
+you neither gain nor lose.'' That one sentence, taken seriously, carries a long way. It lets
+us compute gambler's-ruin probabilities in a single line, explains why no clever stopping rule can
+beat a fair casino, prices financial options, and underpins a whole convergence theory that rivals the
+law of large numbers in importance. This chapter leans hard on conditional expectation, so if
+$\E[Y \given X]$ and the tower property feel shaky, glance back at that chapter before we
+begin --- everything here is conditional expectation wearing a story.
+
+\section{Fair games and the definition}
+\label{ch28:definition}
+
+Imagine watching a quantity evolve in time: your bankroll at a casino, the price of a stock, the
+position of a wandering particle, your running estimate of some unknown parameter as data trickles in.
+Call its value at time $n$ the random variable $M_n$, for $n = 0, 1, 2, \dots$. At each moment you
+have observed a \emph{history} --- everything that has happened up through time $n$. We bundle that
+history into the symbol $\mathcal{F}_n$, read ``the information available at time $n$.'' As time
+passes you learn more, never less, so $\mathcal{F}_0 \subseteq \mathcal{F}_1 \subseteq \mathcal{F}_2
+\subseteq \cdots$. This growing family of information is called a \textbf{filtration}, and you should
+picture it as the expanding contents of your own memory.
+
+\begin{intuitionbox}
+Do not be intimidated by $\mathcal{F}_n$. In every concrete example in this chapter it means nothing
+more exotic than ``the values of $M_0, M_1, \dots, M_n$ that you have already seen,'' possibly together
+with some other observed variables. Conditioning on $\mathcal{F}_n$ just means ``given everything we
+know so far.'' When you read $\E[M_{n+1} \given \mathcal{F}_n]$, hear it as: ``my best forecast of
+tomorrow's fortune, using my entire current memory.''
+\end{intuitionbox}
+
+What does it mean for the game to be \emph{fair}? It means that knowing the entire past, my best guess
+for tomorrow's fortune is exactly today's fortune. I expect to walk away with what I came with. That is
+the whole definition.
+
+\begin{definition}[Martingale]
+\label{ch28:def-mtg}
+A sequence of random variables $(M_n)_{n \ge 0}$ adapted to a filtration $(\mathcal{F}_n)_{n\ge 0}$
+(meaning $M_n$ is determined by $\mathcal{F}_n$) with $\E\abs{M_n} < \infty$ for every $n$ is a
+\emph{martingale} if
+\[
+  \E[M_{n+1} \given \mathcal{F}_n] \;=\; M_n \qquad \text{for all } n \ge 0.
+\]
+If instead $\E[M_{n+1} \given \mathcal{F}_n] \ge M_n$ for all $n$, the sequence is a
+\emph{submartingale} (a favorable game, drifting up); if $\E[M_{n+1} \given \mathcal{F}_n] \le M_n$, it
+is a \emph{supermartingale} (an unfavorable game, drifting down).
+\end{definition}
+
+\begin{trapbox}
+The ``super/sub'' naming feels backwards to everyone at first. A \emph{super}martingale goes
+\emph{down} (it is the gambler's view of a casino: the house edge drags your fortune down). A
+\emph{sub}martingale goes \emph{up}. The mnemonic that sticks: a supermartingale is ``superior for the
+house,'' a submartingale is ``subpar for the house.'' The deeper reason is an analogy with harmonic
+functions, where superharmonic functions lie above their spherical averages, so the expectation drops.
+\end{trapbox}
+
+The integrability condition $\E\abs{M_n} < \infty$ is not bureaucratic fine print; it is what makes
+the conditional expectations exist as genuine finite numbers. We will keep it in the background but it
+is always quietly assumed.
+
+\subsection{The first and most important consequence}
+
+Take the defining equation and average out the conditioning. By the tower property of conditional
+expectation,
+\[
+  \E[M_{n+1}] \;=\; \E\big[\E[M_{n+1}\given\mathcal{F}_n]\big] \;=\; \E[M_n].
+\]
+So the expectation never moves: $\E[M_n] = \E[M_{n-1}] = \cdots = \E[M_0]$ for every $n$. A
+martingale has \textbf{constant expectation}. This is the seed from which the entire chapter grows.
+
+\begin{focusbox}
+\textbf{The one fact to remember.} For a martingale, $\E[M_n] = \E[M_0]$ for all $n$. No matter how
+long you play, your expected fortune equals your starting fortune. The drama of the rest of the chapter
+is about whether you can cheat this by choosing a clever \emph{time to stop}. (Spoiler: under mild
+conditions, you cannot.)
+\end{focusbox}
+
+\begin{historybox}
+The word \emph{martingale} originally named a piece of horse tack --- a strap preventing a horse from
+throwing its head back --- and by the 18th century it had attached itself to the doubling betting
+system described in this chapter's opening. The mathematical object was named after the strategy by
+Jean Ville in 1939, who used it to repair Richard von Mises's frequentist theory of randomness. But the
+theory truly came alive in the hands of Joseph Leo Doob, whose 1953 book \emph{Stochastic Processes}
+turned martingales into one of the central tools of modern probability. Doob's optional stopping
+theorem and martingale convergence theorem are load-bearing pillars of everything from stochastic
+calculus to the analysis of algorithms. It is a charming accident of history that the deepest theorem
+about why you \emph{cannot} beat a fair game is named after the betting system that promised you could.
+\end{historybox}
+
+\section{A gallery of martingales}
+\label{ch28:examples}
+
+Definitions only become real when you have seen enough examples that the pattern becomes visible. Here
+are the canonical ones; each will return later.
+
+\begin{example}[Symmetric random walk --- the prototype]
+\label{ch28:ex-walk}
+Let $X_1, X_2, \dots$ be independent with $\P(X_i = +1) = \P(X_i = -1) = \tfrac12$, and set
+$S_0 = 0$, $S_n = X_1 + \cdots + X_n$. Take $\mathcal{F}_n$ to be the history of the first $n$ steps.
+Then
+\[
+  \E[S_{n+1}\given\mathcal{F}_n] = \E[S_n + X_{n+1}\given\mathcal{F}_n]
+  = S_n + \E[X_{n+1}] = S_n + 0 = S_n.
+\]
+So $(S_n)$ is a martingale. This is the fair coin-flipping game: bet a dollar on each flip, win or lose
+a dollar, and your fortune wanders with no drift. If the coin is biased toward losing
+($\P(X_i = +1) = p < \tfrac12$), then $\E[S_{n+1}\given \mathcal{F}_n] = S_n + (2p-1) < S_n$ and you
+have a supermartingale --- the accurate model of a real casino.
+\end{example}
+
+Figure~\ref{ch28:fig-walk} shows a few sample paths of this fair game. Each wanders without drift, and
+although individual paths roam far from zero, the average across paths stays pinned at the starting
+value --- the visible signature of constant expectation.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=12cm, height=6.0cm,
+    xlabel={step $n$}, ylabel={fortune $S_n$},
+    title={Symmetric random walk: a fair game wanders with no drift},
+    grid=both, grid style={gray!20},
+    xmin=0, xmax=40, ymin=-9, ymax=9,
+    legend pos=outer north east, legend style={font=\footnotesize},
+]
+\addplot[thick, sourceblue] coordinates {
+(0,0)(2,2)(4,0)(6,2)(8,4)(10,2)(12,4)(14,6)(16,4)(18,6)(20,4)(24,6)(28,4)(32,6)(36,8)(40,6)};
+\addlegendentry{path A}
+\addplot[thick, targetgreen] coordinates {
+(0,0)(2,-2)(4,-4)(6,-2)(8,-4)(10,-2)(12,0)(14,-2)(16,-4)(18,-2)(20,-4)(24,-2)(28,0)(32,-2)(36,0)(40,-2)};
+\addlegendentry{path B}
+\addplot[thick, quotientorange] coordinates {
+(0,0)(2,2)(4,0)(6,-2)(8,0)(10,2)(12,0)(14,2)(16,0)(18,-2)(20,0)(24,2)(28,0)(32,2)(36,0)(40,2)};
+\addlegendentry{path C}
+\addplot[densely dashed, trapred, thick] coordinates {(0,0)(40,0)};
+\addlegendentry{$\E[S_n]=0$}
+\end{axis}
+\end{tikzpicture}
+\caption{Three realizations of the symmetric simple random walk $S_n = X_1 + \cdots + X_n$. No path
+shows any systematic tendency to rise or fall; the expected fortune (dashed) stays exactly at the
+starting value of zero for all $n$. This is what ``fair'' looks like: motion without drift.}
+\label{ch28:fig-walk}
+\end{figure}
+
+\begin{example}[The gambler's variance martingale]
+\label{ch28:ex-variance}
+With the same symmetric walk, consider $M_n = S_n^2 - n$. Watch what happens:
+\[
+  \E[S_{n+1}^2 \given \mathcal{F}_n] = \E[(S_n + X_{n+1})^2 \given \mathcal{F}_n]
+  = S_n^2 + 2 S_n \E[X_{n+1}] + \E[X_{n+1}^2] = S_n^2 + 1,
+\]
+since $\E[X_{n+1}] = 0$ and $X_{n+1}^2 = 1$ always. Therefore
+$\E[S_{n+1}^2 - (n+1)\given\mathcal{F}_n] = S_n^2 + 1 - (n+1) = S_n^2 - n = M_n$. So $S_n^2 - n$ is a
+martingale even though $S_n^2$ itself drifts upward at a steady rate of one per step. The ``$-n$''
+exactly cancels the predictable growth of the variance. Later we use this object to compute
+\emph{how long} a gambler's-ruin game lasts.
+\end{example}
+
+\begin{example}[Likelihood ratios]
+\label{ch28:ex-lr}
+Here is a martingale that does not look like gambling at all but powers all of sequential statistics.
+Suppose data $Y_1, Y_2, \dots$ are i.i.d.\ from some true density $f$, but you entertain a rival
+hypothesis with density $g$. Form the running \emph{likelihood ratio}
+\[
+  L_n = \prod_{i=1}^{n} \frac{g(Y_i)}{f(Y_i)}, \qquad L_0 = 1.
+\]
+Then, because $Y_{n+1}$ is independent of the past and integrates against the \emph{true} density $f$,
+\[
+  \E[L_{n+1}\given\mathcal{F}_n] = L_n \cdot \E\!\left[\frac{g(Y_{n+1})}{f(Y_{n+1})}\right]
+  = L_n \int \frac{g(y)}{f(y)} f(y)\,\dd y = L_n \int g(y)\,\dd y = L_n.
+\]
+So under the true model $f$, the likelihood ratio is a martingale with mean $1$ forever --- even though
+it is built from products, not sums. This single fact is the engine behind Wald's sequential
+probability ratio test, and the martingale convergence theorem will tell us that $L_n$ converges (in
+fact, to $0$ almost surely when $f \ne g$, which is exactly why hypothesis testing eventually
+discriminates between the two models).
+\end{example}
+
+\begin{example}[Polya's urn]
+\label{ch28:ex-polya}
+An urn starts with one red and one black ball. At each step you draw a ball uniformly at random,
+return it, \emph{and add one more ball of the same color}. Rich get richer. Let $R_n$ be the number of
+red balls after $n$ draws and let $M_n = R_n / (n+2)$ be the \emph{fraction} of red balls (there are
+$n+2$ balls total after $n$ draws). Given the current composition, the chance the next ball is red is
+exactly the current red fraction $M_n$, so
+\[
+  \E[R_{n+1}\given\mathcal{F}_n] = R_n + M_n = R_n + \frac{R_n}{n+2} = R_n \cdot \frac{n+3}{n+2},
+\]
+and dividing by $n+3$ gives $\E[M_{n+1}\given\mathcal{F}_n] = R_n/(n+2) = M_n$. The red fraction is a
+martingale! This is genuinely surprising: a process with strong positive feedback nonetheless keeps its
+proportion ``fair'' in expectation. By the convergence theorem the fraction settles to a random limit
+--- and that limit turns out to be uniformly distributed on $[0,1]$, which is a surprising fact in its own right.
+\end{example}
+
+\begin{example}[Doob martingale: revealing information]
+\label{ch28:ex-doob}
+Let $Z$ be any integrable random variable and let information arrive in pieces $\mathcal{F}_0 \subseteq
+\mathcal{F}_1 \subseteq \cdots$. Define $M_n = \E[Z \given \mathcal{F}_n]$, your best estimate of $Z$
+given what you know at time $n$. The tower property instantly gives
+$\E[M_{n+1}\given\mathcal{F}_n] = \E[\E[Z\given\mathcal{F}_{n+1}]\given\mathcal{F}_n]
+= \E[Z\given\mathcal{F}_n] = M_n$. So \emph{any} sequence of sharpening estimates of a fixed quantity
+is automatically a martingale. This ``Doob martingale'' is the backbone of concentration inequalities
+(McDiarmid's inequality) used everywhere in machine learning to bound how far a complicated function of
+many independent inputs can stray from its mean.
+\end{example}
+
+\begin{happeningbox}
+Notice the unifying thread. A martingale is what you get whenever ``the best prediction of the next
+value, given the past, is the current value.'' Sums of fair bets, products of mean-one factors, and
+running conditional expectations of a fixed target all share this property. The deep reason is that the
+operation $Z \mapsto \E[Z\given\mathcal{F}_n]$ is a \emph{projection}: it throws away the
+unpredictable part and keeps only what the current information can see. Martingale theory is, at heart,
+the dynamics of these projections as information grows. (This is also why the rigorous chapter on
+conditional expectation later in the book treats it as an orthogonal projection in a space of random
+variables --- the geometry is real.)
+\end{happeningbox}
+
+\section{Why you cannot beat a fair game}
+\label{ch28:cannot-beat}
+
+Now we confront the gambler's dream head-on. Surely \emph{some} betting strategy can turn a fair game
+into a winning one? You get to choose how much to bet each round based on everything you have seen. Can
+cleverness manufacture an edge?
+
+Let us formalize ``a strategy.'' Before round $n$, knowing the history $\mathcal{F}_{n-1}$, you choose
+a stake $C_n$ --- how many units to wager. The crucial constraint is that $C_n$ may depend only on the
+\emph{past}, not on the future outcome of round $n$ (no clairvoyance, no peeking). A sequence with this
+property, $C_n$ determined by $\mathcal{F}_{n-1}$, is called \textbf{predictable}. Your winnings on
+round $n$ are $C_n(M_n - M_{n-1})$, so your fortune after $n$ rounds is the \emph{discrete stochastic
+integral}, or \emph{martingale transform},
+\[
+  W_n = W_0 + \sum_{k=1}^{n} C_k\,(M_k - M_{k-1}).
+\]
+
+\begin{theorem}[You cannot beat a fair game]
+\label{ch28:thm-transform}
+If $(M_n)$ is a martingale and $(C_n)$ is a bounded predictable sequence, then the transformed process
+$(W_n)$ above is also a martingale. Consequently $\E[W_n] = W_0$ for every $n$: no predictable betting
+strategy changes your expected fortune.
+\end{theorem}
+
+\begin{whybox}
+The proof is one line of conditional expectation, and it is worth savoring because it is the
+mathematical core of ``the house always wins on average.'' Condition on the past $\mathcal{F}_{n-1}$.
+The stake $C_n$ is already known --- it was chosen before the round --- so it slides out of the
+conditional expectation as a known constant:
+\[
+  \E[W_n - W_{n-1}\given\mathcal{F}_{n-1}]
+  = \E[C_n(M_n - M_{n-1})\given\mathcal{F}_{n-1}]
+  = C_n\,\E[M_n - M_{n-1}\given\mathcal{F}_{n-1}]
+  = C_n \cdot 0 = 0.
+\]
+The last step is the martingale property itself: $\E[M_n \given \mathcal{F}_{n-1}] = M_{n-1}$. So each
+round contributes zero expected change \emph{no matter how you size your bet}, because you sized it
+before you knew the outcome. The fairness of the underlying game leaks through any strategy built only
+from the past. The only way to win would be to let $C_n$ depend on the result of round $n$ --- to bet
+after seeing the outcome --- which is precisely cheating.
+\end{whybox}
+
+This already rules out infinitely many ``systems.'' Doubling, the Fibonacci system, anti-martingales,
+trend-following --- all of them are predictable strategies, so all of them leave your expected fortune
+untouched. But the doubling system seemed to promise a \emph{guaranteed} win, not merely a fair
+expectation. To finish it off we need to think about \emph{stopping times}, and that brings us to the
+crown jewel of the chapter.
+
+\section{Stopping times and optional stopping}
+\label{ch28:optional-stopping}
+
+A gambler does not play forever; he plays until something happens --- until he is up a hundred dollars,
+or broke, or the bar closes. The time he stops is itself random and depends on the game's history. We
+need a clean notion of such a time.
+
+\begin{definition}[Stopping time]
+\label{ch28:def-stopping}
+A random time $T$ taking values in $\set{0,1,2,\dots} \cup \set{\infty}$ is a \emph{stopping time} for
+the filtration $(\mathcal{F}_n)$ if, for every $n$, the event $\set{T = n}$ is determined by
+$\mathcal{F}_n$.
+\end{definition}
+
+The condition says: by time $n$ you always \emph{know} whether you have already stopped. ``Stop the
+first time my fortune hits \$100'' is a stopping time --- you can tell at each moment whether it has
+happened. ``Stop one step before the peak'' is \emph{not} a stopping time, because recognizing the peak
+requires seeing the future. The rule must be enforceable in real time, with no clairvoyance. This is
+the same no-peeking constraint as predictability, and it is the whole reason the next theorem holds.
+
+Recall that $\E[M_n] = \E[M_0]$ for any \emph{fixed} time $n$. The burning question is whether this
+survives if we replace the fixed $n$ by a \emph{random} stopping time $T$. Is $\E[M_T] = \E[M_0]$?
+If yes, then stopping cleverly cannot help. The optional stopping theorem says: yes, provided we rule
+out two specific loopholes.
+
+\begin{theorem}[Optional Stopping Theorem, Doob]
+\label{ch28:thm-ost}
+Let $(M_n)$ be a martingale and $T$ a stopping time. Then $\E[M_T] = \E[M_0]$ provided any one of the
+following holds:
+\begin{enumerate}
+\item $T$ is bounded: there is a constant $N$ with $T \le N$ almost surely; or
+\item $T < \infty$ almost surely and the stopped process $(M_{\min(n,T)})$ is uniformly bounded
+      (there is a constant $K$ with $\abs{M_{\min(n,T)}} \le K$ for all $n$); or
+\item $\E[T] < \infty$ and the increments are bounded, $\abs{M_{n+1} - M_n} \le c$ for some constant
+      $c$.
+\end{enumerate}
+For a supermartingale (unfavorable game) the corresponding conclusion is the inequality
+$\E[M_T] \le \E[M_0]$: stopping cannot raise your expected fortune above where you started.
+\end{theorem}
+
+\begin{intuitionbox}
+The cleanest version is case 1, and you can almost prove it in your head. ``Play until time $T$, then
+stop'' is the same as the betting strategy ``bet one unit each round while $n \le T$, and bet zero
+afterward.'' The stake $C_n = \ind\set{T \ge n}$ is predictable --- you can tell at the start of round
+$n$ whether you have already stopped --- so by Theorem~\ref{ch28:thm-transform} the stopped fortune is
+a martingale, and its expectation is the starting value. The fancy conditions in cases 2 and 3 exist
+only to handle \emph{unbounded} stopping times, where you must ensure the game does not run away to
+infinity before $T$ arrives. That is exactly the loophole the doubling system tries to exploit.
+\end{intuitionbox}
+
+\subsection{The doubling system, finally killed}
+
+Return to the opening fantasy. You bet to recover all losses plus one dollar; you stop, at time $T$, at
+the first win. Since red appears eventually, $T < \infty$ almost surely, and at time $T$ your profit is
+exactly \$1. So $\E[M_T] = 1$, while $M_0 = 0$. Optional stopping appears to be violated --- has the
+gambler beaten the fair game?
+
+\begin{paradoxbox}
+\textbf{The martingale betting system.} The profit really is \$1 with probability $1$. So where is the
+catch? It hides in the \emph{capital required}. If your first win comes on round $k$, your bets were
+$1, 2, 4, \dots, 2^{k-1}$ and your peak loss just before winning was $2^{k-1} - 1$ dollars. The chance
+of needing exactly $k$ rounds is $2^{-k}$, so the expected size of your largest required bet is
+\[
+  \sum_{k=1}^{\infty} 2^{-k}\cdot 2^{k-1} = \sum_{k=1}^{\infty}\tfrac12 = \infty.
+\]
+Your expected maximum exposure is \emph{infinite}. To guarantee the \$1, you must be willing and able
+to lose arbitrarily large amounts. No real gambler has infinite capital, and no real casino has no
+table limit. The moment you impose any finite bankroll $B$, the strategy becomes a stopping time that
+violates none of the theorem's hypotheses, and the conclusion snaps back into place: $\E[M_T] = 0$. You
+win a small amount with high probability and suffer a catastrophic, capital-wiping loss with the small
+remaining probability, and these balance \emph{exactly} to zero expected profit. The optional stopping
+theorem did not fail; the gambler's hidden assumption of infinite wealth did. This is precisely loophole
+case 2 of Theorem~\ref{ch28:thm-ost}: with infinite capital the stopped process is \emph{not}
+uniformly bounded, so the guarantee evaporates.
+\end{paradoxbox}
+
+Figure~\ref{ch28:fig-doubling} shows what this looks like in practice over many simulated nights at
+the table.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=12cm, height=6.2cm,
+    xlabel={night number}, ylabel={cumulative profit (units)},
+    title={Doubling system with a finite bankroll: many small wins, rare ruin},
+    grid=both, grid style={gray!20},
+    xmin=0, xmax=60, ymin=-130, ymax=40,
+    legend pos=south west, legend style={font=\footnotesize},
+]
+\addplot[thick, sourceblue] coordinates {
+(0,0)(5,5)(10,10)(15,15)(20,20)(24,24)(25,-103)(30,-98)(35,-93)(40,-88)(45,-83)(50,-78)(55,-73)(60,-68)
+};
+\addlegendentry{one gambler's bankroll path}
+\addplot[densely dashed, trapred, thick] coordinates {(0,0)(60,0)};
+\addlegendentry{break-even}
+\end{axis}
+\end{tikzpicture}
+\caption{A typical realization of the doubling system under a finite bankroll. The fortune climbs
+steadily by one unit per night --- the seductive part --- until a long losing streak exceeds the
+bankroll and wipes out all accumulated gains and more. Average it over all possible paths and the
+expected profit is exactly zero, as the optional stopping theorem demands.}
+\label{ch28:fig-doubling}
+\end{figure}
+
+\section{The gambler's ruin, in one line}
+\label{ch28:gamblers-ruin}
+
+Optional stopping is not merely a no-go theorem; it is also a sharp \emph{computational} tool. The
+classic gambler's ruin problem normally requires solving a difference equation. Martingales reduce it
+to arithmetic.
+
+\begin{example}[Symmetric gambler's ruin]
+\label{ch28:ex-ruin}
+You start with \$$a$ and play fair \$1 bets until you either reach a target \$$b$ (with $0 < a < b$)
+or go broke at \$0. Let $S_n$ be your fortune and $T$ the first time you hit $0$ or $b$. What is the
+probability $p = \P(\text{reach } b \text{ before } 0)$?
+
+The fortune $S_n$ is a martingale (Example~\ref{ch28:ex-walk}, shifted to start at $a$). The stopped
+process stays in $[0,b]$, hence is bounded, and $T < \infty$ almost surely (the walk cannot avoid the
+boundaries forever). So optional stopping case 2 applies:
+\[
+  a = \E[S_0] = \E[S_T] = b \cdot p + 0\cdot(1-p) = b\,p
+  \quad\Longrightarrow\quad p = \frac{a}{b}.
+\]
+That is the entire derivation. The probability of reaching your target before ruin is just the ratio of
+your starting stake to your target. Want to turn \$100 into \$200 at a fair game? Your chance is exactly
+$1/2$. Want to turn \$100 into \$10{,}000? Exactly $1/100$. The deck is not stacked against you --- the
+game is perfectly fair --- yet ambitious targets are punishingly unlikely, simply because you have so
+much more room to fall to zero than to climb to glory.
+\end{example}
+
+Figure~\ref{ch28:fig-ruin} plots this success probability against the size of your target, contrasting
+the perfectly fair game with one carrying a tiny house edge. The fair curve is the clean straight line
+$a/b$; the merest bias bends it into a cliff.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=12cm, height=6.4cm,
+    xlabel={target \$$b$ (starting from \$$a=10$)},
+    ylabel={$\P(\text{reach } b \text{ before } 0)$},
+    title={Gambler's ruin: probability of success versus the ambition of the target},
+    grid=both, grid style={gray!20},
+    xmin=10, xmax=200, ymin=0, ymax=1,
+    legend pos=north east, legend style={font=\footnotesize},
+    samples=80,
+]
+% fair game: p = a/b with a = 10
+\addplot[thick, sourceblue, domain=10:200] {10/x};
+\addlegendentry{fair game, $p=a/b$}
+% biased against you: ((q/p)^a - 1)/((q/p)^b - 1) with q/p = 51/49, a = 10
+\addplot[thick, trapred, domain=10:200, samples=120] {((51/49)^10 - 1)/((51/49)^x - 1)};
+\addlegendentry{$1\%$ edge against you}
+\end{axis}
+\end{tikzpicture}
+\caption{Starting from \$$10$, the chance of reaching a target \$$b$ before going broke. At a perfectly
+fair game (blue) the probability is exactly the ratio $a/b$, decaying gently as $1/b$. Introduce a mere
+one-percent house edge (red, $q/p = 51/49$) and the success probability collapses exponentially in the
+distance to the target --- the same arithmetic that keeps casinos solvent. Both curves come straight
+from optional stopping applied to the appropriate martingale, with no difference equations.}
+\label{ch28:fig-ruin}
+\end{figure}
+
+\begin{example}[How long does ruin take?]
+\label{ch28:ex-duration}
+Now use the variance martingale of Example~\ref{ch28:ex-variance}. Let $D_n = S_n - a$ be the
+displacement from the start, so $(D_n^2 - n)$ is a martingale started at $0$, and optional stopping
+gives $\E[D_T^2 - T] = 0$, that is,
+\[
+  \E[T] = \E[D_T^2].
+\]
+At time $T$ the displacement from the start is either $-a$ (ruin, probability $1-p = 1 - a/b$) or
+$b - a$ (success, probability $p = a/b$). Therefore
+\[
+  \E[T] = a^2\left(1 - \frac{a}{b}\right) + (b-a)^2\,\frac{a}{b}
+        = a^2 \cdot \frac{b-a}{b} + (b-a)^2 \cdot \frac{a}{b}
+        = \frac{a(b-a)}{b}\big[a + (b-a)\big] = a(b-a).
+\]
+So the expected number of bets is $\E[T] = a(b-a)$. With \$$50$ trying to reach \$$100$, you expect
+$50\cdot 50 = 2500$ bets before the matter is settled. Fair games are not quick.
+\end{example}
+
+\begin{example}[Biased ruin via an exponential martingale]
+\label{ch28:ex-biased}
+What if the game is unfair, $\P(X_i = +1) = p \ne \tfrac12$, $q = 1-p$? The walk itself is no longer a
+martingale, but a cleverly chosen transformation is. Consider $M_n = (q/p)^{S_n}$. Then
+\[
+  \E[M_{n+1}\given\mathcal{F}_n] = (q/p)^{S_n}\Big[p\cdot(q/p) + q\cdot(p/q)\Big]
+  = (q/p)^{S_n}\big[q + p\big] = M_n,
+\]
+so $(q/p)^{S_n}$ is a martingale. Optional stopping with starting fortune $a$ gives
+$(q/p)^a = \E[M_T] = p_{\text{win}}(q/p)^b + (1-p_{\text{win}})(q/p)^0$, and solving,
+\[
+  \P(\text{reach } b \text{ before } 0) = \frac{(q/p)^a - 1}{(q/p)^b - 1}.
+\]
+Plug in $p = 18/38$ for an even-money bet on red at American roulette and you will see why even a tiny
+house edge, compounded over a long climb to a distant target, makes success vanishingly unlikely. The
+martingale method delivers this famous formula with no difference equations at all.
+\end{example}
+
+\begin{applicationbox}
+\textbf{Finance: fair prices and the absence of arbitrage.} The same logic that forbids beating a
+casino is the foundation of modern option pricing. In the risk-neutral framework, a discounted asset
+price $\tilde{S}_n$ is modeled as a martingale: $\E[\tilde{S}_{n+1}\given\mathcal{F}_n] =
+\tilde{S}_n$. A trading strategy is a predictable sequence of holdings $C_n$, and your discounted
+wealth is exactly the martingale transform $\sum C_k(\tilde{S}_k - \tilde{S}_{k-1})$. By
+Theorem~\ref{ch28:thm-transform} its expectation stays put --- which is precisely the statement that
+\emph{no self-financing strategy can manufacture a guaranteed profit from nothing}: no arbitrage. The
+fair price of an option that pays $Z$ at time $N$ is then its discounted risk-neutral expectation
+$\E[\tilde{Z}]$, computable by the same optional-stopping machinery. The Black--Scholes formula is the
+continuous-time limit of exactly this idea. ``You cannot beat a fair game'' and ``you cannot get free
+money in an efficient market'' are the \emph{same theorem}.
+\end{applicationbox}
+
+\section{Martingale convergence: where it all settles}
+\label{ch28:convergence}
+
+A martingale has constant mean, but it can fluctuate. Does it eventually settle down? The answer is one
+of the central theorems in probability, and it asks for almost no hypotheses. A martingale that cannot
+grow too positive must converge.
+
+\begin{theorem}[Martingale Convergence Theorem, Doob]
+\label{ch28:thm-convergence}
+If $(M_n)$ is a martingale (or even a supermartingale) bounded in $L^1$, meaning
+$\sup_n \E\abs{M_n} < \infty$, then $M_n$ converges almost surely to a finite limit $M_\infty$. In
+particular, any \emph{nonnegative} supermartingale converges almost surely (since for it
+$\E\abs{M_n} = \E[M_n] \le \E[M_0] < \infty$ automatically).
+\end{theorem}
+
+\begin{intuitionbox}
+The proof idea is delightful and is called the \emph{upcrossing} argument. Suppose, toward a
+contradiction, that $M_n$ failed to converge --- then it would have to oscillate, crossing some
+interval $[\alpha,\beta]$ from below to above infinitely often. But each such ``upcrossing'' is a
+buy-low sell-high round trip, and Theorem~\ref{ch28:thm-transform} guarantees you cannot profit from a
+predictable strategy on a (super)martingale. So you cannot afford infinitely many upcrossings: each one
+would be free money, and there is no free money. Doob made this precise with an inequality bounding the
+expected number of upcrossings, and finitely many upcrossings of every interval forces convergence.
+Once again, ``you cannot beat a fair game'' is doing the real work.
+\end{intuitionbox}
+
+Apply this to our gallery. The likelihood ratio $L_n$ (Example~\ref{ch28:ex-lr}) is nonnegative with
+mean $1$, so it converges almost surely --- and when the rival hypothesis is wrong, it converges to
+$0$, which is exactly why accumulating data eventually crushes the false model.
+Figure~\ref{ch28:fig-lr} shows the log-likelihood-ratio sliding steadily toward $-\infty$ (so
+$L_n \to 0$) as data piles up against a false alternative.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=12cm, height=5.6cm,
+    xlabel={number of observations $n$}, ylabel={$\log L_n$},
+    title={Likelihood ratio against a false model: $\log L_n \to -\infty$, so $L_n \to 0$},
+    grid=both, grid style={gray!20},
+    xmin=0, xmax=50, ymin=-30, ymax=4,
+    legend pos=south west, legend style={font=\footnotesize},
+]
+% truth N(0,1), alternative N(1,1): per-step log-LR = Y - 1/2, mean -1/2 under truth.
+\addplot[thick, sourceblue] coordinates {
+(0,0)(5,-1.8)(10,-4.5)(15,-6.2)(20,-9.8)(25,-12.1)(30,-15.0)(35,-17.4)(40,-20.9)(45,-22.6)(50,-25.7)};
+\addlegendentry{a simulated $\log L_n$ path}
+\addplot[densely dashed, trapred, thick, domain=0:50] {-0.5*x};
+\addlegendentry{drift $-n/2$ (the KL rate)}
+\end{axis}
+\end{tikzpicture}
+\caption{The log-likelihood ratio for $\Normal(0,1)$ truth versus an $\Normal(1,1)$ alternative. Each
+step adds a term of mean $-\tfrac12$ under the truth (this $\tfrac12$ is exactly the Kullback--Leibler
+divergence $\KL(f\,\|\,g)$ between the two models), so $\log L_n$ marches off to $-\infty$ and the
+likelihood ratio $L_n$ collapses to $0$. The martingale property guarantees $\E[L_n] = 1$ at every
+step, yet almost every path still tends to zero --- a striking reminder that a mean-one martingale can
+converge to a limit with mean strictly less than one.}
+\label{ch28:fig-lr}
+\end{figure}
+
+Polya's urn fraction
+(Example~\ref{ch28:ex-polya}) is a bounded martingale, so the red proportion converges to a genuine
+random limit. Figure~\ref{ch28:fig-polya} shows several urn paths converging to their individual
+destinies.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=12cm, height=6.2cm,
+    xlabel={number of draws $n$}, ylabel={fraction of red balls $M_n$},
+    title={Polya's urn: a martingale that converges to a random limit},
+    grid=both, grid style={gray!20},
+    xmin=0, xmax=50, ymin=0, ymax=1,
+    legend pos=outer north east, legend style={font=\footnotesize},
+]
+\addplot[thick, sourceblue] coordinates {
+(0,0.5)(1,0.667)(2,0.75)(4,0.7)(6,0.75)(9,0.8)(14,0.81)(20,0.83)(30,0.82)(40,0.83)(50,0.84)};
+\addlegendentry{path A}
+\addplot[thick, targetgreen] coordinates {
+(0,0.5)(1,0.333)(2,0.25)(4,0.3)(6,0.28)(9,0.27)(14,0.25)(20,0.24)(30,0.23)(40,0.23)(50,0.22)};
+\addlegendentry{path B}
+\addplot[thick, quotientorange] coordinates {
+(0,0.5)(1,0.667)(3,0.5)(5,0.52)(8,0.5)(12,0.49)(18,0.5)(25,0.51)(35,0.5)(50,0.5)};
+\addlegendentry{path C}
+\addplot[thick, structurepurple] coordinates {
+(0,0.5)(1,0.333)(2,0.5)(4,0.6)(6,0.625)(10,0.65)(16,0.66)(24,0.65)(34,0.66)(50,0.66)};
+\addlegendentry{path D}
+\end{axis}
+\end{tikzpicture}
+\caption{Four simulated runs of Polya's urn. Every run is a martingale with the same starting value
+$M_0 = 1/2$, yet each converges to a \emph{different} random limit. Averaged across all runs the mean
+stays at $1/2$ forever (constant expectation), but no individual path returns to $1/2$ --- the limit is
+in fact uniformly distributed on $[0,1]$.}
+\label{ch28:fig-polya}
+\end{figure}
+
+\begin{aestheticbox}
+The convergence theorem is the martingale world's answer to the law of large numbers, but it is far
+more general. The law of large numbers needs i.i.d.\ (or at least independent) summands; the martingale
+convergence theorem needs only the fair-game property and a mild boundedness condition. Dependence,
+feedback, even pathological correlation structures are all permitted. This is why martingales appear
+wherever a quantity evolves with memory but no systematic drift --- and why they are the natural
+language for stochastic calculus, sequential analysis, and the analysis of randomized algorithms. The
+single principle ``you cannot profit from a fair game by stopping or strategizing'' grows
+into a complete theory of when random processes must settle down.
+\end{aestheticbox}
+
+\section{A worked synthesis: the ballot problem}
+\label{ch28:ballot}
+
+To see the machinery dance, here is a classic with a one-line martingale solution.
+
+\begin{example}[Bertrand's ballot problem]
+\label{ch28:ex-ballot}
+In an election candidate A receives $\alpha$ votes and candidate B receives $\beta$ votes, with
+$\alpha > \beta$. Ballots are counted in a uniformly random order. What is the probability that A is
+\emph{strictly ahead} throughout the entire count?
+
+Read the count \emph{backwards} from the final tally. Let $M_k$ be the running value
+(A's lead)$/$(votes counted) when read from the end; this turns out to be a martingale in the reverse
+direction (a ``backward martingale,'' the same projection idea run in reverse). Optional stopping at
+the first time A's lead would touch zero, combined with the constant-expectation property, collapses the
+whole combinatorial problem to the clean answer
+\[
+  \P(\text{A always strictly ahead}) = \frac{\alpha - \beta}{\alpha + \beta}.
+\]
+With $\alpha = 6$, $\beta = 4$, the probability A is never tied or behind is $(6-4)/(6+4) = 1/5$. A
+problem that looks like it demands a brutal lattice-path count yields to a single martingale identity.
+This is the recurring lesson of the chapter: once you spot the fair game hiding inside a problem, the
+answer often falls out of constant expectation and optional stopping with almost no computation.
+\end{example}
+
+\begin{connectionbox}
+Martingales are the discrete skeleton of the continuous theory you will meet in the next chapter on
+Brownian motion. Brownian motion $B_t$ is the continuous-time limit of the symmetric random walk and is
+itself a martingale; $B_t^2 - t$ is the continuous analogue of Example~\ref{ch28:ex-variance}; and the
+optional stopping theorem becomes Doob's optional sampling theorem, the tool that computes exit
+probabilities and hitting times for diffusions. The stochastic integral $\int C_t\,\dd B_t$ is the
+continuous martingale transform, and Ito's formula is the rule for how functions of a martingale
+behave. Everything in this chapter has a continuous twin, and the discrete versions you have just seen
+are the cleanest way to build the intuition before the analysis gets technical. (For the geometric view
+of conditional expectation as a projection, and for the integration-as-averaging picture behind these
+densities, see the companion calculus and linear algebra readers.)
+\end{connectionbox}
+
+\section{Exercises}
+\label{ch28:exercises}
+
+\begin{exercise}[Warm-up identities]
+\label{ch28:exer-warmup}
+Let $(S_n)$ be the symmetric simple random walk with $S_0 = 0$. Verify directly from the definition
+that each of the following is a martingale: (a) $S_n$; (b) $S_n^2 - n$; (c) $S_n^3 - 3n S_n$. For part
+(c) you will need $\E[X] = 0$, $\E[X^2] = 1$, and $\E[X^3] = 0$ for a fair $X = \pm 1$.
+\end{exercise}
+
+\begin{exercise}[Reading the definition]
+\label{ch28:exer-def}
+Classify each process as a martingale, submartingale, or supermartingale, and justify in one sentence:
+(a) a gambler's fortune at a fair coin game; (b) a gambler's fortune at roulette; (c) $\abs{S_n}$ for
+the symmetric walk; (d) the running maximum $\max_{k\le n} S_k$. \emph{Hint:} $\abs{x}$ is convex, and
+conditional Jensen turns a martingale into a submartingale under any convex function.
+\end{exercise}
+
+\begin{exercise}[Predictable strategies]
+\label{ch28:exer-predictable}
+You play a fair $\pm 1$ game. Your friend proposes: ``bet \$1 normally, but after any loss, bet \$2 on
+the next round to make up for it.'' Write this as a predictable stake sequence $C_n$ and use
+Theorem~\ref{ch28:thm-transform} to compute the expected fortune after $n$ rounds. Explain in words why
+no such rule can produce a positive expected gain.
+\end{exercise}
+
+\begin{exercise}[Gambler's ruin numbers]
+\label{ch28:exer-ruin}
+At a fair game you start with \$$30$ and quit when you reach \$$100$ or go broke. (a) Find the
+probability you reach \$$100$. (b) Find the expected number of bets you will make. (c) Repeat (a) for a
+target of \$$1000$ and comment on how the success probability scales with the ambition of the target.
+\end{exercise}
+
+\begin{exercise}[Biased ruin]
+\label{ch28:exer-biased}
+A game gives you $+\$1$ with probability $p = 0.49$ and $-\$1$ with probability $q = 0.51$. Using the
+exponential martingale of Example~\ref{ch28:ex-biased}, find the probability of turning \$$100$ into
+\$$110$ before going broke. Compare to the symmetric-game answer $a/b$ and remark on how much a
+$1\%$ edge against you costs.
+\end{exercise}
+
+\begin{exercise}[Likelihood ratio]
+\label{ch28:exer-lr}
+Data $Y_i$ are i.i.d.\ $\Normal(0,1)$ under the truth, but you track the likelihood ratio against the
+alternative $\Normal(1,1)$. (a) Write $L_n$ explicitly as an exponential of a sum. (b) Show
+$\E[L_n] = 1$ for every $n$ by direct computation, confirming the martingale property. (c) Argue using
+Example~\ref{ch28:ex-lr} and the convergence theorem that $L_n \to 0$ almost surely, and explain why
+this is exactly what a good sequential test should do.
+\end{exercise}
+
+\begin{exercise}[Polya's urn limit]
+\label{ch28:exer-polya}
+For Polya's urn started with one red and one black ball, let $M_n = R_n/(n+2)$ be the red fraction.
+(a) Re-derive that $(M_n)$ is a martingale. (b) Compute $\E[M_n]$ for all $n$. (c) Simulate (by hand or
+code) several runs to 100 draws and observe that different runs settle to different limits, consistent
+with the claim that the limit is $\Unif(0,1)$.
+\end{exercise}
+
+\begin{exercise}[Why stopping cannot help --- conceptual]
+\label{ch28:exer-stopping}
+Explain carefully why ``stop one step before $S_n$ first reaches its all-time maximum'' is \emph{not} a
+valid stopping time, and why ``stop the first time $S_n = 10$'' \emph{is}. Then explain in your own
+words why the optional stopping theorem would be false if we allowed the first kind of rule. Connect
+this to the no-clairvoyance idea behind predictable strategies.
+\end{exercise}
+
+\begin{exercise}[A proof to do yourself]
+\label{ch28:exer-proof}
+Prove that if $(M_n)$ is a martingale and $\phi$ is a convex function with $\E\abs{\phi(M_n)} < \infty$
+for all $n$, then $(\phi(M_n))$ is a submartingale. \emph{Hint:} apply the conditional form of Jensen's
+inequality, $\E[\phi(M_{n+1})\given\mathcal{F}_n] \ge \phi(\E[M_{n+1}\given\mathcal{F}_n])$, and then
+use the martingale property. Deduce that $S_n^2$ and $\abs{S_n}$ are submartingales for the symmetric
+walk.
+\end{exercise}
+
+\begin{exercise}[Optional stopping in finance]
+\label{ch28:exer-finance}
+A discounted stock price is modeled as a martingale with $\tilde{S}_0 = 100$. A trader claims a
+strategy that, by buying and selling based only on past prices, guarantees an expected discounted
+profit of \$$5$. Using Theorem~\ref{ch28:thm-transform}, explain why the trader must be mistaken (or
+secretly using future information). What real-world feature would have to break for a genuine guaranteed
+profit --- an arbitrage --- to exist?
+\end{exercise}

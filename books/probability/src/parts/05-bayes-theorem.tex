@@ -1,0 +1,946 @@
+\chapter{Bayes' Theorem and Reasoning Under Uncertainty}
+
+There is a single, short equation in this chapter. You can write it on the back of a
+business card, and it has been written on more than a few. Yet that one line is the
+engine behind spam filters, medical diagnosis, courtroom reasoning, the search for lost
+submarines, the calibration of climate models, and most of modern machine learning. It
+is the rule that tells you, precisely, \emph{how a rational mind should
+change its beliefs when new evidence arrives}.
+
+That last sentence is the whole chapter in disguise.
+Probability up to this point has mostly answered the question ``how likely is this
+outcome?'' Bayes' theorem answers a different and far more human question: ``I observed
+\emph{something}; what should I now believe about the hidden cause behind it?'' A doctor
+sees a positive test and asks about the unseen disease. A detective sees a fingerprint
+and asks about the unseen suspect. A phone's autocorrect sees the keystrokes
+\texttt{teh} and asks about the unseen word you meant. In every case we are running a
+chain of cause and effect \emph{backwards}: from the visible effect to the invisible
+cause. Bayes' theorem is the mathematics of running that arrow backwards correctly.
+
+The derivation takes one line; the rest of the chapter is about learning to
+\emph{feel} it. The equation has four parts --- prior, likelihood, evidence, posterior
+--- and we will watch what each one does. Along the way we meet the base-rate fallacy, perhaps the most
+expensive single mistake in all of applied probability, and see exactly how an accurate
+test can produce mostly-wrong-looking results. We settle the Monty Hall
+problem with a method that leaves no room for argument, and we learn to update
+not once but repeatedly, letting evidence accumulate. The chapter ends by building, by
+hand, the algorithm that for two decades kept the spam out of your inbox.
+
+\chapterline
+
+\section{Running the Arrow Backwards}
+\label{ch05:backwards}
+
+Start with a story, because Bayes' theorem is really a story about asymmetry.
+
+\begin{intuitionbox}
+Imagine two facts about a far-off town. First: \emph{if it is raining, the streets are
+wet} --- this happens almost always, say with probability $0.95$. Second: you are told,
+by a friend who glanced out a window, only that \emph{the streets are wet}. How likely
+is it that it is raining?
+
+Your instinct might be to reach for that $0.95$. But notice the question has flipped.
+You were given the chance of \emph{wet streets given rain}, and you were asked for the
+chance of \emph{rain given wet streets}. These are not the same number, and confusing
+them is the original sin of probabilistic reasoning. Streets can be wet for many reasons
+--- a street cleaner, a burst pipe, melting snow, a parade with water balloons. To
+answer the question you actually need a third fact you have not been given: \emph{how
+often does it rain in this town at all?} In a rainforest the answer is ``almost surely
+raining.'' In a desert, ``almost surely not, despite the wet streets.'' Same evidence,
+opposite conclusions. The missing ingredient is what we will call the \emph{prior}, and
+half of all reasoning errors come from forgetting it.
+\end{intuitionbox}
+
+The asymmetry in that story --- $\P(\text{wet} \given \text{rain})$ versus
+$\P(\text{rain} \given \text{wet})$ --- is exactly the asymmetry Bayes' theorem
+resolves. Recall from the previous chapter the definition of conditional probability:
+for events $A$ and $B$ with $\P(B) > 0$,
+\[
+  \P(A \given B) \;=\; \frac{\P(A \cap B)}{\P(B)}.
+\]
+Read it as: ``of all the ways $B$ can happen, what fraction also have $A$?'' Now here is
+the trick. The intersection $A \cap B$ does not care which letter we write first;
+$\P(A \cap B) = \P(B \cap A)$. So we can expand that same joint probability two different
+ways using the multiplication rule:
+\[
+  \P(A \cap B) \;=\; \P(A \given B)\,\P(B)
+  \qquad\text{and}\qquad
+  \P(A \cap B) \;=\; \P(B \given A)\,\P(A).
+\]
+Both equal the same thing, so they equal each other:
+\[
+  \P(A \given B)\,\P(B) \;=\; \P(B \given A)\,\P(A).
+\]
+Divide both sides by $\P(B)$ and you have arrived.
+
+\begin{formalbox}
+\textbf{Bayes' Theorem (basic form).} For events $A$ and $B$ with $\P(B) > 0$,
+\begin{equation}
+  \P(A \given B) \;=\; \frac{\P(B \given A)\,\P(A)}{\P(B)}.
+  \label{ch05:bayes-basic}
+\end{equation}
+\end{formalbox}
+
+That is the entire derivation. One symmetry of the intersection, one division. It is
+almost embarrassing how little machinery it takes --- and yet the consequences fill this
+chapter and several careers. The reason it feels deep even though it is shallow to prove
+is that it tells you something your intuition resists: that to flip a conditional you
+\emph{must} bring in the unconditional probabilities $\P(A)$ and $\P(B)$, and people
+chronically leave them out.
+
+\begin{whybox}
+Why is $\P(A)$ in there at all? Because $\P(B\given A)$ only tells you how strongly the
+cause $A$ \emph{predicts} the effect $B$ --- it says nothing about how common $A$ is to
+begin with. A cause can be a perfect predictor of its effect and still be a terrible
+explanation for it, simply because the cause is rare. ``Being struck by lightning''
+predicts ``hospital visit'' very strongly, but almost no hospital visit is from
+lightning, because lightning strikes are rare. The factor $\P(A)$ is the brake that
+keeps a rare-but-predictive explanation from running away with your belief. Equation
+\eqref{ch05:bayes-basic} is the precise bookkeeping of how predictive power
+($\P(B\given A)$) and prior plausibility ($\P(A)$) trade off.
+\end{whybox}
+
+\subsection{The four names}
+
+Equation \eqref{ch05:bayes-basic} earns its fame once we attach a story to each piece.
+Let $A$ be a \emph{hypothesis} $H$ (the hidden cause: it is raining, the patient is
+sick, the email is spam) and let $B$ be the \emph{evidence} $E$ we actually observe (wet
+streets, a positive test, the word ``Viagra''). Rewriting,
+\begin{equation}
+  \underbrace{\P(H \given E)}_{\text{posterior}}
+  \;=\;
+  \frac{\overbrace{\P(E \given H)}^{\text{likelihood}}\;\overbrace{\P(H)}^{\text{prior}}}
+       {\underbrace{\P(E)}_{\text{evidence}}}.
+  \label{ch05:bayes-named}
+\end{equation}
+
+\begin{itemize}
+\item The \textbf{prior} $\P(H)$ is what you believed about the hypothesis \emph{before}
+seeing this piece of evidence. The rainfall rate of the town. Your starting credence.
+\item The \textbf{likelihood} $\P(E \given H)$ is how well the hypothesis predicts the
+evidence: \emph{if} $H$ were true, how probable would $E$ be? Note carefully: the
+likelihood is a function of $H$, asking ``which hypothesis makes the data look least
+surprising?'' It is \emph{not} a probability of $H$.
+\item The \textbf{evidence} (or \emph{marginal likelihood}) $\P(E)$ is the total
+probability of seeing $E$ at all, under every hypothesis weighted by its prior. It is
+the great normalizer, the thing that makes the posterior add up to one.
+\item The \textbf{posterior} $\P(H \given E)$ is your updated belief after folding in the
+evidence. It is the answer. It is what you came for.
+\end{itemize}
+
+\begin{happeningbox}
+Here is the one sentence to remember when the symbols blur:
+\[
+  \text{posterior} \;\propto\; \text{likelihood} \times \text{prior}.
+\]
+The denominator $\P(E)$ does not depend on the particular hypothesis $H$ --- it is the
+same number whether you are asking about rain or street cleaners --- so it cannot change
+\emph{which} hypothesis wins. It only rescales all the posteriors so they sum to one.
+What actually does the work, what actually moves your belief, is the product
+$\P(E\given H)\,\P(H)$. New belief is old belief reweighted by how well each hypothesis
+explained what you just saw. Everything else is normalization. If you internalize only
+this proportionality, you understand Bayes' theorem.
+\end{happeningbox}
+
+\subsection{Computing the evidence: the law of total probability}
+
+We will constantly need $\P(E)$, and almost never is it handed to us directly. Instead
+we compute it by splitting the world into the hypothesis and its complement (or into a
+full set of competing hypotheses) and adding up the ways $E$ can occur. If $H$ and its
+negation $H^c$ together cover all possibilities, then
+\begin{equation}
+  \P(E) \;=\; \P(E \given H)\,\P(H) \;+\; \P(E \given H^c)\,\P(H^c).
+  \label{ch05:total-prob}
+\end{equation}
+This is the \emph{law of total probability}: the evidence can arrive either through the
+hypothesis being true or through it being false, and we tally both routes. More
+generally, if $H_1, \dots, H_k$ are mutually exclusive and exhaustive (a \emph{partition}
+of the sample space), then $\P(E) = \sum_{i=1}^{k} \P(E \given H_i)\,\P(H_i)$, and Bayes'
+theorem becomes
+\begin{equation}
+  \P(H_j \given E) \;=\; \frac{\P(E \given H_j)\,\P(H_j)}
+                              {\sum_{i=1}^{k} \P(E \given H_i)\,\P(H_i)}.
+  \label{ch05:bayes-partition}
+\end{equation}
+The denominator is just the numerator summed over all hypotheses --- which is why the
+posteriors are guaranteed to add to one. Let us put the rain story to rest with real
+numbers.
+
+\begin{example}[Wet streets, finally answered]
+\label{ch05:ex-rain}
+Suppose in our town it rains on a given morning with probability $\P(R) = 0.2$. If it
+rains, the streets are wet with probability $\P(W \given R) = 0.95$. If it does not rain,
+the streets are still wet --- cleaners, sprinklers, the occasional spill --- with
+probability $\P(W \given R^c) = 0.1$. Your friend reports wet streets. What is
+$\P(R \given W)$?
+
+First the evidence, by \eqref{ch05:total-prob}:
+\[
+  \P(W) = (0.95)(0.2) + (0.1)(0.8) = 0.19 + 0.08 = 0.27.
+\]
+Then Bayes:
+\[
+  \P(R \given W) = \frac{(0.95)(0.2)}{0.27} = \frac{0.19}{0.27} \approx 0.70.
+\]
+So wet streets push you from a $20\%$ belief in rain up to a $70\%$ belief --- a big
+update, but nowhere near the $95\%$ that the careless reader grabbed from the likelihood.
+The other $30\%$ of wet-street mornings are dry-but-wet for mundane reasons. Change the
+town's rainfall rate to $\P(R)=0.02$ (a desert) and rerun it: $\P(W) = 0.019 + 0.098 =
+0.117$ and $\P(R\given W) = 0.019/0.117 \approx 0.16$. Same evidence, same likelihoods,
+but now wet streets leave you \emph{still doubting} the rain. The prior is doing exactly
+the work the intuition box promised.
+\end{example}
+
+\begin{historybox}
+The theorem is named for the Reverend \textbf{Thomas Bayes} (c.\ 1701--1761), a
+Presbyterian minister and amateur mathematician in Tunbridge Wells, England. He never
+published it. The result appeared posthumously in 1763 when his friend Richard Price
+read Bayes' notes to the Royal Society in ``An Essay towards solving a Problem in the
+Doctrine of Chances.'' Bayes' own problem was a charming one about a billiard ball rolled
+on a table: having seen where later balls land relative to the first, what can you infer
+about the first ball's hidden position? That is inference about a hidden cause from
+visible effects --- exactly our theme.
+
+But the person who truly built the cathedral was \textbf{Pierre-Simon Laplace}, who
+around 1774, apparently unaware of Bayes, stated the rule in full generality and spent
+decades applying it to astronomy, geodesy, and demography --- he used it to estimate,
+from birth records, that boys are very slightly more likely than girls, and to put error
+bars on the masses of the planets. For a century the method was simply called ``inverse
+probability.'' It fell out of fashion in the early twentieth century, attacked by
+frequentists like R.\ A.\ Fisher who distrusted the subjectivity of the prior, and was
+kept alive in the wilderness by a few --- Jeffreys, de Finetti, Savage. It came roaring
+back at the end of the century when cheap computation finally made the integrals
+tractable, and today ``Bayesian'' is one of the most common adjectives in all of applied
+science. A two-page note by a country parson became a worldview.
+\end{historybox}
+
+\section{The Base-Rate Fallacy: When a Good Test Lies}
+\label{ch05:base-rate}
+
+We now meet the single most important application of Bayes' theorem for everyday life,
+and the place where untrained intuition fails most spectacularly and most expensively.
+The setting is medical testing, but the lesson reaches into security screening,
+fraud detection, courtroom DNA evidence, and every alarm system ever built.
+
+\begin{paradoxbox}
+\textbf{The disease that the test cannot find.} A certain disease afflicts $1$ person in
+$1000$. There is a test for it that is, by any normal standard, excellent: if you have
+the disease, the test is positive $99\%$ of the time (only a $1\%$ false-negative rate);
+if you do \emph{not} have the disease, the test is negative $95\%$ of the time (a $5\%$
+false-positive rate). You take the test. It comes back \textbf{positive}. How worried
+should you be --- what is the probability you actually have the disease?
+
+Most people, including a famously large fraction of doctors when surveyed, answer
+somewhere around $95\%$ or $99\%$. The test is $95$--$99\%$ accurate, after all. The
+true answer is about \textbf{2\%}. You are almost certainly fine. Read that again,
+because it is genuinely shocking: a $99\%$-sensitive, $95\%$-specific test, returning
+positive, and you are still $98\%$ likely to be healthy.
+\end{paradoxbox}
+
+How can an excellent test be so misleading? Bayes' theorem will tell us exactly, but
+first let us see it with our bare hands, by counting people. This ``natural frequencies''
+trick is the single best way to defuse the paradox, and it is worth doing even when you
+trust the algebra.
+
+\begin{walkbox}
+Imagine $100{,}000$ people, a small city, all getting tested.
+
+\emph{Step 1 --- the truly sick.} The disease rate is $1$ in $1000$, so about
+$100{,}000 / 1000 = 100$ people genuinely have it. Of these $100$, the test catches
+$99\%$, so $99$ of them test positive (and $1$ slips through as a false negative).
+
+\emph{Step 2 --- the healthy many.} The other $99{,}900$ people are disease-free. The
+test wrongly flags $5\%$ of them, so $0.05 \times 99{,}900 \approx 4995$ healthy people
+also test positive.
+
+\emph{Step 3 --- who got the bad news?} Total positives:
+$99 + 4995 = 5094$. Of these, only $99$ are actually sick. So the probability that a
+positive result means real disease is
+\[
+  \frac{99}{5094} \approx 0.0194 \approx 1.9\%.
+\]
+There is the answer, with no formula in sight. The flood of false positives from the
+enormous healthy population (nearly $5000$ of them) drowns out the trickle of true
+positives from the tiny sick population (just $99$). The test is fine. The problem is
+that the disease is \emph{rare}, and rarity is the prior.
+\end{walkbox}
+
+Now the same computation in the language of Bayes, so you see they agree. Let $D$ be
+``has disease'' and $+$ be ``tests positive.'' We are given the prior $\P(D) = 0.001$,
+the likelihood (sensitivity) $\P(+ \given D) = 0.99$, and the false-positive rate
+$\P(+ \given D^c) = 0.05$. The evidence:
+\[
+  \P(+) = \P(+\given D)\P(D) + \P(+\given D^c)\P(D^c)
+        = (0.99)(0.001) + (0.05)(0.999)
+        = 0.00099 + 0.04995 = 0.05094.
+\]
+The posterior:
+\[
+  \P(D \given +) = \frac{\P(+\given D)\P(D)}{\P(+)}
+                 = \frac{0.00099}{0.05094} \approx 0.0194.
+\]
+Identical to the counting, as it must be --- the natural-frequencies method \emph{is}
+Bayes' theorem with the denominators cleared.
+
+\begin{trapbox}
+The fallacy has a precise shape: people silently swap $\P(D \given +)$ for
+$\P(+ \given D)$. They hear ``the test is $99\%$ accurate'' (a statement about
+$\P(+\given D)$, the likelihood) and report it as the chance of being sick (the
+posterior $\P(D\given +)$). These differ by exactly the factor $\P(D)/\P(+)$ that Bayes
+inserts --- and when the disease is rare, that factor is tiny. Whenever you catch
+yourself reasoning ``the evidence is very reliable, therefore the conclusion is very
+likely,'' stop and ask: \emph{how common was the conclusion to begin with?} A reliable
+detector of a rare thing is mostly an alarm that cries wolf.
+\end{trapbox}
+
+\begin{aestheticbox}
+This is not an academic curiosity; it is a matter of public policy and personal anguish.
+It is the central argument against mass screening of the general population for rare
+diseases: you generate a torrent of frightened, falsely-positive patients --- biopsies,
+anxiety, follow-up procedures with their own risks --- to find a handful of true cases.
+It is why doctors test \emph{symptomatic} or \emph{high-risk} patients: doing so raises
+the prior $\P(D)$, which is the only lever that improves the posterior. The same
+arithmetic governs airport security, mass surveillance for terrorism, and automated fraud
+flags: when you hunt for needles, almost everything your detector lights up is hay, no
+matter how good the detector. The remedy is never ``a better test'' alone --- it is a
+higher prior, achieved by testing a population in which the thing is not so rare.
+\end{aestheticbox}
+
+\subsection{Watching the prior take over}
+
+The whole drama lives in how the posterior depends on the prior, the base rate. Let us
+hold the test fixed (sensitivity $0.99$, specificity $0.95$) and sweep the disease
+prevalence from very rare to fairly common, plotting $\P(D \given +)$ as we go. The
+curve in Figure~\ref{ch05:fig-baserate} says it all.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=12cm, height=7.2cm,
+    xlabel={Disease prevalence (prior) $\P(D)$},
+    ylabel={$\P(D \given +)$ after a positive test},
+    xmin=0, xmax=0.5, ymin=0, ymax=1,
+    domain=0.0005:0.5, samples=160,
+    grid=both, grid style={gray!18},
+    legend pos=south east, legend cell align=left,
+    tick label style={font=\small}, label style={font=\small},
+    title={A fixed test (sens.\ $0.99$, spec.\ $0.95$): the prior runs the show}
+]
+\addplot[densityred, very thick] {(0.99*x)/(0.99*x + 0.05*(1-x))};
+\addlegendentry{posterior $\P(D\given +)$}
+\addplot[sourceblue, dashed, thick] {x};
+\addlegendentry{prior $=$ posterior (no info line)}
+\addplot[only marks, mark=*, mark size=2pt, structurepurple]
+    coordinates {(0.001, 0.0194)};
+\node[anchor=west, font=\footnotesize, structurepurple]
+    at (axis cs:0.02,0.10) {$1$ in $1000 \Rightarrow 1.9\%$};
+\end{axis}
+\end{tikzpicture}
+\caption{For a strong but imperfect test, the post-positive probability of disease climbs
+steeply with the base rate. At a prevalence of $1$ in $1000$ (purple dot) a positive
+result barely moves you off zero; only when the disease is already reasonably common does
+a positive test become trustworthy. The dashed line marks where evidence would tell you
+nothing; the gap above it is how much the test \emph{does} help. Same test, wildly
+different verdicts --- the only thing that changed is the prior.}
+\label{ch05:fig-baserate}
+\end{figure}
+
+The shape of that curve is the base-rate fallacy made visible. Down in the far left,
+where real diseases live, the red posterior hugs the floor: a positive test is almost
+worthless because false positives swamp it. The posterior only becomes large --- the test
+only becomes trustworthy --- once the prior is already substantial. The test never
+changes; the verdict does. This is why the very same positive mammogram means something
+very different for a $40$-year-old with no family history than for a $65$-year-old with a
+suspicious lump: their priors are not the same, so their posteriors cannot be either.
+
+\section{Sequential Updating: Yesterday's Posterior Is Today's Prior}
+\label{ch05:sequential}
+
+So far we have updated once. But evidence rarely arrives all at once; it dribbles in.
+Bayes' theorem handles a stream of evidence with no extra machinery
+at all. You update, and then update again, treating the belief you just computed as
+the starting belief for the next round. This is the rhythm of all learning:
+
+\begin{center}
+prior $\xrightarrow{\;E_1\;}$ posterior$_1$ $=$ prior$_2$
+$\xrightarrow{\;E_2\;}$ posterior$_2$ $=$ prior$_3$
+$\xrightarrow{\;E_3\;}$ $\cdots$
+\end{center}
+
+\begin{whybox}
+Why is it legitimate to feed yesterday's posterior in as today's prior? Because that is
+literally what conditioning on more data does. Apply Bayes twice with two pieces of
+evidence $E_1, E_2$:
+\[
+  \P(H \given E_1, E_2) = \frac{\P(E_2 \given H, E_1)\,\P(H \given E_1)}{\P(E_2\given E_1)}.
+\]
+The term $\P(H \given E_1)$ sitting where the prior usually sits is precisely the
+posterior from round one. The data simply accumulate inside the conditioning bar. If the
+pieces of evidence are conditionally independent given $H$ --- meaning that once you know
+the true hypothesis, $E_1$ tells you nothing further about $E_2$ --- then
+$\P(E_2 \given H, E_1) = \P(E_2 \given H)$, and the whole stream collapses to multiplying
+likelihoods:
+\[
+  \P(H \given E_1, \dots, E_n) \;\propto\; \P(H)\prod_{i=1}^{n}\P(E_i \given H).
+\]
+Each new datum just multiplies in another likelihood factor. Belief compounds like
+interest.
+\end{whybox}
+
+A spectacular feature of this process is its \emph{commutativity and convergence}: the
+order in which conditionally-independent evidence arrives does not change the final
+belief, and as evidence piles up the posterior typically concentrates on the truth almost
+regardless of where the prior started (as long as the prior didn't dogmatically assign
+probability zero to the truth --- a hypothesis you give zero prior can never be revived,
+which is a moral as much as a theorem). Let us watch it happen.
+
+\begin{example}[Two tests are much better than one]
+\label{ch05:ex-second-test}
+Return to the patient from the base-rate paradox, who tested positive and now stands at
+posterior $\P(D \given +) \approx 0.0194$. The doctor, sensibly, orders a \emph{second},
+independent test of the same quality. It too comes back positive. Now what?
+
+Yesterday's posterior becomes today's prior: $\P(D) = 0.0194$. Run Bayes again with the
+same likelihoods:
+\[
+  \P(+) = (0.99)(0.0194) + (0.05)(0.9806) = 0.01921 + 0.04903 = 0.06824,
+\]
+\[
+  \P(D \given +,+) = \frac{(0.99)(0.0194)}{0.06824} = \frac{0.01921}{0.06824}
+  \approx 0.281.
+\]
+Two positives lift the patient from $1.9\%$ to about $28\%$. A \emph{third} positive,
+updating again with prior $0.281$, gives
+\[
+  \P(D\given +,+,+) = \frac{(0.99)(0.281)}{(0.99)(0.281)+(0.05)(0.719)}
+  = \frac{0.2782}{0.2782+0.03595} \approx 0.886.
+\]
+Now you should be worried. This is exactly how diagnosis actually works: no single test
+is conclusive for a rare disease, but independent confirmations compound. Each positive
+multiplies the odds by the same factor; pile up enough of them and even a tiny prior is
+overwhelmed.
+\end{example}
+
+Figure~\ref{ch05:fig-sequential} draws that compounding. Each positive test multiplies the
+\emph{odds} by the constant Bayes factor $19.8$, so the posterior probability follows the
+unmistakable S-shaped march from near-zero toward near-certainty: slow while the rare prior
+still dominates, explosive once enough evidence has accumulated, then flattening as it
+saturates against the ceiling of $1$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=12cm, height=7cm,
+    xlabel={Number of independent positive tests $n$},
+    ylabel={posterior $\P(D\given n\text{ positives})$},
+    xmin=0, xmax=8, ymin=0, ymax=1,
+    xtick={0,1,2,3,4,5,6,7,8},
+    ytick={0,0.2,0.4,0.6,0.8,1.0},
+    grid=both, grid style={gray!18},
+    tick label style={font=\small}, label style={font=\small},
+    title={Each positive multiplies the odds by $19.8$: a tiny prior, overwhelmed}
+]
+% prior odds 1/999, Bayes factor 19.8^n; prob = o/(1+o), o = 19.8^n/999
+\addplot[densityred, very thick, mark=*, mark size=2pt]
+  coordinates {
+    (0, 0.001000)
+    (1, 0.019435)
+    (2, 0.281832)
+    (3, 0.885977)
+    (4, 0.993542)
+    (5, 0.999672)
+    (6, 0.999983)
+    (7, 0.999999)
+    (8, 1.000000)
+  };
+\addplot[sourceblue, dashed, thick, domain=0:8] {0.5};
+\node[anchor=south west, font=\footnotesize, sourceblue] at (axis cs:0.1,0.5) {coin-flip line};
+\node[anchor=west, font=\footnotesize, structurepurple] at (axis cs:3.05,0.78)
+  {3 positives $\Rightarrow 88.6\%$};
+\end{axis}
+\end{tikzpicture}
+\caption{Repeated positive results on independent copies of the same imperfect test,
+starting from a prevalence of $1$ in $1000$. The first positive barely registers (the
+base-rate fallacy in action); the second and third do the real work; by the fourth the
+patient is past the coin-flip line and climbing toward certainty. Belief compounds like
+interest, because in log-odds each positive simply \emph{adds} the same fixed weight
+$\log 19.8$.}
+\label{ch05:fig-sequential}
+\end{figure}
+
+\subsection{The odds form: Bayes' theorem with the friction removed}
+
+Example~\ref{ch05:ex-second-test} hints at something cleaner. Recomputing $\P(E)$ every
+round is tedious, and it obscures the pattern. There is a reformulation in terms of
+\emph{odds} that makes sequential updating almost trivial, and that reveals what evidence
+``weighs.'' Take Bayes' theorem for $H$ and for $H^c$ and divide one by the other; the
+shared denominator $\P(E)$ cancels:
+\begin{equation}
+  \underbrace{\frac{\P(H\given E)}{\P(H^c\given E)}}_{\text{posterior odds}}
+  \;=\;
+  \underbrace{\frac{\P(E\given H)}{\P(E\given H^c)}}_{\text{likelihood ratio}}
+  \;\times\;
+  \underbrace{\frac{\P(H)}{\P(H^c)}}_{\text{prior odds}}.
+  \label{ch05:odds-form}
+\end{equation}
+This is the most useful single equation for actually \emph{doing} Bayesian updates by
+hand. Odds are just probabilities written as a ratio: a probability of $0.2$ is odds of
+$0.2/0.8 = 1{:}4$. The \emph{likelihood ratio} (also called the Bayes factor) is the
+weight of the evidence --- how many times more likely the data are under $H$ than under
+$H^c$. And the rule could not be simpler:
+\[
+  \text{posterior odds} \;=\; \text{Bayes factor} \times \text{prior odds}.
+\]
+No normalizer to compute. To chain evidence, just keep multiplying by each Bayes factor.
+
+\begin{example}[The same diagnosis, the easy way]
+For our test, the Bayes factor of a positive result is
+\[
+  \frac{\P(+\given D)}{\P(+\given D^c)} = \frac{0.99}{0.05} = 19.8.
+\]
+Every positive multiplies the odds of disease by $19.8$. The prior odds at prevalence
+$1$ in $1000$ are $0.001/0.999 \approx 1/999$. After one positive:
+$\frac{1}{999}\times 19.8 = \frac{19.8}{999} \approx 0.0198$, which is odds, i.e.\
+probability $0.0198/(1.0198) \approx 0.0194$ --- matching before. After three positives:
+$\frac{1}{999}\times 19.8^3 = \frac{7762}{999}\approx 7.77$, i.e.\ probability
+$7.77/8.77 \approx 0.886$. Three multiplications and we are done, no total-probability
+sums anywhere. \emph{This} is why practitioners think in odds and log-odds.
+\end{example}
+
+\begin{connectionbox}
+Take the logarithm of the odds form \eqref{ch05:odds-form} and the products become sums:
+\[
+  \log\frac{\P(H\given E_{1:n})}{\P(H^c\given E_{1:n})}
+  = \log\frac{\P(H)}{\P(H^c)} + \sum_{i=1}^{n}\log\frac{\P(E_i\given H)}{\P(E_i\given H^c)}.
+\]
+Each piece of evidence contributes an additive ``weight'' $\log(\text{Bayes factor})$ to
+a running total of \emph{log-odds}. It is no accident that this looks like a linear model.
+The logistic-regression classifier of machine learning is exactly this equation: it
+learns a weight for each feature and \emph{adds them up} to form a log-odds, then squashes
+back to a probability with the logistic function $\sigma(t) = 1/(1+e^{-t})$, which is
+precisely the inverse of the log-odds transform. Information theory will later measure
+these weights in \emph{bits} and \emph{nats} --- the ``weight of evidence'' is literally
+a quantity of information. The thread from Reverend Bayes to your linear classifier runs
+straight through this one logarithm.
+\end{connectionbox}
+
+The bridge between the additive world of log-odds and the bounded world of probabilities
+is the logistic function $\sigma$, drawn in Figure~\ref{ch05:fig-logistic}. Adding up the
+weights of evidence is easy and unbounded; the squashing curve then folds that running
+total back into a probability in $[0,1]$, gently near the middle and ever more compressed
+out in the tails --- which is exactly why the sequential-test curve of
+Figure~\ref{ch05:fig-sequential} flattens as it approaches certainty.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=12cm, height=6.4cm,
+    xlabel={log-odds $t$ (total weight of evidence)},
+    ylabel={probability $\sigma(t)=\tfrac{1}{1+e^{-t}}$},
+    xmin=-6, xmax=6, ymin=0, ymax=1,
+    domain=-6:6, samples=160,
+    xtick={-6,-4,-2,0,2,4,6},
+    ytick={0,0.25,0.5,0.75,1.0},
+    grid=both, grid style={gray!18},
+    tick label style={font=\small}, label style={font=\small},
+    title={From log-odds to probability: the logistic squashing function}
+]
+\addplot[densityred, very thick] {1/(1+exp(-x))};
+\addplot[sourceblue, dashed, thick, domain=-6:6] {0.5};
+\addplot[only marks, mark=*, mark size=2pt, structurepurple] coordinates {(0,0.5)};
+\node[anchor=south west, font=\footnotesize, structurepurple] at (axis cs:0.15,0.5)
+  {$t=0 \Rightarrow$ even odds};
+\end{axis}
+\end{tikzpicture}
+\caption{The logistic function maps the running total of log-odds back to a probability.
+Zero log-odds (evidence perfectly balanced) maps to probability $\tfrac12$; each unit of
+accumulated evidence-weight slides you along the curve, with diminishing effect once you
+are already near $0$ or $1$. Sequential Bayesian updating walks rightward along this curve,
+one Bayes factor at a time.}
+\label{ch05:fig-logistic}
+\end{figure}
+
+\section{The Monty Hall Problem, Finally Resolved}
+\label{ch05:monty}
+
+No book on Bayesian reasoning can skip the problem that broke the internet of its day.
+It is a perfect specimen: a question simple enough for a child, an answer that PhDs got
+wrong in print, and a resolution that Bayes' theorem delivers without drama.
+
+\begin{paradoxbox}
+\textbf{Monty Hall.} On a game show there are three doors. Behind one is a car; behind the
+other two, goats. You pick a door --- say Door $1$ --- but do not open it. The host, Monty,
+who knows where the car is, opens one of the \emph{other} two doors to reveal a goat ---
+say he opens Door $3$. He then offers you a choice: stick with Door $1$, or switch to the
+remaining closed Door $2$. \emph{Should you switch?}
+
+The overwhelming intuition is: it doesn't matter. Two doors remain, one has the car, so
+it's $50/50$ --- switching is pointless. This intuition is \textbf{wrong}. Switching wins
+the car with probability $2/3$; staying wins with only $1/3$. You should always switch,
+and doing so \emph{doubles} your chance of the car. When the columnist Marilyn vos Savant
+published this answer in 1990, she received thousands of angry letters, many from
+mathematicians, insisting she was wrong. She was not.
+\end{paradoxbox}
+
+\begin{historybox}
+The problem is named for \textbf{Monty Hall}, host of the American television show
+\emph{Let's Make a Deal}, though Monty's real game was looser than the puzzle. Its
+mathematical skeleton dates to Joseph Bertrand's box paradox (1889) and to a 1975
+letter by statistician Steve Selvin. It exploded into public consciousness in September
+1990 when \textbf{Marilyn vos Savant} answered it in her \emph{Parade} magazine column.
+The ensuing furor --- roughly $10{,}000$ letters, a sizable fraction from people with
+doctorates, nearly all of them wrong and many of them rude --- became a landmark in the
+history of how badly trained intuition handles conditional probability. Even Paul
+Erd\H{o}s, one of the great mathematicians of the century, reportedly refused to believe
+the answer until shown a computer simulation. If it fooled Erd\H{o}s, you are in good
+company.
+\end{historybox}
+
+\subsection{Why the intuition fails, in words}
+
+Before any algebra, here is the idea that makes it click for most people. Your original
+door had a $1/3$ chance of hiding the car, and \emph{nothing Monty does afterward can
+change a probability you already locked in}. So Door $1$ stays at $1/3$ forever. But the
+total must be $1$, and Door $3$ is now revealed to be $0$. The entire remaining $2/3$ has
+nowhere to go but onto Door $2$. Monty, by deliberately opening a goat door he \emph{chose
+knowing the layout}, has effectively concentrated the other two doors' combined $2/3$
+chance onto the single door he left closed.
+
+\begin{intuitionbox}
+If three doors still feels slippery, scale it up. Imagine \textbf{$100$ doors}, one car.
+You pick Door $1$ --- a $1\%$ shot. Now Monty, who knows where the car is, opens
+$98$ of the other doors, every one a goat, leaving just your Door $1$ and one other door,
+say Door $57$, closed. Do you really believe it's now $50/50$? Of course not. You almost
+certainly picked a goat at the start ($99\%$ chance), and Monty has carefully cleared away
+every other goat, leaving the car sitting behind Door $57$ in $99$ cases out of $100$.
+Switching wins $99\%$ of the time. The three-door case is the same effect, merely too
+small to feel: staying wins $1/3$, switching wins $2/3$. The host's knowledge is the
+whole trick --- he never opens the car, so his choice of door leaks information.
+\end{intuitionbox}
+
+\subsection{The Bayesian computation, leaving no doubt}
+
+Words convince most people; algebra convinces everyone. Let us nail it with Bayes'
+theorem. Define the hypotheses --- the car's true location:
+\[
+  C_1 = \{\text{car behind Door 1}\},\quad
+  C_2 = \{\text{car behind Door 2}\},\quad
+  C_3 = \{\text{car behind Door 3}\}.
+\]
+By symmetry before anything happens, $\P(C_1)=\P(C_2)=\P(C_3)=1/3$; these are our priors.
+You have picked Door $1$. The evidence we will condition on is $M_3 = \{\text{Monty opens
+Door 3 to show a goat}\}$. We need the likelihoods $\P(M_3 \given C_i)$ --- and \emph{here}
+is where the host's rules, which the careless solver ignores, enter the math.
+
+\begin{itemize}
+\item $\P(M_3 \given C_1)$: the car is behind your Door $1$, so both other doors hide
+goats and Monty may open either Door $2$ or Door $3$. With no reason to prefer one, he
+opens Door $3$ with probability $\tfrac{1}{2}$. So $\P(M_3\given C_1)=\tfrac12$.
+\item $\P(M_3 \given C_2)$: the car is behind Door $2$. Monty cannot open your Door $1$,
+and he cannot open Door $2$ (the car!), so he is \emph{forced} to open Door $3$. Thus
+$\P(M_3\given C_2)=1$.
+\item $\P(M_3 \given C_3)$: the car is behind Door $3$. Monty will never open the car's
+door, so he certainly does not open Door $3$. Thus $\P(M_3\given C_3)=0$.
+\end{itemize}
+
+Now assemble the evidence by total probability:
+\[
+  \P(M_3) = \tfrac12\cdot\tfrac13 + 1\cdot\tfrac13 + 0\cdot\tfrac13
+          = \tfrac16 + \tfrac13 = \tfrac12.
+\]
+(Sensible: by symmetry Monty opens Door $3$ half the time.) Then the two posteriors that
+matter:
+\[
+  \P(C_1 \given M_3) = \frac{\P(M_3\given C_1)\P(C_1)}{\P(M_3)}
+  = \frac{\tfrac12\cdot\tfrac13}{\tfrac12} = \frac{\tfrac16}{\tfrac12} = \frac13,
+\]
+\[
+  \P(C_2 \given M_3) = \frac{\P(M_3\given C_2)\P(C_2)}{\P(M_3)}
+  = \frac{1\cdot\tfrac13}{\tfrac12} = \frac{\tfrac13}{\tfrac12} = \frac23.
+\]
+Staying with Door $1$ wins with probability $1/3$; switching to Door $2$ wins with
+probability $2/3$. The paradox is dissolved, exactly, with no appeal to intuition.
+
+The whole computation is laid bare by the probability tree in Figure~\ref{ch05:fig-monty},
+which simply enumerates the worlds and weights each by its probability. Conditioning on
+``Monty opened Door $3$'' means keeping only the branches consistent with that observation
+and renormalizing --- and when you do, the surviving weight on ``car behind Door $2$'' is
+twice the weight on ``car behind Door $1$.''
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    grow=right, level distance=34mm, sibling distance=15mm,
+    edge from parent/.style={draw, -{Latex[length=2mm]}, gray!70},
+    every node/.style={font=\small, align=center}
+]
+\node[structurepurple] {start}
+  child {node[sourceblue] {$C_3$ ($\tfrac13$)}
+    child {node[gray!55] {opens 2 \\ (forced)} edge from parent node[below, font=\footnotesize]{$1$}}
+    edge from parent node[above, font=\footnotesize]{$\tfrac13$}
+  }
+  child {node[sourceblue] {$C_2$ ($\tfrac13$)}
+    child {node[densityred] {\textbf{opens 3} \\ $\Rightarrow \tfrac13$} edge from parent node[below, font=\footnotesize]{$1$}}
+    edge from parent node[above, font=\footnotesize]{$\tfrac13$}
+  }
+  child {node[sourceblue] {$C_1$ ($\tfrac13$)}
+    child {node[gray!55] {opens 2} edge from parent node[below, font=\footnotesize]{$\tfrac12$}}
+    child {node[densityred] {\textbf{opens 3} \\ $\Rightarrow \tfrac16$} edge from parent node[above, font=\footnotesize]{$\tfrac12$}}
+    edge from parent node[above, font=\footnotesize]{$\tfrac13$}
+  };
+\end{tikzpicture}
+\caption{The Monty Hall probability tree (you have chosen Door $1$). Each path's probability
+is the product of the edges along it. Only the two red leaves match the evidence ``Monty
+opened Door $3$'': the $C_2$ world contributes weight $\tfrac13$, the $C_1$ world only
+$\tfrac16$. Renormalizing these two ($\tfrac13 : \tfrac16 = 2 : 1$) gives posterior
+$\P(C_2\given M_3)=\tfrac23$ for switching against $\P(C_1\given M_3)=\tfrac13$ for staying.
+The asymmetry is born entirely in the forced ``$1$'' edge under $C_2$ versus the free
+``$\tfrac12$'' edge under $C_1$.}
+\label{ch05:fig-monty}
+\end{figure}
+
+\begin{happeningbox}
+The crux is the asymmetric likelihood: $\P(M_3\given C_2)=1$ but $\P(M_3\given C_1)=\tfrac12$.
+When the car is behind Door $2$, Monty is \emph{compelled} to open Door $3$; when the car
+is behind your door, he had a free choice and opened Door $3$ only half the time. So the
+observation ``Monty opened Door $3$'' is \emph{twice as likely} in the world where the car
+is behind Door $2$. That factor of two is the Bayes factor, and it is exactly what shifts
+your belief from $1/3$ to $2/3$. The information did not come from \emph{which} door Monty
+opened so much as from the \emph{constraints he was under} when he chose --- constraints
+created by his knowledge of the car's location.
+\end{happeningbox}
+
+\begin{trapbox}
+Everything hinges on Monty's protocol, and changing it changes the answer. Suppose Monty
+does \emph{not} know where the car is and opens one of the other doors \emph{at random},
+and it happens to reveal a goat. Now $\P(M_3\given C_3)=\tfrac12$ instead of $0$ --- a
+clueless Monty could have blundered into the car. Redo the arithmetic and you get
+$\P(C_1\given M_3) = \P(C_2 \given M_3) = \tfrac12$: switching no longer helps! The
+``$50/50$'' answer is correct --- for a \emph{different game}. The lesson is permanent:
+\emph{a likelihood is a statement about the data-generating process}, and you cannot write
+one down until you know the rules by which the evidence was produced. Most people get
+Monty wrong because they never asked how Monty decides which door to open.
+\end{trapbox}
+
+\section{A First Taste of the Bayesian Worldview}
+\label{ch05:worldview}
+
+We have been using Bayes' theorem as a calculating device. But it is also the seed of an
+entire philosophy of inference --- a way of doing statistics that differs from the
+classical, ``frequentist'' approach you will meet later, and that has its own deep chapter
+ahead (it returns in force when we study Bayesian inference). Here is the seed.
+
+The Bayesian stance is this: \emph{probability is a measure of belief}, and unknown
+quantities --- not just future coin flips, but fixed-but-unknown facts like a drug's true
+effectiveness or a physical constant --- can carry probability distributions that describe
+your uncertainty about them. You start with a prior distribution over the unknown, you
+observe data through a likelihood, and Bayes' theorem hands you a posterior distribution
+that is your complete, updated state of knowledge. Inference is not a yes/no verdict; it
+is a reshaping of a distribution.
+
+\begin{aestheticbox}
+What makes this worldview so attractive --- and so useful in machine learning --- is
+that it produces \emph{calibrated uncertainty}, not just point answers. A frequentist
+estimate might say ``the click-through rate is $4.1\%$.'' A Bayesian posterior says ``here
+is the full curve of how plausible each possible rate is, given what we've seen,'' and
+from that single object you can read off a best guess, a credible interval, and the
+probability of any statement you care about (``what's the chance the new design beats the
+old by more than a point?''). When data are scarce, the prior gently regularizes your
+conclusions; when data are abundant, the likelihood overwhelms the prior and Bayesians and
+frequentists shake hands. The posterior is a complete accounting of what you know and how
+sure you are --- which is exactly what a decision-maker needs.
+\end{aestheticbox}
+
+\begin{applicationbox}
+\textbf{The naive Bayes spam filter --- building one by hand.}
+For two decades the first line of defense in your inbox was a direct application of this
+chapter. The hypotheses are $S = \text{spam}$ and $H = \text{ham}$ (legitimate mail); the
+evidence is the set of words in the email. By the odds form \eqref{ch05:odds-form}, and
+\emph{assuming words are conditionally independent given the class} (this is the ``naive''
+assumption --- crude, since ``free'' and ``money'' surely co-occur, but astonishingly
+effective),
+\[
+  \underbrace{\frac{\P(S\given \text{words})}{\P(H\given \text{words})}}_{\text{posterior odds}}
+  = \underbrace{\frac{\P(S)}{\P(H)}}_{\text{prior odds}}
+    \prod_{\text{word } w}\frac{\P(w\given S)}{\P(w\given H)}.
+\]
+Each word contributes a Bayes factor $\P(w\given S)/\P(w\given H)$, estimated by counting:
+out of all words in known spam, what fraction were ``$w$''? Suppose training data give
+$\P(\text{``free''}\given S)=0.05$ and $\P(\text{``free''}\given H)=0.001$. Then the word
+``free'' carries a Bayes factor of $50$ --- seeing it multiplies the spam odds fifty-fold.
+A word like ``meeting'' might have a factor of $1/20$, pulling toward ham. The filter
+simply multiplies all the factors (in practice it \emph{adds the logs}, as in the
+connection box, to avoid numerical underflow), starts from the base-rate prior odds of
+spam, and flags the email if the posterior odds clear a threshold.
+
+This is \emph{naive Bayes}, and beyond your inbox it classifies documents by topic,
+diagnoses faults from sensor readings, and serves as the dependable baseline against which
+fancier classifiers are measured. Two practical wrinkles complete it: \emph{Laplace
+smoothing} (add a token count of $1$ to every word so a never-before-seen word doesn't
+multiply your probability to a hard zero --- the dogmatic-prior trap again), and working
+entirely in log-space. With those, a hundred lines of code and the theorem from page one
+of this chapter gave the world a usable spam filter.
+\end{applicationbox}
+
+\begin{example}[A two-word spam score]
+\label{ch05:ex-spam}
+Take prior odds of spam $\P(S)/\P(H) = 0.4/0.6 = 2/3$ (your inbox is $40\%$ junk). An
+email contains exactly the salient words ``free'' (Bayes factor $50$) and ``meeting''
+(Bayes factor $1/20 = 0.05$). The posterior odds:
+\[
+  \frac{\P(S\given\text{words})}{\P(H\given\text{words})}
+  = \frac23 \times 50 \times 0.05 = \frac23 \times 2.5 = \frac{5}{3} \approx 1.67.
+\]
+Posterior odds of $1.67{:}1$ means a posterior probability of
+$1.67/(1+1.67)\approx 0.625$. The ``free'' shouted spam, the ``meeting'' whispered ham,
+and on balance the message lands at about $63\%$ likely spam --- borderline, exactly the
+kind of case a threshold has to adjudicate. Add one more spammy word and it tips over;
+that is updating, word by word, the whole chapter in miniature.
+\end{example}
+
+\begin{labbox}
+Before reading on, try these three to make sure the machinery is in your hands.
+\begin{enumerate}
+\item In Example~\ref{ch05:ex-rain}, suppose the streets are reported \emph{dry}. Without
+peeking, is $\P(R \given \text{dry})$ bigger or smaller than the prior $0.2$? Compute it.
+\item In the base-rate paradox, what disease prevalence $\P(D)$ would make a single
+positive test a coin flip, i.e.\ $\P(D\given +)=0.5$? (Use the odds form: you need the
+prior odds to equal $1/19.8$.)
+\item In Monty Hall, redo the posterior if Monty, when he has a free choice (car behind
+your door), prefers the \emph{lowest-numbered} available door. If he opens Door $3$, what
+is $\P(C_1\given M_3)$ now? (This shows how a quirk in Monty's habits leaks extra
+information.)
+\end{enumerate}
+\end{labbox}
+
+\section{The Shape of What We Learned}
+\label{ch05:summary}
+
+Step back and notice how much reach came from how little. A single line of algebra ---
+the symmetry of an intersection, divided through --- became a complete theory of how to
+revise belief in the face of evidence.
+
+\begin{itemize}
+\item \textbf{Bayes' theorem} flips a conditional probability:
+$\P(H\given E) = \P(E\given H)\P(H)/\P(E)$, turning the forward arrow ``cause $\to$
+effect'' into the inferential arrow ``effect $\to$ likely cause.''
+\item Its four parts are \textbf{prior} (belief before), \textbf{likelihood} (how the
+hypothesis predicts the data), \textbf{evidence} (the normalizer, computed by the law of
+total probability), and \textbf{posterior} (belief after). The slogan that carries it all:
+\emph{posterior $\propto$ likelihood $\times$ prior}.
+\item The \textbf{base-rate fallacy} is the failure to multiply by the prior: a reliable
+detector of a rare thing fires mostly false alarms. Always ask how common the conclusion
+was to begin with; count natural frequencies when the algebra feels slippery.
+\item \textbf{Sequential updating} makes yesterday's posterior today's prior; with
+conditionally independent evidence, beliefs compound by multiplying likelihoods --- or,
+in the \textbf{odds form}, posterior odds $=$ Bayes factor $\times$ prior odds, which in
+log-space is just addition.
+\item \textbf{Monty Hall} is won by writing the likelihoods carefully --- which forces you to ask
+how the evidence was generated. The host's knowledge is the whole secret.
+\item The \textbf{Bayesian worldview} treats probability as belief and returns whole
+posterior distributions, not just point estimates --- the foundation of \textbf{naive
+Bayes} and a thread that runs all the way to modern machine learning.
+\end{itemize}
+
+What you should carry forward is less a formula than a habit of mind: when evidence
+arrives, do not ask ``is this consistent with my hypothesis?'' --- almost everything is
+consistent with almost everything. Ask instead, ``how much \emph{more} likely is this
+evidence under my hypothesis than under its rivals, and how plausible was my hypothesis to
+begin with?'' That question, asked carefully and repeatedly, is the entire art of reasoning
+under uncertainty. The rest of this book gives it ever sharper tools.
+
+\section{Exercises}
+\label{ch05:exercises}
+
+\begin{exercise}[Warming up the flip]
+A factory has two machines. Machine A makes $60\%$ of the widgets and $2\%$ of its output
+is defective; Machine B makes $40\%$ and $5\%$ is defective. A widget is drawn at random
+and found defective. What is the probability it came from Machine B? (Find $\P(E)$ first,
+then apply Bayes.)
+\end{exercise}
+
+\begin{exercise}[The base rate bites]
+A new rapid test for a virus has sensitivity $0.98$ and specificity $0.96$. In a town
+where $0.5\%$ of people are currently infected, a random resident tests positive. (a) Find
+the posterior probability of infection. (b) The town doctor only tests people with
+symptoms, among whom the prevalence is $30\%$. Recompute the posterior for a symptomatic
+patient who tests positive, and explain in one sentence why the same test is now so much
+more informative.
+\end{exercise}
+
+\begin{exercise}[Compounding evidence]
+Using the odds form, show that for the test of Exercise~5.2(a) (prevalence $0.5\%$,
+Bayes factor $0.98/0.04 = 24.5$), it takes how many \emph{independent} positive tests to
+push the posterior probability of infection above $0.95$? (Hint: posterior odds $=
+(1/199)\times 24.5^{\,n}$; solve for the smallest integer $n$ giving odds $\ge 19$.)
+\end{exercise}
+
+\begin{exercise}[Monty's quirk, in full]
+Generalize the biased-host variant. When the car is behind your chosen Door $1$, Monty
+opens Door $2$ with probability $p$ and Door $3$ with probability $1-p$ (when forced, he
+opens whichever goat door he must). You see him open Door $3$. (a) Write the three
+likelihoods $\P(M_3\given C_i)$ in terms of $p$. (b) Show that
+$\P(C_2\given M_3) = 1/(2-p)$ and $\P(C_1\given M_3) = (1-p)/(2-p)$. (c) Verify that for
+\emph{every} $p\in[0,1]$, switching is at least as good as staying, and find the $p$ that
+makes staying \emph{least} bad.
+\end{exercise}
+
+\begin{exercise}[Three boxes, two coins]
+Box 1 holds two gold coins, Box 2 one gold and one silver, Box 3 two silver. You pick a
+box at random and draw one coin; it is gold. What is the probability the \emph{other}
+coin in that box is also gold? (This is Bertrand's box paradox; the naive answer $1/2$ is
+wrong --- find the right one and explain the error.)
+\end{exercise}
+
+\begin{exercise}[Build the filter]
+You are training a tiny naive Bayes spam filter. Your corpus has $200$ spam and $300$ ham
+emails. The word ``winner'' appears in $40$ of the spam and in $3$ of the ham.
+(a) Estimate $\P(\text{``winner''}\given S)$ and $\P(\text{``winner''}\given H)$ and the
+word's Bayes factor. (b) Using the prior odds from the corpus, find the posterior
+probability of spam for an email whose only informative word is ``winner.'' (c) Explain
+why Laplace smoothing (adding $1$ to each count) would matter for a word that appears in
+spam but \emph{never} in your ham sample, and recompute the Bayes factor for such a word
+that appears in $10$ spam and $0$ ham, with smoothing.
+\end{exercise}
+
+\begin{exercise}[The prosecutor's fallacy]
+At a crime scene, DNA is recovered. A suspect's DNA matches, and an expert testifies that
+``the probability of such a match in an innocent person is $1$ in a million.'' The
+prosecutor concludes the suspect is guilty with probability $0.999999$. Suppose the
+relevant population of possible perpetrators is $2$ million people, exactly one of whom is
+guilty. (a) Using Bayes' theorem with a uniform prior over the $2$ million, find the
+posterior probability of guilt given the match. (b) Explain in terms of this chapter
+exactly which probabilities the prosecutor confused.
+\end{exercise}
+
+\begin{exercise}[Proof: order does not matter]
+Let $H$ be a hypothesis and let $E_1, E_2$ be two pieces of evidence that are
+conditionally independent given $H$ and given $H^c$. Prove, starting from the definition of
+conditional probability, that
+\[
+  \P(H\given E_1, E_2) = \P(H \given E_2, E_1),
+\]
+and more strongly that the posterior depends on $(E_1,E_2)$ only through the product of
+their individual Bayes factors. (This is the formal statement that conditionally
+independent evidence can be processed in any order with the same result.)
+\end{exercise}
+
+\begin{exercise}[Conceptual: zero is forever]
+Explain, with a short argument from Bayes' theorem, why a hypothesis assigned prior
+probability exactly $0$ has posterior probability $0$ no matter what evidence arrives, and
+why a hypothesis assigned prior $1$ stays at $1$. What practical advice for assigning
+priors follows? (This is sometimes called Cromwell's rule.)
+\end{exercise}
+
+\begin{exercise}[A continuous preview]
+A coin has unknown bias $\theta\in[0,1]$ of landing heads. Before flipping, you regard all
+values of $\theta$ as equally likely (a uniform prior). You flip once and get heads.
+Argue informally --- you may use the proportionality slogan --- that your posterior for
+$\theta$ should now be proportional to $\theta$ (i.e.\ larger biases become more
+plausible), and sketch its shape on $[0,1]$. (You have just done your first Bayesian
+update on a \emph{continuous} parameter; the full treatment with the Beta distribution
+awaits a later chapter.)
+\end{exercise}

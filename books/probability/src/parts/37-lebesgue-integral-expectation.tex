@@ -1,0 +1,905 @@
+\chapter{The Lebesgue Integral and Expectation}
+
+You have been computing expectations for many chapters now. For a discrete
+random variable you summed $\sum_x x\,\P(X=x)$; for a continuous one you
+integrated $\int x f(x)\,\dd x$. Two formulas, two worlds. Sometimes you met a
+variable that was part discrete and part continuous --- a payout that is zero
+with probability $1/2$ and otherwise exponential --- and you patched the two
+formulas together by hand. It worked, but it felt like a confession: we have no
+single definition of expectation, only a family of recipes.
+
+This chapter fixes that. There \emph{is} one definition of $\E[X]$, valid for
+every random variable on every probability space, discrete, continuous, mixed,
+or stranger still. It is the \emph{Lebesgue integral}. Once you have it, the sum
+and the Riemann integral both fall out as special cases, the convergence
+theorems you have been quietly using become real theorems, and the deepest
+limit results of probability --- the laws of large numbers, the martingale
+theorems --- rest on solid ground.
+
+The story is also one of the great ideas of twentieth-century mathematics, and
+it begins with a change of perspective so simple it can be drawn on a napkin.
+
+\section{Why the Riemann Integral Is Not Enough}
+\label{ch37:why-lebesgue}
+
+\begin{intuitionbox}
+Riemann slices the \emph{domain}: chop the $x$-axis into thin vertical strips
+and add up their areas. Lebesgue slices the \emph{range}: chop the $y$-axis into
+thin horizontal layers and ask, for each height, \emph{how much $x$ lives above
+that height?} Same area, opposite cut. The Lebesgue cut is the one probability
+wants, because ``how much $x$ lives there'' is exactly a measure --- a
+probability.
+\end{intuitionbox}
+
+The familiar Riemann integral, for all its virtues in calculus, buckles under
+the demands of probability. Here is why.
+
+\subsection{The cashier's parable}
+
+Imagine you must total a pile of coins. The Riemann cashier sweeps the coins
+left to right in a line and adds them one by one: $5 + 25 + 1 + 10 + 25 + \dots$
+The Lebesgue cashier instead \emph{sorts} the coins into stacks --- all the
+pennies, all the nickels, all the quarters --- counts each stack, and computes
+$1\cdot(\text{\# pennies}) + 5\cdot(\text{\# nickels}) + 25\cdot(\text{\#
+quarters})$. Both get the right total. But the second method does not care about
+the \emph{order} the coins came in, and it generalizes to wildly irregular
+piles. That sorting-by-value is the Lebesgue idea: group the points of the
+domain by the \emph{value} of the function, then weigh each group.
+
+\subsection{A function Riemann cannot touch}
+
+\begin{example}[The Dirichlet function]
+\label{ch37:dirichlet}
+Define $D\colon[0,1]\to\R$ by $D(x)=1$ if $x$ is rational and $D(x)=0$ if $x$ is
+irrational. Try to Riemann-integrate it. In every subinterval, no matter how
+small, there are both rationals and irrationals, so the lower Riemann sum is
+always $0$ and the upper sum is always $1$. They never meet: $D$ is
+\emph{not Riemann integrable}.
+
+Yet morally the answer is obvious. The rationals in $[0,1]$ are countable, hence
+negligible --- they take up no length. The function is $0$ ``almost
+everywhere,'' so its integral should be $0$. Lebesgue's theory delivers exactly
+this: $\int_0^1 D\,\dd x = 0$. Riemann cannot, because it is forced to resolve
+$D$ strip by strip, and every strip is hopelessly mixed.
+\end{example}
+
+\begin{whybox}
+The deeper failure of Riemann is not about pathological functions --- it is
+about \emph{limits}. Probability is the study of limits: laws of large numbers,
+central limit theorems, convergence of estimators. You constantly want to say
+``the limit of the expectations is the expectation of the limit,''
+$\lim_n \E[X_n] = \E[\lim_n X_n]$. With Riemann integrals this exchange can fail
+badly, and there is no clean theorem telling you when it is safe. A pointwise
+limit of Riemann-integrable functions need not even be Riemann integrable (build
+$D$ as a limit of finite indicator functions of rationals and you have an
+example). Lebesgue's integral is \emph{built to survive limits} --- that is its
+whole reason for existing, and the convergence theorems of
+Section~\ref{ch37:convergence} are the payoff.
+\end{whybox}
+
+\begin{historybox}
+Henri Lebesgue presented his theory in his 1902 thesis,
+\emph{Int\'egrale, longueur, aire}. He described the change of viewpoint with
+his own merchant's metaphor: a shopkeeper totalling the day's takings can add
+the bills in the order they were received (Riemann), or first sort the
+banknotes by denomination and count each kind (Lebesgue). Émile Borel had
+already built the notion of measure for sets; Lebesgue's leap was to use measure
+to integrate \emph{functions}, and to prove that the resulting integral behaves
+beautifully under limits. Within three decades Kolmogorov would take Lebesgue's
+machinery and, in his 1933 \emph{Grundbegriffe}, declare that a probability is
+just a measure of total mass one and an expectation is just a Lebesgue
+integral --- the foundation the rest of this book stands on.
+\end{historybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=6.4cm, height=5cm,
+    title={Riemann: slice the domain},
+    xlabel={$x$}, ylabel={$f(x)$},
+    domain=0:3, samples=100,
+    ymin=0, ymax=3, xmin=0, xmax=3,
+    xtick=\empty, ytick=\empty, axis lines=left]
+\addplot[ybar interval, fill=sourceblue!25, draw=sourceblue!70] coordinates
+  {(0,0.3) (0.5,0.375) (1.0,0.6) (1.5,0.975) (2.0,1.5) (2.5,2.175) (3.0,3.0)};
+\addplot[densityred, very thick, samples=100] {0.3*x*x+0.3};
+\end{axis}
+\end{tikzpicture}
+\hspace{0.5cm}
+\begin{tikzpicture}
+\begin{axis}[
+    width=6.4cm, height=5cm,
+    title={Lebesgue: slice the range},
+    xlabel={$x$}, ylabel={$f(x)$},
+    domain=0:3, samples=100,
+    ymin=0, ymax=3, xmin=0, xmax=3,
+    xtick=\empty, ytick=\empty, axis lines=left]
+\foreach \y in {0.4,0.8,1.2,1.6,2.0,2.4,2.8}{
+  \edef\yval{\y}
+  \addplot[draw=targetgreen!70, thick] coordinates {(0,\yval) (3,\yval)};
+}
+\addplot[densityred, very thick, samples=100] {0.3*x*x+0.3};
+\end{axis}
+\end{tikzpicture}
+\caption{Two ways to compute the same area. Left, Riemann partitions the
+$x$-axis into vertical strips. Right, Lebesgue partitions the $y$-axis into
+horizontal layers and measures the set of $x$ lying above each height. The
+right-hand cut is the one that turns ``area'' into ``probability times value.''}
+\label{ch37:fig-two-cuts}
+\end{figure}
+
+\section{The Building Blocks: Simple Functions}
+\label{ch37:simple}
+
+We build the integral in four stages, each one extending the last:
+\emph{indicators}, then \emph{simple functions}, then \emph{nonnegative
+measurable functions}, then \emph{general (signed) functions}. This is the
+ladder essentially every textbook climbs, and it is worth climbing once
+yourself so the convergence theorems later feel inevitable rather than magical.
+
+Throughout, fix a measure space $(\Omega,\mathcal F,\mu)$: a set $\Omega$, a
+$\sigma$-algebra $\mathcal F$ of ``measurable'' subsets, and a measure $\mu$
+assigning sizes to them. For probability we will later take $\mu=\P$ with
+$\P(\Omega)=1$, but nothing in the construction needs that.
+
+\subsection{Step 1: indicators}
+
+The atom of the whole theory is the indicator $\ind_A$ of a measurable set
+$A\in\mathcal F$, which is $1$ on $A$ and $0$ off it. Its integral is, by
+\emph{decree}, the size of $A$:
+\[
+  \int_\Omega \ind_A \,\dd\mu \;=\; \mu(A).
+\]
+There is nothing to prove; this is the seed. ``The integral of a flat
+unit-height plateau over $A$ is the measure of $A$.'' In probability, where
+$\mu=\P$, this reads $\E[\ind_A]=\P(A)$ --- the expectation of an indicator is
+the probability of the event, a fact you have used since the very first chapters
+on expectation. Now you see it is not a coincidence but the \emph{definition}
+restricted to its simplest case.
+
+\subsection{Step 2: simple functions}
+
+\begin{definition}[Simple function]
+\label{ch37:def-simple}
+A \emph{simple function} is a measurable function $s\colon\Omega\to\R$ that takes
+only finitely many distinct values $a_1,\dots,a_n$. Writing
+$A_k=\{\omega: s(\omega)=a_k\}$ for the (measurable) level sets, we have the
+canonical representation
+\[
+  s \;=\; \sum_{k=1}^n a_k\,\ind_{A_k},
+\]
+where the $A_k$ are disjoint and cover $\Omega$.
+\end{definition}
+
+A simple function is a finite, irregular staircase --- but a staircase laid out
+in the \emph{range}, not the domain. Each $A_k$ can be any measurable set, no
+matter how scattered; it need not be an interval. This freedom is precisely what
+let Lebesgue tame the Dirichlet function.
+
+\begin{definition}[Integral of a nonnegative simple function]
+\label{ch37:def-int-simple}
+For a nonnegative simple function $s=\sum_{k=1}^n a_k \ind_{A_k}$ (canonical
+form, $a_k\ge 0$), define
+\[
+  \int_\Omega s \,\dd\mu \;=\; \sum_{k=1}^n a_k\,\mu(A_k).
+\]
+\end{definition}
+
+Read it aloud: \emph{value times the measure of the set where that value is
+taken, summed over values}. That is the sorted-coins total. Every later integral
+is a limit of these.
+
+\begin{walkbox}
+A subtlety worth pausing on: a simple function can be written in many ways, not
+just canonically. Is $\sum a_k\mu(A_k)$ the same number regardless of
+representation? It is, and the proof is the everyday fact that overlapping
+descriptions can be refined to a common one. If $s=\sum a_k\ind_{A_k}=\sum
+b_j\ind_{B_j}$, intersect the pieces into $C_{kj}=A_k\cap B_j$; on each
+$C_{kj}$ both representations agree that the value is $a_k=b_j$, and finite
+additivity of $\mu$ makes the two sums collapse to the same total. So the
+integral is \emph{well defined}. Convince yourself of this; it is the only
+``bookkeeping'' lemma in the whole construction, and everything downstream
+inherits its linearity and monotonicity from it.
+\end{walkbox}
+
+Two properties of the simple integral are immediate from finite additivity and
+will propagate up the ladder:
+\begin{itemize}
+\item \textbf{Linearity:} $\int (\alpha s + \beta t)\,\dd\mu = \alpha\int
+  s\,\dd\mu + \beta\int t\,\dd\mu$ for nonnegative simple $s,t$ and
+  $\alpha,\beta\ge 0$.
+\item \textbf{Monotonicity:} if $s\le t$ pointwise then $\int s\,\dd\mu \le \int
+  t\,\dd\mu$.
+\end{itemize}
+
+\subsection{Step 3: nonnegative measurable functions}
+
+Here is the master stroke. To integrate an arbitrary nonnegative measurable
+function $f\ge 0$, we do not approximate it by staircases from the
+\emph{outside} (which is what dooms Riemann); we squeeze it from \emph{below} by
+simple functions and take the best lower estimate.
+
+\begin{definition}[Lebesgue integral, nonnegative case]
+\label{ch37:def-int-nonneg}
+For measurable $f\colon\Omega\to[0,\infty]$,
+\[
+  \int_\Omega f \,\dd\mu \;=\; \sup\set[\Big]{\, \int_\Omega s\,\dd\mu \;:\; s
+  \text{ simple},\ 0 \le s \le f \,}.
+\]
+The supremum is over \emph{all} simple functions sitting under $f$. It always
+exists in $[0,\infty]$ (it may be $+\infty$).
+\end{definition}
+
+Why does taking the sup of lower estimates work here when it failed for Riemann?
+Because Lebesgue's simple functions are allowed to use \emph{arbitrary
+measurable level sets}, so they can hug any measurable $f$ from below as tightly
+as we like. The following standard construction makes ``as tightly as we like''
+concrete and is the engine behind the Monotone Convergence Theorem.
+
+\begin{theorem}[Approximation by simple functions]
+\label{ch37:thm-approx}
+For every measurable $f\colon\Omega\to[0,\infty]$ there is an increasing
+sequence of nonnegative simple functions $s_1\le s_2\le \cdots$ with
+$s_n(\omega)\to f(\omega)$ for every $\omega$.
+\end{theorem}
+
+\begin{whybox}
+The construction is the ``dyadic staircase.'' At stage $n$, slice the range
+$[0,\infty)$ into layers of height $2^{-n}$ up to level $n$, and round $f$
+\emph{down} to the nearest layer (capping at $n$):
+\[
+  s_n \;=\; \sum_{k=0}^{n\,2^n-1} \frac{k}{2^n}\,
+  \ind_{\set{\frac{k}{2^n}\,\le\, f\,<\,\frac{k+1}{2^n}}}
+  \;+\; n\,\ind_{\set{f\ge n}}.
+\]
+Each level set is measurable because $f$ is, so each $s_n$ is a legitimate
+simple function. As $n$ grows, the layers thin out (height $2^{-n}$) and the cap
+rises ($n\to\infty$), so $s_n\uparrow f$ at every point. The picture is a
+staircase of horizontal --- not vertical --- treads creeping up under the curve.
+This single construction is why ``slice the range'' is not a slogan but an
+algorithm.
+\end{whybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=11cm, height=5.4cm,
+    title={Dyadic simple-function staircase rising under $f$},
+    xlabel={$x$}, ylabel={value},
+    domain=0:4, samples=200,
+    ymin=0, ymax=2.4, xmin=0, xmax=4,
+    legend pos=north west, legend cell align=left,
+    axis lines=left]
+% target function
+\addplot[densityred, very thick] {1.8*(1-exp(-0.9*x))+0.05*x};
+\addlegendentry{$f(x)$}
+% a coarse staircase under it (rounding down to multiples of 0.4)
+\addplot[const plot, sourceblue, thick, samples=40] {0.4*floor((1.8*(1-exp(-0.9*x))+0.05*x)/0.4)};
+\addlegendentry{$s_n \le f$ (range sliced)}
+\end{axis}
+\end{tikzpicture}
+\caption{The Lebesgue staircase $s_n$ rounds $f$ \emph{down} to a grid of values
+on the $y$-axis. Refining the grid (smaller steps, higher cap) pushes
+$s_n\uparrow f$ everywhere. Each tread sits over a measurable level set, which is
+all the construction ever requires.}
+\label{ch37:fig-staircase}
+\end{figure}
+
+\subsection{Step 4: general functions}
+
+Finally, any measurable $f\colon\Omega\to\R$ splits into its positive and
+negative parts,
+\[
+  f^+ = \max(f,0), \qquad f^- = \max(-f,0), \qquad f = f^+ - f^-,
+\]
+both nonnegative and measurable. Define
+\[
+  \int_\Omega f\,\dd\mu \;=\; \int_\Omega f^+\,\dd\mu \;-\; \int_\Omega
+  f^-\,\dd\mu,
+\]
+\emph{provided at least one of the two pieces is finite} (otherwise we would be
+writing $\infty-\infty$, which is meaningless). When both are finite ---
+equivalently when $\int |f|\,\dd\mu = \int f^+\,\dd\mu + \int f^-\,\dd\mu <
+\infty$ --- we call $f$ \emph{integrable} and write $f\in L^1(\mu)$.
+
+\begin{formalbox}
+The full Lebesgue integral, in one breath:
+\[
+  \int_\Omega f\,\dd\mu
+  \;=\; \underbrace{\sup_{0\le s\le f^+}\sum_k a_k\,\mu(A_k)}_{\text{positive part}}
+  \;-\; \underbrace{\sup_{0\le s\le f^-}\sum_k a_k\,\mu(A_k)}_{\text{negative part}} .
+\]
+Build from indicators ($\int\ind_A=\mu(A)$), sum them into simple functions,
+take suprema to reach nonnegative functions, and subtract parts for signed
+functions. Linearity and monotonicity, established for simple functions, climb
+the ladder rung by rung. That is the entire integral.
+\end{formalbox}
+
+\section{Expectation Is a Lebesgue Integral}
+\label{ch37:expectation}
+
+Now specialize to a probability space $(\Omega,\mathcal F,\P)$, where the measure
+is a probability and $\P(\Omega)=1$. A random variable $X$ is a measurable
+function $X\colon\Omega\to\R$. Its \emph{expectation} is, simply and finally,
+\[
+  \boxed{\;\E[X] \;=\; \int_\Omega X\,\dd\P\;}
+\]
+the Lebesgue integral of $X$ against the probability measure. There is no longer
+a discrete formula and a separate continuous formula --- there is one
+definition, and the old formulas are theorems about how to \emph{compute} it.
+
+\begin{happeningbox}
+What is really happening when we write $\int_\Omega X\,\dd\P$? We are sorting the
+outcomes $\omega$ by the value $X(\omega)$ takes, weighing each group of
+outcomes by its probability, and adding up value-times-probability. That is the
+sorted-coins cashier again, with ``how many coins'' replaced by ``how much
+probability.'' Whether $X$ is discrete, continuous, or mixed is irrelevant to
+the \emph{definition}; it only changes how you \emph{evaluate} the resulting
+integral. The unification you wanted is built into the architecture, not glued
+on afterward.
+\end{happeningbox}
+
+\subsection{Recovering the discrete sum}
+
+Let $X$ be discrete, taking values $x_1,x_2,\dots$ with $\P(X=x_i)=p_i$. Then
+$X$ is exactly a (possibly countable) simple function: $X=\sum_i x_i
+\ind_{A_i}$ with $A_i=\{X=x_i\}$ and $\P(A_i)=p_i$. The definition of the simple
+integral gives, directly,
+\[
+  \E[X] \;=\; \int_\Omega X\,\dd\P \;=\; \sum_i x_i\,\P(A_i) \;=\; \sum_i x_i p_i .
+\]
+The discrete formula is not a different rule --- it is the simple-function
+integral, the very first rung of the ladder.
+
+\subsection{Recovering the continuous integral}
+
+Let $X$ be continuous with density $f$. The change-of-variables theorem (the
+``law of the unconscious statistician'' in its measure-theoretic form) says that
+to integrate against the \emph{distribution} of $X$ on the line we may use the
+density:
+\[
+  \E[X] \;=\; \int_\Omega X\,\dd\P \;=\; \int_\R x \,\dd\mu_X(x) \;=\; \int_\R x\,
+  f(x)\,\dd x ,
+\]
+where $\mu_X$ is the law of $X$ (the pushforward of $\P$). The middle equality
+moves the integral from the abstract space $\Omega$ to the real line; the last
+equality holds because $\dd\mu_X = f\,\dd x$. The continuous formula, too, is a
+special case.
+
+\begin{aestheticbox}
+Look at what one definition bought you. The same symbol
+$\int X\,\dd\P$ computes a sum when $X$ is discrete, a Riemann-style density
+integral when $X$ is continuous, and \emph{something sensible} when $X$ is
+neither. You no longer prove the linearity of expectation twice (once for sums,
+once for integrals); you prove it once, for the Lebesgue integral, and it holds
+universally. Every theorem about expectation in this book --- linearity, the law
+of total expectation, Jensen's inequality, the convergence theorems --- is now a
+single statement rather than a discrete version plus a continuous version
+stapled together.
+\end{aestheticbox}
+
+\subsection{The mixed case, painlessly}
+
+\begin{example}[A payout that is part atom, part density]
+\label{ch37:mixed}
+Let $X$ be the payout of an option: with probability $\tfrac12$ it expires
+worthless ($X=0$), and otherwise it pays an amount that is $\Expo(1)$. There is
+no density at $0$ (a point mass sits there), and no point mass on $(0,\infty)$
+(a density lives there); see Figure~\ref{ch37:fig-mixed-cdf} for the tell-tale
+jump-plus-ramp distribution function. Neither the pure-sum nor the pure-integral
+formula applies on its own. But the Lebesgue integral does not blink. Split by the
+positive/negative-part machinery, or just integrate against the law:
+\[
+  \E[X] = \underbrace{0\cdot \tfrac12}_{\text{atom at }0}
+        + \underbrace{\tfrac12\int_0^\infty x\,e^{-x}\,\dd x}_{\text{density part}}
+        = 0 + \tfrac12\cdot 1 = \tfrac12 .
+\]
+The decomposition into an atomic piece and a continuous piece is automatic ---
+it is just $\E[X\ind_{X=0}] + \E[X\ind_{X>0}]$, two Lebesgue integrals over
+complementary events, added by linearity. No special-case formula needed.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=11cm, height=5cm,
+    title={CDF of a mixed variable: a jump (atom) plus a smooth rise (density)},
+    xlabel={$t$}, ylabel={$\P(X\le t)$},
+    xmin=-1, xmax=5, ymin=0, ymax=1.05,
+    domain=0:5, samples=120,
+    legend pos=south east, legend cell align=left, axis lines=left]
+% atom-free part of the curve for t<0 is 0
+\addplot[densityred, very thick] coordinates {(-1,0)(0,0)};
+% jump of height 1/2 at t=0 (drawn as a vertical dashed segment)
+\addplot[gray, dashed] coordinates {(0,0)(0,0.5)};
+% continuous part: 1/2 + (1/2)(1-e^{-t}) for t>=0
+\addplot[densityred, very thick, domain=0:5] {0.5+0.5*(1-exp(-x))};
+\addlegendentry{$F_X(t)$}
+% mark the open/closed dots at the jump
+\addplot[only marks, mark=*, densityred, mark size=1.6pt] coordinates {(0,0.5)};
+\addplot[only marks, mark=o, densityred, mark size=1.6pt] coordinates {(0,0)};
+\end{axis}
+\end{tikzpicture}
+\caption{The distribution function of the option payout $X$: an atom of mass
+$\tfrac12$ at $0$ shows up as a \emph{jump} of height $\tfrac12$ in the CDF,
+while the $\Expo(1)$ part contributes the \emph{smooth} climb from $\tfrac12$
+toward $1$. A pure pmf would be all jumps; a pure density would be all smooth
+rise. The Lebesgue integral handles both halves with one definition.}
+\label{ch37:fig-mixed-cdf}
+\end{figure}
+
+\begin{applicationbox}
+This single-definition viewpoint is not pedantry --- it is what makes modern
+probability \emph{computable in code}. When you write a Monte Carlo estimator
+$\frac1N\sum_{i=1}^N g(X_i)$ for $\E[g(X)]$, you are approximating one Lebesgue
+integral, and you never ask whether $X$ is discrete, continuous, or mixed; you
+just sample and average. In machine learning, the expected loss
+$\E_{(x,y)\sim\mathcal D}[\ell(f(x),y)]$ is a Lebesgue integral over a data
+distribution $\mathcal D$ that is almost always mixed (discrete labels,
+continuous features). Empirical risk minimization replaces the true measure $\P$
+by the empirical measure $\hat\P_N=\frac1N\sum\delta_{(x_i,y_i)}$ --- a sum of
+point masses --- and minimizes $\int \ell\,\dd\hat\P_N$. The reason you can swap
+the true distribution for a pile of data points and still call both
+``expectation'' is precisely that both are Lebesgue integrals against a measure.
+\end{applicationbox}
+
+\section{The Convergence Theorems}
+\label{ch37:convergence}
+
+We promised that Lebesgue's integral was built to survive limits. Here is the
+payoff: three theorems telling you exactly when
+$\lim_n \int f_n = \int \lim_n f_n$. They are the workhorses behind almost every
+limit theorem in probability, and you have been implicitly trusting them for
+chapters.
+
+\subsection{Monotone Convergence}
+
+\begin{theorem}[Monotone Convergence Theorem, MCT]
+\label{ch37:thm-mct}
+Let $0\le f_1\le f_2\le\cdots$ be measurable with $f_n\uparrow f$ pointwise.
+Then
+\[
+  \int_\Omega f_n\,\dd\mu \;\longrightarrow\; \int_\Omega f\,\dd\mu .
+\]
+The limit may be $+\infty$ on both sides; the equality still holds.
+\end{theorem}
+
+\begin{whybox}
+MCT is almost a restatement of how we \emph{defined} the integral. We set
+$\int f = \sup\{\int s : s \text{ simple}, s\le f\}$, and
+Theorem~\ref{ch37:thm-approx} produced an increasing sequence of simple
+functions climbing to $f$. MCT says any increasing sequence climbing to $f$ ---
+not just the dyadic one --- has integrals that climb to $\int f$. The
+``$\le$'' direction is monotonicity (each $f_n\le f$, so $\int f_n\le\int f$,
+so the limit is $\le\int f$). The ``$\ge$'' direction is the heart: take any
+simple $s\le f$ and any $c\in(0,1)$; the sets $E_n=\{f_n\ge cs\}$ increase to
+$\Omega$, and continuity of measure from below gives $\int f_n \ge c\int_{E_n} s
+\to c\int s$. Let $c\uparrow 1$, then sup over $s$, and the limit of $\int f_n$
+dominates $\int f$. The two inequalities pin the limit to $\int f$.
+\end{whybox}
+
+\begin{connectionbox}
+MCT is the rigorous engine behind a move you have made since the calculus book:
+\emph{integrating a series term by term}. If $g_k\ge 0$ are measurable and you
+want $\int \sum_k g_k = \sum_k \int g_k$, apply MCT to the partial sums
+$f_n=\sum_{k\le n} g_k$, which increase to $\sum_k g_k$. So the Tonelli-style
+interchange ``sum of integrals equals integral of the sum'' for nonnegative
+terms is just MCT in disguise. The calculus book swapped $\sum$ and $\int$ for
+nice power series and asked you to take it on faith; here is the theorem that
+licenses it for \emph{any} nonnegative measurable terms. The same logic, applied
+to expectations, proves $\E\big[\sum_k Y_k\big]=\sum_k \E[Y_k]$ for nonnegative
+$Y_k$ --- countable linearity of expectation, used constantly in renewal theory
+and branching processes.
+\end{connectionbox}
+
+\subsection{Fatou's Lemma}
+
+A stepping stone, but a useful one in its own right.
+
+\begin{lemma}[Fatou]
+\label{ch37:thm-fatou}
+For any measurable $f_n\ge 0$,
+\[
+  \int_\Omega \liminf_{n} f_n \,\dd\mu \;\le\; \liminf_{n} \int_\Omega
+  f_n\,\dd\mu .
+\]
+\end{lemma}
+
+In words: passing a $\liminf$ inside the integral can only \emph{lose} mass,
+never gain it. Mass can escape to infinity (a bump that slides off to the right,
+or grows ever taller and thinner), and Fatou says that is the only thing that
+can go wrong --- the limit integral cannot exceed what the integrals were doing.
+It follows from MCT applied to the increasing sequence $g_n=\inf_{k\ge n}f_k$.
+
+\subsection{Dominated Convergence}
+
+This is the one you will reach for most often, because it handles
+\emph{signed} functions and gives a clean equality.
+
+\begin{theorem}[Dominated Convergence Theorem, DCT]
+\label{ch37:thm-dct}
+Suppose $f_n\to f$ pointwise (almost everywhere) and there is a single
+integrable ``dominating'' function $g\in L^1(\mu)$ with $|f_n|\le g$ for all
+$n$. Then $f\in L^1$ and
+\[
+  \int_\Omega f_n\,\dd\mu \;\longrightarrow\; \int_\Omega f\,\dd\mu,
+  \qquad\text{indeed}\qquad
+  \int_\Omega |f_n - f|\,\dd\mu \to 0 .
+\]
+\end{theorem}
+
+\begin{whybox}
+The proof is a clever double application of Fatou. Since $|f_n|\le g$ we have
+$g+f_n\ge 0$ and $g-f_n\ge 0$, both nonnegative, so Fatou applies to each.
+Applying it to $g+f_n$ gives $\int(g+f)\le\liminf\int(g+f_n)$, i.e. $\int f \le
+\liminf\int f_n$. Applying it to $g-f_n$ gives $\int(g-f)\le\liminf\int(g-f_n)$,
+i.e. $\int f \ge \limsup\int f_n$. Sandwiching, $\limsup\int f_n \le \int f \le
+\liminf\int f_n$, which forces $\int f_n\to\int f$. The dominating $g$ is the
+fence that stops mass from escaping to infinity --- the single hypothesis that
+rules out Fatou's strict-inequality disasters.
+\end{whybox}
+
+\begin{trapbox}
+The domination hypothesis is not decoration --- drop it and the theorem is
+false. The classic counterexample is the ``escaping bump.'' On $[0,1]$ with
+Lebesgue measure let $f_n = n\,\ind_{(0,1/n)}$: a spike of height $n$ on a base
+of width $1/n$. Then $f_n(x)\to 0$ for every $x>0$, so $f=0$ and $\int f = 0$.
+But $\int f_n = n\cdot\frac1n = 1$ for every $n$, so $\int f_n \to 1 \ne 0$. The
+limit of the integrals is not the integral of the limit. Where did the mass go?
+It escaped to infinite height as the base shrank. No integrable $g$ can dominate
+all the $f_n$ (you would need $g\ge n$ near $0$ for every $n$, so $g=\infty$
+there). DCT correctly refuses to apply, and Fatou's inequality holds
+\emph{strictly}: $0 = \int\liminf f_n < \liminf\int f_n = 1$.
+\end{trapbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=11cm, height=5cm,
+    title={The escaping bump: $f_n = n\,\ind_{(0,1/n)}$, each with integral $1$},
+    xlabel={$x$}, ylabel={$f_n(x)$},
+    xmin=0, xmax=1.05, ymin=0, ymax=4.6,
+    legend pos=north east, legend cell align=left, axis lines=left]
+\addplot[const plot, sourceblue, very thick] coordinates {(0,1)(1,1)(1.05,0)};
+\addlegendentry{$n=1$}
+\addplot[targetgreen, very thick] coordinates {(0,2)(0.5,2)(0.5,0)(1.05,0)};
+\addlegendentry{$n=2$}
+\addplot[quotientorange, very thick] coordinates {(0,4)(0.25,4)(0.25,0)(1.05,0)};
+\addlegendentry{$n=4$}
+\end{axis}
+\end{tikzpicture}
+\caption{Each bump has area exactly $1$, yet $f_n(x)\to 0$ at every fixed
+$x>0$. Mass escapes upward as the base narrows, so $\lim\int f_n = 1 \ne 0 =
+\int\lim f_n$. Domination by an integrable $g$ is exactly the fence that
+prevents this, and DCT requires it.}
+\label{ch37:fig-bump}
+\end{figure}
+
+\subsection{Why probability cannot live without them}
+
+\begin{aestheticbox}
+These theorems are the silent partners in results you have already seen.
+\begin{itemize}
+\item \textbf{Linearity of expectation for infinite sums}
+  ($\E\sum Y_k = \sum \E Y_k$ for $Y_k\ge0$) is MCT.
+\item \textbf{Differentiating under the expectation/integral sign}
+  --- computing $\frac{\dd}{\dd\theta}\E[g(X,\theta)] = \E[\partial_\theta
+  g(X,\theta)]$ in maximum-likelihood and Fisher-information arguments --- is
+  DCT applied to difference quotients dominated by an integrable bound.
+\item \textbf{The continuity of characteristic functions} and the proof of the
+  Central Limit Theorem via $\E[e^{itX_n}]\to\E[e^{itX}]$ is DCT (the
+  integrand $e^{itX_n}$ is bounded by the constant $1$, an integrable dominator
+  on a probability space).
+\item \textbf{Martingale and renewal limit theorems} repeatedly swap $\lim$ and
+  $\E$; each swap is a citation to MCT or DCT.
+\end{itemize}
+Whenever you have written ``$\E$ of the limit is the limit of $\E$,'' you were
+spending one of these theorems. Now you know the bank they are drawn on.
+\end{aestheticbox}
+
+\begin{paradoxbox}
+Here is a puzzle that feels like a contradiction until the convergence theorems
+dissolve it. Consider random variables $X_n$ that equal $n$ with probability
+$1/n$ and $0$ otherwise. As $n\to\infty$, $\P(X_n\ne 0)=1/n\to 0$, so $X_n\to 0$
+in probability --- the variable is almost surely $0$ in the limit. You might
+expect $\E[X_n]\to 0$. But $\E[X_n]=n\cdot\frac1n = 1$ for every $n$: the
+expectation stubbornly refuses to vanish.
+
+This is the escaping-bump paradox wearing probabilistic clothes. The
+\emph{value} $n$ races to infinity exactly as fast as the \emph{probability}
+$1/n$ races to zero, and their product stays pinned at $1$. Convergence in
+probability does \emph{not} imply convergence of expectations --- you need a
+dominating variable (uniform integrability, the probabilist's name for the DCT
+hypothesis) to license the interchange. The paradox is not a flaw in
+probability; it is the precise warning that expectation is a global, mass-based
+quantity that can be hijacked by rare-but-enormous events. Insurance against
+catastrophe, heavy-tailed financial risk, and the St.\ Petersburg game all live
+in this gap between ``almost never happens'' and ``contributes to the mean.''
+\end{paradoxbox}
+
+\section{Almost Everywhere, and What the Integral Cannot See}
+\label{ch37:ae}
+
+One more idea makes the whole theory click: the integral is \emph{blind to sets
+of measure zero}. A set $N\in\mathcal F$ is \emph{null} if $\mu(N)=0$. A
+property holds \emph{almost everywhere} (a.e.), or in probability \emph{almost
+surely} (a.s.), if it holds outside some null set.
+
+\begin{proposition}[Null sets are invisible]
+\label{ch37:prop-ae}
+If $f=g$ almost everywhere, then $\int f\,\dd\mu = \int g\,\dd\mu$. In
+particular, if $f=0$ a.e.\ then $\int f\,\dd\mu = 0$, and conversely if $f\ge 0$
+with $\int f\,\dd\mu = 0$ then $f=0$ a.e.
+\end{proposition}
+
+This is why the Dirichlet function of Example~\ref{ch37:dirichlet} integrates to
+$0$: it differs from the constant $0$ only on the rationals, a null set. It is
+also why probabilists say ``almost surely'' so often. A statement like ``the
+sample mean converges to $\mu$'' (the Strong Law) is an almost-sure statement:
+it can fail, but only on a set of outcomes of probability zero, and the integral
+--- the expectation --- never notices that set.
+
+\begin{happeningbox}
+The right way to think about $L^1$ is that its objects are not really functions
+but \emph{equivalence classes} of functions that agree almost everywhere. Two
+random variables that differ only on a probability-zero event are, for every
+purpose the integral cares about, the same random variable. This is liberating:
+you can redefine $X$ arbitrarily on a null set --- to fix a division by zero, to
+make it continuous, to tidy a formula --- without changing a single expectation,
+variance, or distribution. The integral sees \emph{mass}, and null sets carry
+none.
+\end{happeningbox}
+
+\section{The Bridge to Riemann}
+\label{ch37:riemann-bridge}
+
+We close the circle by relating the new integral to the old one from the
+calculus book, so you never have to choose between them.
+
+\begin{theorem}[Lebesgue dominates Riemann]
+\label{ch37:thm-riemann}
+If $f\colon[a,b]\to\R$ is bounded and Riemann integrable, then it is Lebesgue
+integrable on $[a,b]$ and the two integrals agree:
+\[
+  \int_a^b f(x)\,\dd x \ (\text{Riemann}) \;=\; \int_{[a,b]} f\,\dd\lambda
+  \ (\text{Lebesgue}),
+\]
+where $\lambda$ is Lebesgue measure. Moreover a bounded $f$ on $[a,b]$ is
+Riemann integrable \emph{if and only if} its set of discontinuities is a null
+set.
+\end{theorem}
+
+\begin{connectionbox}
+This is the formal handshake with the companion calculus book. Everything you
+computed there --- areas under curves, the Fundamental Theorem of Calculus,
+$\int_0^\infty x e^{-x}\dd x = 1$ --- is \emph{also} a Lebesgue integral, with
+the identical numerical value. So you lose nothing: every Riemann computation you
+know transfers verbatim. What you \emph{gain} is (1) functions Riemann cannot
+handle (Dirichlet, and limits of nice functions), (2) the convergence theorems
+with no analogue in Riemann's world, and (3) a single integral that works on
+abstract spaces $\Omega$, not just on intervals of $\R$. The Riemann integral is
+the special case ``$\Omega=[a,b]$, $\mu=$ length, $f$ continuous enough''; the
+Lebesgue integral is the genuine article. The second sentence of the theorem ---
+Riemann integrability is \emph{exactly} ``continuous almost everywhere'' --- is
+the sharpest possible statement of why Riemann fails on $D$: $D$ is discontinuous
+at \emph{every} point, the opposite of null.
+\end{connectionbox}
+
+\begin{trapbox}
+The two theories \emph{disagree} for improper integrals. The function
+$f(x)=\frac{\sin x}{x}$ has a convergent improper Riemann integral on
+$[0,\infty)$ (the famous $\int_0^\infty \frac{\sin x}{x}\dd x = \frac\pi2$),
+because the positive and negative areas cancel as you let the upper limit grow.
+But $f$ is \emph{not} Lebesgue integrable there, because
+$\int_0^\infty \frac{\abs{\sin x}}{x}\dd x = \infty$ --- and the Lebesgue
+integral of a signed function requires \emph{absolute} integrability
+($\int\abs{f}<\infty$) so that $\int f^+ - \int f^-$ is not $\infty-\infty$. The
+lesson: Lebesgue insists on absolute convergence; conditional ``cancellation''
+convergence is a Riemann-only trick. For probability this is no loss --- an
+expectation $\E[X]$ that depends on the \emph{order} of summation is not a
+meaningful average anyway, and we always demand $\E\abs{X}<\infty$ before
+speaking of $\E[X]$.
+\end{trapbox}
+
+\section{A Fully Worked Computation}
+\label{ch37:worked}
+
+We run the entire machine once, end to end, on a single problem, watching the
+four stages and the convergence theorems cooperate.
+
+\begin{example}[Expectation of a geometric variable, from the ground up]
+\label{ch37:worked-geom}
+Let $X$ take value $k$ with probability $\P(X=k)=2^{-k}$ for $k=1,2,3,\dots$
+(a $\Geom(1/2)$ counting trials to first success). We compute $\E[X]$ as a
+Lebesgue integral and watch the theory work.
+
+\textbf{As a simple-function limit.} $X=\sum_{k\ge1} k\,\ind_{A_k}$ with
+$A_k=\{X=k\}$, $\P(A_k)=2^{-k}$ (Figure~\ref{ch37:fig-geom-pmf}). This is a \emph{countable} simple function, so
+it is not literally simple (finitely many values), but its truncations
+$X_n=\sum_{k=1}^n k\,\ind_{A_k}$ are, and $X_n\uparrow X$. Each truncation
+integrates by the simple-function rule:
+\[
+  \E[X_n]=\int X_n\,\dd\P=\sum_{k=1}^n k\,2^{-k}.
+\]
+
+\textbf{Pass the limit by MCT.} Because $0\le X_1\le X_2\le\cdots\uparrow X$,
+the Monotone Convergence Theorem licenses
+\[
+  \E[X]=\lim_{n\to\infty}\E[X_n]=\sum_{k=1}^\infty k\,2^{-k}.
+\]
+No hand-waving: the swap of $\lim$ and $\int$ is a theorem here, not a hope.
+
+\textbf{Evaluate the series.} Using $\sum_{k\ge1} k r^{k}=\frac{r}{(1-r)^2}$ at
+$r=\tfrac12$,
+\[
+  \E[X]=\frac{1/2}{(1-1/2)^2}=\frac{1/2}{1/4}=2.
+\]
+So $\E[X]=2$, matching the $\Geom(p)$ mean $1/p$ with $p=\tfrac12$, but now
+\emph{derived} from the integral rather than recited from a table. Every step
+was a rung of the ladder or a convergence theorem.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=11cm, height=4.8cm,
+    title={The geometric pmf $\P(X=k)=2^{-k}$ as a countable simple function},
+    xlabel={$k$}, ylabel={$\P(X=k)$},
+    ybar, bar width=10pt, xtick={1,...,8},
+    xmin=0.4, xmax=8.6, ymin=0, ymax=0.56,
+    axis lines=left]
+\addplot[fill=distblue!35, draw=distblue!80] coordinates
+  {(1,0.5)(2,0.25)(3,0.125)(4,0.0625)(5,0.03125)(6,0.015625)(7,0.0078125)(8,0.00390625)};
+\end{axis}
+\end{tikzpicture}
+\caption{Each bar is a level set $A_k=\{X=k\}$ with measure $\P(A_k)=2^{-k}$.
+The truncations $X_n=\sum_{k\le n}k\,\ind_{A_k}$ keep only the first $n$ bars and
+rise to $X$; the Monotone Convergence Theorem lets their integrals
+$\sum_{k\le n}k\,2^{-k}$ climb to $\E[X]=2$.}
+\label{ch37:fig-geom-pmf}
+\end{figure}
+
+\begin{labbox}
+Re-run the machine yourself on the \emph{tail-sum formula}. For a nonnegative
+integer-valued $X$, prove
+\[
+  \E[X]=\sum_{k=1}^\infty \P(X\ge k)
+\]
+by writing $X=\sum_{k\ge1}\ind_{\{X\ge k\}}$ (check this identity pointwise: if
+$X(\omega)=m$, exactly $m$ of the indicators are $1$), then integrating term by
+term. Which convergence theorem licenses the interchange of $\sum$ and $\E$? Now
+verify it numerically on the $X$ of Example~\ref{ch37:worked-geom}: here
+$\P(X\ge k)=2^{-(k-1)}$, so $\sum_{k\ge1}2^{-(k-1)}=2$, agreeing with the
+direct computation. The tail-sum formula is one of the most useful tricks in
+applied probability, and it is pure MCT.
+\end{labbox}
+
+\section{What to Carry Forward}
+
+\begin{focusbox}
+The one-paragraph summary of a hundred pages of measure theory:
+\begin{itemize}
+\item \textbf{One integral.} $\int f\,\dd\mu$ is built in four rungs ---
+  indicators ($\int\ind_A=\mu(A)$), simple functions
+  ($\int\sum a_k\ind_{A_k}=\sum a_k\mu(A_k)$), nonnegative functions
+  (sup of simple functions underneath), signed functions (positive minus
+  negative part). It slices the \emph{range}, not the domain.
+\item \textbf{One expectation.} $\E[X]=\int_\Omega X\,\dd\P$. The discrete sum
+  and the continuous density-integral are both special cases; mixed variables
+  need no special handling.
+\item \textbf{Limits are safe.} MCT (increasing nonnegative), Fatou (lower
+  bound), and DCT (dominated) tell you exactly when $\lim\int=\int\lim$. The
+  escaping bump shows what goes wrong without domination.
+\item \textbf{Null sets are invisible.} Almost-everywhere / almost-surely is the
+  natural language, and the integral never sees a measure-zero set.
+\item \textbf{Riemann lives inside.} Every Riemann integral is a Lebesgue
+  integral of the same value; Lebesgue adds the limit theorems and the abstract
+  domain.
+\end{itemize}
+With this in hand, the next chapter can finally define conditional expectation
+$\E[X\given\mathcal G]$ rigorously --- as a Lebesgue integral relative to a
+sub-$\sigma$-algebra --- and the martingale theory rests on bedrock.
+\end{focusbox}
+
+\section{Exercises}
+\label{ch37:exercises}
+
+\begin{exercise}[Indicators and probabilities]
+\label{ch37:ex-indicator}
+Let $A,B$ be events. Using only $\E[\ind_E]=\P(E)$ and linearity of the integral,
+prove $\P(A\cup B)=\P(A)+\P(B)-\P(A\cap B)$ by integrating the pointwise
+identity $\ind_{A\cup B}=\ind_A+\ind_B-\ind_{A\cap B}$. (This is inclusion--
+exclusion as a one-line integral.)
+\end{exercise}
+
+\begin{exercise}[Well-definedness of the simple integral]
+\label{ch37:ex-welldef}
+Suppose a simple function has two representations $s=\sum_k a_k\ind_{A_k}=\sum_j
+b_j\ind_{B_j}$ with each family disjoint and covering $\Omega$. Prove
+$\sum_k a_k\mu(A_k)=\sum_j b_j\mu(B_j)$ by refining with $C_{kj}=A_k\cap B_j$
+and using finite additivity. (This is the only bookkeeping lemma the whole
+construction needs.)
+\end{exercise}
+
+\begin{exercise}[Dirichlet, made precise]
+\label{ch37:ex-dirichlet}
+Let $D=\ind_{\Q\cap[0,1]}$. (a) Explain why $D$ is a simple function on the
+measure space $([0,1],\mathcal B,\lambda)$. (b) Compute its Lebesgue integral
+directly from Definition~\ref{ch37:def-int-simple}, using that $\Q\cap[0,1]$ is
+countable and hence $\lambda$-null. (c) Show $D$ is not Riemann integrable by
+exhibiting its upper and lower Darboux sums.
+\end{exercise}
+
+\begin{exercise}[Tail-sum formula]
+\label{ch37:ex-tailsum}
+For a nonnegative integer-valued random variable $X$, prove
+$\E[X]=\sum_{k=1}^\infty\P(X\ge k)$. State clearly which convergence theorem
+justifies exchanging $\E$ and the infinite sum, and verify that its hypotheses
+hold. Then apply it to compute $\E[X]$ when $X\sim\Geom(p)$ with
+$\P(X=k)=(1-p)^{k-1}p$.
+\end{exercise}
+
+\begin{exercise}[The escaping bump, your version]
+\label{ch37:ex-bump}
+On $([0,1],\lambda)$ construct measurable $f_n\ge 0$ with $f_n\to 0$ pointwise
+but $\int f_n\,\dd\lambda = 5$ for every $n$. (a) Why does this not contradict
+DCT? Identify precisely which hypothesis fails. (b) Compute both
+$\int\liminf f_n$ and $\liminf\int f_n$ and confirm Fatou's inequality is
+strict.
+\end{exercise}
+
+\begin{exercise}[Monotone vs.\ dominated]
+\label{ch37:ex-mctdct}
+For each sequence on $([0,\infty),\lambda)$, decide whether MCT, DCT, both, or
+neither applies, and find $\lim_n\int f_n$.
+(a) $f_n(x)=\ind_{[0,n]}(x)\,(1-x/n)_+$.
+(b) $f_n(x)=\frac{1}{n}\ind_{[0,n]}(x)$.
+(c) $f_n(x)=e^{-x/n}\,e^{-x}$.
+Justify each answer by naming a dominating function or an increasing structure
+where one exists.
+\end{exercise}
+
+\begin{exercise}[Mixed random variable]
+\label{ch37:ex-mixed}
+Let $X=0$ with probability $p$ and $X\sim\Unif(0,1)$ with probability $1-p$.
+(a) Write $\E[X]$ as a sum of two Lebesgue integrals over complementary events.
+(b) Compute $\E[X]$ and $\E[X^2]$, and hence $\Var(X)$, in terms of $p$.
+(c) Explain why neither the pure discrete nor the pure continuous expectation
+formula computes this directly, but the Lebesgue definition does.
+\end{exercise}
+
+\begin{exercise}[Term-by-term integration]
+\label{ch37:ex-termbyterm}
+Let $g_k(x)=x^{k}(1-x)$ on $[0,1]$ for $k=0,1,2,\dots$ (all nonnegative).
+(a) Use MCT (via partial sums) to justify $\int_0^1 \sum_{k\ge0} g_k\,\dd x
+= \sum_{k\ge0}\int_0^1 g_k\,\dd x$. (b) Evaluate both sides
+($\sum_{k\ge0} g_k(x)=1$ for $x\in[0,1)$) and confirm they agree. (c) Where,
+exactly, did nonnegativity of the $g_k$ matter?
+\end{exercise}
+
+\begin{exercise}[Riemann inside Lebesgue]
+\label{ch37:ex-riemann}
+(a) State the criterion from Theorem~\ref{ch37:thm-riemann} for a bounded
+function on $[a,b]$ to be Riemann integrable. (b) Use it to decide whether
+$f(x)=\ind_{\{x \text{ is a dyadic rational}\}}$ on $[0,1]$ is Riemann
+integrable, and compute its Lebesgue integral. (c) Give a bounded function on
+$[0,1]$ that is Lebesgue integrable but not Riemann integrable, and one
+(improper) example that is Riemann integrable but not Lebesgue integrable,
+explaining the difference in one sentence.
+\end{exercise}
+
+\begin{exercise}[Differentiating under the integral, conceptual]
+\label{ch37:ex-diffunder}
+Suppose $X$ has density $f$ and $g(x,\theta)$ is differentiable in $\theta$ with
+$\abs{\partial_\theta g(x,\theta)}\le h(x)$ where $\E[h(X)]<\infty$. Explain,
+citing the relevant convergence theorem, why
+$\frac{\dd}{\dd\theta}\E[g(X,\theta)]=\E[\partial_\theta g(X,\theta)]$. (Hint:
+write the derivative as a limit of difference quotients and dominate them with
+$h$ via the mean value theorem.) Why is this the workhorse behind score
+functions and Fisher information in maximum-likelihood estimation?
+\end{exercise}

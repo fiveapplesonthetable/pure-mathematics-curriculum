@@ -1,0 +1,1190 @@
+\chapter{Estimation: Method of Moments and Maximum Likelihood}
+
+So far this book has run in one direction. You knew the coin was fair, the
+machine emitted photons at a rate of three per second, the errors were Gaussian
+with mean zero and standard deviation two -- and from those known truths you
+deduced what the data would look like. Probability flows from model to data.
+
+Real life runs the other way. You are handed the data first. A new coin lands
+heads $61$ times in $100$ tosses. A call center logs the gaps between incoming
+calls. A drug trial reports recovery in $73$ of $120$ patients. Now you must
+swim upstream: from the data, infer the model. What is the coin's true bias?
+What is the call rate? Does the drug help, and by how much? This upstream
+journey is \emph{statistical estimation}, and it is where probability stops
+being a game about dice and starts being the engine of empirical science.
+
+This chapter introduces the two oldest and most important estimation engines:
+the \emph{method of moments}, which matches the averages you see to the
+averages the model predicts, and \emph{maximum likelihood}, which asks a
+disarmingly simple question, ``which parameter value would have made my data
+most plausible?'' We then confront the next questions. An estimate
+is itself random -- it dances around as the data dances. Is it centered on the
+truth (bias)? How wildly does it dance (variance)? Does it home in on the
+truth as data piles up (consistency)? And is there a floor below which no
+estimator's dance can shrink (the Cramer--Rao bound)? By the end you should not
+just know the formulas; you should see estimation as a single coherent story
+about extracting a signal from noise.
+
+\chapterline
+
+\section{Statistical Models and Parameters}
+\label{ch30:models}
+
+Before you can estimate anything you must say what you are estimating. That
+requires a \emph{statistical model}: a family of probability distributions, one
+of which we believe (or pretend) generated the data.
+
+\begin{definition}[Statistical model and parameter]
+\label{ch30:def-model}
+A \emph{parametric statistical model} is a family of distributions
+$\set{P_\theta : \theta \in \Theta}$ indexed by a \emph{parameter} $\theta$
+living in a \emph{parameter space} $\Theta \subseteq \R^k$. We assume the
+observed data $X_1,\dots,X_n$ are drawn from $P_{\theta_0}$ for some
+\emph{true but unknown} $\theta_0 \in \Theta$. An \emph{estimator} is any
+function $\hat\theta = g(X_1,\dots,X_n)$ of the data used to guess $\theta_0$.
+\end{definition}
+
+Read that definition slowly, because three distinct objects are hiding in it,
+and confusing them is the single most common source of muddle in all of
+statistics.
+
+\begin{itemize}
+\item The \emph{parameter} $\theta_0$ is a fixed, non-random number. The coin
+  really does have some bias; we just do not know it. It does not have a
+  distribution. It is what it is.
+\item The \emph{data} $X_1,\dots,X_n$ are random -- before you collect them they
+  could come out many ways.
+\item The \emph{estimator} $\hat\theta$ is a function of the random data, so it
+  too is random. It is a random variable. It has a distribution, a mean, a
+  variance. That distribution -- called the \emph{sampling distribution} of the
+  estimator -- is the central character of this chapter.
+\end{itemize}
+
+\begin{focusbox}
+A parameter is a fixed unknown number. An estimator is a random variable that
+tries to pin it down. Almost everything that follows is the study of \emph{how
+well a random thing can pin down a fixed thing}.
+\end{focusbox}
+
+A small notational convention, used throughout statistics and throughout this
+book: a hat means ``estimate of.'' So $\hat\theta$ estimates $\theta$,
+$\hat p$ estimates $p$, $\hat\sigma^2$ estimates $\sigma^2$. When we want to
+emphasize the estimator depends on $n$ data points we may write $\hat\theta_n$.
+
+\begin{example}[Three running models]
+\label{ch30:ex-three-models}
+Keep these three in mind; we return to each repeatedly.
+\begin{enumerate}
+\item \textbf{Bernoulli / coin.} $X_i \sim \Bern(p)$, so $X_i \in \set{0,1}$
+  with $\P(X_i=1)=p$. Here $\theta = p \in [0,1]$. Data: $61$ heads in $100$.
+\item \textbf{Poisson / counts.} $X_i \sim \Pois(\lambda)$, the number of calls
+  in successive minutes. Here $\theta = \lambda > 0$.
+\item \textbf{Normal.} $X_i \sim \Normal(\mu,\sigma^2)$. Here
+  $\theta = (\mu,\sigma^2)$ is two-dimensional, $\Theta = \R \times (0,\infty)$.
+\end{enumerate}
+\end{example}
+
+\begin{aestheticbox}
+Why bother with a model at all? Because data alone cannot answer a question
+about the world; only data \emph{plus} an assumption about how the world
+generated it can. The model is the bridge from ``what I saw'' to ``what is
+true.'' Choose the bridge badly and even infinite data leads you to a confident
+wrong answer. Every estimate in this chapter is conditional on its model being
+roughly right -- a humility worth carrying.
+\end{aestheticbox}
+
+\section{The Method of Moments}
+\label{ch30:mom}
+
+The oldest estimation idea is also the most intuitive, and you have been using
+its baby version your whole life. If you want to know the average height of
+adults, you measure some adults and average their heights. You are matching a
+\emph{sample average} to a \emph{population average}. The method of moments,
+introduced by Karl Pearson in the $1890$s, simply industrializes this instinct.
+
+\begin{intuitionbox}
+The model tells you what the theoretical moments -- the mean $\E[X]$, the mean
+square $\E[X^2]$, and so on -- ought to be, \emph{as functions of the unknown
+parameters}. The data hand you empirical versions of those same moments. The
+method of moments sets theory equal to data and solves for the parameters. It
+is the statistical equivalent of ``$n$ unknowns, $n$ equations.''
+\end{intuitionbox}
+
+Recall the $k$-th \emph{population moment} $\mu_k = \E[X^k]$ and define the
+$k$-th \emph{sample moment} as the obvious empirical average
+\[
+  \hat\mu_k = \frac{1}{n} \sum_{i=1}^n X_i^k.
+\]
+The law of large numbers (a previous chapter) guarantees
+$\hat\mu_k \pto \mu_k$: sample moments converge to population moments. That is
+the whole engine. If $\mu_k$ depends on $\theta$, and the sample moment is close
+to $\mu_k$, then solving the equation should land you near the true $\theta$.
+
+\begin{definition}[Method-of-moments estimator]
+\label{ch30:def-mom}
+For a model with $k$ unknown parameters, write the first $k$ population moments
+$\mu_1(\theta),\dots,\mu_k(\theta)$ as functions of $\theta$. The
+\emph{method-of-moments estimator} $\hat\theta_{\mathrm{MM}}$ is the solution of
+the $k$ equations
+\[
+  \mu_1(\theta) = \hat\mu_1,\quad \mu_2(\theta) = \hat\mu_2,\quad\dots,\quad
+  \mu_k(\theta) = \hat\mu_k.
+\]
+\end{definition}
+
+\begin{example}[MoM for the Poisson rate]
+\label{ch30:ex-mom-pois}
+For $\Pois(\lambda)$ we know $\mu_1 = \E[X] = \lambda$. One parameter, so one
+equation: $\lambda = \hat\mu_1 = \bar X$. The method-of-moments estimate of the
+call rate is just the sample mean,
+$\hat\lambda_{\mathrm{MM}} = \bar X = \frac1n\sum_i X_i$. If $200$ minutes
+produced $560$ calls, $\hat\lambda = 2.8$ calls per minute.
+\end{example}
+
+\begin{example}[MoM for the Normal]
+\label{ch30:ex-mom-normal}
+Two parameters $(\mu,\sigma^2)$, so two equations. The first two population
+moments are $\mu_1 = \mu$ and $\mu_2 = \E[X^2] = \sigma^2 + \mu^2$. Setting them
+equal to the sample moments:
+\[
+  \mu = \hat\mu_1 = \bar X,
+  \qquad
+  \sigma^2 + \mu^2 = \hat\mu_2 = \frac1n\sum_i X_i^2.
+\]
+Substituting the first into the second,
+\[
+  \hat\sigma^2_{\mathrm{MM}} = \frac1n\sum_i X_i^2 - \bar X^2
+  = \frac1n\sum_i (X_i - \bar X)^2.
+\]
+So MoM hands you the sample mean and the sample variance (with the $1/n$
+divisor) -- comfortingly familiar faces.
+\end{example}
+
+\begin{example}[MoM for the Uniform -- where intuition gets interesting]
+\label{ch30:ex-mom-unif}
+Let $X_i \sim \Unif(0,\theta)$, so the data are spread between $0$ and an
+unknown ceiling $\theta$. The mean of a $\Unif(0,\theta)$ is $\theta/2$, so the
+moment equation is $\theta/2 = \bar X$, giving
+\[
+  \hat\theta_{\mathrm{MM}} = 2\bar X.
+\]
+Here is a delicious trap. Suppose your sample is
+$0.1,\ 0.4,\ 0.9$. Then $\bar X = 0.467$ and
+$\hat\theta_{\mathrm{MM}} = 0.933$. But you \emph{observed} a value of $0.9$!
+The estimated ceiling is barely above a point you actually saw, and a slightly
+unluckier sample could give $\hat\theta < \max_i X_i$ -- an estimated ceiling
+\emph{below} an observation, which is logically impossible under the model. The
+method of moments does not know that $\theta$ must be at least as large as the
+biggest observation. It only knows about averages. This is our first hint that
+intuition-by-averaging, though seductive, can be improved upon.
+Figure~\ref{ch30:fig-mom-unif} draws the situation.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=4.2cm,
+  xlabel={observed value}, ylabel={},
+  xmin=0, xmax=1.05, ymin=0, ymax=1.2,
+  ytick=\empty, ymajorgrids=false,
+  xtick={0,0.2,0.4,0.6,0.8,1.0},
+  axis y line=none, axis x line=bottom,
+  title={Method of moments can place the estimated ceiling \emph{below} an observation},
+]
+% data points
+\addplot[only marks, mark=*, mark size=2.6pt, distblue]
+  coordinates {(0.1,0.4)(0.4,0.4)(0.9,0.4)};
+% labels
+\node[anchor=south, distblue, font=\scriptsize] at (axis cs:0.1,0.45) {$0.1$};
+\node[anchor=south, distblue, font=\scriptsize] at (axis cs:0.4,0.45) {$0.4$};
+\node[anchor=south, distblue, font=\scriptsize] at (axis cs:0.9,0.45) {$0.9$};
+% MoM estimate
+\draw[targetgreen, very thick] (axis cs:0.9333,0) -- (axis cs:0.9333,0.95);
+\node[anchor=south, targetgreen!60!black, font=\scriptsize, align=center]
+  at (axis cs:0.9333,0.96) {$\hat\theta_{\mathrm{MM}}=2\bar X$\\$=0.933$};
+% max observation
+\draw[trapred, very thick, dashed] (axis cs:0.9,0) -- (axis cs:0.9,0.78);
+\node[anchor=south east, trapred, font=\scriptsize] at (axis cs:0.9,0.62) {$\max_i x_i=0.9$};
+\end{axis}
+\end{tikzpicture}
+\caption{Three observations (dots) from $\Unif(0,\theta)$. The method-of-moments
+ceiling $2\bar X = 0.933$ sits barely above the largest observation $0.9$. A
+slightly unluckier draw would push $2\bar X$ \emph{below} $0.9$ -- an estimated
+ceiling lower than a value we actually saw, which the model forbids. Averaging
+alone is blind to this constraint.}
+\label{ch30:fig-mom-unif}
+\end{figure}
+
+\begin{trapbox}
+The method of moments is fast, requires no calculus, and gives a sensible
+starting guess for almost any model -- which is exactly why it is still used to
+initialize harder optimizations. But it can produce nonsensical answers (a
+ceiling below an observation, a negative variance, a probability above one)
+because it only listens to a few summary numbers and ignores the finer
+structure of the likelihood. Treat it as a quick sketch, not a final portrait.
+\end{trapbox}
+
+\begin{historybox}
+Karl Pearson built the method of moments around $1894$ while fitting skewed
+biological data -- crab measurements from the Bay of Naples -- that refused to
+look Gaussian. He modeled them as mixtures and matched up to five moments,
+grinding through the algebra by hand. For thirty years it was \emph{the} way to
+fit distributions. Then a young R.\,A.\ Fisher argued, in a series of papers
+from $1912$ to $1922$, that matching moments was wasteful: it threw away
+information the data contained. His alternative, maximum likelihood, eventually
+won the field. The friendly rivalry between Pearson's and Fisher's schools is
+one of the founding dramas of modern statistics -- and personal: the two men
+famously could not stand each other.
+\end{historybox}
+
+\section{The Likelihood Function}
+\label{ch30:likelihood}
+
+Fisher's complaint was that the method of moments listens to only a handful of
+summaries. The likelihood listens to everything. The whole idea fits in two
+words: \emph{run probability backwards}. Ordinarily
+$\P(\text{data} \given \theta)$ treats $\theta$ as fixed
+and asks how probable the data are. Fisher said: I have the data; let me hold
+\emph{them} fixed and view that same number as a function of $\theta$. Now it
+ranks the candidate parameter values by how well each would have predicted what
+actually happened.
+
+\begin{definition}[Likelihood and log-likelihood]
+\label{ch30:def-likelihood}
+Given observed data $x_1,\dots,x_n$ and a model with parameter $\theta$, the
+\emph{likelihood function} is the joint density (or mass) of the data, read as a
+function of $\theta$ with the data held fixed:
+\[
+  L(\theta) = L(\theta; x_1,\dots,x_n) = \prod_{i=1}^n f(x_i \given \theta)
+\]
+for i.i.d.\ data with density/mass $f$. Its logarithm, the \emph{log-likelihood},
+is
+\[
+  \ell(\theta) = \log L(\theta) = \sum_{i=1}^n \log f(x_i \given \theta).
+\]
+\end{definition}
+
+\begin{trapbox}
+$L(\theta)$ is \emph{not} a probability distribution over $\theta$. It does not
+integrate to one over $\Theta$, and ``$L(\theta)$'' is not ``the probability
+that the parameter is $\theta$.'' The parameter is a fixed number, not a random
+variable -- it has no distribution to speak of. (When you \emph{do} put a
+distribution on $\theta$ you have crossed into Bayesian inference, the subject
+of the next chapter, and the object you get is the posterior, not the
+likelihood.) The likelihood is a \emph{ranking}, not a probability: it tells you
+which $\theta$ values make the data look plausible, in relative terms only.
+\end{trapbox}
+
+\begin{whybox}
+Why multiply the densities? Because the observations are independent, and
+independence makes joint probabilities multiply. The probability of seeing
+\emph{this} value and \emph{that} value and \emph{the other} value is the
+product of the individual probabilities. Why take the log? Three reasons, all
+practical. First, products of $n$ small numbers underflow to zero on a computer;
+sums of logs do not. Second, sums are far easier to differentiate than products
+-- and we are about to differentiate. Third, the log turns the i.i.d.\ product
+into a \emph{sum} over data points, which is exactly the form the law of large
+numbers and the central limit theorem love. Because $\log$ is strictly
+increasing, the $\theta$ that maximizes $L$ also maximizes $\ell$, so we lose
+nothing.
+\end{whybox}
+
+\section{Maximum Likelihood Estimation}
+\label{ch30:mle}
+
+\begin{definition}[Maximum likelihood estimator]
+\label{ch30:def-mle}
+The \emph{maximum likelihood estimator} (MLE) is the parameter value that makes
+the observed data most probable:
+\[
+  \hat\theta_{\mathrm{MLE}} = \arg\max_{\theta \in \Theta} L(\theta)
+                            = \arg\max_{\theta \in \Theta} \ell(\theta).
+\]
+\end{definition}
+
+The recipe, when $\ell$ is smooth, is the familiar calculus drill: differentiate
+$\ell$, set the derivative (the \emph{score}) to zero, solve, and check it is a
+maximum.
+\[
+  \text{score: } \quad s(\theta) = \frac{\partial \ell}{\partial \theta} = 0.
+\]
+(In Section~\ref{ch30:fisher} we will use the word \emph{score} for the
+derivative of a \emph{single} observation's log-density,
+$\partial_\theta\log f(X\given\theta)$. The two usages are consistent: because
+$\ell$ is a sum over observations, the full-data score is the sum of the
+per-observation scores. We name both ``score'' as the field does, but the
+distinction matters when we take variances.)
+
+\begin{example}[The MLE of a coin's bias -- the canonical case]
+\label{ch30:ex-mle-bern}
+You toss a coin $n$ times and see $k$ heads. With $X_i\sim\Bern(p)$ the mass
+function is $f(x\given p)=p^x(1-p)^{1-x}$, so the likelihood is
+\[
+  L(p) = \prod_{i=1}^n p^{x_i}(1-p)^{1-x_i} = p^{k}(1-p)^{n-k},
+  \qquad k = \sum_i x_i.
+\]
+Take logs:
+\[
+  \ell(p) = k\log p + (n-k)\log(1-p).
+\]
+Differentiate and set to zero:
+\[
+  \ell'(p) = \frac{k}{p} - \frac{n-k}{1-p} = 0
+  \;\Longrightarrow\;
+  k(1-p) = (n-k)p
+  \;\Longrightarrow\;
+  k = np
+  \;\Longrightarrow\;
+  \boxed{\;\hat p_{\mathrm{MLE}} = \frac{k}{n}.\;}
+\]
+The maximum likelihood estimate of the coin's bias is the observed fraction of
+heads. For $61$ heads in $100$, $\hat p = 0.61$. The MLE recovers the most
+natural estimate there is -- but now you know \emph{why} it is natural: it
+is the value that makes your particular run of $61$ heads the most probable
+outcome it could have been.
+\end{example}
+
+Figure~\ref{ch30:fig-loglik-bern} shows the log-likelihood for this coin. Notice
+its single smooth peak at $0.61$, and notice how the curve gets \emph{sharper}
+as the sample grows -- a foreshadowing of Fisher information in
+Section~\ref{ch30:fisher}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=7cm,
+  xlabel={$p$ (candidate bias)}, ylabel={log-likelihood $\ell(p)$ (shifted)},
+  domain=0.30:0.92, samples=160,
+  legend pos=south west, legend cell align=left,
+  grid=both, grid style={gray!18},
+  xmin=0.30, xmax=0.92, ymin=-40, ymax=4,
+  title={Log-likelihood for ``$61\%$ heads'' at three sample sizes},
+]
+\addplot[distblue, very thick] {12.2*ln(x) + 7.8*ln(1-x) - (12.2*ln(0.61)+7.8*ln(0.39))};
+\addlegendentry{$n=20$}
+\addplot[densityred, very thick, dashed] {61*ln(x) + 39*ln(1-x) - (61*ln(0.61)+39*ln(0.39))};
+\addlegendentry{$n=100$}
+\addplot[targetgreen, very thick, dotted] {305*ln(x) + 195*ln(1-x) - (305*ln(0.61)+195*ln(0.39))};
+\addlegendentry{$n=500$}
+\draw[gray, thick, dashed] (axis cs:0.61,-40) -- (axis cs:0.61,2);
+\node[anchor=south] at (axis cs:0.61,1.2) {\footnotesize peak at $\hat p=0.61$};
+\end{axis}
+\end{tikzpicture}
+\caption{The log-likelihood for a coin showing $61\%$ heads, shifted to peak at
+zero. All three curves peak at $\hat p = 0.61$ regardless of $n$, but more data
+makes the peak dramatically sharper -- the data ``insist'' on $0.61$ more
+strongly. That sharpness is precisely what makes a large sample informative.}
+\label{ch30:fig-loglik-bern}
+\end{figure}
+
+\begin{example}[The MLE of the Poisson rate]
+\label{ch30:ex-mle-pois}
+With $X_i\sim\Pois(\lambda)$, $f(x\given\lambda)=e^{-\lambda}\lambda^x/x!$, so
+\[
+  \ell(\lambda) = \sum_i \left(-\lambda + x_i\log\lambda - \log x_i!\right)
+  = -n\lambda + \Big(\sum_i x_i\Big)\log\lambda - \sum_i \log x_i!.
+\]
+The last term does not involve $\lambda$, so it falls away under
+differentiation:
+\[
+  \ell'(\lambda) = -n + \frac{\sum_i x_i}{\lambda} = 0
+  \;\Longrightarrow\;
+  \hat\lambda_{\mathrm{MLE}} = \frac{\sum_i x_i}{n} = \bar X.
+\]
+Here the MLE and the method-of-moments estimate coincide -- both equal $\bar X$.
+They will not always agree, but when the model is ``nice'' (an exponential
+family, matched at its natural moments) they often do.
+\end{example}
+
+\begin{example}[The MLE of the Normal -- two parameters at once]
+\label{ch30:ex-mle-normal}
+For $X_i\sim\Normal(\mu,\sigma^2)$,
+\[
+  \ell(\mu,\sigma^2)
+  = -\frac{n}{2}\log(2\pi) - \frac{n}{2}\log\sigma^2
+    - \frac{1}{2\sigma^2}\sum_i (x_i-\mu)^2.
+\]
+Set the two partial derivatives to zero. With respect to $\mu$:
+\[
+  \frac{\partial\ell}{\partial\mu}
+  = \frac{1}{\sigma^2}\sum_i (x_i-\mu) = 0
+  \;\Longrightarrow\;
+  \hat\mu = \bar X.
+\]
+With respect to $\sigma^2$ (treat $v=\sigma^2$ as the variable):
+\[
+  \frac{\partial\ell}{\partial v}
+  = -\frac{n}{2v} + \frac{1}{2v^2}\sum_i (x_i-\mu)^2 = 0
+  \;\Longrightarrow\;
+  \hat\sigma^2 = \frac1n\sum_i (x_i-\bar X)^2.
+\]
+Again the MLE matches the method of moments. Hold onto that $1/n$ divisor: it
+will turn out to be biased, and the fix is one of the most famous footnotes in
+statistics (Section~\ref{ch30:bias}).
+\end{example}
+
+\begin{example}[The MLE of the Uniform ceiling -- calculus fails, and that is the lesson]
+\label{ch30:ex-mle-unif}
+Return to $X_i\sim\Unif(0,\theta)$. The density is $f(x\given\theta)=1/\theta$
+for $0\le x\le\theta$ and $0$ otherwise. The likelihood is
+\[
+  L(\theta) = \prod_{i=1}^n \frac{1}{\theta}\,\ind\set{0\le x_i\le\theta}
+            = \frac{1}{\theta^n}\,\ind\set{\theta \ge \max_i x_i}.
+\]
+Here differentiating is a trap. As a function of $\theta$, $1/\theta^n$ is
+\emph{decreasing}, so we want $\theta$ as small as possible -- but the indicator
+forbids $\theta$ from dropping below the largest observation. The likelihood is
+therefore maximized at the boundary:
+\[
+  \boxed{\;\hat\theta_{\mathrm{MLE}} = \max_i X_i.\;}
+\]
+Compare this to the method-of-moments answer $2\bar X$. The MLE can never be
+less than an observed value -- it respects the logic of the model. This is the
+clearest single demonstration in the book that maximum likelihood ``uses more
+of the data'': it knows the maximum matters, while moment-matching only ever saw
+the average.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xlabel={$\theta$ (candidate ceiling)}, ylabel={likelihood $L(\theta)$},
+  domain=0.9:2.2, samples=120,
+  xmin=0.3, xmax=2.2, ymin=0, ymax=2,
+  grid=both, grid style={gray!18},
+  title={Uniform likelihood with $\max_i x_i = 0.9$: maximized at the boundary},
+]
+\addplot[densityred, very thick] {1/x^4};
+\addplot[draw=none, fill=gray!12] coordinates {(0.3,0)(0.9,0)(0.9,2)(0.3,2)};
+\draw[distblue, very thick, dashed] (axis cs:0.9,0) -- (axis cs:0.9,1.524);
+\node[anchor=west] at (axis cs:0.92,1.5) {\footnotesize $\hat\theta = \max_i x_i = 0.9$};
+\node[anchor=west, gray!60!black] at (axis cs:0.42,1.0) {\footnotesize $L=0$ here};
+\node[anchor=west, gray!60!black] at (axis cs:0.42,0.7) {\footnotesize ($\theta<\max x_i$)};
+\end{axis}
+\end{tikzpicture}
+\caption{For $\Unif(0,\theta)$ with $n=4$ and largest observation $0.9$, the
+likelihood is zero whenever $\theta<0.9$ (an impossible ceiling) and decays as
+$\theta^{-4}$ above it. The maximum sits exactly at the boundary
+$\hat\theta=0.9$. No derivative is set to zero -- the optimum is a corner.}
+\label{ch30:fig-unif-lik}
+\end{figure}
+
+\begin{happeningbox}
+What is maximum likelihood \emph{really} doing? Picture the parameter space as a
+landscape and the log-likelihood as its elevation. Each data point tilts the
+landscape a little, pushing the summit toward parameter values that explain that
+point well. With i.i.d.\ data these little tilts \emph{add up} (because logs
+turn the product into a sum), so the summit settles at the consensus of all the
+data points. As $n$ grows, more votes accumulate and the summit grows sharper
+and more decisively located -- the law of large numbers acting on the score
+function. Deeper still: maximizing the likelihood is the same as minimizing the
+Kullback--Leibler divergence from the true distribution to your model. The MLE
+is the member of your model family that is, in an information-theoretic sense,
+\emph{closest to the truth} given the evidence. We make this precise in the
+information-theory chapter; here, just feel the shape of it.
+\end{happeningbox}
+
+\begin{connectionbox}
+Maximum likelihood is an optimization problem, so the whole machinery of
+calculus comes to bear: the first-order condition (score $=0$) is just
+``gradient equals zero,'' and checking it is a maximum uses the second
+derivative being negative. For multi-parameter models the score becomes a
+gradient \emph{vector} and the curvature becomes a Hessian \emph{matrix} -- so
+linear algebra enters too, and the matrix of expected curvatures is the Fisher
+information matrix of Section~\ref{ch30:fisher}. When the score equation has no
+closed form (logistic regression, mixtures, most of modern machine learning),
+you climb the likelihood numerically with gradient ascent or Newton's method --
+literally the same algorithms that train neural networks. See the companion
+calculus and linear algebra readers for the optimization background.
+\end{connectionbox}
+
+\subsection{The invariance property}
+\label{ch30:invariance}
+
+Maximum likelihood has a property the method of moments lacks, and it saves real
+work.
+
+\begin{theorem}[Invariance of the MLE]
+\label{ch30:thm-invariance}
+If $\hat\theta$ is the MLE of $\theta$ and $g$ is any function, then the MLE of
+$g(\theta)$ is $g(\hat\theta)$.
+\end{theorem}
+
+\begin{whybox}
+The reason is almost a tautology, which is why it is so reliable. The MLE is the
+$\theta$ that sits at the top of the likelihood hill. If you re-label the
+horizontal axis by a transformation $g$, the hill does not move -- the same
+\emph{point} is still the summit, it just wears a new name $g(\hat\theta)$.
+Maximization cares about \emph{where} the peak is, not what you call the
+location.
+\end{whybox}
+
+\begin{example}[Invariance in action]
+\label{ch30:ex-invariance}
+The MLE of the Bernoulli parameter is $\hat p = k/n$. Suppose you actually care
+about the \emph{odds} $g(p)=p/(1-p)$. By invariance, no new calculus is needed:
+the MLE of the odds is simply $\hat p/(1-\hat p) = k/(n-k)$. Likewise, the MLE
+of the Normal standard deviation $\sigma$ is $\sqrt{\hat\sigma^2}$, the square
+root of the MLE of the variance. You never have to re-derive anything.
+\end{example}
+
+\section{Judging an Estimator: Bias, Variance, Consistency}
+\label{ch30:bias}
+
+We now have two machines for producing estimates. But producing an estimate is
+not the same as producing a \emph{good} estimate. How do we grade an estimator?
+The estimator is random, so we grade its sampling distribution. Three properties
+matter most.
+
+\begin{definition}[Bias]
+\label{ch30:def-bias}
+The \emph{bias} of an estimator $\hat\theta$ of $\theta$ is
+\[
+  \operatorname{Bias}(\hat\theta) = \E[\hat\theta] - \theta.
+\]
+The estimator is \emph{unbiased} if its bias is zero, i.e.\
+$\E[\hat\theta]=\theta$ for every $\theta$: on average, across many hypothetical
+repetitions of the experiment, it lands on the truth.
+\end{definition}
+
+\begin{intuitionbox}
+Bias is a systematic error -- a scope that is sighted off-center. Even with
+infinite patience (infinitely many repeated experiments), the average of a
+biased estimator misses the bullseye. Unbiasedness says: \emph{no} systematic
+lean. It does not say any single estimate is correct, only that the errors
+cancel on average.
+\end{intuitionbox}
+
+\begin{example}[The sample mean is unbiased]
+\label{ch30:ex-unbiased-mean}
+If $X_i$ have mean $\mu$ then by linearity of expectation,
+\[
+  \E[\bar X] = \E\!\left[\frac1n\sum_i X_i\right]
+             = \frac1n\sum_i \E[X_i] = \frac1n\cdot n\mu = \mu.
+\]
+The sample mean is unbiased for the population mean, full stop -- it needs no
+assumption beyond a finite mean. This is why $\bar X$ is the workhorse of
+statistics.
+\end{example}
+
+\begin{example}[The MLE of the variance is biased -- and the famous fix]
+\label{ch30:ex-biased-var}
+Recall the MLE $\hat\sigma^2 = \frac1n\sum_i(X_i-\bar X)^2$. Is it unbiased? Let
+us compute its expectation. Write $\sigma^2$ for the true variance. A standard
+identity expands the sum of squared deviations:
+\[
+  \sum_i (X_i-\bar X)^2 = \sum_i (X_i-\mu)^2 - n(\bar X-\mu)^2.
+\]
+Take expectations. Each $\E[(X_i-\mu)^2]=\sigma^2$, giving $n\sigma^2$ for the
+first term. And $\E[(\bar X-\mu)^2]=\Var(\bar X)=\sigma^2/n$, so the second term
+contributes $n\cdot\sigma^2/n=\sigma^2$. Hence
+\[
+  \E\!\left[\sum_i(X_i-\bar X)^2\right] = n\sigma^2 - \sigma^2 = (n-1)\sigma^2,
+\]
+and therefore
+\[
+  \E[\hat\sigma^2] = \frac{n-1}{n}\,\sigma^2 < \sigma^2.
+\]
+The MLE \emph{systematically underestimates} the variance. The cure is to divide
+by $n-1$ instead of $n$:
+\[
+  S^2 = \frac{1}{n-1}\sum_i (X_i-\bar X)^2,
+  \qquad \E[S^2] = \sigma^2.
+\]
+This $S^2$ is the \emph{sample variance} you have seen everywhere with its
+mysterious $n-1$. Now the mystery is gone.
+\end{example}
+
+\begin{whybox}
+Why $n-1$ and not $n$? Because you used the data twice. To measure spread around
+the center you first had to \emph{estimate} the center with $\bar X$ -- and
+$\bar X$ is, by construction, the point that sits closest to your particular
+sample. Deviations measured from $\bar X$ are therefore a touch too small,
+because $\bar X$ was pulled toward the data. You have spent one ``degree of
+freedom'' locating the center, leaving only $n-1$ independent pieces of
+information about spread. Dividing by $n-1$ compensates exactly. The phrase
+\emph{degrees of freedom} is just bookkeeping for ``how many independent
+residuals are really left.''
+\end{whybox}
+
+\begin{trapbox}
+Maximum likelihood does \emph{not} promise unbiasedness, and the variance MLE is
+the standard counterexample. The MLE's virtues are large-sample virtues
+(consistency, efficiency); in small samples it can lean. Do not assume ``MLE''
+means ``unbiased.'' Conversely, do not over-worship unbiasedness either -- as we
+are about to see, a little bias can be a bargain.
+\end{trapbox}
+
+\begin{definition}[Variance and mean squared error]
+\label{ch30:def-mse}
+The \emph{variance} of an estimator is $\Var(\hat\theta)$, the spread of its
+sampling distribution. The \emph{mean squared error} combines both kinds of
+error:
+\[
+  \mathrm{MSE}(\hat\theta) = \E\big[(\hat\theta-\theta)^2\big]
+  = \underbrace{\Var(\hat\theta)}_{\text{wobble}}
+  + \underbrace{\operatorname{Bias}(\hat\theta)^2}_{\text{lean}}.
+\]
+\end{definition}
+
+\begin{whybox}
+The MSE decomposition is just the ``add and subtract the mean'' trick. Write
+$\hat\theta-\theta = (\hat\theta-\E\hat\theta)+(\E\hat\theta-\theta)$. Square it:
+the first piece squared has expectation $\Var(\hat\theta)$, the second piece is
+the constant $\operatorname{Bias}^2$, and the cross term is
+$2\,\E[\hat\theta-\E\hat\theta]\cdot\operatorname{Bias}=0$ because the first
+factor has mean zero. So total expected squared error cleanly splits into
+\emph{wobble plus lean}. This little identity is the seed of the entire
+bias--variance tradeoff.
+\end{whybox}
+
+\begin{definition}[Consistency]
+\label{ch30:def-consistency}
+An estimator is \emph{consistent} if it converges in probability to the truth as
+data accumulate:
+$\hat\theta_n \pto \theta$, meaning for every $\eps>0$,
+$\P(\abs{\hat\theta_n - \theta} > \eps)\to 0$ as $n\to\infty$.
+\end{definition}
+
+\begin{intuitionbox}
+Consistency is the bare-minimum sanity check: \emph{if you collect enough data,
+you get the right answer.} An inconsistent estimator is broken at the
+foundation -- no amount of data rescues it. A clean sufficient condition: if
+$\operatorname{Bias}(\hat\theta_n)\to 0$ \emph{and}
+$\Var(\hat\theta_n)\to 0$, then $\mathrm{MSE}\to 0$, and convergence in mean
+square forces convergence in probability (Chebyshev). So \emph{shrinking bias
+plus shrinking variance} $\Rightarrow$ consistency.
+\end{intuitionbox}
+
+\begin{example}[Both variance estimators are consistent]
+\label{ch30:ex-consistent-var}
+The biased MLE $\hat\sigma^2$ has bias $-\sigma^2/n \to 0$ and variance of order
+$1/n \to 0$, so it is consistent despite being biased. The unbiased $S^2$ is
+also consistent. As $n\to\infty$ the factor $(n-1)/n\to 1$ and the two estimators
+become indistinguishable. \emph{The $n-1$ versus $n$ debate is a small-sample
+debate}; asymptotically it evaporates. This is the recurring moral of the
+chapter: bias usually fades with data, so the real long-run battle is over
+variance.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=6.2cm,
+  xlabel={target}, ylabel={frequency},
+  ymin=0, ymax=1.05, xmin=-3.2, xmax=3.2,
+  ytick=\empty,
+  grid=both, grid style={gray!15},
+  title={Four estimators as sampling distributions (truth at $0$)},
+  domain=-3.2:3.2, samples=160,
+  legend pos=north west, legend style={font=\footnotesize}, legend cell align=left,
+]
+\addplot[targetgreen, very thick] {exp(-x^2/(2*0.16))};
+\addlegendentry{unbiased, low variance (best)}
+\addplot[distblue, very thick, dashed] {0.40*exp(-x^2/(2*1.0))};
+\addlegendentry{unbiased, high variance}
+\addplot[quotientorange, very thick, dotted] {exp(-(x-1.1)^2/(2*0.16))};
+\addlegendentry{biased, low variance}
+\addplot[densityred, very thick, dashdotted] {0.40*exp(-(x-1.1)^2/(2*1.0))};
+\addlegendentry{biased, high variance (worst)}
+\draw[gray, thick] (axis cs:0,0) -- (axis cs:0,1.05);
+\node[anchor=south, gray!50!black] at (axis cs:0,1.0) {\footnotesize truth};
+\end{axis}
+\end{tikzpicture}
+\caption{Bias is where the distribution is \emph{centered} relative to the truth
+(horizontal shift); variance is how \emph{wide} it is. A good estimator is both
+centered on the truth and tight around it. The mean squared error is the average
+squared distance from the truth, capturing both the shift and the width at once.}
+\label{ch30:fig-bias-variance}
+\end{figure}
+
+\section{The Bias--Variance Tradeoff}
+\label{ch30:bv-tradeoff}
+
+Decompose MSE into wobble plus lean and a strategic possibility leaps out: maybe
+you can \emph{accept} a little lean (bias) in exchange for far less wobble
+(variance), and come out ahead on total error. Unbiasedness is not sacred;
+\emph{small MSE} is the real goal.
+
+\begin{example}[Deliberately biasing the coin estimate]
+\label{ch30:ex-shrinkage}
+The unbiased estimate of a coin's bias is $\hat p = k/n$. But near the extremes
+it behaves badly: with $0$ heads in $5$ tosses it shouts ``$p=0$, this coin
+\emph{never} lands heads,'' a wildly overconfident claim from five tosses.
+Consider instead the gently shrunk estimator
+\[
+  \tilde p = \frac{k+1}{n+2},
+\]
+which nudges every estimate toward $1/2$ (it is, not coincidentally, the
+Bayesian posterior mean under a uniform prior -- the next chapter). With $0$
+heads in $5$ it returns $1/7\approx 0.14$ instead of $0$: still ``probably
+tail-heavy,'' but not absurdly certain. $\tilde p$ is \emph{biased} -- it leans
+toward $1/2$ -- yet for moderate $n$ and $p$ not too near $0$ or $1$ it often has
+\emph{smaller MSE} than the unbiased $\hat p$, because the variance reduction
+near the boundaries outweighs the small bias. A pinch of bias bought a calmer,
+more reliable estimator.
+\end{example}
+
+\begin{applicationbox}[The bias--variance tradeoff is the soul of machine learning]
+This single idea -- trade a little bias for a lot less variance -- organizes the
+entire practice of supervised learning. A model's expected prediction error
+decomposes (exactly as our MSE did) into
+\[
+  \text{error} = \text{bias}^2 + \text{variance} + \text{irreducible noise}.
+\]
+\begin{itemize}
+\item A \emph{too-simple} model (a straight line for a curvy world) has high
+  bias: it cannot represent the truth no matter how much data you give it. It
+  \emph{underfits}.
+\item A \emph{too-flexible} model (a degree-$30$ polynomial, a giant decision
+  tree) has high variance: it contorts itself to chase the noise in this
+  particular training set and changes wildly with a new sample. It
+  \emph{overfits}.
+\end{itemize}
+Every regularization knob in machine learning -- ridge and lasso penalties,
+shrinkage, dropout, early stopping, pruning, limiting tree depth -- is
+\emph{deliberately introduced bias} that buys a large reduction in variance.
+Ridge regression, for instance, shrinks coefficients toward zero exactly as
+$\tilde p$ shrank toward $1/2$: biased, but lower MSE on fresh data. When a
+practitioner says a model is overfitting, they are saying its variance is too
+high; the cure is almost always to add bias. Much of applied machine learning is
+the humble formula $\mathrm{MSE}=\Var+\operatorname{Bias}^2$ worked out in
+practice.
+\end{applicationbox}
+
+\begin{paradoxbox}[Stein's paradox: the sample mean is not always best]
+Here is one of the most startling results in all of statistics, and it lives
+exactly at the bias--variance frontier. Suppose you estimate three or more
+\emph{unrelated} means at once -- say the true batting averages of several
+players, or the means of three independent $\Normal(\mu_i,1)$ variables. The
+obvious estimator is to use each sample mean for its own parameter, and each
+sample mean is individually unbiased and efficient. Yet Charles Stein proved in
+$1956$ that for dimension $\ge 3$ this obvious estimator is \emph{inadmissible}:
+the James--Stein estimator, which deliberately \emph{shrinks} all the sample
+means toward a common point, has \emph{strictly smaller total MSE} for every
+true value of the parameters. Borrowing strength across problems that have
+nothing to do with each other beats handling each alone. The resolution is the
+chapter's thesis taken to its extreme: a dose of bias (shrinkage) can buy enough
+variance reduction to win even when the unbiased estimator was already efficient.
+Modern hierarchical and regularized models -- and much of machine learning's
+success -- are Stein's insight industrialized.
+\end{paradoxbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=6.2cm,
+  xlabel={model complexity (flexibility)}, ylabel={expected test error},
+  domain=0.4:5, samples=120,
+  xmin=0.4, xmax=5, ymin=0, ymax=6,
+  grid=both, grid style={gray!15},
+  legend pos=north east, legend style={font=\footnotesize}, legend cell align=left,
+  xtick=\empty,
+  title={The bias--variance tradeoff: total error is U-shaped},
+]
+\addplot[distblue, very thick] {9/(x^2)+0.3};
+\addlegendentry{$\text{bias}^2$ (falls with complexity)}
+\addplot[densityred, very thick, dashed] {0.18*x^2};
+\addlegendentry{variance (rises with complexity)}
+\addplot[targetgreen, ultra thick] {9/(x^2)+0.3+0.18*x^2};
+\addlegendentry{total error (U-shaped)}
+\draw[gray, thick, dotted] (axis cs:2.46,0) -- (axis cs:2.46,2.6);
+\node[anchor=south, gray!55!black] at (axis cs:2.46,2.6) {\footnotesize sweet spot};
+\node[anchor=west, distblue!70!black] at (axis cs:0.55,4.6) {\footnotesize underfit};
+\node[anchor=east, densityred!70!black] at (axis cs:4.9,5.2) {\footnotesize overfit};
+\end{axis}
+\end{tikzpicture}
+\caption{As model flexibility rises, squared bias falls but variance climbs.
+Their sum is U-shaped, and the best model lives at the bottom of the U -- not the
+simplest, not the most complex, but the one that balances lean against wobble.
+Choosing that point (via cross-validation) is most of applied modeling.}
+\label{ch30:fig-bv-curve}
+\end{figure}
+
+\section{Fisher Information and the Cramer--Rao Bound}
+\label{ch30:fisher}
+
+We have seen that variance is the long-run battleground: bias usually fades, but
+how small can variance get? Remarkably, there is a \emph{floor} -- a hard limit,
+set by the model itself, below which no unbiased estimator's variance can drop.
+The floor is governed by a single quantity that measures how much a single
+observation can possibly tell you about the parameter: the \emph{Fisher
+information}.
+
+\begin{intuitionbox}
+Look again at Figure~\ref{ch30:fig-loglik-bern}. With lots of data the
+log-likelihood is a \emph{sharp} peak; with little data it is a \emph{gentle}
+mound. A sharp peak means the data discriminate strongly between nearby
+parameter values -- shift $\theta$ a hair and the likelihood plummets, so you
+know $\theta$ precisely. A gentle mound means many $\theta$ values explain the
+data nearly equally well, so you are uncertain. \emph{Information is curvature.}
+Fisher information measures how sharply curved the log-likelihood is at its peak,
+on average.
+\end{intuitionbox}
+
+\begin{definition}[Fisher information]
+\label{ch30:def-fisher}
+For a single observation $X$ with log-density $\log f(X\given\theta)$, the
+\emph{score} is $s(\theta)=\partial_\theta \log f(X\given\theta)$ and the
+\emph{Fisher information} is its variance,
+\[
+  I(\theta) = \Var\big(s(\theta)\big)
+            = \E\!\left[\left(\frac{\partial}{\partial\theta}\log f(X\given\theta)\right)^{\!2}\right].
+\]
+Under mild regularity conditions this equals the expected curvature,
+\[
+  I(\theta) = -\,\E\!\left[\frac{\partial^2}{\partial\theta^2}\log f(X\given\theta)\right].
+\]
+For $n$ i.i.d.\ observations the information adds: $I_n(\theta)=n\,I(\theta)$.
+\end{definition}
+
+\begin{whybox}
+Two facts make this definition click. First, the score has \emph{mean zero}:
+$\E[s(\theta)]=\int (\partial_\theta f/f)\,f\,\dd x
+= \partial_\theta\!\int f\,\dd x = \partial_\theta 1 = 0$. So the variance of the
+score is just $\E[s^2]$ -- the first formula. Second, differentiating the
+identity $\E[s]=0$ once more and applying the product rule yields
+$\E[\partial_\theta s] + \E[s^2]=0$, i.e.\
+$\E[s^2] = -\E[\partial_\theta s] = -\E[\partial_\theta^2 \log f]$ -- the second
+formula. So ``variance of the score'' and ``expected curvature of the
+log-likelihood'' are the same number, viewed from two sides. And information
+\emph{adds} over independent observations because the total score is a sum of
+independent mean-zero scores, and variances of independent things add: every
+fresh data point contributes its own $I(\theta)$ to the pile. That additivity is
+why ``more data'' so reliably means ``more precision.''
+\end{whybox}
+
+\begin{theorem}[Cramer--Rao lower bound]
+\label{ch30:thm-crlb}
+Under regularity conditions, \emph{any} unbiased estimator $\hat\theta$ of
+$\theta$ based on $n$ i.i.d.\ observations satisfies
+\[
+  \Var(\hat\theta) \;\ge\; \frac{1}{n\,I(\theta)}.
+\]
+No unbiased estimator can do better than the inverse of the total Fisher
+information. An estimator attaining the bound is called \emph{efficient}.
+\end{theorem}
+
+\begin{happeningbox}
+The Cramer--Rao bound says that precision is a finite resource handed out by the
+model, not by your cleverness. The model fixes $I(\theta)$ -- how much one
+observation can reveal -- and then \emph{no} unbiased procedure, however
+ingenious, can extract more than $nI(\theta)$ worth of certainty. Two
+consequences worth absorbing. First, variance falls like $1/n$: to halve your
+standard error you must \emph{quadruple} your sample. That is the iron $\sqrt n$
+law behind every ``margin of error'' and the reason large studies are
+expensive. Second, the bound is a \emph{benchmark}: compute $1/(nI)$, compare it
+to your estimator's actual variance, and you know at once whether your estimator
+is wasting information or squeezing the model dry.
+\end{happeningbox}
+
+\begin{example}[The CRLB for a coin, and why $\hat p=k/n$ is efficient]
+\label{ch30:ex-crlb-bern}
+For $\Bern(p)$, $\log f(x\given p)=x\log p+(1-x)\log(1-p)$. Differentiate twice:
+\[
+  \partial_p^2 \log f = -\frac{x}{p^2} - \frac{1-x}{(1-p)^2}.
+\]
+Take $-\E[\cdot]$ using $\E[X]=p$:
+\[
+  I(p) = \frac{p}{p^2} + \frac{1-p}{(1-p)^2}
+       = \frac1p + \frac1{1-p}
+       = \frac{1}{p(1-p)}.
+\]
+So the Cramer--Rao floor is
+\[
+  \Var(\hat p) \ge \frac{1}{nI(p)} = \frac{p(1-p)}{n}.
+\]
+Now check the actual MLE $\hat p=k/n=\bar X$. Since $k\sim\Bin(n,p)$,
+$\Var(\hat p) = \Var(k)/n^2 = np(1-p)/n^2 = p(1-p)/n$. It \emph{exactly} attains
+the bound. The natural ``fraction of heads'' is not merely reasonable -- it is
+\emph{efficient}: no unbiased estimator of $p$ can ever beat it. Notice too that
+$I(p)=1/[p(1-p)]$ blows up as $p\to 0$ or $1$: a near-deterministic coin is, per
+toss, enormously informative when it does surprise you, which is why rare-event
+estimation behaves so differently from coin-flip estimation.
+\end{example}
+
+\begin{example}[CRLB for the Poisson rate]
+\label{ch30:ex-crlb-pois}
+For $\Pois(\lambda)$, $\log f = -\lambda + x\log\lambda - \log x!$, so
+$\partial_\lambda^2 \log f = -x/\lambda^2$ and
+$I(\lambda) = -\E[-X/\lambda^2] = \lambda/\lambda^2 = 1/\lambda$. The floor is
+$\Var(\hat\lambda)\ge \lambda/n$. The MLE $\hat\lambda=\bar X$ has variance
+$\Var(\bar X)=\lambda/n$ (since $\Var(X)=\lambda$ for a Poisson). Efficient
+again. Maximum likelihood keeps hitting the floor -- and that is no accident.
+\end{example}
+
+\begin{aestheticbox}[Why maximum likelihood is the default]
+The examples are not coincidences. Under regularity conditions the MLE is, for
+large $n$, \emph{asymptotically} the best estimator possible:
+\[
+  \hat\theta_{\mathrm{MLE}} \;\approx\; \Normal\!\left(\theta,\; \frac{1}{nI(\theta)}\right)
+  \quad\text{for large } n.
+\]
+In words: it is asymptotically unbiased, asymptotically normal, and its variance
+asymptotically attains the Cramer--Rao floor (asymptotic efficiency). That is
+three things at once -- it lands on the truth, its errors are bell-shaped (so you
+can build confidence intervals, two chapters from now), and it wrings every drop
+of information from the model. This is why maximum likelihood is the default
+estimation method across statistics, econometrics, and machine learning: in the
+large-sample regime it is, provably, hard to beat. Fisher's thirty-year argument
+with Pearson ended here.
+\end{aestheticbox}
+
+\begin{paradoxbox}[When maximum likelihood goes wrong]
+Maximum likelihood is the hero of this chapter, so it is only fair to show its
+scars; ``asymptotically optimal'' hides real failures.
+\begin{itemize}
+\item \textbf{The unbounded-likelihood catastrophe.} Fit a mixture of two
+  Normals by maximum likelihood. Center one component exactly on a single data
+  point and shrink its variance toward zero: that point's density blows up, and
+  $L\to\infty$. The global maximum is a useless spike, not the sensible fit.
+  The MLE, taken literally, does not exist.
+\item \textbf{Too many parameters (Neyman--Scott).} Suppose each pair of
+  observations has its own mean but all share a common variance $\sigma^2$. As
+  the number of pairs grows, the MLE of $\sigma^2$ converges to $\sigma^2/2$ --
+  consistently \emph{wrong} by a factor of two. When parameters proliferate as
+  fast as data, the large-sample guarantees collapse.
+\item \textbf{Boundary trouble.} For $\Unif(0,\theta)$ the MLE $\max_i X_i$ is
+  biased (it is always below $\theta$) and not asymptotically normal -- its error
+  shrinks like $1/n$, faster than the usual $1/\sqrt n$, and follows an
+  exponential, not a bell. The clean asymptotic theory simply does not apply at
+  a boundary.
+\end{itemize}
+The resolution is not to abandon maximum likelihood but to respect its fine
+print: the optimality theorems require a smooth, bounded likelihood, a fixed
+number of parameters, and an interior optimum. When those hold -- which is most
+of the time -- the MLE is excellent. When they fail, reach for penalization,
+Bayesian priors (next chapter), or a bias correction. A method this useful is
+worth knowing at its edges, not just in its comfort zone.
+\end{paradoxbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xlabel={$p$}, ylabel={Fisher information $I(p)=1/[p(1-p)]$},
+  domain=0.06:0.94, samples=160,
+  xmin=0, xmax=1, ymin=0, ymax=20,
+  grid=both, grid style={gray!18},
+  title={Information per coin toss is lowest at $p=1/2$},
+]
+\addplot[distblue, very thick] {1/(x*(1-x))};
+\draw[gray, dashed] (axis cs:0.5,0) -- (axis cs:0.5,4);
+\node[anchor=south] at (axis cs:0.5,4) {\footnotesize min $I=4$ at $p=1/2$};
+\end{axis}
+\end{tikzpicture}
+\caption{Fisher information for a single Bernoulli toss. It is \emph{smallest} at
+$p=1/2$ (a fair coin is the hardest bias to pin down -- each toss is maximally
+unpredictable, so individual outcomes say least) and rises steeply near the
+extremes, where the rare surprising outcome is very telling. Each toss therefore
+varies in how much it teaches you, depending on where the truth lies.}
+\label{ch30:fig-fisher-bern}
+\end{figure}
+
+\section{Putting It Together: A Full Worked Estimation}
+\label{ch30:worked}
+
+Here is one example carried end to end, the way you would handle it in practice,
+so you can watch all the pieces interlock.
+
+\begin{example}[Estimating an exponential rate from waiting times]
+\label{ch30:ex-full-expo}
+A web server logs the gaps between requests (in seconds):
+\[
+  0.5,\quad 1.2,\quad 0.3,\quad 2.1,\quad 0.9,\quad 1.5.
+\]
+Model them as i.i.d.\ $\Expo(\lambda)$, density $f(x\given\lambda)=\lambda
+e^{-\lambda x}$ for $x>0$, where $\lambda$ is the request \emph{rate}. The sum is
+$\sum x_i = 6.5$, so $\bar x = 6.5/6 \approx 1.083$.
+
+\textbf{Step 1: Method of moments.} $\E[X]=1/\lambda$, so the moment equation is
+$1/\lambda=\bar x$, giving $\hat\lambda_{\mathrm{MM}}=1/\bar x \approx 0.923$
+requests per second.
+
+\textbf{Step 2: Maximum likelihood.} The log-likelihood is
+\[
+  \ell(\lambda) = \sum_i (\log\lambda - \lambda x_i)
+                = n\log\lambda - \lambda\sum_i x_i.
+\]
+Differentiate and solve:
+\[
+  \ell'(\lambda) = \frac n\lambda - \sum_i x_i = 0
+  \;\Longrightarrow\;
+  \hat\lambda_{\mathrm{MLE}} = \frac{n}{\sum_i x_i} = \frac{1}{\bar x}
+  \approx 0.923.
+\]
+For the exponential, MoM and MLE coincide -- both give the reciprocal of the
+mean gap. (By invariance, the MLE of the \emph{mean} gap $1/\lambda$ is just
+$\bar x\approx 1.083$ seconds.)
+
+\textbf{Step 3: Fisher information and the precision floor.} With
+$\log f = \log\lambda - \lambda x$ we get $\partial_\lambda^2\log f =
+-1/\lambda^2$, so $I(\lambda)=1/\lambda^2$ and the Cramer--Rao floor is
+\[
+  \Var(\hat\lambda) \ge \frac{1}{nI(\lambda)} = \frac{\lambda^2}{n}.
+\]
+Plugging in $\hat\lambda\approx0.923$ and $n=6$ gives an approximate standard
+error $\sqrt{\lambda^2/n}=\lambda/\sqrt n \approx 0.923/2.449 \approx 0.38$. So
+our estimate is roughly $0.92 \pm 0.38$ requests/second -- usefully informative,
+but with only six observations, not precise. To halve that $0.38$ we would need
+about $24$ observations: the $\sqrt n$ law again.
+
+\textbf{Step 4: Bias check.} It turns out $1/\bar x$ is slightly biased upward
+for small $n$ (by Jensen's inequality, $\E[1/\bar X] > 1/\E[\bar X]=\lambda$); a
+common correction is $\hat\lambda_{\text{corrected}}=\frac{n-1}{n}\cdot
+\frac{1}{\bar x}$. With $n=6$ the correction multiplies by $5/6$, giving
+$\approx 0.77$. As $n\to\infty$ the correction vanishes -- the same moral one
+last time: \emph{bias fades, variance is forever}.
+\end{example}
+
+Figure~\ref{ch30:fig-sampling-narrow} previews what the lab below will let you
+see for yourself: the sampling distribution of $\hat\lambda=\bar X$ is centred on
+the truth and tightens as $n$ grows.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=6cm,
+  xlabel={estimate $\hat\lambda=\bar X$}, ylabel={sampling density},
+  domain=2.0:4.0, samples=160,
+  xmin=2.0, xmax=4.0, ymin=0, ymax=3.6,
+  ytick=\empty,
+  grid=both, grid style={gray!15},
+  legend pos=north west, legend style={font=\footnotesize}, legend cell align=left,
+  title={Sampling distribution of $\hat\lambda$ for $\Pois(\lambda=3)$ narrows with $n$},
+]
+% N(3, 3/n): sd = sqrt(3/n). Normalized peaks.
+\addplot[distblue, very thick]
+  {1/(sqrt(2*pi*3/50))*exp(-(x-3)^2/(2*3/50))};
+\addlegendentry{$n=50$ (SE $\approx 0.245$)}
+\addplot[targetgreen, very thick, dashed]
+  {1/(sqrt(2*pi*3/200))*exp(-(x-3)^2/(2*3/200))};
+\addlegendentry{$n=200$ (SE $\approx 0.122$)}
+\draw[gray, thick, dashed] (axis cs:3,0) -- (axis cs:3,3.5);
+\node[anchor=south, gray!55!black] at (axis cs:3,3.5) {\footnotesize truth $\lambda=3$};
+\end{axis}
+\end{tikzpicture}
+\caption{Two sampling distributions of the Poisson MLE $\hat\lambda=\bar X$, by
+the asymptotic-normality approximation $\hat\lambda\approx\Normal(\lambda,
+\lambda/n)$. Both centre on the truth $3$ (consistency); quadrupling $n$ from
+$50$ to $200$ halves the standard error from $\approx 0.245$ to $\approx 0.122$
+(the $\sqrt n$ law) and so doubles the peak height. The shaded bell shape is
+exactly what the histogram in the lab below should reproduce.}
+\label{ch30:fig-sampling-narrow}
+\end{figure}
+
+\begin{labbox}
+Before the exercises, simulate the whole story yourself. Draw $1000$ datasets of
+size $n=50$ from $\Pois(\lambda=3)$. For each, compute $\hat\lambda=\bar X$.
+Histogram the $1000$ estimates: it should look bell-shaped (asymptotic
+normality), centered near $3$ (consistency), with spread close to
+$\sqrt{\lambda/n}=\sqrt{3/50}\approx 0.245$ (the Cramer--Rao floor). Then redo it
+with $n=200$ and watch the histogram narrow by a factor of $2$ as $n$ quadruples.
+You will have \emph{seen}, in one afternoon, every theorem in this chapter
+breathe.
+\end{labbox}
+
+\section{Exercises}
+\label{ch30:exercises}
+
+\begin{exercise}[Geometric MLE]
+\label{ch30:exc-geom}
+Let $X_1,\dots,X_n \sim \Geom(p)$ on $\set{1,2,3,\dots}$ with
+$\P(X=k)=(1-p)^{k-1}p$. Write down the log-likelihood, and show the MLE is
+$\hat p = 1/\bar X$. Interpret: why is the estimated success probability the
+reciprocal of the average number of trials?
+\end{exercise}
+
+\begin{exercise}[Method of moments vs.\ MLE for the uniform]
+\label{ch30:exc-unif}
+For $X_i\sim\Unif(0,\theta)$ you found $\hat\theta_{\mathrm{MM}}=2\bar X$ and
+$\hat\theta_{\mathrm{MLE}}=\max_i X_i$.
+(a) Show $\E[2\bar X]=\theta$, so the MoM estimator is unbiased.
+(b) It is a fact that $\E[\max_i X_i]=\frac{n}{n+1}\theta$; find the bias of the
+MLE and propose a multiplicative correction making it unbiased.
+(c) Given the data $0.1, 0.4, 0.9$, compute both estimates and explain which one
+you would trust and why.
+\end{exercise}
+
+\begin{exercise}[The $n-1$ in your bones]
+\label{ch30:exc-n-minus-1}
+Using $\E[(\bar X-\mu)^2]=\sigma^2/n$, re-derive
+$\E\big[\frac1n\sum_i(X_i-\bar X)^2\big]=\frac{n-1}{n}\sigma^2$ from scratch, and
+explain in one sentence, without formulas, why dividing by $n$ undershoots the
+true variance.
+\end{exercise}
+
+\begin{exercise}[Fisher information for the Normal mean]
+\label{ch30:exc-fisher-normal}
+For $X\sim\Normal(\mu,\sigma^2)$ with $\sigma^2$ known, show the Fisher
+information about $\mu$ is $I(\mu)=1/\sigma^2$. Deduce the Cramer--Rao floor for
+estimating $\mu$ from $n$ observations, and verify that $\bar X$ attains it.
+What does $I(\mu)=1/\sigma^2$ say about how noise affects how much each
+observation teaches you?
+\end{exercise}
+
+\begin{exercise}[A bias--variance numerical experiment]
+\label{ch30:exc-bv}
+Consider estimating $p$ from $n=5$ Bernoulli tosses using either
+$\hat p = k/5$ or the shrunk $\tilde p=(k+1)/7$. For the true value $p=0.2$:
+(a) list the six possible values of $k$ and their binomial probabilities;
+(b) compute $\E[\hat p]$, $\E[\tilde p]$ and confirm $\hat p$ is unbiased while
+$\tilde p$ is biased toward $1/2$;
+(c) compute the MSE of each and report which estimator wins at $p=0.2$.
+\end{exercise}
+
+\begin{exercise}[Invariance]
+\label{ch30:exc-invariance}
+Let $X_i\sim\Expo(\lambda)$ with MLE $\hat\lambda=1/\bar X$. Using the invariance
+property, write down the MLE of (a) the mean waiting time $1/\lambda$, (b) the
+median waiting time $(\log 2)/\lambda$, and (c) the probability $e^{-\lambda t}$
+that the next gap exceeds a fixed time $t$. No new differentiation allowed.
+\end{exercise}
+
+\begin{exercise}[Two-parameter score, conceptual]
+\label{ch30:exc-two-param}
+For $\Normal(\mu,\sigma^2)$ with both parameters unknown, you derived
+$\hat\mu=\bar X$ and $\hat\sigma^2=\frac1n\sum(X_i-\bar X)^2$. Explain why the
+estimate of $\mu$ did not depend on $\sigma^2$ but the estimate of $\sigma^2$
+depended on $\mu$ (through $\bar X$). What does this asymmetry say about the
+shape of the likelihood surface, and which parameter is ``easier'' to pin down?
+\end{exercise}
+
+\begin{exercise}[Consistency from MSE -- a proof]
+\label{ch30:exc-consistency}
+Prove that if $\operatorname{Bias}(\hat\theta_n)\to 0$ and
+$\Var(\hat\theta_n)\to 0$ then $\hat\theta_n \pto \theta$. (Hint: write
+$\mathrm{MSE}=\Var+\operatorname{Bias}^2$ and apply Chebyshev's / Markov's
+inequality to $(\hat\theta_n-\theta)^2$.) Then give one example of a consistent
+estimator that is biased at every finite $n$.
+\end{exercise}
+
+\begin{exercise}[Why the likelihood is not a probability over $\theta$]
+\label{ch30:exc-not-prob}
+For $\Bern(p)$ with data ``$1$ head in $1$ toss,'' the likelihood is $L(p)=p$.
+(a) Compute $\int_0^1 L(p)\,\dd p$ and confirm it is not $1$.
+(b) Explain in your own words why this does not violate any axiom of probability,
+and what would have to change (philosophically and mathematically) for an
+expression like ``the probability that $p$ lies in $[0.4,0.6]$'' to make sense.
+(This is the doorway to the next chapter.)
+\end{exercise}
+
+\begin{exercise}[Maximum likelihood as closeness to the truth]
+\label{ch30:exc-kl}
+Argue informally that maximizing the average log-likelihood
+$\frac1n\sum_i \log f(X_i\given\theta)$ is, for large $n$, the same as minimizing
+the Kullback--Leibler divergence $\KL(f_{\theta_0}\,\|\,f_\theta)$ from the true
+distribution to the candidate. (Hint: by the law of large numbers
+$\frac1n\sum_i\log f(X_i\given\theta)\to \E_{\theta_0}[\log f(X\given\theta)]$;
+subtract the $\theta$-free quantity $\E_{\theta_0}[\log f(X\given\theta_0)]$ and
+recognize what remains.) What does this say about what the MLE is ``really''
+doing?
+\end{exercise}

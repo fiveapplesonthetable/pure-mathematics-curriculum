@@ -1,0 +1,612 @@
+\chapter{Conditional Probability and Independence}
+
+So far we have learned to assign probabilities to events in a fixed sample space. We chose a model -- a list of outcomes and a way of weighting them -- and from that model we read off numbers like $\P(A)$. But almost no interesting question about the world is asked in a vacuum. We never really want to know ``what is the probability it rains?'' We want to know the probability it rains \emph{given} that the sky is grey, \emph{given} that it is November, \emph{given} that the forecast said seventy percent. Probability becomes useful at exactly the moment we learn something and ask how that knowledge should change our beliefs.
+
+This chapter is about that moment. \emph{Conditional probability} is the mathematics of updating, and it may be the most important single idea in the whole subject: Bayes' theorem (next chapter), Markov chains, statistical inference, machine learning -- all of them are conditional probability wearing different costumes. We build the idea from a concrete picture, make it precise, and then meet its three companions: the multiplication and chain rules (how to build big probabilities out of small conditional ones), independence (the precise statement that one event tells you \emph{nothing} about another), and the law of total probability (how to reason case by case). We also resolve the classic confusion between ``independent'' and ``disjoint,'' which trips up nearly everyone the first time.
+
+\section{Conditioning Is Restricting the Universe}
+\label{ch04:restricting}
+
+Begin with a picture worth keeping.
+
+\begin{intuitionbox}
+A probability is a fraction of a universe. When you \emph{condition} on an event $B$, you throw away the rest of the universe and pretend $B$ \emph{is} the universe. Probabilities of other events get \emph{renormalized} so that, inside the new universe $B$, the total is again $1$. Conditioning is zooming in.
+\end{intuitionbox}
+
+Here is the canonical example. Roll a fair six-sided die. The sample space is $\Omega = \set{1,2,3,4,5,6}$, each outcome weight $1/6$. Let $A = \set{\text{the roll is a } 2} = \set{2}$, so $\P(A) = 1/6$. Now a friend who can see the die tells you, truthfully, ``the roll is even.'' Call that event $B = \set{2,4,6}$. \emph{Given} this information, what is the probability the roll is a $2$?
+
+Three outcomes remain possible: $2, 4, 6$. They were equally likely before, and learning ``even'' gives no reason to prefer one even number over another, so they should stay equally likely. Each now carries probability $1/3$. The answer is $1/3$. We write this
+\[
+\P(A \given B) = \frac{1}{3},
+\]
+read ``the probability of $A$ given $B$.'' Notice what happened. The single favorable outcome (rolling a $2$) used to be one of six; now it is one of three. The information \emph{shrank the universe} from $\set{1,\dots,6}$ to $\set{2,4,6}$, and the probability of $A$ rose accordingly, from $1/6$ to $1/3$.
+
+Where exactly did $1/3$ come from arithmetically? The favorable outcomes are those in $A$ that are still possible, i.e. those in $A$ \emph{and} $B$: here $A \cap B = \set{2}$, with probability $1/6$. The whole new universe is $B$, with probability $1/2$. And indeed
+\[
+\frac{\P(A \cap B)}{\P(B)} = \frac{1/6}{1/2} = \frac{1}{3}.
+\]
+This little computation is the entire definition, but it pays to see \emph{why} it must take this shape before we write it down formally.
+
+\begin{whybox}
+Conditioning on $B$ means: among all the probability mass, keep only the part sitting inside $B$, and rescale it to total $1$. The mass of $A$ that survives is the mass in $A \cap B$ -- the part of $A$ inside the new universe. Dividing by $\P(B)$ is the rescaling that makes the surviving mass add up to $1$ again, because $\P(B \given B) = \P(B\cap B)/\P(B) = 1$. So the formula is not an arbitrary choice; it is the \emph{only} way to ``keep $B$, renormalize'' that respects the original proportions.
+\end{whybox}
+
+\begin{definition}[Conditional probability]
+\label{ch04:def-condprob}
+Let $A$ and $B$ be events with $\P(B) > 0$. The \emph{conditional probability of $A$ given $B$} is
+\[
+\P(A \given B) \;=\; \frac{\P(A \cap B)}{\P(B)}.
+\]
+If $\P(B) = 0$ the expression is undefined (you cannot condition on something impossible -- there is no universe to zoom into).
+\end{definition}
+
+Here is a subtle but crucial fact. Once you fix $B$, the map $A \mapsto \P(A \given B)$ is itself a genuine probability. It is not some lesser, second-class number; it obeys all the same axioms, and we lean on that repeatedly.
+
+\begin{proposition}[Conditioning yields a probability measure]
+\label{ch04:cond-is-measure}
+Fix $B$ with $\P(B) > 0$. Define $\P_B(A) := \P(A \given B)$. Then $\P_B$ satisfies the axioms of probability:
+\begin{enumerate}
+\item $\P_B(A) \ge 0$ for every event $A$;
+\item $\P_B(\Omega) = 1$;
+\item if $A_1, A_2, \dots$ are disjoint, then $\P_B\!\left(\bigcup_i A_i\right) = \sum_i \P_B(A_i)$.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+Nonnegativity is immediate: $\P(A\cap B) \ge 0$ and $\P(B) > 0$, so the ratio is $\ge 0$. For (2), $\P_B(\Omega) = \P(\Omega \cap B)/\P(B) = \P(B)/\P(B) = 1$. For (3), if the $A_i$ are disjoint then so are the sets $A_i \cap B$ (subsets of disjoint sets are disjoint), and using countable additivity of the original $\P$,
+\[
+\P_B\!\Big(\bigcup_i A_i\Big)
+= \frac{\P\big(\bigcup_i (A_i \cap B)\big)}{\P(B)}
+= \frac{\sum_i \P(A_i \cap B)}{\P(B)}
+= \sum_i \frac{\P(A_i \cap B)}{\P(B)}
+= \sum_i \P_B(A_i). \qedhere
+\]
+\end{proof}
+
+\begin{happeningbox}
+Because $\P_B$ is a bona fide probability measure, \emph{every theorem you ever prove about probabilities automatically holds for conditional probabilities}, as long as you keep the same conditioning event on every term. For instance the complement rule becomes $\P(A^c \given B) = 1 - \P(A \given B)$, and inclusion--exclusion becomes $\P(A_1 \cup A_2 \given B) = \P(A_1\given B) + \P(A_2 \given B) - \P(A_1 \cap A_2 \given B)$. You get a whole parallel world of identities for free. The one thing you may \emph{not} do is mix conditioning events -- $\P(A\given B)$ and $\P(A \given C)$ live in different universes and cannot be combined naively.
+\end{happeningbox}
+
+\subsection{A picture: areas inside a square}
+
+Area makes conditioning concrete. Imagine the unit square as your sample space, total area $1$, with two overlapping regions $A$ and $B$. The probability of an event is its area. Conditioning on $B$ means we crop the picture down to $B$ and ask what fraction of \emph{that} cropped region is also in $A$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=2.6]
+  % full square = sample space
+  \draw[thick] (0,0) rectangle (1,1);
+  \node[anchor=south west] at (0.02,1.02) {\footnotesize $\Omega$ (total area $1$)};
+  % event B: a vertical band
+  \fill[sourceblue!18] (0.45,0) rectangle (1,1);
+  \node[sourceblue!60!black] at (0.72,0.12) {\footnotesize $B$};
+  % event A: a horizontal band
+  \fill[densityred!18] (0,0.35) rectangle (1,0.75);
+  \node[densityred!70!black] at (0.12,0.55) {\footnotesize $A$};
+  % intersection
+  \fill[structurepurple!45] (0.45,0.35) rectangle (1,0.75);
+  \node[white] at (0.72,0.55) {\footnotesize $A\cap B$};
+\end{tikzpicture}
+\caption{Conditioning as cropping. The probability $\P(A\given B)$ is the area of the purple overlap $A\cap B$ divided by the area of the blue band $B$: of the part of the world where $B$ happens, what fraction also has $A$?}
+\label{ch04:fig-square}
+\end{figure}
+
+If $B$ has area $0.4$ and $A\cap B$ has area $0.16$, then $\P(A\given B) = 0.16/0.4 = 0.4$. Note that $\P(A\given B)$ can be larger or smaller than $\P(A)$ depending on whether $A$ and $B$ ``like'' each other; conditioning can raise a probability or lower it. That asymmetry of effect is the whole reason information is valuable.
+
+\begin{historybox}
+The phrase ``conditional probability'' is modern, but the idea is old. Abraham de Moivre, in \emph{The Doctrine of Chances} (1718), spoke of the probability of an event ``upon supposition'' that another had happened, and used exactly the multiplication idea to chain dependent draws from urns. Thomas Bayes (whose theorem we meet next chapter) and Pierre-Simon Laplace turned conditioning into a tool for \emph{inference} -- reasoning backward from observed effects to unknown causes. It was not until Andrey Kolmogorov's 1933 axiomatization, \emph{Grundbegriffe der Wahrscheinlichkeitsrechnung}, that $\P(A\given B) = \P(A\cap B)/\P(B)$ was crowned a \emph{definition} rather than a derived fact -- and that Kolmogorov showed how to extend it, via conditional expectation, to the awkward case $\P(B)=0$ that haunts continuous variables. We will return to that deep version much later in the book.
+\end{historybox}
+
+\begin{walkbox}
+A standard deck has $52$ cards, $4$ of them aces. You draw one card. Let $A$ = ``it is the ace of spades'' and $B$ = ``it is a spade.'' Without looking, what is $\P(A \given B)$? And what is $\P(B \given A)$? Try both before reading on.
+
+There are $13$ spades; exactly one is the ace of spades, so $\P(A\given B) = 1/13$. Conversely, if you already know it is the ace of spades, then it is certainly a spade, so $\P(B\given A) = 1$. The two conditional probabilities are wildly different -- a first warning that $\P(A\given B)$ and $\P(B\given A)$ are not interchangeable. Confusing them is the engine behind a whole family of fallacies, and untangling them is what Bayes' theorem is for.
+\end{walkbox}
+
+\section{The Multiplication Rule and the Chain Rule}
+\label{ch04:multiplication}
+
+The definition of conditional probability has a twin, obtained simply by clearing the denominator. It looks almost too simple to deserve a name, yet it is one of the great workhorses of the subject.
+
+\begin{proposition}[Multiplication rule]
+\label{ch04:mult-rule}
+For events with $\P(B) > 0$,
+\[
+\P(A \cap B) = \P(B)\,\P(A \given B).
+\]
+By symmetry, if $\P(A) > 0$ as well, also $\P(A\cap B) = \P(A)\,\P(B \given A)$.
+\end{proposition}
+
+The reason this is so useful is that real processes happen \emph{in sequence}, and at each step it is usually easy to say what happens next \emph{given} everything so far. The multiplication rule lets us assemble the probability of a whole sequence out of these easy one-step conditional probabilities. Think of drawing cards, drawing balls from an urn, or any multi-stage experiment.
+
+\begin{example}[Two aces in a row]
+\label{ch04:ex-two-aces}
+Draw two cards from a well-shuffled deck without replacement. What is the probability both are aces? Let $A_1$ = ``first card is an ace,'' $A_2$ = ``second card is an ace.'' We want $\P(A_1 \cap A_2)$. The first card is an ace with probability $4/52$. \emph{Given} the first was an ace, only $3$ aces remain among $51$ cards, so $\P(A_2 \given A_1) = 3/51$. By the multiplication rule,
+\[
+\P(A_1 \cap A_2) = \frac{4}{52}\cdot\frac{3}{51} = \frac{12}{2652} = \frac{1}{221} \approx 0.0045.
+\]
+The key move is that the \emph{second} factor is a conditional probability computed in the smaller, post-draw universe of $51$ cards. This is why drawing without replacement is so naturally a conditional-probability problem.
+\end{example}
+
+The multiplication rule extends to any number of stages. This generalization is the \emph{chain rule}, and it is the formula that powers everything from sequence models in machine learning to the analysis of card games.
+
+\begin{theorem}[Chain rule / general multiplication rule]
+\label{ch04:chain-rule}
+For events $A_1, A_2, \dots, A_n$ with $\P(A_1 \cap \cdots \cap A_{n-1}) > 0$,
+\[
+\P(A_1 \cap A_2 \cap \cdots \cap A_n)
+= \P(A_1)\,\P(A_2 \given A_1)\,\P(A_3 \given A_1 \cap A_2)\cdots
+\P(A_n \given A_1 \cap \cdots \cap A_{n-1}).
+\]
+\end{theorem}
+
+\begin{proof}
+This is a telescoping product. Each conditional probability is a ratio:
+\[
+\P(A_1)\cdot\frac{\P(A_1\cap A_2)}{\P(A_1)}\cdot\frac{\P(A_1\cap A_2 \cap A_3)}{\P(A_1\cap A_2)}\cdots
+\frac{\P(A_1\cap \cdots \cap A_n)}{\P(A_1\cap \cdots \cap A_{n-1})}.
+\]
+Every numerator cancels the next denominator, leaving $\P(A_1 \cap \cdots \cap A_n)$. The positivity assumption guarantees no denominator is zero. (Formally one proves it by induction on $n$, the base case $n=2$ being the multiplication rule.)
+\end{proof}
+
+\begin{intuitionbox}
+The chain rule says: \emph{to walk a path through a tree of possibilities, multiply the probability of each step given everything that happened before it.} Probability of a whole story $=$ probability of the first chapter $\times$ probability of the second chapter given the first $\times \dots$. This is exactly how you compute the probability of any particular branch in a probability tree, which we draw next.
+\end{intuitionbox}
+
+\begin{example}[No shared birthday, retold as a chain]
+\label{ch04:ex-birthday-chain}
+Here is the famous birthday problem seen through the chain rule. With $k$ people and $365$ equally likely birthdays, what is the probability that all $k$ birthdays are distinct? Line the people up. Person $1$ can have any birthday. Person $2$ must avoid person $1$'s day: probability $364/365$ \emph{given} person $1$'s birthday. Person $3$ must avoid both: $363/365$. In general person $j$ must dodge the $j-1$ days already used. The chain rule multiplies these:
+\[
+\P(\text{all distinct}) = \frac{365}{365}\cdot\frac{364}{365}\cdot\frac{363}{365}\cdots\frac{365-k+1}{365}
+= \prod_{j=0}^{k-1}\frac{365-j}{365}.
+\]
+For $k = 23$ this product is about $0.493$, so the probability that \emph{some} pair shares a birthday is $1 - 0.493 = 0.507$ -- just over half. The famous shock is that $23$ feels small. The chain-rule view explains the shock: each new person creates a fresh chance to collide \emph{with every earlier person}, so the number of opportunities for a match grows like $\binom{k}{2}$, not like $k$.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xlabel={number of people $k$}, ylabel={$\P(\text{a shared birthday})$},
+  xmin=0, xmax=70, ymin=0, ymax=1.02,
+  xtick={0,10,20,23,30,40,50,60,70},
+  ytick={0,0.25,0.5,0.75,1},
+  grid=both, grid style={gray!18},
+  every axis plot/.append style={thick},
+]
+% precomputed points of 1 - prod (365-j)/365
+\addplot[densityred, mark=*, mark size=1pt] coordinates {
+(1,0)(5,0.0271)(10,0.1169)(15,0.2529)(20,0.4114)(23,0.5073)(25,0.5687)
+(30,0.7063)(35,0.8144)(40,0.8912)(45,0.9410)(50,0.9704)(55,0.9863)(60,0.9941)(70,0.9992)
+};
+\draw[gray, dashed] (axis cs:23,0) -- (axis cs:23,0.5073) -- (axis cs:0,0.5073);
+\node[anchor=west, font=\footnotesize] at (axis cs:24,0.40) {$k=23\colon\ \approx 0.507$};
+\end{axis}
+\end{tikzpicture}
+\caption{The birthday problem. The probability that at least two of $k$ people share a birthday, computed by the chain rule of Example~\ref{ch04:ex-birthday-chain}. It crosses $1/2$ already at $k=23$ and is near-certain by $k=60$.}
+\label{ch04:fig-birthday}
+\end{figure}
+
+\begin{connectionbox}
+The chain rule is the mathematical backbone of \emph{autoregressive language models}. A sentence $w_1 w_2 \cdots w_n$ is assigned the probability
+\[
+\P(w_1,\dots,w_n) = \P(w_1)\,\P(w_2\given w_1)\,\P(w_3\given w_1,w_2)\cdots\P(w_n \given w_1,\dots,w_{n-1}),
+\]
+which is exactly Theorem~\ref{ch04:chain-rule} with ``events'' replaced by ``the next word is so-and-so.'' A neural network's only job is to estimate each conditional factor $\P(w_j \given \text{everything before})$. Generating text means sampling one factor at a time and feeding the result back in. When people say a model ``predicts the next token,'' they are describing one term of a chain-rule product.
+\end{connectionbox}
+
+\section{Independence: When Information Tells You Nothing}
+\label{ch04:independence}
+
+Conditioning measures how much one event changes the probability of another. Sometimes the answer is: not at all. Learning $B$ leaves the probability of $A$ exactly where it was. That is the precise meaning of \emph{independence}, and it is one of the most important -- and most misunderstood -- concepts in probability.
+
+\begin{intuitionbox}
+$A$ and $B$ are \emph{independent} if knowing whether $B$ happened gives you zero information about whether $A$ happened: $\P(A\given B) = \P(A)$. The two events do not ``talk'' to each other.
+\end{intuitionbox}
+
+That intuition, $\P(A \given B) = \P(A)$, is the right mental image, but it has an annoying flaw: it requires $\P(B) > 0$ to even be written down, and it is asymmetric in appearance. Multiplying both sides by $\P(B)$ fixes both problems and gives the clean, symmetric definition we actually use.
+
+\begin{definition}[Independence of two events]
+\label{ch04:def-indep}
+Events $A$ and $B$ are \emph{independent}, written $A \indep B$, if
+\[
+\P(A \cap B) = \P(A)\,\P(B).
+\]
+\end{definition}
+
+This version is symmetric (it treats $A$ and $B$ the same) and it makes sense even when $\P(A)$ or $\P(B)$ is zero. When $\P(B) > 0$ it is equivalent to the intuitive form: dividing $\P(A\cap B) = \P(A)\P(B)$ by $\P(B)$ gives $\P(A\given B) = \P(A)$. And equally, dividing by $\P(A)$ gives $\P(B\given A) = \P(B)$ -- so independence really is a two-way street. If $B$ tells you nothing about $A$, then $A$ tells you nothing about $B$.
+
+\begin{example}[Two coin flips]
+\label{ch04:ex-two-coins}
+Flip a fair coin twice. Let $A$ = ``first flip is heads'' and $B$ = ``second flip is heads.'' Each has probability $1/2$. The four outcomes $HH, HT, TH, TT$ are equally likely, so $\P(A\cap B) = \P(HH) = 1/4 = (1/2)(1/2) = \P(A)\P(B)$. They are independent, matching physical intuition: a coin has no memory. Now let $C$ = ``the two flips agree'' $= \set{HH, TT}$. Then $\P(C) = 1/2$, and $\P(A \cap C) = \P(HH) = 1/4 = \P(A)\P(C)$, so $A$ and $C$ are \emph{also} independent -- even though $C$ is built out of $A$! Knowing the first flip is heads tells you nothing about whether the flips agree, because the second flip is still a free coin. Independence can be surprising; always check the product, do not trust your gut.
+\end{example}
+
+\subsection{The trap: independent is NOT disjoint}
+
+We now confront the single most common error in elementary probability. Students hear ``$A$ and $B$ don't affect each other'' and reach for the picture of two non-overlapping blobs -- disjoint events. This is exactly backward.
+
+\begin{trapbox}
+\textbf{Disjoint and independent are nearly opposite.} Disjoint (mutually exclusive) means $A \cap B = \emptyset$: the two events \emph{cannot both happen}. Independent means $\P(A\cap B) = \P(A)\P(B)$: knowing one happened \emph{does not change the odds} of the other. These are not the same idea -- and for events of positive probability they actively \emph{conflict}.
+
+Suppose $A$ and $B$ are disjoint with $\P(A) > 0$ and $\P(B) > 0$. Then $\P(A\cap B) = \P(\emptyset) = 0$, but $\P(A)\P(B) > 0$. So $\P(A \cap B) \ne \P(A)\P(B)$, and they are \emph{not} independent. In fact they are maximally \emph{dependent}: if $B$ happens, $A$ is now \emph{impossible} ($\P(A\given B) = 0$), which is the largest possible swing from its prior value. Disjoint events scream information at each other; independent events whisper nothing.
+\end{trapbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0]
+% Left: disjoint
+\begin{scope}
+  \draw[thick] (-0.2,-0.2) rectangle (3.2,2.2);
+  \fill[sourceblue!22] (0.85,1.0) circle (0.6);
+  \fill[densityred!22] (2.25,1.0) circle (0.6);
+  \node[sourceblue!60!black] at (0.85,1.0) {$A$};
+  \node[densityred!70!black] at (2.25,1.0) {$B$};
+  \node[font=\footnotesize] at (1.5,-0.55) {Disjoint: $A\cap B=\emptyset$};
+  \node[font=\footnotesize, text width=3.2cm, align=center] at (1.5,-1.25) {if $B$ happens, $A$ is impossible -- strongly dependent};
+\end{scope}
+% Right: independent (overlap = product)
+\begin{scope}[xshift=6cm]
+  \draw[thick] (-0.2,-0.2) rectangle (3.2,2.2);
+  \fill[sourceblue!22] (0,0.4) rectangle (1.6,1.6);
+  \fill[densityred!22] (0.9,-0.2) rectangle (2.2,2.2);
+  \fill[structurepurple!45] (0.9,0.4) rectangle (1.6,1.6);
+  \node[sourceblue!60!black] at (0.45,1.0) {$A$};
+  \node[densityred!70!black] at (2.0,1.0) {$B$};
+  \node[white,font=\footnotesize] at (1.25,1.0) {$A\cap B$};
+  \node[font=\footnotesize] at (1.5,-0.55) {Independent: they overlap};
+  \node[font=\footnotesize, text width=3.4cm, align=center] at (1.5,-1.25) {overlap area $=\P(A)\P(B)$ -- just the right amount};
+\end{scope}
+\end{tikzpicture}
+\vspace{0.9em}
+\caption{Disjoint (left) versus independent (right). Independent events must \emph{overlap}; the overlap has area exactly $\P(A)\P(B)$. Disjoint events never overlap, which makes them strongly dependent, not independent.}
+\label{ch04:fig-disjoint-vs-indep}
+\end{figure}
+
+\begin{whybox}
+Why is the picture for independence an \emph{overlap of exactly the right size}? Think of $B$ as a vertical band covering a fraction $\P(B)$ of the square (as in Figure~\ref{ch04:fig-square}). Independence says $A$ occupies the same fraction $\P(A)$ \emph{inside} the band $B$ as it does in the whole square. Geometrically, $A$ must slice through $B$ in the same proportion as it slices through everything. A horizontal band $A$ does exactly this: it covers fraction $\P(A)$ of every vertical strip, including the strip $B$. Their overlap is then $\P(A)\cdot\P(B)$ by the area of a rectangle. Disjointness, where $A$ dodges $B$ entirely, is the most violent possible departure from ``same proportion inside as outside.''
+\end{whybox}
+
+\subsection{Independence of more than two events}
+
+For three or more events, independence is fussier than you might guess. It is not enough that they be independent in pairs; you also need the full product rule to hold for \emph{every} sub-collection.
+
+\begin{definition}[Mutual independence]
+\label{ch04:def-mutual-indep}
+Events $A_1, \dots, A_n$ are \emph{(mutually) independent} if for every sub-collection $\set{i_1, \dots, i_k} \subseteq \set{1,\dots,n}$,
+\[
+\P(A_{i_1} \cap \cdots \cap A_{i_k}) = \P(A_{i_1})\cdots\P(A_{i_k}).
+\]
+If only the two-at-a-time equations hold, the events are merely \emph{pairwise} independent.
+\end{definition}
+
+Pairwise independence is strictly weaker than mutual independence. The classic example -- due to the Russian probabilist Sergei Bernstein -- shows three events that are independent in every pair yet badly dependent as a trio.
+
+\begin{example}[Bernstein's three events: pairwise but not mutually independent]
+\label{ch04:ex-bernstein}
+Flip a fair coin twice. Define
+\[
+A = \set{\text{first flip is }H}, \quad B = \set{\text{second flip is }H}, \quad C = \set{\text{the flips differ}}.
+\]
+The equally likely outcomes are $HH, HT, TH, TT$. Then $\P(A)=\P(B)=\P(C)=1/2$. Check the pairs:
+\[
+\P(A\cap B) = \P(HH) = \tfrac14 = \P(A)\P(B), \quad
+\P(A\cap C) = \P(HT) = \tfrac14 = \P(A)\P(C),
+\]
+\[
+\P(B\cap C) = \P(TH) = \tfrac14 = \P(B)\P(C).
+\]
+All three pairs are independent. But the triple is not: $A\cap B\cap C$ requires the first flip $H$, the second $H$, \emph{and} the flips to differ -- impossible. So $\P(A\cap B\cap C) = 0$, while $\P(A)\P(B)\P(C) = 1/8$. The two are unequal, so the three events are \emph{not} mutually independent. Indeed, once you know $A$ and $B$ both happened (both heads), you know with certainty that $C$ did \emph{not}. Any two of them stay quiet; all three together leak everything.
+\end{example}
+
+\begin{trapbox}
+Do not report ``these events are independent'' after checking only the pairs. Mutual independence of $n$ events is $2^n - n - 1$ separate equations, not $\binom{n}{2}$. In practice we usually \emph{build} independence into a model (``assume the flips are independent'') rather than verify it; but when you must check, check all the way up.
+\end{trapbox}
+
+\section{Conditional Independence}
+\label{ch04:cond-indep}
+
+Independence can appear, vanish, or materialize once you condition on extra information. This relativity is captured by \emph{conditional independence}, and it is the concept on which graphical models, Naive Bayes classifiers, and Markov chains are all built.
+
+\begin{definition}[Conditional independence]
+\label{ch04:def-cond-indep}
+Events $A$ and $B$ are \emph{conditionally independent given $C$} (with $\P(C) > 0$) if
+\[
+\P(A \cap B \given C) = \P(A \given C)\,\P(B \given C).
+\]
+Equivalently, when the conditional probabilities are defined, $\P(A \given B \cap C) = \P(A \given C)$: once you know $C$, learning $B$ in addition tells you nothing more about $A$.
+\end{definition}
+
+The phrase ``once you know $C$'' is the heart of it. Conditional independence says $C$ is the \emph{whole story} connecting $A$ and $B$; with $C$ pinned down, the remaining wobble in $A$ and $B$ is unrelated. Two facts that look correlated in the wild can become independent once you control for a common cause -- and, just as strikingly, two genuinely independent facts can become \emph{dependent} once you condition on a common effect.
+
+\begin{example}[Two coins in a drawer: conditioning creates dependence]
+\label{ch04:ex-two-coins-drawer}
+A drawer holds two coins. Coin $F$ is fair ($\P(H) = 1/2$); coin $D$ is double-headed ($\P(H) = 1$). You pick a coin at random (each with probability $1/2$) and, without looking at it, flip it twice. Let $H_1$ and $H_2$ be the events that the first and second flips land heads.
+
+\emph{Given which coin you hold}, the flips are independent -- that is how physical coins work. Formally, $\P(H_1 \cap H_2 \given F) = (1/2)(1/2) = 1/4 = \P(H_1\given F)\P(H_2\given F)$, and given $D$ both are certain. So $H_1 \indep H_2$ \emph{conditionally on the coin's identity}.
+
+But \emph{unconditionally} they are dependent. By the law of total probability (next section),
+\[
+\P(H_1) = \tfrac12\cdot\tfrac12 + \tfrac12\cdot 1 = \tfrac34, \qquad
+\P(H_1\cap H_2) = \tfrac12\cdot\tfrac14 + \tfrac12\cdot 1 = \tfrac58.
+\]
+Now $\P(H_1)\P(H_2) = (3/4)^2 = 9/16 = 0.5625$, but $\P(H_1\cap H_2) = 5/8 = 0.625$. Not equal -- the flips are \emph{dependent}. Intuitively: seeing the first flip land heads is \emph{evidence you might be holding the double-headed coin}, which makes the second flip more likely to be heads too. The flips talk to each other through the hidden coin identity. Pin down the coin (condition on $F$ or $D$) and they fall silent again.
+\end{example}
+
+\begin{happeningbox}
+Example~\ref{ch04:ex-two-coins-drawer} is the engine of Bayesian learning compressed into two flips. Each observation updates your belief about a hidden quantity (which coin), and that updated belief changes your prediction for the next observation. The flips are independent \emph{given the truth} but dependent \emph{to you}, because you do not know the truth and are learning it from the data. This is precisely why repeated measurements are informative: each one tells you a little about the hidden parameter, which sharpens your forecast of the rest.
+\end{happeningbox}
+
+\begin{trapbox}
+Conditional independence and ordinary independence are logically separate -- neither implies the other.
+\begin{itemize}
+\item Example~\ref{ch04:ex-two-coins-drawer}: independent given $C$, but \emph{not} independent unconditionally.
+\item Reverse case: $A$ and $B$ can be unconditionally independent yet \emph{dependent} given $C$. Let $A, B$ be two independent fair coin flips and let $C$ = ``the flips differ.'' Marginally $A\indep B$. But given $C$, knowing $A=H$ forces $B=T$: now they are perfectly dependent. Conditioning on a common \emph{effect} (here, the parity $C$) can manufacture dependence between independent causes -- the phenomenon statisticians call \emph{collider bias} or ``explaining away.''
+\end{itemize}
+Always state \emph{what you are conditioning on}; independence is not a property of two events alone but of two events \emph{relative to a state of knowledge}.
+\end{trapbox}
+
+\begin{applicationbox}
+The \emph{Naive Bayes} classifier -- still a strong baseline for spam filtering and text categorization -- rests entirely on a conditional-independence assumption. To classify an email as spam or not, it assumes that, \emph{given the class} (spam or ham), the presence of each word is independent of the others. That is almost certainly false in reality (``viagra'' and ``cheap'' co-occur), which is why it is called \emph{naive}. Yet conditioning on the class soaks up most of the dependence between words, leaving residual correlations small enough that the classifier works astonishingly well. The assumption turns an intractable joint distribution over thousands of words into a simple product of per-word conditional probabilities -- the chain rule with all the cross-terms thrown away.
+\end{applicationbox}
+
+\section{The Law of Total Probability}
+\label{ch04:total-prob}
+
+We often cannot compute $\P(A)$ directly, but we \emph{can} compute it on each of several mutually exclusive scenarios. The law of total probability stitches those cases back together: split the world into scenarios, find the probability of $A$ within each, and average, weighting each scenario by how likely it is.
+
+\begin{intuitionbox}
+To find an overall probability, slice the sample space into cases that cover every possibility and never overlap (a \emph{partition}). The total probability of $A$ is a weighted average of its probability in each case, the weights being the probabilities of the cases. ``Reason case by case, then average.''
+\end{intuitionbox}
+
+\begin{theorem}[Law of total probability]
+\label{ch04:lotp}
+Let $B_1, B_2, \dots, B_n$ be a \emph{partition} of $\Omega$: they are disjoint ($B_i \cap B_j = \emptyset$ for $i\ne j$) and exhaustive ($\bigcup_i B_i = \Omega$), with $\P(B_i) > 0$ for each $i$. Then for any event $A$,
+\[
+\P(A) = \sum_{i=1}^{n} \P(A \cap B_i) = \sum_{i=1}^{n} \P(A \given B_i)\,\P(B_i).
+\]
+\end{theorem}
+
+\begin{proof}
+Because the $B_i$ partition $\Omega$, the sets $A \cap B_i$ partition $A$: every outcome of $A$ lands in exactly one $B_i$. So $A = \bigcup_i (A\cap B_i)$ as a disjoint union, and countable additivity gives $\P(A) = \sum_i \P(A\cap B_i)$. The second equality applies the multiplication rule $\P(A\cap B_i) = \P(A\given B_i)\P(B_i)$ to each term.
+\end{proof}
+
+The simplest and most-used version uses a two-case partition, $B$ and its complement $B^c$:
+\[
+\P(A) = \P(A\given B)\,\P(B) + \P(A \given B^c)\,\P(B^c).
+\]
+This one line resolves a huge fraction of word problems. The skill lies in choosing a partition on which the conditional probabilities are easy.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  grow=right, level distance=34mm, sibling distance=13mm,
+  edge from parent/.style={draw, -{Latex[length=2mm]}},
+  every node/.style={font=\small},
+  lbl/.style={midway, fill=white, inner sep=1pt, font=\footnotesize},
+]
+\node (root) {start}
+  child { node (B1) {$B_1$: fair coin}
+    child { node {$H$\ \ \tiny$(\tfrac12\cdot\tfrac12=\tfrac14)$} edge from parent node[lbl,above] {$\tfrac12$} }
+    child { node {$T$} edge from parent node[lbl,below] {$\tfrac12$} }
+    edge from parent node[lbl,above] {$\tfrac12$}
+  }
+  child { node (B2) {$B_2$: 2-headed}
+    child { node {$H$\ \ \tiny$(\tfrac12\cdot 1=\tfrac12)$} edge from parent node[lbl,above] {$1$} }
+    child { node {$T$\ \ \tiny$(0)$} edge from parent node[lbl,below] {$0$} }
+    edge from parent node[lbl,below] {$\tfrac12$}
+  };
+\end{tikzpicture}
+\caption{A probability tree for the drawer of Example~\ref{ch04:ex-two-coins-drawer} (one flip). Multiply along a branch to get the probability of that path (chain rule); add the leaf probabilities that show heads to get $\P(H) = \tfrac14 + \tfrac12 = \tfrac34$ (law of total probability).}
+\label{ch04:fig-tree}
+\end{figure}
+
+\begin{aestheticbox}
+The probability tree in Figure~\ref{ch04:fig-tree} is the law of total probability and the chain rule \emph{drawn as a picture}. Going \emph{across} a branch (multiplying edge probabilities) is the chain rule: $\P(\text{path}) = \P(\text{first edge})\cdot\P(\text{next edge}\given \text{first})\cdots$. Going \emph{down} the leaves (summing those whose path ends in your event) is the law of total probability. Two of the most useful theorems in the subject are just ``multiply across, add down.'' Whenever a problem describes a staged experiment, draw the tree first; the algebra writes itself.
+\end{aestheticbox}
+
+\subsection{Worked examples, gambler style}
+
+Conditional reasoning was born at the gambling table, so let us return there. These examples reward the habit of choosing a good partition and then turning a crank.
+
+\begin{example}[The two-children problem]
+\label{ch04:ex-two-children}
+A family has two children; assume each child is independently a boy or girl with probability $1/2$. The four equally likely families are $\set{BB, BG, GB, GG}$ (older child listed first).
+\begin{enumerate}
+\item \emph{``At least one is a boy.''} Given this, what is the probability both are boys? The condition rules out $GG$, leaving $\set{BB, BG, GB}$, each with probability $1/3$ in the new universe. Of these, only $BB$ has two boys. So $\P(\text{both boys}\given \text{at least one boy}) = 1/3$.
+\item \emph{``The older child is a boy.''} Given this, the universe is $\set{BB, BG}$, and both-boys is $BB$. So the answer is now $1/2$.
+\end{enumerate}
+The two conditions sound almost identical in English, yet they give $1/3$ and $1/2$. The reason is that ``at least one is a boy'' is satisfied by \emph{two} of the mixed families ($BG$ and $GB$), diluting the both-boys case, whereas ``the older is a boy'' picks out a single mixed family. The precise wording of the conditioning event is everything -- a recurring lesson.
+\end{example}
+
+\begin{example}[Drawing to a hidden color]
+\label{ch04:ex-urn}
+Urn $1$ holds $3$ red and $1$ white ball; urn $2$ holds $1$ red and $3$ white. You flip a fair coin to choose an urn, then draw one ball. (a) What is the probability the ball is red? (b) If it came out red, what is the probability you had drawn from urn $1$?
+
+\emph{(a)} Partition on the urn. $\P(\text{urn }1) = \P(\text{urn }2) = 1/2$, and $\P(\text{red}\given \text{urn }1) = 3/4$, $\P(\text{red}\given \text{urn }2) = 1/4$. By the law of total probability,
+\[
+\P(\text{red}) = \tfrac12\cdot\tfrac34 + \tfrac12\cdot\tfrac14 = \tfrac38 + \tfrac18 = \tfrac12.
+\]
+\emph{(b)} Now we run the conditioning backward -- a foretaste of Bayes' theorem. By the definition of conditional probability,
+\[
+\P(\text{urn }1\given \text{red}) = \frac{\P(\text{urn }1 \cap \text{red})}{\P(\text{red})}
+= \frac{\tfrac12\cdot\tfrac34}{\tfrac12} = \frac{3/8}{1/2} = \frac34.
+\]
+A red draw shifts your belief from $1/2$ (before drawing) to $3/4$ in favor of urn $1$ -- because urn $1$ is the redder urn, a red ball is evidence for it. Notice how part (a)'s denominator fed directly into part (b). The forward computation (total probability) and the backward computation (updating) are two readings of the same tree.
+\end{example}
+
+\begin{example}[The gambler's chain: three good cards]
+\label{ch04:ex-three-face}
+From a standard deck, you deal three cards without replacement. What is the probability all three are face cards (J, Q, K -- there are $12$)? Pure chain rule:
+\[
+\P(\text{all three face}) = \frac{12}{52}\cdot\frac{11}{51}\cdot\frac{10}{50}
+= \frac{1320}{132600} = \frac{11}{1105}\approx 0.00995.
+\]
+Each factor is conditioned on the cards already gone, shrinking both the count of face cards and the deck. Compare drawing \emph{with} replacement, where each draw is independent and the answer would be $(12/52)^3 \approx 0.01228$. Drawing without replacement makes a second face card slightly less likely (one fewer is left), so the without-replacement probability is the smaller of the two. Dependence, made of nothing but bookkeeping, bends the answer.
+\end{example}
+
+\begin{paradoxbox}[The Monty Hall problem]
+You are on a game show facing three doors. Behind one is a car; behind the other two, goats. You pick a door -- say door $1$. The host, who knows where the car is, opens a \emph{different} door that he knows hides a goat -- say door $3$ -- and offers you the chance to switch to the remaining door $2$. Should you switch?
+
+Intuition shouts ``it's $50/50$ now, it doesn't matter.'' Intuition is wrong; you should switch, doubling your winning chance from $1/3$ to $2/3$. The clean way to see it is the law of total probability conditioned on \emph{where the car actually is}, with the strategy fixed as ``always switch.''
+
+Your initial pick (door $1$) hits the car with probability $1/3$ and a goat with probability $2/3$. \emph{If your initial pick was the car} (prob.\ $1/3$), the host opens one of the two goat doors, the remaining door has a goat, and switching \emph{loses}. \emph{If your initial pick was a goat} (prob.\ $2/3$), the other goat is the only door the host can safely open, so the remaining door is the \emph{car}, and switching \emph{wins}. Therefore
+\[
+\P(\text{win by switching}) = \underbrace{\tfrac13\cdot 0}_{\text{picked car}} + \underbrace{\tfrac23\cdot 1}_{\text{picked goat}} = \tfrac23.
+\]
+\textbf{What is really happening:} the host is not a random door-opener. He \emph{always} reveals a goat, and he uses his knowledge to do so. That action is information, and it flows onto the unopened door. Conditioning on a knowledgeable action is different from conditioning on a random event -- exactly the subtlety that makes Monty Hall feel impossible. The $1/3$ chance that your first guess was right never changes (nothing the host does can touch the door you already chose); so the other $2/3$, formerly spread over two doors, now piles entirely onto the single door the host left closed.
+\end{paradoxbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=9cm, height=5.2cm,
+  ybar, bar width=22pt,
+  ymin=0, ymax=0.85,
+  ylabel={$\P(\text{win the car})$},
+  symbolic x coords={stay, switch},
+  xtick=data,
+  nodes near coords, nodes near coords style={font=\footnotesize},
+  enlarge x limits=0.5,
+  ytick={0,0.25,0.5,0.75},
+  grid=both, grid style={gray!18},
+]
+\addplot[fill=sourceblue!55, draw=sourceblue!70!black] coordinates {(stay,0.3333) (switch,0.6667)};
+\end{axis}
+\end{tikzpicture}
+\caption{Monty Hall, win probability by strategy. Staying wins only when your first guess was the car ($1/3$); switching wins in the complementary $2/3$ of cases. Switching doubles your chance.}
+\label{ch04:fig-monty}
+\end{figure}
+
+\begin{historybox}
+Monty Hall became a national argument in September 1990, when Marilyn vos Savant gave the switching answer in her \emph{Parade} magazine column. She was deluged with roughly ten thousand letters insisting she was wrong, many from people with PhDs, some from mathematicians; one scolded that ``you are the goat.'' The great Hungarian mathematician Paul Erdos reportedly remained unconvinced until he was shown a computer simulation. The problem is named for the host of the game show \emph{Let's Make a Deal}, and a version had in fact been posed and solved correctly by Steve Selvin in 1975. The episode is a humbling reminder that conditional-probability intuition fails even the well trained -- the safe move is always to write down the partition and compute.
+\end{historybox}
+
+\begin{labbox}
+Convince yourself of Monty Hall by simulation in your head or on paper. List the car position ($1,2,3$, each $1/3$), fix your pick as door $1$, and for each car position write down which door the host opens and whether switching wins. You will find switching wins in two of the three cases. Then redo it for the variant where the host opens a door \emph{at random} (and the game is voided if he happens to reveal the car). You will find that, in the surviving games, switching is genuinely $50/50$. The difference between the two variants is the entire lesson: \emph{whose knowledge generated the data}.
+\end{labbox}
+
+\begin{example}[Reliability by cases: a noisy channel]
+\label{ch04:ex-channel}
+A communication channel sends a single bit. The source emits $0$ with probability $0.6$ and $1$ with probability $0.4$. The channel is noisy: it flips a transmitted $0$ to $1$ with probability $0.1$, and flips a transmitted $1$ to $0$ with probability $0.2$. You receive a $1$. What is the probability of correctly receiving the bit in general, and what was probably sent given you saw a $1$?
+
+First, $\P(\text{receive }1)$ by total probability, partitioning on what was sent:
+\[
+\P(R{=}1) = \P(R{=}1\given S{=}0)\P(S{=}0) + \P(R{=}1\given S{=}1)\P(S{=}1)
+= (0.1)(0.6) + (0.8)(0.4) = 0.06 + 0.32 = 0.38.
+\]
+(Here $\P(R{=}1\given S{=}1) = 1 - 0.2 = 0.8$, the bit surviving uncorrupted.) Then the backward question:
+\[
+\P(S{=}1 \given R{=}1) = \frac{\P(R{=}1\given S{=}1)\P(S{=}1)}{\P(R{=}1)} = \frac{0.32}{0.38} \approx 0.842.
+\]
+So a received $1$ probably \emph{was} a $1$, but only with $84\%$ confidence -- the channel's noise plus the source's lean toward $0$ leave real doubt. This case-by-case computation is exactly how a digital receiver decides what was sent; it is conditional probability doing quiet engineering work billions of times a second.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=5.2cm,
+  ybar, bar width=14pt,
+  ymin=0, ymax=0.9,
+  ylabel={probability},
+  symbolic x coords={$S{=}0$, $S{=}1$},
+  xtick=data,
+  nodes near coords, nodes near coords style={font=\footnotesize},
+  enlarge x limits=0.45,
+  ytick={0,0.25,0.5,0.75},
+  grid=both, grid style={gray!18},
+  legend style={at={(0.5,-0.22)}, anchor=north, legend columns=2, font=\footnotesize, draw=gray!40},
+]
+\addplot[fill=sourceblue!45, draw=sourceblue!70!black] coordinates {($S{=}0$,0.6) ($S{=}1$,0.4)};
+\addplot[fill=densityred!45, draw=densityred!70!black] coordinates {($S{=}0$,0.1579) ($S{=}1$,0.8421)};
+\legend{prior $\P(S)$, posterior $\P(S\given R{=}1)$}
+\end{axis}
+\end{tikzpicture}
+\caption{The noisy channel of Example~\ref{ch04:ex-channel}. Seeing $R{=}1$ pulls belief from the prior (which favored $S{=}0$) toward $S{=}1$: the posterior $\P(S{=}1\given R{=}1) = 0.32/0.38 \approx 0.842$. Observation reshapes belief, but noise keeps the posterior short of certainty.}
+\label{ch04:fig-channel}
+\end{figure}
+
+\section{Putting It Together}
+\label{ch04:summary}
+
+Every idea in this chapter grew from a single picture: \emph{conditioning is cropping the universe down to what you know, then renormalizing.} From that one move everything followed.
+
+\begin{focusbox}
+\textbf{The five tools of this chapter.}
+\begin{itemize}
+\item \emph{Conditional probability:} $\P(A\given B) = \P(A\cap B)/\P(B)$ -- updating a belief on new information; a genuine probability measure in its own right.
+\item \emph{Multiplication rule:} $\P(A\cap B) = \P(B)\P(A\given B)$ -- build joint probabilities from staged conditionals.
+\item \emph{Chain rule:} $\P(A_1\cap\cdots\cap A_n) = \prod_j \P(A_j \given A_1\cap\cdots\cap A_{j-1})$ -- multiply across a path.
+\item \emph{Independence:} $\P(A\cap B) = \P(A)\P(B)$ -- $B$ tells you nothing about $A$; \emph{not} the same as disjoint; for $3+$ events check all sub-products. Conditional independence relativizes this to a state of knowledge.
+\item \emph{Law of total probability:} $\P(A) = \sum_i \P(A\given B_i)\P(B_i)$ over a partition -- reason case by case, then average; add down the tree.
+\end{itemize}
+The backward direction -- inferring the cause from the effect, $\P(B_i \given A)$ -- is so important it gets its own chapter next: Bayes' theorem. Everything you have learned here is the scaffolding it stands on.
+\end{focusbox}
+
+\section{Exercises}
+\label{ch04:exercises}
+
+\begin{exercise}[Warm-up conditioning]
+\label{ch04:exer-warmup}
+A fair die is rolled. Let $A = \set{\text{roll} \ge 4}$ and $B = \set{\text{roll is even}}$.
+\begin{enumerate}
+\item Compute $\P(A\given B)$ and $\P(B\given A)$. Are they equal? Should you have expected that?
+\item Are $A$ and $B$ independent? Justify with the product rule.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Multiplication rule with an urn]
+\label{ch04:exer-urn}
+An urn has $5$ green and $3$ yellow marbles. You draw three without replacement. Find the probability that all three are green using the chain rule, and then find the probability that the first is green and the next two yellow.
+\end{exercise}
+
+\begin{exercise}[Disjoint vs.\ independent]
+\label{ch04:exer-disjoint}
+Let $\P(A) = 0.3$ and $\P(B) = 0.5$.
+\begin{enumerate}
+\item If $A$ and $B$ are disjoint, find $\P(A\cup B)$ and $\P(A\given B)$.
+\item If instead $A$ and $B$ are independent, find $\P(A\cap B)$ and $\P(A\cup B)$.
+\item Explain in one sentence why $A$ and $B$ cannot be both disjoint and independent here.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Pairwise but not mutual]
+\label{ch04:exer-bernstein}
+Reproduce Bernstein's example (Example~\ref{ch04:ex-bernstein}) with your own labeling, then construct a \emph{different} triple of events on the two-coin sample space that is pairwise but not mutually independent. Verify all three pairwise products and the failing triple product.
+\end{exercise}
+
+\begin{exercise}[Law of total probability]
+\label{ch04:exer-lotp}
+A factory runs three machines producing $50\%$, $30\%$, and $20\%$ of all widgets, with defect rates $1\%$, $2\%$, and $3\%$ respectively. A widget is picked at random.
+\begin{enumerate}
+\item What is the probability it is defective?
+\item Given it is defective, what is the probability it came from machine $3$? (This is Bayes in disguise -- use the definition of conditional probability.)
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[The other two-children problem]
+\label{ch04:exer-two-children}
+Reconsider Example~\ref{ch04:ex-two-children}. A family has two children and you learn ``at least one is a boy born on a Tuesday.'' Assuming day-of-week is uniform and independent of sex, compute the probability both children are boys. (You may be surprised; explain why the extra detail moves the answer away from $1/3$.)
+\end{exercise}
+
+\begin{exercise}[Conditional independence, by hand]
+\label{ch04:exer-cond-indep}
+In the two-coins-in-a-drawer setup (Example~\ref{ch04:ex-two-coins-drawer}), verify directly that $H_1$ and $H_2$ are conditionally independent given the coin's identity, and confirm numerically that they are \emph{not} unconditionally independent by comparing $\P(H_1\cap H_2)$ with $\P(H_1)\P(H_2)$.
+\end{exercise}
+
+\begin{exercise}[Monty Hall with four doors]
+\label{ch04:exer-monty4}
+Generalize Monty Hall to four doors, one car. You pick a door; the host then opens \emph{one} goat door (from the three you did not pick) and offers a switch to one of the two remaining closed doors. Using the law of total probability conditioned on whether your initial pick was the car, compute the probability of winning by switching to a (randomly chosen) other closed door. Compare to staying.
+\end{exercise}
+
+\begin{exercise}[A chain-rule proof]
+\label{ch04:exer-proof}
+Prove the chain rule (Theorem~\ref{ch04:chain-rule}) carefully by induction on $n$. State precisely where the positivity hypothesis $\P(A_1\cap\cdots\cap A_{n-1}) > 0$ is used, and explain why it guarantees that all the earlier conditional probabilities in the product are also well defined.
+\end{exercise}
+
+\begin{exercise}[Symmetry of independence]
+\label{ch04:exer-symmetry}
+Using only Definition~\ref{ch04:def-indep}, prove that if $A \indep B$ then $A \indep B^c$, $A^c \indep B$, and $A^c \indep B^c$. (Hint for the first: write $\P(A\cap B^c) = \P(A) - \P(A\cap B)$.) Interpret the result: if $B$ is uninformative about $A$, so is the news that $B$ did \emph{not} happen.
+\end{exercise}
