@@ -1,0 +1,1103 @@
+\chapter{Eigenvalues and Eigenvectors}
+
+So far in this book a matrix has been a \emph{machine}: feed it a vector, get a
+vector out. Most of the time the output points somewhere new. You push a vector
+in, the matrix grabs it, turns it, stretches it, maybe flips it, and hands you
+back something that points in a different direction entirely. That turning is the
+whole reason matrices are interesting -- and it is also the whole reason they are
+hard to think about. A single $3\times 3$ matrix can do a bewildering amount to
+the vectors of $\R^3$ all at once.
+
+Hidden inside almost every
+matrix, though, are a few special directions that the matrix \emph{refuses to turn}.
+Along those directions the matrix does the simplest possible thing a linear map
+can do: it just scales. Push a vector along one of these directions and it comes
+back pointing the exact same way (or exactly backwards), only longer or shorter.
+Those directions are the \emph{eigenvectors}, and the amount of stretch is the
+\emph{eigenvalue}. Find them, and a complicated matrix becomes a list of
+simple stretches along simple axes. The same idea turns up in vibrating
+bridges, in Google's PageRank, in the stability of differential equations, in the
+principal components of a data set, and in the rotations of computer graphics.
+
+\section{Directions a matrix does not turn}
+\label{ch23:directions}
+
+Start with a picture and a single concrete matrix. Take
+\[
+  \mat{A}=\begin{bmatrix} 2 & 1 \\ 1 & 2 \end{bmatrix}.
+\]
+This is a perfectly ordinary symmetric matrix. Watch what it does to a handful of
+input vectors. Apply it to $\vec{e}_1 = \colvec{1\\0}$ and you get $\colvec{2\\1}$
+-- the output has swung upward, it points in a new direction. Apply it to
+$\colvec{0\\1}$ and you get $\colvec{1\\2}$ -- swung the other way. For most
+inputs, $\mat{A}$ turns the arrow.
+
+But now try the diagonal direction $\vec{v}=\colvec{1\\1}$:
+\[
+  \mat{A}\colvec{1\\1}
+  =\begin{bmatrix} 2 & 1 \\ 1 & 2 \end{bmatrix}\colvec{1\\1}
+  =\colvec{2+1\\1+2}=\colvec{3\\3}=3\colvec{1\\1}.
+\]
+The output $\colvec{3\\3}$ points in \emph{exactly} the same
+direction as the input $\colvec{1\\1}$. The matrix did not turn this arrow at all;
+it simply tripled its length. And try the anti-diagonal $\vec{w}=\colvec{1\\-1}$:
+\[
+  \mat{A}\colvec{1\\-1}
+  =\colvec{2-1\\1-2}=\colvec{1\\-1}=1\cdot\colvec{1\\-1}.
+\]
+Same story -- the direction is preserved, this time with no stretch at all (the
+length is unchanged because the multiplier is $1$).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.2,>=Latex]
+  \draw[help lines,gray!30] (-1.2,-1.2) grid (3.4,3.4);
+  \draw[->] (-1.2,0)--(3.4,0) node[right]{$x$};
+  \draw[->] (0,-1.2)--(0,3.4) node[above]{$y$};
+  % a generic vector and its turned image
+  \draw[->,vecblue,very thick] (0,0)--(1,0) node[below right]{$\vec{e}_1$};
+  \draw[->,vecblue,thick,dashed] (0,0)--(2,1) node[right]{$\mat{A}\vec{e}_1$ (turned)};
+  % eigenvector (1,1) -> (3,3)
+  \draw[->,vecred,very thick] (0,0)--(1,1) node[above left]{$\vec{v}=\colvec{1\\1}$};
+  \draw[->,vecred,thick,dashed] (0,0)--(3,3) node[above right]{$\mat{A}\vec{v}=3\vec{v}$};
+  % eigenvector (1,-1) -> (1,-1)
+  \draw[->,targetgreen,very thick] (0,0)--(1,-1) node[below right]{$\vec{w}=\colvec{1\\-1},\;\mat{A}\vec{w}=\vec{w}$};
+\end{tikzpicture}
+\caption{The matrix $\mat{A}=\protect\begin{bmatrix}2&1\\1&2\protect\end{bmatrix}$
+turns most arrows (blue), but it leaves the directions $\vec{v}=\colvec{1\\1}$ and
+$\vec{w}=\colvec{1\\-1}$ pointing the same way -- it only rescales them, by $3$ and
+by $1$. Those are its eigenvectors.}
+\label{ch23:fig-eigendirections}
+\end{figure}
+
+\begin{intuitionbox}
+An eigenvector is an arrow that a matrix is content to leave \emph{on its own
+line}. The matrix may make it longer, shorter, or flip it end to end, but it does
+not rotate it off its line through the origin. The eigenvalue is the number that
+tells you how much the matrix stretched it along that line: $3$ means ``triple
+it,'' $1$ means ``leave it,'' $0.5$ means ``halve it,'' $-2$ means ``double it and
+flip it around.''
+\end{intuitionbox}
+
+The word \emph{eigen} is German for ``own'' or ``characteristic'' or ``proper.''
+These are the matrix's own directions, the ones intrinsic to it. Here is the
+precise statement.
+
+\begin{definition}[Eigenvalue and eigenvector]
+\label{ch23:def-eigen}
+Let $\mat{A}$ be an $n\times n$ matrix. A nonzero vector $\vec{x}\in\R^n$ is an
+\emph{eigenvector} of $\mat{A}$ if there is a scalar $\lambda$ with
+\[
+  \boxed{\;\mat{A}\vec{x}=\lambda\,\vec{x}.\;}
+\]
+The scalar $\lambda$ is the \emph{eigenvalue} belonging to $\vec{x}$. (We allow
+$\lambda$ to be complex; we always require $\vec{x}\neq\vec{0}$.)
+\end{definition}
+
+Two small but essential remarks live inside that definition.
+
+\textbf{Why the vector must be nonzero.} If we allowed $\vec{x}=\vec{0}$, the
+equation $\mat{A}\vec{0}=\lambda\vec{0}$ would be true for \emph{every} $\lambda$,
+which would make the eigenvalue meaningless. The zero vector has no direction, so
+it cannot tell us a direction the matrix preserves. We throw it out.
+
+\textbf{Why the eigenvalue \emph{can} be zero.} A perfectly good eigenvalue is
+$\lambda=0$. That says $\mat{A}\vec{x}=\vec{0}$ for a nonzero $\vec{x}$, i.e.
+$\vec{x}$ is in the nullspace. So ``$0$ is an eigenvalue of $\mat{A}$'' is just a
+new way of saying ``$\mat{A}$ is singular.'' Hold onto that; it will return.
+
+\begin{focusbox}
+$\mat{A}\vec{x}=\lambda\vec{x}$ is the most important equation in this half of the
+book. Read it as: \emph{applying the matrix has the same effect as multiplying by
+a single number}, but only along the special directions $\vec{x}$. The number is
+$\lambda$; the direction is $\vec{x}$.
+\end{focusbox}
+
+\begin{remark}[An eigenvector is really a whole line]
+\label{ch23:rem-scaling}
+If $\mat{A}\vec{x}=\lambda\vec{x}$, then for any scalar $c\neq 0$ the vector
+$c\vec{x}$ is an eigenvector too, with the \emph{same} eigenvalue:
+$\mat{A}(c\vec{x})=c\,\mat{A}\vec{x}=c\lambda\vec{x}=\lambda(c\vec{x})$. So
+eigenvectors come in lines (and, as we will see, sometimes whole planes). When we
+``find the eigenvector'' we really mean ``find the line''; we usually report one
+convenient representative, like $\colvec{1\\1}$ rather than $\colvec{5\\5}$.
+\end{remark}
+
+\begin{walkbox}
+Before reading on, picture three transformations of the plane and ask which
+directions survive untouched. (1) A pure scaling that doubles everything: which
+directions are eigenvectors? (2) A reflection across the $x$-axis: which arrows
+stay on their line, and what are their eigenvalues? (3) A $90^\circ$ rotation:
+can \emph{any} real arrow stay on its line? Carry these on your walk; we answer
+all three in this chapter.
+\end{walkbox}
+
+\section{Finding the eigenvalues: the characteristic equation}
+\label{ch23:char}
+
+Geometry told us eigenvectors exist for the matrix $\begin{bmatrix}2&1\\1&2\end{bmatrix}$
+because we got lucky and guessed $\colvec{1\\1}$. We need a method that does not
+rely on luck. The key algebraic move is this.
+
+Start from $\mat{A}\vec{x}=\lambda\vec{x}$ and drag everything to one side. The
+trick is to write $\lambda\vec{x}=\lambda\mat{I}\vec{x}$ so that both sides are a
+matrix times $\vec{x}$:
+\[
+  \mat{A}\vec{x}-\lambda\vec{x}=\vec{0}
+  \quad\Longrightarrow\quad
+  \mat{A}\vec{x}-\lambda\mat{I}\vec{x}=\vec{0}
+  \quad\Longrightarrow\quad
+  (\mat{A}-\lambda\mat{I})\,\vec{x}=\vec{0}.
+\]
+
+\begin{trapbox}
+You cannot write $\mat{A}\vec{x}-\lambda\vec{x}=(\mat{A}-\lambda)\vec{x}$ and stop
+there. The symbol $\mat{A}-\lambda$ is nonsense: $\mat{A}$ is a matrix and
+$\lambda$ is a number, and you cannot subtract a number from a matrix. You must
+insert the identity, $\lambda\vec{x}=\lambda\mat{I}\vec{x}$, turning the scalar
+into the matrix $\lambda\mat{I}=\diag(\lambda,\dots,\lambda)$. \emph{Then}
+$\mat{A}-\lambda\mat{I}$ is a legitimate matrix subtraction.
+\end{trapbox}
+
+Consider $(\mat{A}-\lambda\mat{I})\vec{x}=\vec{0}$. This is a homogeneous
+system, and we want a \emph{nonzero} solution $\vec{x}$. When does a square system
+$\mat{M}\vec{x}=\vec{0}$ have a nonzero solution? Exactly when the matrix
+$\mat{M}=\mat{A}-\lambda\mat{I}$ is \emph{singular} -- when it squashes some
+nonzero vector down to $\vec{0}$, i.e. when it has a nontrivial nullspace. And we
+have a perfect detector for singularity from the determinant chapters: a square
+matrix is singular precisely when its determinant is zero.
+
+\begin{formalbox}
+The number $\lambda$ is an eigenvalue of $\mat{A}$ if and only if
+$\mat{A}-\lambda\mat{I}$ is singular, that is, if and only if
+\[
+  \boxed{\;\det(\mat{A}-\lambda\mat{I})=0.\;}
+\]
+The left-hand side, viewed as a function of $\lambda$, is a polynomial of degree
+$n$ called the \emph{characteristic polynomial} $p(\lambda)$; the equation
+$p(\lambda)=0$ is the \emph{characteristic equation}. Its roots are exactly the
+eigenvalues of $\mat{A}$.
+\end{formalbox}
+
+This is the engine. To find eigenvalues you do not hunt for special vectors at
+all -- you compute one determinant, get a polynomial in $\lambda$, and find its
+roots. The eigenvectors come afterward, one eigenvalue at a time.
+
+\subsection{The full recipe, walked through twice}
+\label{ch23:recipe}
+
+\begin{focusbox}
+\textbf{The eigenvalue recipe.}
+\begin{enumerate}
+  \item Form $\mat{A}-\lambda\mat{I}$ (subtract $\lambda$ from each diagonal entry).
+  \item Compute $\det(\mat{A}-\lambda\mat{I})$; this is the characteristic
+        polynomial $p(\lambda)$.
+  \item Solve $p(\lambda)=0$ for the eigenvalues $\lambda_1,\lambda_2,\dots$
+  \item For each eigenvalue $\lambda_i$, solve $(\mat{A}-\lambda_i\mat{I})\vec{x}=\vec{0}$
+        to find its eigenvectors (its nullspace).
+\end{enumerate}
+\end{focusbox}
+
+\begin{example}[Our running matrix, done by the book]
+\label{ch23:ex-running}
+Take $\mat{A}=\begin{bmatrix}2&1\\1&2\end{bmatrix}$ and rediscover its
+eigenstructure without guessing.
+
+\emph{Step 1.} Subtract $\lambda$ from the diagonal:
+\[
+  \mat{A}-\lambda\mat{I}=\begin{bmatrix}2-\lambda & 1\\ 1 & 2-\lambda\end{bmatrix}.
+\]
+
+\emph{Step 2.} Take the determinant of this $2\times 2$ (recall
+$\det\begin{bmatrix}a&b\\c&d\end{bmatrix}=ad-bc$):
+\[
+  p(\lambda)=(2-\lambda)(2-\lambda)-(1)(1)=(2-\lambda)^2-1.
+\]
+
+\emph{Step 3.} Set it to zero. We could expand, but it factors nicely as a
+difference of squares, $(2-\lambda)^2-1=\bigl((2-\lambda)-1\bigr)\bigl((2-\lambda)+1\bigr)=(1-\lambda)(3-\lambda)$:
+\[
+  p(\lambda)=(1-\lambda)(3-\lambda)=0\quad\Longrightarrow\quad
+  \lambda_1=3,\ \lambda_2=1.
+\]
+There are the two stretch factors we found geometrically.
+
+\emph{Step 4, eigenvalue $\lambda_1=3$.} Solve
+$(\mat{A}-3\mat{I})\vec{x}=\vec{0}$:
+\[
+  \mat{A}-3\mat{I}=\begin{bmatrix}2-3 & 1\\ 1 & 2-3\end{bmatrix}
+  =\begin{bmatrix}-1 & 1\\ 1 & -1\end{bmatrix}.
+\]
+The single equation both rows give is $-x_1+x_2=0$, i.e. $x_1=x_2$. So every
+eigenvector for $\lambda=3$ is a multiple of $\colvec{1\\1}$. (Notice the matrix
+$\begin{bmatrix}-1&1\\1&-1\end{bmatrix}$ is singular -- its two rows are
+proportional -- which is exactly why $\lambda=3$ was an eigenvalue.)
+
+\emph{Step 4, eigenvalue $\lambda_2=1$.} Solve
+$(\mat{A}-1\cdot\mat{I})\vec{x}=\vec{0}$:
+\[
+  \mat{A}-\mat{I}=\begin{bmatrix}1 & 1\\ 1 & 1\end{bmatrix},\qquad
+  x_1+x_2=0\ \Longrightarrow\ x_2=-x_1.
+\]
+So the eigenvectors for $\lambda=1$ are multiples of $\colvec{1\\-1}$. Both lines
+match Figure~\ref{ch23:fig-eigendirections} exactly.
+\end{example}
+
+\begin{trapbox}
+After you plug an eigenvalue back in, the matrix $\mat{A}-\lambda\mat{I}$ \emph{must}
+come out singular -- its rows must be dependent -- or you have made an arithmetic
+error. If you reduce $(\mat{A}-\lambda\mat{I})\vec{x}=\vec{0}$ and find the only
+solution is $\vec{x}=\vec{0}$, something is wrong: either your $\lambda$ is not
+really a root, or you slipped in the determinant. A correct eigenvalue always
+leaves you a free variable.
+\end{trapbox}
+
+\begin{example}[A non-symmetric $2\times 2$]
+\label{ch23:ex-nonsym}
+Let $\mat{B}=\begin{bmatrix}4 & 1\\ 2 & 3\end{bmatrix}$. Then
+\[
+  \det(\mat{B}-\lambda\mat{I})
+  =\det\begin{bmatrix}4-\lambda & 1\\ 2 & 3-\lambda\end{bmatrix}
+  =(4-\lambda)(3-\lambda)-(1)(2).
+\]
+Expand: $(4-\lambda)(3-\lambda)=12-7\lambda+\lambda^2$, so
+\[
+  p(\lambda)=\lambda^2-7\lambda+12-2=\lambda^2-7\lambda+10=(\lambda-2)(\lambda-5).
+\]
+The eigenvalues are $\lambda=5$ and $\lambda=2$.
+
+For $\lambda=5$: $\mat{B}-5\mat{I}=\begin{bmatrix}-1&1\\2&-2\end{bmatrix}$, giving
+$-x_1+x_2=0$, so $\vec{x}=\colvec{1\\1}$.
+
+For $\lambda=2$: $\mat{B}-2\mat{I}=\begin{bmatrix}2&1\\2&1\end{bmatrix}$, giving
+$2x_1+x_2=0$, so $x_2=-2x_1$ and $\vec{x}=\colvec{1\\-2}$.
+
+Sanity check the eigenvalue $5$:
+$\mat{B}\colvec{1\\1}=\colvec{4+1\\2+3}=\colvec{5\\5}=5\colvec{1\\1}.$ Good.
+\end{example}
+
+\begin{labbox}
+Compute the eigenvalues and eigenvectors of
+$\mat{C}=\begin{bmatrix}3 & 0\\ 4 & 1\end{bmatrix}$ entirely by hand, following
+the four steps. (Because $\mat{C}$ is triangular, you should be able to read its
+eigenvalues straight off the diagonal before you even start -- see
+Section~\ref{ch23:triangular}. Use the recipe anyway and confirm they agree.)
+Then verify each eigenvector by direct multiplication.
+\end{labbox}
+
+\begin{strangbox}
+Strang introduces eigenvalues with this very same move: ``the eigenvalues come
+from $\det(\mat{A}-\lambda\mat{I})=0$, and the eigenvectors come from the
+nullspace of $\mat{A}-\lambda\mat{I}$.'' If you are reading this \emph{before}
+Strang, fix in your mind that two different ideas are stacked here: a
+\emph{determinant} test finds the special numbers $\lambda$, and then a
+\emph{nullspace} computation finds the special directions $\vec{x}$. Reading
+\emph{after} Strang, notice we are about to push past the mechanics into what the
+eigenvalues \emph{mean} -- trace, determinant, complex rotations.
+\end{strangbox}
+
+\section{Triangular and diagonal matrices: eigenvalues for free}
+\label{ch23:triangular}
+
+Some matrices wear their eigenvalues on the outside. If $\mat{A}$ is triangular
+(all zeros above, or all zeros below, the diagonal), then $\mat{A}-\lambda\mat{I}$
+is also triangular, and the determinant of a triangular matrix is just the product
+of its diagonal entries. So
+\[
+  \det(\mat{A}-\lambda\mat{I})=(a_{11}-\lambda)(a_{22}-\lambda)\cdots(a_{nn}-\lambda),
+\]
+and the roots are simply $\lambda=a_{11},a_{22},\dots,a_{nn}$.
+
+\begin{proposition}
+\label{ch23:prop-triangular}
+The eigenvalues of a triangular (in particular, a diagonal) matrix are exactly its
+diagonal entries.
+\end{proposition}
+
+\begin{example}
+\label{ch23:ex-tri}
+For $\mat{T}=\begin{bmatrix}5 & 8 & -2\\ 0 & 1 & 7\\ 0 & 0 & 3\end{bmatrix}$ the
+eigenvalues are $5,1,3$ at a glance -- no determinant expansion needed. (The
+eigenvectors still require work; only the eigenvalues are free.)
+\end{example}
+
+\begin{trapbox}
+``Eigenvalues are the diagonal entries'' is true \emph{only} for triangular
+matrices. For a full matrix the diagonal entries are not the eigenvalues. For
+Example~\ref{ch23:ex-nonsym}, $\mat{B}$ had diagonal $4,3$ but eigenvalues $5,2$.
+What \emph{is} always true is that the diagonal entries \emph{sum} to the same
+thing the eigenvalues sum to -- the trace -- which is the subject of the next
+section ($4+3=7=5+2$).
+\end{trapbox}
+
+\section{Trace and determinant: the eigenvalues' fingerprints}
+\label{ch23:trace-det}
+
+Here are two facts that look like coincidences in our examples and turn out to be
+laws. In Example~\ref{ch23:ex-nonsym} the eigenvalues were $5$ and $2$. Their
+\emph{sum} is $7$, which is $4+3$, the sum of the diagonal of $\mat{B}$ -- the
+trace. Their \emph{product} is $10$, which is exactly $\det\mat{B}=4\cdot 3-1\cdot 2$.
+This is no accident.
+
+\begin{theorem}[Trace and determinant from eigenvalues]
+\label{ch23:thm-trace-det}
+Let $\mat{A}$ be $n\times n$ with eigenvalues $\lambda_1,\dots,\lambda_n$ (listed
+with multiplicity, counting complex roots). Then
+\[
+  \lambda_1+\lambda_2+\cdots+\lambda_n=\tr\mat{A},
+  \qquad
+  \lambda_1\lambda_2\cdots\lambda_n=\det\mat{A}.
+\]
+The eigenvalues \emph{add up} to the trace and \emph{multiply} to the determinant.
+\end{theorem}
+
+Here is why, for the $2\times 2$ case, where the algebra is transparent and the
+pattern is unmistakable. Write
+$\mat{A}=\begin{bmatrix}a&b\\c&d\end{bmatrix}$. Its characteristic polynomial is
+\[
+  \det(\mat{A}-\lambda\mat{I})
+  =(a-\lambda)(d-\lambda)-bc
+  =\lambda^2-(a+d)\lambda+(ad-bc)
+  =\lambda^2-(\tr\mat{A})\,\lambda+\det\mat{A}.
+\]
+So for any $2\times 2$ matrix the characteristic polynomial is the clean little
+formula
+\[
+  \boxed{\;p(\lambda)=\lambda^2-(\tr\mat{A})\,\lambda+\det\mat{A}.\;}
+\]
+Now compare with the factored form. If the roots are $\lambda_1,\lambda_2$, then
+$p(\lambda)=(\lambda-\lambda_1)(\lambda-\lambda_2)=\lambda^2-(\lambda_1+\lambda_2)\lambda+\lambda_1\lambda_2$.
+Matching the coefficient of $\lambda$ gives
+$\lambda_1+\lambda_2=\tr\mat{A}$, and matching the constant term gives
+$\lambda_1\lambda_2=\det\mat{A}$. Done. (The general $n\times n$ proof is the same
+idea: the characteristic polynomial is
+$(-1)^n(\lambda-\lambda_1)\cdots(\lambda-\lambda_n)$, and expanding it, the
+$\lambda^{n-1}$ coefficient is $-\sum\lambda_i=-\tr\mat{A}$ while the constant term
+$p(0)=\det\mat{A}=\prod\lambda_i$.)
+
+\begin{focusbox}
+For a $2\times 2$ you can often skip the algebra entirely. You only need two
+numbers: $t=\tr\mat{A}$ and $d=\det\mat{A}$. The eigenvalues are the two numbers
+that add to $t$ and multiply to $d$:
+\[
+  \lambda=\frac{t\pm\sqrt{t^2-4d}}{2}.
+\]
+\end{focusbox}
+
+\begin{example}[Reading eigenvalues off trace and determinant]
+\label{ch23:ex-tracedet}
+For $\mat{A}=\begin{bmatrix}2&1\\1&2\end{bmatrix}$: $t=4$, $d=4-1=3$. We need two
+numbers adding to $4$ and multiplying to $3$. By inspection: $3$ and $1$. (Or use
+the formula: $\lambda=\tfrac{4\pm\sqrt{16-12}}{2}=\tfrac{4\pm 2}{2}=3,1$.) Same
+answer as Example~\ref{ch23:ex-running}, with no determinant of $\mat{A}-\lambda\mat{I}$
+expanded.
+\end{example}
+
+\begin{aestheticbox}
+The trace and determinant are computed
+directly from the entries, with no eigenvalues in sight -- yet they are completely
+determined by the eigenvalues, which capture the matrix's deep, basis-independent
+character. Trace and determinant are the two simplest \emph{fingerprints} of a
+matrix that survive any change of coordinates. The eigenvalues are the full
+fingerprint; the trace (their sum) and determinant (their product) are the first
+and last things you can read off without solving the whole polynomial. That is why
+they show up everywhere as quick sanity checks.
+\end{aestheticbox}
+
+\begin{labbox}
+Use only trace and determinant -- do not expand a characteristic polynomial -- to
+find the eigenvalues of each:
+\[
+  \begin{bmatrix}1&2\\2&1\end{bmatrix},\qquad
+  \begin{bmatrix}0&-1\\1&0\end{bmatrix},\qquad
+  \begin{bmatrix}3&0\\0&3\end{bmatrix},\qquad
+  \begin{bmatrix}5&4\\0&5\end{bmatrix}.
+\]
+For each, the eigenvalues add to the trace and multiply to the determinant. Notice
+what happens to the second one (trace $0$, determinant $1$): the discriminant
+$t^2-4d=-4$ is negative. We deal with that in Section~\ref{ch23:complex}.
+\end{labbox}
+
+\section{What the eigenvalues do to the picture}
+\label{ch23:geometry}
+
+Eigenvalues are not just roots of a polynomial; each one has a geometric
+personality. Once you know the eigenvalues of a $2\times 2$ matrix and its
+eigenvector directions, you can sketch what the matrix does to the whole plane
+without computing anything else. The reason is the move we have been building
+toward all chapter: \emph{decompose along the eigenvectors}.
+
+Suppose $\mat{A}$ has eigenvectors $\vec{v}_1,\vec{v}_2$ that span the plane, with
+eigenvalues $\lambda_1,\lambda_2$. Any vector $\vec{x}$ can be written as a
+combination $\vec{x}=c_1\vec{v}_1+c_2\vec{v}_2$. Then by linearity
+\[
+  \mat{A}\vec{x}
+  =c_1\,\mat{A}\vec{v}_1+c_2\,\mat{A}\vec{v}_2
+  =c_1\lambda_1\vec{v}_1+c_2\lambda_2\vec{v}_2.
+\]
+The matrix acts \emph{one eigendirection at a time}: it stretches the $\vec{v}_1$
+part by $\lambda_1$ and the $\vec{v}_2$ part by $\lambda_2$, independently. In
+eigenvector coordinates, the most complicated thing this matrix can do is two
+separate scalings. That is the bridge to
+diagonalization in the next chapter. Figure~\ref{ch23:fig-ellipse} shows the two
+cases side by side: two positive eigenvalues turn the unit circle into a stretched
+ellipse, while a negative eigenvalue flips one direction end-to-end.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.95,>=Latex]
+  % LEFT: lambda = 3, 1 (stretch along (1,1), keep (1,-1))
+  \begin{scope}
+    \draw[help lines,gray!25] (-2.4,-2.4) grid (2.4,2.4);
+    \draw[->] (-2.5,0)--(2.6,0); \draw[->] (0,-2.5)--(0,2.6);
+    % unit circle of inputs, image is ellipse along (1,1)
+    \draw[vecblue,thick] (0,0) circle (1);
+    \draw[targetgreen,thick,rotate=45] (0,0) ellipse (3 and 1);
+    % eigendirections: stretched along (1,1) by 3, fixed along (1,-1) by 1
+    \draw[->,vecred,very thick] (0,0)--({3/sqrt(2)},{3/sqrt(2)});
+    \node[vecred] at (1.9,2.35) {\small $\times 3$ along $\colvec{1\\1}$};
+    \draw[->,structurepurple,very thick] (0,0)--({1/sqrt(2)},{-1/sqrt(2)});
+    \node[structurepurple] at (1.55,-0.95) {\small $\times 1$ along $\colvec{1\\-1}$};
+    \node at (0,-2.95) {\small inputs (circle) $\mapsto$ stretched (ellipse)};
+    \node at (0,2.95) {\small $\lambda_1=3,\ \lambda_2=1$};
+  \end{scope}
+  % RIGHT: lambda = 2, -1 (flip + stretch)
+  \begin{scope}[xshift=7.2cm]
+    \draw[help lines,gray!25] (-1.6,-1.6) grid (2.2,1.6);
+    \draw[->] (-1.7,0)--(2.4,0); \draw[->] (0,-1.7)--(0,1.8);
+    \draw[->,vecred,very thick] (0,0)--(1,0) node[below]{$\vec{v}_1$};
+    \draw[->,structurepurple,very thick,dashed] (0,0)--(0,1) node[left]{$\vec{v}_2$};
+    \draw[->,vecred,thick] (0,0)--(2,0) node[below right]{$\lambda_1\vec{v}_1=2\vec{v}_1$};
+    \draw[->,structurepurple,thick] (0,0)--(0,-1) node[left]{$\lambda_2\vec{v}_2=-\vec{v}_2$};
+    \node at (0.5,2.95) {\small $\lambda_1=2,\ \lambda_2=-1$ (one flip)};
+    \node at (0.5,-2.95) {\small positive stretches, negative flips};
+  \end{scope}
+\end{tikzpicture}
+\caption{Left: when both eigenvalues are positive, the matrix turns the unit
+circle into an ellipse whose axes are the eigenvector directions, stretched by the
+eigenvalues. Right: a negative eigenvalue ($\lambda_2=-1$) flips that
+eigendirection end-to-end while the positive one ($\lambda_1=2$) stretches.}
+\label{ch23:fig-ellipse}
+\end{figure}
+
+Here is the field guide to a single real eigenvalue $\lambda$ along its direction:
+
+\begin{itemize}
+  \item $\lambda>1$: \emph{stretch outward} along that line (the direction is
+        amplified). Repeatedly applying $\mat{A}$ sends those components flying
+        off to infinity.
+  \item $\lambda=1$: \emph{fixed direction} -- vectors on that line do not move at
+        all.
+  \item $0<\lambda<1$: \emph{shrink} toward the origin along that line. Repeated
+        application collapses these components to nothing.
+  \item $\lambda=0$: \emph{collapse} -- the entire line is sent to the origin in
+        one step. The matrix is singular; this line is the nullspace.
+  \item $\lambda<0$: \emph{flip} across the origin, and stretch (if
+        $\lambda<-1$) or shrink (if $-1<\lambda<0$). Each application of $\mat{A}$
+        bounces that component to the other side.
+\end{itemize}
+
+\begin{intuitionbox}
+Think of the eigenvalues as a verdict on the long-run fate of each eigendirection
+when you apply the matrix again and again. The eigenvalue with the largest
+magnitude $|\lambda|$ wins: after many applications of $\mat{A}$, almost every
+vector lines up with the eigenvector of the largest $|\lambda|$, because that
+component grows fastest (or shrinks slowest) relative to the others. That fact
+drives the power method for computing eigenvectors, it drives
+PageRank, and it drives the stability analysis of dynamical systems. We make it
+precise in the diagonalization and Markov-chain chapters.
+\end{intuitionbox}
+
+\begin{applicationbox}[PageRank: the web's dominant eigenvector]
+When Google ranks web pages, it builds a giant matrix $\mat{M}$ describing the
+``random surfer'': start on a page, follow a random outgoing link, repeat. The
+entry $M_{ij}$ is the probability of stepping from page $j$ to page $i$. The
+importance of every page is the eigenvector of $\mat{M}$ belonging to the
+eigenvalue $\lambda=1$ -- the one direction that the surfing process leaves
+\emph{unchanged}, the steady state $\mat{M}\vec{x}=\vec{x}$. Every other
+eigendirection has $|\lambda|<1$ and dies away as the surfer keeps walking, so no
+matter where you start, you converge to that dominant eigenvector. PageRank comes
+down to one instruction: ``find the eigenvector for $\lambda=1$ of a matrix with a few
+billion rows.'' The machinery of this chapter -- eigenvalue $1$ means a
+direction the matrix fixes, largest $|\lambda|$ dominates the long run -- is
+exactly what makes it work.
+\end{applicationbox}
+
+\begin{example}[Reading a matrix from its eigendata]
+\label{ch23:ex-readoff}
+Suppose someone tells you a $2\times 2$ matrix has eigenvalue $2$ along
+$\colvec{1\\0}$ and eigenvalue $-1$ along $\colvec{0\\1}$. You can sketch its
+action immediately: it doubles everything horizontal and flips everything vertical.
+In fact it must be $\begin{bmatrix}2&0\\0&-1\end{bmatrix}$, because that diagonal
+matrix has exactly those eigenvalues along the axes. Eigendata, when complete,
+\emph{is} the matrix.
+\end{example}
+
+\section{Special matrices and their eigenvalues}
+\label{ch23:special}
+
+A few geometric transformations you already know have eigenvalues you can read off
+from the geometry, with no algebra at all. Each is worth keeping as a mental
+anchor.
+
+\textbf{Projections.} Let $\mat{P}$ project the plane onto a line $L$ through the
+origin. If $\vec{x}$ already lies on $L$, projecting does nothing:
+$\mat{P}\vec{x}=\vec{x}$, eigenvalue $1$. If $\vec{x}$ is perpendicular to $L$,
+projecting kills it: $\mat{P}\vec{x}=\vec{0}=0\cdot\vec{x}$, eigenvalue $0$. So
+every projection has eigenvalues $1$ and $0$ -- which is exactly why projections
+satisfy $\mat{P}^2=\mat{P}$ (the eigenvalues satisfy $\lambda^2=\lambda$).
+Figure~\ref{ch23:fig-projection} shows the two eigendirections.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Latex]
+  \draw[gray!55,thick] (-1.7,-1.7)--(1.7,1.7) node[right]{\small line $L$};
+  \draw[->] (-1.8,0)--(1.8,0); \draw[->] (0,-1.8)--(0,1.8);
+  % a generic vector x = (1.4, 0.2) projects onto L (y=x): proj = ((a+b)/2)(1,1)
+  \coordinate (X) at (1.5,0.1);
+  \coordinate (PX) at (0.8,0.8); % projection of (1.5,0.1) onto y=x is 0.8(1,1)
+  \draw[->,vecblue,very thick] (0,0)--(X) node[below right]{$\vec{x}$};
+  \draw[->,vecred,very thick] (0,0)--(PX) node[above left]{$\mat{P}\vec{x}$};
+  \draw[gray!60,dashed] (X)--(PX);
+  % on L: lambda=1
+  \draw[->,targetgreen,thick] (0,0)--(-1.1,-1.1) node[below left]{on $L$: $\lambda=1$};
+  % perpendicular: lambda=0 (collapses to origin)
+  \draw[->,structurepurple,thick] (0,0)--(-0.85,0.85) node[above left]{$\perp L$: $\lambda=0$};
+  \filldraw[structurepurple] (0,0) circle (1.6pt);
+\end{tikzpicture}
+\caption{Projection onto the line $L$. Vectors already on $L$ are left alone
+(eigenvalue $1$); vectors perpendicular to $L$ are collapsed to the origin
+(eigenvalue $0$). A generic $\vec{x}$ (blue) is dropped onto its shadow
+$\mat{P}\vec{x}$ on $L$ (red) -- so it is genuinely moved and is not an eigenvector.}
+\label{ch23:fig-projection}
+\end{figure}
+
+\textbf{Reflections.} Let $\mat{R}$ reflect across a line $L$. Vectors on $L$ are
+untouched (eigenvalue $1$); vectors perpendicular to $L$ are sent to their
+negatives (eigenvalue $-1$). A reflection always has eigenvalues $+1$ and $-1$,
+which is why doing it twice is the identity: $\lambda^2=1$.
+Figure~\ref{ch23:fig-reflection} shows the two eigendirections.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Latex]
+  \begin{scope}
+    \draw[gray!50,thick] (-1.6,-1.6)--(1.6,1.6) node[right]{\small line $L$};
+    \draw[->] (-1.7,0)--(1.7,0); \draw[->] (0,-1.7)--(0,1.7);
+    % reflect across y=x: (a,b) -> (b,a)
+    \draw[->,vecblue,very thick] (0,0)--(1.4,0.4) node[right]{$\vec{x}$};
+    \draw[->,vecred,very thick] (0,0)--(0.4,1.4) node[above]{$\mat{R}\vec{x}$};
+    \draw[->,targetgreen,thick] (0,0)--(0.9,0.9) node[above right]{on $L$: $\lambda=1$};
+    \draw[->,structurepurple!80!black,thick] (0,0)--(0.7,-0.7);
+    \draw[->,structurepurple!80!black,thick,dashed] (0,0)--(-0.7,0.7) node[above left]{$\perp L$: $\lambda=-1$};
+    \node at (0,-2.1){\small reflection across $L$};
+  \end{scope}
+\end{tikzpicture}
+\caption{A reflection across the line $L$ fixes the direction along $L$ (eigenvalue
+$+1$) and flips the perpendicular direction (eigenvalue $-1$). A generic vector
+$\vec{x}$ (blue) is genuinely turned to $\mat{R}\vec{x}$ (red) -- it is not an
+eigenvector.}
+\label{ch23:fig-reflection}
+\end{figure}
+
+\textbf{Scalings.} The matrix $c\mat{I}$ stretches every direction by $c$. So
+\emph{every} nonzero vector is an eigenvector, all with the same eigenvalue $c$.
+This is the one case where eigenvectors do not pick out special lines -- because
+the matrix has no preferred directions, every direction is equal.
+
+\textbf{Shears.} The shear $\mat{S}=\begin{bmatrix}1&1\\0&1\end{bmatrix}$ slides
+the plane horizontally. Its only eigenvalue is $1$ (it is triangular, both diagonal
+entries $1$), and the only eigenvectors lie along the horizontal axis
+$\colvec{1\\0}$ -- the layer that does not slide. A shear is the classic example
+of a matrix with a \emph{repeated} eigenvalue but \emph{not enough} eigenvectors
+to fill the plane (only one line, not two). We will care a great deal about that
+shortfall when we ask which matrices can be diagonalized.
+
+\begin{trapbox}
+A repeated eigenvalue does \emph{not} guarantee a repeated supply of eigenvectors.
+The shear has $\lambda=1$ twice but only a one-dimensional line of eigenvectors.
+Contrast $\mat{I}$, which also has $\lambda=1$ twice but a whole plane of them.
+``How many times $\lambda$ is a root'' (algebraic multiplicity) and ``how big the
+eigenvector space is'' (geometric multiplicity) are different numbers; the second
+can be smaller. This gap is the entire reason the next chapters need ``defective''
+matrices and the Jordan form.
+\end{trapbox}
+
+\section{Complex eigenvalues: when a matrix is really a rotation}
+\label{ch23:complex}
+
+Return to the walking question about a $90^\circ$ rotation. Can a rotation have a
+real eigenvector? Picture it: a rotation turns \emph{every} arrow by a quarter
+turn. There is no arrow it leaves on its own line. So a $90^\circ$ rotation has
+\emph{no real eigenvectors at all} -- and yet the characteristic equation will
+still hand us two roots, because a degree-$2$ polynomial always has two roots over
+the complex numbers. Those roots are complex, and they are telling us ``rotation,''
+not ``stretch.''
+
+Here is the computation. The $90^\circ$ counterclockwise rotation is
+\[
+  \mat{Q}=\begin{bmatrix}0 & -1\\ 1 & 0\end{bmatrix}.
+\]
+Its trace is $0$ and its determinant is $0\cdot 0-(-1)(1)=1$, so
+\[
+  p(\lambda)=\lambda^2-(\tr\mat{Q})\lambda+\det\mat{Q}=\lambda^2+1=0
+  \quad\Longrightarrow\quad \lambda=\pm i.
+\]
+The eigenvalues are the imaginary numbers $+i$ and $-i$. Notice $|\lambda|=|{\pm i}|=1$:
+the rotation does not change any length, and the magnitude of a complex eigenvalue
+records exactly that scaling. The \emph{angle} of the eigenvalue records the
+rotation: $i=e^{i\pi/2}$ sits at angle $90^\circ$, which is precisely the angle
+$\mat{Q}$ rotates by. Figure~\ref{ch23:fig-rotation} shows both pictures at once:
+the turned arrows on the left, the conjugate pair $\pm i$ on the unit circle on the
+right.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.1,>=Latex]
+  \begin{scope}
+    \draw[help lines,gray!25] (-1.3,-1.3) grid (1.3,1.3);
+    \draw[->] (-1.4,0)--(1.5,0) node[right]{$x$};
+    \draw[->] (0,-1.4)--(0,1.5) node[above]{$y$};
+    \foreach \a in {0,45,...,315}{
+      \draw[->,vecblue,thick] (0,0)--(\a:1);
+      \draw[->,vecred!70,thin] (\a:1)--({\a+90}:1);
+    }
+    \node at (0,-1.9){\small every arrow turns $90^\circ$ -- none stays on its line};
+  \end{scope}
+  \begin{scope}[xshift=5.6cm]
+    \draw[->] (-1.4,0)--(1.5,0) node[right]{Re};
+    \draw[->] (0,-1.4)--(0,1.5) node[above]{Im};
+    \draw[gray!40] (0,0) circle (1);
+    \filldraw[vecred] (0,1) circle (1.6pt) node[above right]{$\lambda=i$};
+    \filldraw[vecred] (0,-1) circle (1.6pt) node[below right]{$\lambda=-i$};
+    \draw[->,structurepurple,thick] (0,0)--(0,1);
+    \coordinate (Aw) at (1,0);
+    \coordinate (Ow) at (0,0);
+    \coordinate (Bw) at (0,1);
+    \draw pic[draw,angle radius=10mm,"$90^\circ$"] {angle=Aw--Ow--Bw};
+    \node at (0,-1.9){\small eigenvalues live on the unit circle};
+  \end{scope}
+\end{tikzpicture}
+\caption{A $90^\circ$ rotation has no real eigendirection (left): every arrow is
+turned. Its eigenvalues are complex, $\pm i$, sitting on the unit circle of the
+complex plane (right). The magnitude $|\lambda|=1$ says ``no stretching''; the
+angle of $\lambda$ says ``rotate by $90^\circ$.''}
+\label{ch23:fig-rotation}
+\end{figure}
+
+The general rotation by angle $\theta$,
+\[
+  \mat{Q}_\theta=\begin{bmatrix}\cos\theta & -\sin\theta\\ \sin\theta & \cos\theta\end{bmatrix},
+  \qquad
+  \tr=2\cos\theta,\quad \det=1,
+\]
+has characteristic polynomial $\lambda^2-2\cos\theta\,\lambda+1=0$, whose roots are
+\[
+  \lambda=\cos\theta\pm\sqrt{\cos^2\theta-1}=\cos\theta\pm i\sin\theta
+  =e^{\pm i\theta}.
+\]
+The eigenvalues are $e^{\pm i\theta}$: unit magnitude (no stretch, $\det=1$), and
+their angle is exactly the rotation angle $\theta$. This is the cleanest possible
+dictionary between a matrix and a complex number.
+
+\begin{focusbox}
+\textbf{The complex eigenvalue dictionary.} A pair of complex eigenvalues
+$\lambda=r e^{\pm i\theta}$ means the matrix \emph{spirals}: it rotates by the
+angle $\theta$ while scaling by the radius $r=|\lambda|$ per application.
+\begin{itemize}
+  \item $|\lambda|=1$: pure rotation, lengths preserved.
+  \item $|\lambda|<1$: inward spiral, the origin is attracting.
+  \item $|\lambda|>1$: outward spiral, the origin is repelling.
+\end{itemize}
+Real eigenvalues stretch along fixed lines; complex eigenvalues rotate-and-scale
+in invariant planes. Together they describe everything a real matrix can do.
+\end{focusbox}
+
+\begin{example}[A spiral matrix]
+\label{ch23:ex-spiral}
+Consider $\mat{A}=\begin{bmatrix}1 & -1\\ 1 & 1\end{bmatrix}$. Trace $2$,
+determinant $1\cdot 1-(-1)(1)=2$, so
+$p(\lambda)=\lambda^2-2\lambda+2=0$ and
+\[
+  \lambda=\frac{2\pm\sqrt{4-8}}{2}=1\pm i.
+\]
+Write $1\pm i=\sqrt{2}\,e^{\pm i\pi/4}$: magnitude $\sqrt 2$, angle $45^\circ$. So
+$\mat{A}$ rotates by $45^\circ$ and stretches by $\sqrt2$ each time you apply it --
+an outward spiral. Indeed $\mat{A}=\sqrt2\,\mat{Q}_{45^\circ}$, which you can check
+directly since $\mat{Q}_{45^\circ}=\tfrac{1}{\sqrt2}\begin{bmatrix}1&-1\\1&1\end{bmatrix}$.
+Repeatedly applying $\mat{A}$ to any nonzero vector traces a spiral winding out to
+infinity, $45^\circ$ at a time (Figure~\ref{ch23:fig-spiral}).
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.62,>=Latex]
+  \draw[help lines,gray!20] (-5,-3) grid (3,5);
+  \draw[->] (-5.2,0)--(3.3,0) node[right]{$x$};
+  \draw[->] (0,-3.2)--(0,5.3) node[above]{$y$};
+  % orbit of (1,0) under A = sqrt2 * Q45: radius x sqrt2, angle +45 each step
+  % n: point
+  \coordinate (p0) at (1,0);
+  \coordinate (p1) at (1,1);
+  \coordinate (p2) at (0,2);
+  \coordinate (p3) at (-2,2);
+  \coordinate (p4) at (-4,0);
+  \draw[vecblue,thick,-{Latex}] (p0)--(p1);
+  \draw[vecblue,thick,-{Latex}] (p1)--(p2);
+  \draw[vecblue,thick,-{Latex}] (p2)--(p3);
+  \draw[vecblue,thick,-{Latex}] (p3)--(p4);
+  \foreach \p/\n in {p0/0,p1/1,p2/2,p3/3,p4/4}{
+    \filldraw[vecred] (\p) circle (2.4pt);
+  }
+  \node[below right] at (p0) {\small $\vec{x}$};
+  \node[right] at (p1) {\small $\mat{A}\vec{x}$};
+  \node[above right] at (p2) {\small $\mat{A}^2\vec{x}$};
+  \node[above left] at (p3) {\small $\mat{A}^3\vec{x}$};
+  \node[below left] at (p4) {\small $\mat{A}^4\vec{x}$};
+\end{tikzpicture}
+\caption{The orbit of $\vec{x}=\protect\colvec{1\\0}$ under repeated application of
+the spiral matrix $\mat{A}=\protect\begin{bmatrix}1&-1\\1&1\protect\end{bmatrix}$.
+Each step turns the vector $45^\circ$ counterclockwise (the angle of the complex
+eigenvalue) and lengthens it by $\sqrt2$ (the magnitude $|\lambda|>1$), so the
+points wind outward. Complex eigenvalues with $|\lambda|>1$ always produce an
+outward spiral like this.}
+\label{ch23:fig-spiral}
+\end{figure}
+
+\begin{trapbox}
+When the discriminant $t^2-4d$ is negative, do not declare ``no eigenvalues.''
+There are still exactly two eigenvalues; they are complex conjugates. For a
+\emph{real} matrix complex eigenvalues always come in conjugate pairs
+$\lambda,\bar\lambda$, because the characteristic polynomial has real coefficients
+(real entries), and the complex roots of a real polynomial pair up. So a real
+$2\times 2$ has either two real eigenvalues or one conjugate pair -- never exactly
+one complex eigenvalue alone.
+\end{trapbox}
+
+\begin{connectionbox}[Eigenvalues, differential equations, and stability]
+The verdict on $|\lambda|$ is the bridge from linear algebra to differential
+equations. The system $\frac{d\vec{x}}{dt}=\mat{A}\vec{x}$ has solutions built
+from $e^{\lambda t}\vec{v}$ for each eigenpair $(\lambda,\vec{v})$ -- you can check
+that $\frac{d}{dt}\bigl(e^{\lambda t}\vec{v}\bigr)=\lambda e^{\lambda t}\vec{v}
+=e^{\lambda t}\mat{A}\vec{v}=\mat{A}\bigl(e^{\lambda t}\vec{v}\bigr)$. The
+\emph{real part} of $\lambda$ now controls fate: $\operatorname{Re}\lambda<0$ means
+$e^{\lambda t}\to 0$, a stable mode that decays; $\operatorname{Re}\lambda>0$ means
+blow-up; and the \emph{imaginary part} sets the frequency of oscillation. A bridge
+oscillates, a circuit rings, a population cycles -- all read off from where the
+eigenvalues sit in the complex plane. (We develop this fully in the differential
+equations chapter; for now, notice that the same complex eigenvalues that meant
+``rotation'' for $\mat{A}\vec{x}$ mean ``oscillation'' for $e^{\mat{A}t}\vec{x}$.)
+\end{connectionbox}
+
+\section{Why eigenvectors of distinct eigenvalues are independent}
+\label{ch23:independence}
+
+We keep saying ``the eigenvectors span the plane'' as if it were automatic. It is
+not automatic, but one clean theorem gives it to us most of the time,
+and its proof is short and worth seeing.
+
+\begin{theorem}[Distinct eigenvalues give independent eigenvectors]
+\label{ch23:thm-indep}
+If $\vec{v}_1,\dots,\vec{v}_k$ are eigenvectors of $\mat{A}$ with \emph{distinct}
+eigenvalues $\lambda_1,\dots,\lambda_k$ (all different from one another), then
+$\vec{v}_1,\dots,\vec{v}_k$ are linearly independent.
+\end{theorem}
+
+\begin{proof}
+Take the smallest case $k=2$ first; it carries the whole idea. Suppose
+$c_1\vec{v}_1+c_2\vec{v}_2=\vec{0}$. Apply $\mat{A}$ to both sides; since
+$\mat{A}\vec{v}_i=\lambda_i\vec{v}_i$,
+\[
+  c_1\lambda_1\vec{v}_1+c_2\lambda_2\vec{v}_2=\vec{0}.
+\]
+Now also multiply the original relation by $\lambda_1$:
+$c_1\lambda_1\vec{v}_1+c_2\lambda_1\vec{v}_2=\vec{0}$. Subtract the two:
+\[
+  c_2(\lambda_2-\lambda_1)\vec{v}_2=\vec{0}.
+\]
+Because $\vec{v}_2\neq\vec{0}$ and $\lambda_2\neq\lambda_1$, the only way out is
+$c_2=0$. Back-substituting, $c_1\vec{v}_1=\vec{0}$ forces $c_1=0$ as well. So the
+only combination giving $\vec{0}$ is the trivial one: $\vec{v}_1,\vec{v}_2$ are
+independent. The general case is the same trick by induction: assume any $k-1$ of
+them are independent; a dependence among all $k$, hit with $\mat{A}$ and combined
+with a $\lambda_k$-multiple of itself, collapses to a dependence among $k-1$, which
+forces all the coefficients to vanish.
+\end{proof}
+
+\begin{corollary}
+\label{ch23:cor-basis}
+If an $n\times n$ matrix has $n$ \emph{distinct} eigenvalues, its $n$ eigenvectors
+form a basis of $\R^n$ (or $\C^n$). Every vector then decomposes into
+eigendirections, and the matrix acts as $n$ independent scalings.
+\end{corollary}
+
+This is the happy case: $n$ different eigenvalues means $n$ independent
+eigenvectors means a complete eigenbasis. The shear of Section~\ref{ch23:special}
+fails precisely because its eigenvalues are \emph{not} distinct -- and that failure
+is the cliff that the next chapter, on diagonalization, builds its guardrails
+around.
+
+\begin{strangbox}
+Strang frames the punchline of this chapter as: ``eigenvectors that come from
+different eigenvalues are independent, so a matrix with no repeated eigenvalues has
+a full set of eigenvectors.'' If you are heading \emph{into} Strang, carry
+Theorem~\ref{ch23:thm-indep} as the reason diagonalization will work; if you are
+coming \emph{out} of Strang, this is the theorem you will lean on to write
+$\mat{A}=\mat{X}\mat{\Lambda}\mat{X}\inv$ in the next chapter and to justify the
+spectral theorem for symmetric matrices later on.
+\end{strangbox}
+
+\section{A worked $3\times 3$}
+\label{ch23:threebythree}
+
+Nothing about the recipe changes in three dimensions; the determinant is just a
+little bigger. Here is one worked all the way through.
+
+\begin{example}[Eigenstructure of a $3\times 3$]
+\label{ch23:ex-3x3}
+Take
+\[
+  \mat{A}=\begin{bmatrix}2 & 0 & 0\\ 1 & 2 & 1\\ -1 & 0 & 1\end{bmatrix}.
+\]
+\emph{Characteristic polynomial.} Expand $\det(\mat{A}-\lambda\mat{I})$ along the
+first row, which has two zeros and so is easy:
+\[
+  \det\begin{bmatrix}2-\lambda & 0 & 0\\ 1 & 2-\lambda & 1\\ -1 & 0 & 1-\lambda\end{bmatrix}
+  =(2-\lambda)\det\begin{bmatrix}2-\lambda & 1\\ 0 & 1-\lambda\end{bmatrix}.
+\]
+The remaining $2\times 2$ is triangular, so its determinant is
+$(2-\lambda)(1-\lambda)$. Altogether
+\[
+  p(\lambda)=(2-\lambda)\,(2-\lambda)(1-\lambda)=(2-\lambda)^2(1-\lambda).
+\]
+The eigenvalues are $\lambda=2$ (a double root) and $\lambda=1$.
+
+\emph{Check with trace and determinant.} The trace is $2+2+1=5$, and the
+eigenvalues sum to $2+2+1=5$. Good. The determinant is
+$\lambda_1\lambda_2\lambda_3=2\cdot2\cdot1=4$; you can verify directly that
+$\det\mat{A}=4$ by cofactor expansion. Both fingerprints match.
+
+\emph{Eigenvectors for $\lambda=1$.} Solve $(\mat{A}-\mat{I})\vec{x}=\vec{0}$:
+\[
+  \mat{A}-\mat{I}=\begin{bmatrix}1 & 0 & 0\\ 1 & 1 & 1\\ -1 & 0 & 0\end{bmatrix}.
+\]
+Row one says $x_1=0$; row two then says $x_2+x_3=0$, so $x_2=-x_3$. Taking
+$x_3=1$ gives the eigenvector $\colvec{0\\-1\\1}$.
+
+\emph{Eigenvectors for $\lambda=2$.} Solve $(\mat{A}-2\mat{I})\vec{x}=\vec{0}$:
+\[
+  \mat{A}-2\mat{I}=\begin{bmatrix}0 & 0 & 0\\ 1 & 0 & 1\\ -1 & 0 & -1\end{bmatrix}.
+\]
+The first row is all zeros; the second and third rows both reduce to
+$x_1+x_3=0$. So there are \emph{two} free variables ($x_2$ free, and $x_3$ free
+with $x_1=-x_3$). The eigenvectors for $\lambda=2$ fill a whole \emph{plane},
+spanned by $\colvec{0\\1\\0}$ (taking $x_2=1,x_3=0$) and $\colvec{-1\\0\\1}$
+(taking $x_2=0,x_3=1$).
+
+So even though $\lambda=2$ is a double root, here it is lucky: it supplies a
+two-dimensional eigenspace, enough to pair with the $\lambda=1$ eigenvector and
+fill all of $\R^3$. This matrix has a complete eigenbasis,
+$\bigl\{\colvec{0\\-1\\1},\colvec{0\\1\\0},\colvec{-1\\0\\1}\bigr\}$, despite the
+repeated eigenvalue. The shear had no such luck; the difference between these two
+cases is exactly the algebraic-versus-geometric multiplicity gap from the trap box
+in Section~\ref{ch23:special}. Figure~\ref{ch23:fig-3x3} pictures the result: a
+single eigen-line for $\lambda=1$ and an entire eigen-plane for $\lambda=2$,
+together filling $\R^3$.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Latex,line join=round]
+  % simple oblique 3D axes
+  \def\ax{(2.6,0)}     % x to the right
+  \def\ay{(-1.1,-0.75)}% y receding
+  \def\az{(0,2.6)}     % z up
+  \draw[->,gray!70] (0,0)--\ax node[right]{$x_1$};
+  \draw[->,gray!70] (0,0)--\ay node[below left]{$x_2$};
+  \draw[->,gray!70] (0,0)--\az node[above]{$x_3$};
+  % the lambda=2 eigen-plane spanned by (0,1,0) and (-1,0,1):
+  % use screen-coordinate parallelogram suggesting the tilted plane
+  \fill[targetgreen!18,draw=targetgreen!60]
+    (-1.05,1.85)--(1.35,1.35)--(0.05,-1.85)--(-2.35,-1.35)--cycle;
+  \node[targetgreen!60!black] at (1.55,1.7) {\small $\lambda=2$ plane};
+  % spanning eigenvectors inside the plane
+  \draw[->,vecblue,very thick] (0,0)--(-1.1,-0.75) node[below]{\small $\colvec{0\\1\\0}$};
+  \draw[->,vecblue,very thick] (0,0)--(-2.6,2.6)
+        node[above left]{\small $\colvec{-1\\0\\1}$};
+  % the lambda=1 eigen-line through (0,-1,1): screen dir = -ay + az
+  \draw[vecred,very thick] (1.1+0,-0.75-2.6) -- (-1.1,0.75+2.6);
+  \draw[->,vecred,very thick] (0,0)--(1.1,2.6+0.75);
+  \node[vecred] at (1.9,2.7) {\small $\lambda=1$ line};
+  \filldraw (0,0) circle (1.4pt);
+\end{tikzpicture}
+\caption{Eigenspaces of the $3\times 3$ matrix of Example~\ref{ch23:ex-3x3}. The
+double eigenvalue $\lambda=2$ owns a whole plane (green), spanned by
+$\colvec{0\\1\\0}$ and $\colvec{-1\\0\\1}$; the eigenvalue $\lambda=1$ owns a single
+line (red) along $\colvec{0\\-1\\1}$. The plane and the line meet only at the origin
+and together span $\R^3$, so the matrix has a complete eigenbasis.}
+\label{ch23:fig-3x3}
+\end{figure}
+
+
+\begin{labbox}
+By hand, find all eigenvalues of
+$\mat{A}=\begin{bmatrix}2 & 1 & 0\\ 0 & 2 & 0\\ 0 & 0 & 3\end{bmatrix}$
+(triangular -- read them off), then determine the dimension of the eigenspace for
+$\lambda=2$ by row-reducing $\mat{A}-2\mat{I}$. You should find $\lambda=2$ is a
+double root but its eigenspace is only one-dimensional: a $3\times 3$ cousin of the
+shear, a matrix that \emph{cannot} be diagonalized. Compare with
+Example~\ref{ch23:ex-3x3}, where the double root was diagonalizable.
+\end{labbox}
+
+\section{Pulling it together}
+\label{ch23:together}
+
+\begin{aestheticbox}
+Consider what one equation, $\mat{A}\vec{x}=\lambda\vec{x}$, has
+bought us. We started with a matrix as an inscrutable machine that turns every
+vector differently. We found its private set of directions -- the ones it merely
+scales -- and along those directions the matrix is as simple as multiplication by a
+number. The eigenvalues are the matrix's deepest invariants: they add to the trace,
+multiply to the determinant, are real for stretches and complex for rotations, and
+forecast the long-run behavior of repeated application. From here, two roads open.
+One leads to \emph{diagonalization}, $\mat{A}=\mat{X}\mat{\Lambda}\mat{X}\inv$,
+where the eigenvectors become a new coordinate system in which the matrix is just a
+diagonal of eigenvalues. The other leads, through symmetric matrices and the
+spectral theorem, to the \emph{singular value decomposition} and the principal
+components that organize modern data. Every one of those landmarks is this chapter's
+single idea, applied again and again.
+\end{aestheticbox}
+
+\begin{focusbox}
+\textbf{What to hold onto from this chapter.}
+\begin{itemize}
+  \item $\mat{A}\vec{x}=\lambda\vec{x}$ with $\vec{x}\neq\vec{0}$: eigenvectors are
+        the directions a matrix does not turn; eigenvalues are how much it scales
+        them.
+  \item Eigenvalues are the roots of $\det(\mat{A}-\lambda\mat{I})=0$; eigenvectors
+        are the nullspace of $\mat{A}-\lambda\mat{I}$.
+  \item For $2\times 2$: eigenvalues add to the trace and multiply to the
+        determinant; $p(\lambda)=\lambda^2-(\tr\mat{A})\lambda+\det\mat{A}$.
+  \item Triangular matrices show their eigenvalues on the diagonal.
+  \item $\lambda=0\Leftrightarrow$ singular; $|\lambda|$ governs long-run growth;
+        complex eigenvalues $r e^{\pm i\theta}$ mean rotate-by-$\theta$,
+        scale-by-$r$.
+  \item Distinct eigenvalues $\Rightarrow$ independent eigenvectors $\Rightarrow$
+        a complete eigenbasis (the doorway to diagonalization).
+  \end{itemize}
+\end{focusbox}
+
+\section*{Exercises}
+\addcontentsline{toc}{section}{Exercises}
+
+\begin{exercise}[Warmup by hand]
+\label{ch23:ex-warm}
+For each matrix, find the eigenvalues and one eigenvector per eigenvalue.
+\[
+  \text{(a) } \begin{bmatrix}3 & 0\\ 0 & -2\end{bmatrix}\quad
+  \text{(b) } \begin{bmatrix}2 & 1\\ 0 & 2\end{bmatrix}\quad
+  \text{(c) } \begin{bmatrix}0 & 2\\ 2 & 0\end{bmatrix}\quad
+  \text{(d) } \begin{bmatrix}1 & 4\\ 1 & 1\end{bmatrix}.
+\]
+\end{exercise}
+
+\begin{exercise}[Trace and determinant only]
+\label{ch23:ex-tracedet-only}
+Without expanding any characteristic polynomial, find the eigenvalues of
+$\begin{bmatrix}6 & 2\\ 2 & 3\end{bmatrix}$ using only that they add to the trace
+and multiply to the determinant. Then verify by computing
+$\det(\mat{A}-\lambda\mat{I})$ directly.
+\end{exercise}
+
+\begin{exercise}[Reflection geometry]
+\label{ch23:ex-reflect}
+The matrix $\mat{R}=\begin{bmatrix}0 & 1\\ 1 & 0\end{bmatrix}$ reflects the plane
+across the line $y=x$. \textbf{(a)} Without computing, predict its eigenvalues and
+eigenvectors from the geometry. \textbf{(b)} Confirm with the characteristic
+equation. \textbf{(c)} Explain why $\mat{R}^2=\mat{I}$ follows from the eigenvalues.
+\end{exercise}
+
+\begin{exercise}[A rotation in disguise]
+\label{ch23:ex-rot}
+Let $\mat{A}=\begin{bmatrix}3 & -2\\ 2 & 3\end{bmatrix}$. \textbf{(a)} Show the
+eigenvalues are complex and write them in the form $r e^{\pm i\theta}$. \textbf{(b)}
+By what angle does $\mat{A}$ rotate, and by what factor does it scale, each time it
+is applied? \textbf{(c)} What is the long-run fate of $\mat{A}^n\vec{x}$ for a
+generic $\vec{x}$ -- does it spiral in or out?
+\end{exercise}
+
+\begin{exercise}[Singular means $\lambda=0$]
+\label{ch23:ex-singular}
+Show that the matrix $\begin{bmatrix}2 & 4\\ 1 & 2\end{bmatrix}$ has $0$ as an
+eigenvalue, find the corresponding eigenvector, and explain how this eigenvector
+relates to the nullspace and to the fact that $\det\mat{A}=0$.
+\end{exercise}
+
+\begin{exercise}[Eigenvalues of $\mat{A}^2$ and $\mat{A}\inv$]
+\label{ch23:ex-powers}
+Suppose $\mat{A}\vec{x}=\lambda\vec{x}$ with $\vec{x}\neq\vec{0}$. \textbf{(a)} Show
+$\mat{A}^2\vec{x}=\lambda^2\vec{x}$, so $\lambda^2$ is an eigenvalue of
+$\mat{A}^2$ with the \emph{same} eigenvector. \textbf{(b)} If $\mat{A}$ is
+invertible, show $\mat{A}\inv\vec{x}=\tfrac{1}{\lambda}\vec{x}$. \textbf{(c)}
+Show $(\mat{A}+c\mat{I})\vec{x}=(\lambda+c)\vec{x}$. Conclude that shifting a matrix
+by $c\mat{I}$ shifts every eigenvalue by $c$ but leaves the eigenvectors alone.
+\end{exercise}
+
+\begin{exercise}[A $3\times 3$ from start to finish]
+\label{ch23:ex-3full}
+For $\mat{A}=\begin{bmatrix}4 & 0 & 1\\ -2 & 1 & 0\\ -2 & 0 & 1\end{bmatrix}$,
+find the characteristic polynomial, all three eigenvalues, and an eigenvector for
+each. Check your eigenvalues against the trace and the determinant.
+\end{exercise}
+
+\begin{exercise}[Repeated eigenvalue, two outcomes]
+\label{ch23:ex-repeat}
+Both $\mat{I}=\begin{bmatrix}5 & 0\\ 0 & 5\end{bmatrix}$ and
+$\mat{J}=\begin{bmatrix}5 & 1\\ 0 & 5\end{bmatrix}$ have the single eigenvalue
+$\lambda=5$ (doubled). For each, find the dimension of the eigenspace for
+$\lambda=5$. Explain in words why one of these has a full set of eigenvectors and
+the other does not, and connect this to the shear of Section~\ref{ch23:special}.
+\end{exercise}
+
+\begin{exercise}[Trace/determinant proof]
+\label{ch23:ex-proof}
+Prove that for any $2\times 2$ matrix $\mat{A}=\begin{bmatrix}a&b\\c&d\end{bmatrix}$,
+the characteristic polynomial equals $\lambda^2-(\tr\mat{A})\lambda+\det\mat{A}$,
+and deduce that the two eigenvalues satisfy $\lambda_1+\lambda_2=\tr\mat{A}$ and
+$\lambda_1\lambda_2=\det\mat{A}$. Then show, as a consequence, that a real
+$2\times 2$ matrix has complex (non-real) eigenvalues exactly when
+$(\tr\mat{A})^2<4\det\mat{A}$.
+\end{exercise}
+
+\begin{exercise}[The Markov long run -- challenge]
+\label{ch23:ex-markov}
+Let $\mat{M}=\begin{bmatrix}0.8 & 0.3\\ 0.2 & 0.7\end{bmatrix}$ (each column sums
+to $1$; it is a probability transition matrix). \textbf{(a)} Show $\lambda=1$ is an
+eigenvalue and find its eigenvector $\vec{q}$; scale $\vec{q}$ so its entries sum to
+$1$. \textbf{(b)} Find the other eigenvalue and confirm $|\lambda|<1$.
+\textbf{(c)} Using the eigendecomposition idea of
+Section~\ref{ch23:geometry}, argue that for \emph{any} starting probability vector
+$\vec{p}_0$, the sequence $\mat{M}^n\vec{p}_0$ converges to $\vec{q}$. Why does the
+eigenvalue $1$ ``win,'' and what role does the second eigenvalue play in how fast
+you get there?
+\end{exercise}
+
+\begin{exercise}[Complex eigenvectors -- challenge]
+\label{ch23:ex-complex-evec}
+For the $90^\circ$ rotation $\mat{Q}=\begin{bmatrix}0 & -1\\ 1 & 0\end{bmatrix}$
+with eigenvalue $\lambda=i$, solve $(\mat{Q}-i\mat{I})\vec{x}=\vec{0}$ over the
+complex numbers to find a complex eigenvector. Then take the eigenvalue
+$\lambda=-i$ and show its eigenvector is the complex conjugate of the first. (This
+conjugate-pairing of complex eigenvectors mirrors the conjugate-pairing of complex
+eigenvalues for real matrices.)
+\end{exercise}
+
+\begin{exercise}[Build a matrix from eigendata]
+\label{ch23:ex-build}
+Construct a $2\times 2$ matrix whose eigenvalues are $3$ and $-1$ with
+eigenvectors $\colvec{1\\1}$ and $\colvec{1\\-1}$ respectively. \emph{Hint:} you
+want $\mat{A}\colvec{1\\1}=3\colvec{1\\1}$ and $\mat{A}\colvec{1\\-1}=-\colvec{1\\-1}$;
+set up and solve for the four entries, or anticipate the next chapter and build
+$\mat{A}=\mat{X}\mat{\Lambda}\mat{X}\inv$ with the eigenvectors as the columns of
+$\mat{X}$.
+\end{exercise}

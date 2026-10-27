@@ -1,0 +1,1072 @@
+\chapter{Linear Transformations and Change of Basis}
+
+Back in the chapter on matrices as machines, we learned a liberating idea: a
+matrix is a verb. It grabs every vector in space and drags it somewhere. But we
+were quietly making an assumption the whole time -- that we were describing
+vectors in the ordinary $xy$ grid, with the steps $\colvec{1\\0}$ and
+$\colvec{0\\1}$ as our units. Those two arrows are a \emph{choice}. They are a
+good choice, a comfortable choice, but they are not the only one. And here is the
+secret this chapter is built around:
+
+\begin{quote}
+\emph{A linear transformation is a physical motion of space. The matrix is only
+its shadow in one particular coordinate system. Change the coordinate system and
+the same motion casts a different matrix.}
+\end{quote}
+
+This is the difference between the \textbf{operator} (the verb, the geometric
+act of rotating or stretching or projecting) and its \textbf{matrix} (the table
+of numbers we get once we pin down a basis). Confusing the two is one of the most
+common sources of pain in linear algebra. Separating them is one of its great
+liberations -- because once you can choose the coordinate system, you can choose
+the one in which the operator looks as simple as humanly possible. That is the
+whole point of diagonalization, the spectral theorem, and the SVD. They are all
+the same sentence: \emph{pick the right basis and the machine becomes obvious.}
+
+This chapter slows all the way down to make that sentence precise. We define
+linear maps abstractly, watch the matrix of a map appear out of a basis, build
+the change-of-basis machinery one careful gear at a time, and finally circle back
+to similarity and see why ``the same operator in different clothes'' is exactly
+what $\mat{P}\inv \mat{A}\mat{P}$ means.
+
+\section{The Operator and Its Matrix Are Two Different Things}
+\label{ch31:operator-vs-matrix}
+
+Let me start with a picture you already trust and then disturb it gently.
+
+Take a flat sheet of paper and rotate it a quarter turn counterclockwise around
+its center. That is a transformation. Every point on the paper moves; the move is
+rigid (lengths and angles are preserved) and it fixes the center. Nothing about
+this act mentions numbers, axes, or a grid. The rotation is just \emph{a thing
+that happens to space}. Call it $T$.
+
+Now you want to \emph{compute} with $T$. You lay a coordinate grid on the paper,
+declare two unit arrows $\vec{e}_1 = \colvec{1\\0}$ and $\vec{e}_2 = \colvec{0\\1}$,
+and ask: where do these two arrows go? The quarter turn sends $\vec{e}_1$ to
+$\colvec{0\\1}$ and $\vec{e}_2$ to $\colvec{-1\\0}$. Stack those answers as
+columns and you have the matrix
+\[
+  \mat{R} = \begin{bmatrix} 0 & -1 \\ 1 & 0 \end{bmatrix}.
+\]
+That matrix is the rotation \emph{as seen in this grid}. Tilt the grid forty-five
+degrees and repeat the experiment, and you will get a different table of numbers
+for the very same physical quarter turn (Figure~\ref{ch31:fig-operator-vs-matrix}).
+The rotation did not change. Your description of it did.
+
+\begin{intuitionbox}
+The operator is the dancer; the matrix is a photograph taken from one chosen
+angle. Walk around to a new vantage point and you get a new photograph of the
+\emph{same} dancer. Linear algebra spends much of its energy looking for the
+vantage point from which the dance is easiest to read.
+\end{intuitionbox}
+
+\begin{focusbox}
+Two objects, never to be confused:
+\begin{itemize}
+  \item A \textbf{linear operator / transformation} $T:V\to W$ -- a geometric or
+        abstract rule, basis-free, the actual motion.
+  \item Its \textbf{matrix} $[T]$ -- a grid of numbers that only exists \emph{after}
+        you have chosen a basis for $V$ and one for $W$.
+\end{itemize}
+``The matrix of a transformation depends on the chosen bases.'' Tattoo it
+somewhere.
+\end{focusbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % left: operator as motion
+  \begin{scope}[shift={(0,0)}]
+    \draw[->,gray!55] (-1.4,0) -- (1.6,0);
+    \draw[->,gray!55] (0,-1.4) -- (0,1.6);
+    \draw[->,vecblue,very thick] (0,0) -- (1.2,0.2) node[right]{$\vec{x}$};
+    \draw[->,vecred,very thick] (0,0) -- (-0.2,1.2) node[above]{$T\vec{x}$};
+    \draw[->,gray!70] (1.05,0.45) arc (15:95:1.1);
+    \node at (0,-2.0) {\small the motion $T$ (a quarter turn)};
+  \end{scope}
+  % right: two photographs
+  \begin{scope}[shift={(6.4,0)}]
+    \node at (0,1.3) {\small same $T$, two bases};
+    \node[vecblue] at (0,0.5) {standard: $\begin{bmatrix} 0 & -1 \\ 1 & 0\end{bmatrix}$};
+    \node[vecred] at (0,-0.7) {tilted: $\begin{bmatrix} 0 & 1 \\ -1 & 0\end{bmatrix}$};
+    \node at (0,-2.0) {\small two photographs of one dancer};
+  \end{scope}
+\end{tikzpicture}
+\caption{The same physical quarter turn produces different matrices in different
+coordinate systems. In the basis $\vec{b}_1=(1,1),\vec{b}_2=(1,-1)$ the very same
+rotation reads $\protect\begin{bsmallmatrix}0&1\\-1&0\protect\end{bsmallmatrix}$
+(you will verify this in Exercise~\ref{ch31:ex-build}). The operator is fixed; the
+numbers are a description.}
+\label{ch31:fig-operator-vs-matrix}
+\end{figure}
+
+\section{Linear Maps, Abstractly}
+\label{ch31:linear-maps}
+
+Before we can change bases we need a clear statement of what a linear map even is,
+in a way that does not lean on a grid at all. You have seen the two rules many
+times; here they are as the whole definition.
+
+\begin{definition}[Linear transformation]
+\label{ch31:def-linear}
+Let $V$ and $W$ be vector spaces over $\R$. A function $T:V\to W$ is a
+\textbf{linear transformation} (or \textbf{linear map}, or \textbf{linear
+operator} when $W=V$) if for all $\vec{u},\vec{v}\in V$ and all scalars
+$c\in\R$,
+\[
+  T(\vec{u}+\vec{v}) = T(\vec{u}) + T(\vec{v}),
+  \qquad
+  T(c\,\vec{v}) = c\,T(\vec{v}).
+\]
+Equivalently, $T$ preserves every linear combination:
+$T(a\vec{u}+b\vec{v}) = a\,T(\vec{u}) + b\,T(\vec{v})$.
+\end{definition}
+
+That single ``preserves combinations'' line is the entire engine of the subject.
+Suppose $V=\R^n$ and you know what $T$ does to
+the standard basis vectors $\vec{e}_1,\dots,\vec{e}_n$. Then you know what $T$
+does to \emph{everything}, because every vector is a combination of basis
+vectors:
+\[
+  \vec{x} = x_1\vec{e}_1 + \cdots + x_n\vec{e}_n
+  \;\Longrightarrow\;
+  T(\vec{x}) = x_1\,T(\vec{e}_1) + \cdots + x_n\,T(\vec{e}_n).
+\]
+A linear map is completely determined by where it sends a basis. This is not a
+small remark -- it is the reason a finite table of numbers (the matrix) can
+capture a transformation of infinitely many vectors at once.
+
+\begin{aestheticbox}
+Linearity is a kind of restraint: $T$ does nothing sneaky between
+the basis vectors. Whatever it does to the corners, it does to the inside by pure
+proportion. That is why knowing $T$ on a handful of vectors pins it down
+everywhere -- and why all of linear algebra reduces to ``what happens to a
+basis.''
+\end{aestheticbox}
+
+\begin{example}[Two famous linear maps that are not matrices yet]
+\label{ch31:ex-abstract-maps}
+Linear maps live in places far from $\R^n$, which is exactly why the abstract
+definition earns its keep.
+
+\emph{Differentiation.} Let $V$ be the space of polynomials of degree at most $3$.
+The derivative $D(p) = p'$ is a linear map $V\to V$:
+$(\,a p + b q\,)' = a p' + b q'$. No grid in sight -- yet, as we will see, once we
+pick the basis $\{1,t,t^2,t^3\}$ it \emph{becomes} a $4\times 4$ matrix.
+
+\emph{Rotation.} The quarter turn $T$ of Section~\ref{ch31:operator-vs-matrix} is
+linear: rotating a sum of arrows is the same as rotating each and adding. The
+matrix $\mat{R}$ was a consequence, not the definition.
+\end{example}
+
+\begin{trapbox}
+``Linear'' does not mean ``a straight-line graph'' and it does not mean
+``$y=mx+b$.'' The map $x\mapsto x+1$ is \emph{not} linear: it moves the origin
+($T(0)=1\neq 0$). Every genuine linear map fixes the origin, $T(\vec{0})=\vec{0}$,
+because $T(\vec{0})=T(0\cdot\vec{0})=0\cdot T(\vec{0})=\vec{0}$. Shifts are
+``affine,'' a strictly larger and looser family.
+\end{trapbox}
+
+\section{Coordinates: A Vector's Address in a Basis}
+\label{ch31:coordinates}
+
+To turn an abstract map into a matrix we first need to turn an abstract vector
+into a column of numbers. That is what a basis does: it gives every vector an
+\textbf{address}.
+
+\begin{definition}[Coordinate vector]
+\label{ch31:def-coords}
+Let $\mathcal{B} = \{\vec{b}_1,\dots,\vec{b}_n\}$ be a basis of $V$. Every
+$\vec{v}\in V$ is a \emph{unique} combination
+$\vec{v} = c_1\vec{b}_1 + \cdots + c_n\vec{b}_n$. The list of weights is the
+\textbf{coordinate vector of $\vec{v}$ relative to $\mathcal{B}$}:
+\[
+  [\vec{v}]_{\mathcal{B}} = \colvec{c_1\\\vdots\\c_n}.
+\]
+\end{definition}
+
+The uniqueness is the whole reason coordinates are well defined; it is exactly
+what ``basis'' buys you (independent, so weights can't be juggled; spanning, so
+weights exist). The address is not the vector -- it is the vector \emph{told to
+someone who has agreed on the basis $\mathcal{B}$.}
+
+\begin{example}[The same arrow, two addresses]
+\label{ch31:ex-two-addresses}
+Take the geometric arrow $\vec{v}$ pointing to the point $(4,3)$ in the
+plane. In the standard basis $\mathcal{E}=\{\vec{e}_1,\vec{e}_2\}$ its address is
+the boring one,
+\[
+  [\vec{v}]_{\mathcal{E}} = \colvec{4\\3},
+\]
+which is why the standard basis feels invisible: the address equals the arrow.
+Now switch to the slanted basis
+\[
+  \vec{b}_1 = \colvec{1\\1}, \qquad \vec{b}_2 = \colvec{1\\-1}.
+\]
+We need $c_1,c_2$ with $c_1\vec{b}_1 + c_2\vec{b}_2 = \colvec{4\\3}$, i.e.
+\[
+  c_1 + c_2 = 4, \qquad c_1 - c_2 = 3.
+\]
+Adding gives $2c_1 = 7$, so $c_1 = \tfrac72$ and $c_2 = \tfrac12$. The same arrow
+now has the address
+\[
+  [\vec{v}]_{\mathcal{B}} = \colvec{7/2 \\ 1/2}.
+\]
+One arrow, two completely different lists of numbers. The arrow did not move; we
+just described it to two different people who had agreed on different axes.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.85,>=Stealth]
+  \draw[->,gray!50] (-0.5,0) -- (5,0) node[right]{};
+  \draw[->,gray!50] (0,-2.2) -- (0,4) node[above]{};
+  % slanted basis
+  \draw[->,structurepurple,very thick] (0,0) -- (1,1) node[above left]{$\vec{b}_1$};
+  \draw[->,structurepurple,very thick] (0,0) -- (1,-1) node[below]{$\vec{b}_2$};
+  % the vector
+  \draw[->,vecred,very thick] (0,0) -- (4,3) node[above right]{$\vec{v}$};
+  % reconstruction 7/2 b1 + 1/2 b2
+  \draw[->,vecblue,dashed,thick] (0,0) -- (3.5,3.5);
+  \draw[->,vecblue,dashed,thick] (3.5,3.5) -- (4,3);
+  \node[vecblue] at (2.4,3.5) {\small $\tfrac72\vec{b}_1$};
+  \node[vecblue] at (4.4,3.4) {\small $+\tfrac12\vec{b}_2$};
+\end{tikzpicture}
+\caption{The arrow to $(4,3)$ reached two ways. Standard address $(4,3)$; slanted
+address $(7/2,\,1/2)$ because $\tfrac72\vec{b}_1+\tfrac12\vec{b}_2=\vec{v}$.}
+\label{ch31:fig-two-addresses}
+\end{figure}
+
+\begin{focusbox}
+Coordinates are addresses, and addresses change when the basis changes. The
+moment you write $\colvec{4\\3}$ you have silently agreed on a basis. Most of the
+confusion in this chapter dissolves once you ask, every single time: \emph{a
+column of numbers -- in which basis?}
+\end{focusbox}
+
+\section{The Matrix of a Transformation in Given Bases}
+\label{ch31:matrix-of-T}
+
+Now we can assemble the central object. We have an abstract linear map
+$T:V\to W$. We choose a basis $\mathcal{B}=\{\vec{b}_1,\dots,\vec{b}_n\}$ for the
+input space $V$ and a basis $\mathcal{C}=\{\vec{c}_1,\dots,\vec{c}_m\}$ for the
+output space $W$. We want a matrix that does the same job on \emph{addresses} that
+$T$ does on \emph{vectors}.
+
+The recipe is the one we glimpsed for rotations, now stated in full generality.
+
+\begin{formalbox}
+\textbf{Matrix of a linear map.} Let $T:V\to W$ be linear, with input basis
+$\mathcal{B}$ and output basis $\mathcal{C}$. For each input basis vector
+$\vec{b}_j$, compute $T(\vec{b}_j)$ and write its coordinates in $\mathcal{C}$.
+Those coordinate columns, side by side, form the matrix
+\[
+  [T]_{\mathcal{C}\leftarrow\mathcal{B}}
+  = \Big[\; [T\vec{b}_1]_{\mathcal{C}} \;\big|\; [T\vec{b}_2]_{\mathcal{C}}
+     \;\big|\; \cdots \;\big|\; [T\vec{b}_n]_{\mathcal{C}} \;\Big].
+\]
+It is the unique $m\times n$ matrix satisfying, for every $\vec{v}\in V$,
+\[
+  [\,T\vec{v}\,]_{\mathcal{C}} \;=\; [T]_{\mathcal{C}\leftarrow\mathcal{B}}\;[\vec{v}]_{\mathcal{B}}.
+\]
+\end{formalbox}
+
+Read the subscript ``$\mathcal{C}\leftarrow\mathcal{B}$'' out loud as ``out of
+$\mathcal{B}$, into $\mathcal{C}$.'' The arrow points the way the data flows: feed
+in a $\mathcal{B}$-address on the right, receive a $\mathcal{C}$-address on the
+left. That notation will save you from a dozen sign-and-direction errors later.
+
+Why does the recipe work? Pure linearity. Take any $\vec{v}$ with
+$\mathcal{B}$-address $\colvec{x_1\\\vdots\\x_n}$, so
+$\vec{v}=\sum_j x_j\vec{b}_j$. Apply $T$ and use linearity:
+\[
+  T\vec{v} = \sum_{j} x_j\, T\vec{b}_j.
+\]
+Now take $\mathcal{C}$-coordinates of both sides. Coordinates are themselves
+linear (Definition~\ref{ch31:def-coords} respects sums and scalars), so
+\[
+  [T\vec{v}]_{\mathcal{C}} = \sum_j x_j\,[T\vec{b}_j]_{\mathcal{C}}
+  = \Big[\,[T\vec{b}_1]_{\mathcal{C}}\,\big|\cdots\big|\,[T\vec{b}_n]_{\mathcal{C}}\,\Big]\colvec{x_1\\\vdots\\x_n}.
+\]
+The bracketed thing is exactly the matrix above, and the column on the right is
+$[\vec{v}]_{\mathcal{B}}$. Done. The columns of a transformation matrix are always
+``where the input basis vectors go, written in the output basis.''
+
+\begin{intuitionbox}
+The standard $2\times 2$ trick you already know -- ``the columns of $\mat{A}$ are
+$\mat{A}\vec{e}_1$ and $\mat{A}\vec{e}_2$'' -- is just this formula with
+$\mathcal{B}=\mathcal{C}=$ the standard basis. The general version says: it was
+never about $\vec{e}_1,\vec{e}_2$ specifically. It is about \emph{whatever basis
+you chose}. Feed the machine the basis vectors, record where they land in your
+output language, stack the answers.
+\end{intuitionbox}
+
+\begin{example}[Differentiation becomes a matrix]
+\label{ch31:ex-derivative-matrix}
+Let $V$ be polynomials of degree $\le 3$ with basis
+$\mathcal{B}=\{1,\,t,\,t^2,\,t^3\}$, and let $T=D$ be the derivative, which we
+already know is linear (Example~\ref{ch31:ex-abstract-maps}). Apply $D$ to each
+basis vector and express the result in the same basis $\mathcal{B}$:
+\[
+  D(1)=0,\quad D(t)=1,\quad D(t^2)=2t,\quad D(t^3)=3t^2.
+\]
+Their $\mathcal{B}$-coordinate columns are
+$\colvec{0\\0\\0\\0},\colvec{1\\0\\0\\0},\colvec{0\\2\\0\\0},\colvec{0\\0\\3\\0}$,
+so
+\[
+  [D]_{\mathcal{B}\leftarrow\mathcal{B}}
+  = \begin{bmatrix} 0 & 1 & 0 & 0\\ 0 & 0 & 2 & 0\\ 0 & 0 & 0 & 3\\ 0 & 0 & 0 & 0\end{bmatrix}.
+\]
+Sanity check on $p(t)=5 + 2t + 7t^2 - t^3$, whose address is
+$[\,p\,]_{\mathcal{B}}=\colvec{5\\2\\7\\-1}$:
+\[
+  [D]_{\mathcal{B}\leftarrow\mathcal{B}}\colvec{5\\2\\7\\-1}
+  = \colvec{2\\14\\-3\\0},
+\]
+which decodes to $2 + 14t - 3t^2$. And indeed $p'(t) = 2 + 14t - 3t^2$. Calculus,
+done by matrix multiplication. The abstract definition was not decoration -- it
+let us treat derivatives with the same machinery as rotations.
+\end{example}
+
+\begin{connectionbox}
+That last example is the seed of an enormous tree. Treating differentiation as a
+matrix (or, for infinite-dimensional function spaces, as a \emph{linear
+operator}) is the founding move of \textbf{functional analysis} and of every
+numerical method for differential equations. ``Discretize the derivative'' means
+``replace the operator $D$ by a finite matrix in some basis,'' which is precisely
+Example~\ref{ch31:ex-derivative-matrix}. Eigenvalues of $D$-like operators are
+where vibration frequencies, quantum energy levels, and the heat equation's decay
+rates come from. Same chapter, much bigger room.
+\end{connectionbox}
+
+\subsection{A non-square example: bases on input and output}
+\label{ch31:nonsquare}
+
+When $V$ and $W$ differ, the two bases really are independent choices and the
+``out of $\mathcal{B}$, into $\mathcal{C}$'' bookkeeping earns its pay.
+
+\begin{example}[A map from the plane to $3$-space]
+\label{ch31:ex-nonsquare}
+Define $T:\R^2\to\R^3$ by
+$T\colvec{x\\y}=\colvec{x+y\\\,2x\,\\x-y}$. Take the standard input basis
+$\mathcal{B}=\{\vec{e}_1,\vec{e}_2\}$ but a \emph{nonstandard} output basis
+\[
+  \mathcal{C}=\Big\{\,\vec{c}_1=\colvec{1\\0\\1},\;\vec{c}_2=\colvec{1\\0\\-1},\;\vec{c}_3=\colvec{0\\1\\0}\,\Big\}.
+\]
+First find where the input basis goes
+(Figure~\ref{ch31:fig-nonsquare}):
+$T\vec{e}_1=\colvec{1\\2\\1}$, $T\vec{e}_2=\colvec{1\\0\\-1}$. Now write each in
+$\mathcal{C}$-coordinates. For $T\vec{e}_1=\colvec{1\\2\\1}$ we need
+$a\vec{c}_1+b\vec{c}_2+c\vec{c}_3=\colvec{1\\2\\1}$:
+\[
+  a+b=1,\quad c=2,\quad a-b=1 \;\Rightarrow\; a=1,\,b=0,\,c=2,
+\]
+so $[T\vec{e}_1]_{\mathcal{C}}=\colvec{1\\0\\2}$. For
+$T\vec{e}_2=\colvec{1\\0\\-1}=\vec{c}_2$ directly, so
+$[T\vec{e}_2]_{\mathcal{C}}=\colvec{0\\1\\0}$. Hence
+\[
+  [T]_{\mathcal{C}\leftarrow\mathcal{B}}
+  = \begin{bmatrix} 1 & 0\\ 0 & 1\\ 2 & 0 \end{bmatrix}.
+\]
+Same map $T$; had we used the standard output basis we would have written the
+columns $\colvec{1\\2\\1},\colvec{1\\0\\-1}$ instead. The clever output basis
+revealed structure the standard one hid.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth,every node/.style={font=\small}]
+  % input plane on the left
+  \draw[sourceblue,thick] (-0.3,-0.3) rectangle (1.9,1.9);
+  \node[sourceblue] at (0.8,2.3) {$V=\R^2$ (basis $\mathcal{B}$)};
+  \draw[->,vecblue,very thick] (0,0) -- (1,0) node[below right]{$\vec{e}_1$};
+  \draw[->,vecblue,very thick] (0,0) -- (0,1) node[above left]{$\vec{e}_2$};
+  % output space on the right
+  \node[targetgreen] at (6.4,2.3) {$W=\R^3$ (basis $\mathcal{C}$)};
+  \draw[targetgreen,thick] (5.1,-0.3) rectangle (7.7,1.9);
+  \node[targetgreen] at (6.4,1.2) {$[T\vec{e}_1]_{\mathcal{C}}=\colvec{1\\0\\2}$};
+  \node[targetgreen] at (6.4,0.2) {$[T\vec{e}_2]_{\mathcal{C}}=\colvec{0\\1\\0}$};
+  % the arrows of the map
+  \draw[->,vecred,thick] (2.0,0.9) to[bend left=12] node[midway,above]{$T$} (5.0,0.9);
+\end{tikzpicture}
+\caption{A non-square map carries the input-basis vectors $\vec{e}_1,\vec{e}_2$
+of $V=\R^2$ into $W=\R^3$, where we record each landing spot in the
+\emph{output} basis $\mathcal{C}$. Those two coordinate columns are the columns of
+$[T]_{\mathcal{C}\leftarrow\mathcal{B}}$, which is therefore $3\times 2$: as many
+rows as $\dimn W$, as many columns as $\dimn V$.}
+\label{ch31:fig-nonsquare}
+\end{figure}
+
+\section{Change of Basis: Translating Between Two Address Systems}
+\label{ch31:change-of-basis}
+
+So far we changed the matrix of a \emph{map}. Now for the simpler-looking but
+foundational task: changing the address of a fixed \emph{vector}. If two people
+have agreed on two different bases, how do we translate one's address into the
+other's? The answer is a single matrix, and almost everything else in the chapter
+is built from it.
+
+Suppose $\mathcal{B}=\{\vec{b}_1,\dots,\vec{b}_n\}$ and
+$\mathcal{C}=\{\vec{c}_1,\dots,\vec{c}_n\}$ are two bases of the same space $V$.
+We want a matrix $\mat{P}_{\mathcal{C}\leftarrow\mathcal{B}}$ that converts a
+$\mathcal{B}$-address into a $\mathcal{C}$-address:
+\[
+  [\vec{v}]_{\mathcal{C}} = \mat{P}_{\mathcal{C}\leftarrow\mathcal{B}}\;[\vec{v}]_{\mathcal{B}}.
+\]
+This is just the matrix of the \emph{identity map} $\mathrm{id}:V\to V$ read out of
+$\mathcal{B}$ and into $\mathcal{C}$, so the recipe of Section~\ref{ch31:matrix-of-T}
+applies verbatim: \textbf{its columns are the $\mathcal{B}$ vectors written in
+$\mathcal{C}$-coordinates.}
+\[
+  \mat{P}_{\mathcal{C}\leftarrow\mathcal{B}}
+  = \Big[\,[\vec{b}_1]_{\mathcal{C}}\,\big|\,[\vec{b}_2]_{\mathcal{C}}\,\big|\cdots\big|\,[\vec{b}_n]_{\mathcal{C}}\,\Big].
+\]
+
+\begin{focusbox}
+The change-of-basis matrix \emph{into} a basis is built from the \emph{other}
+basis's vectors expressed in that basis. The arrow ``$\mathcal{C}\leftarrow\mathcal{B}$''
+again tells the direction: it eats $\mathcal{B}$-addresses, emits
+$\mathcal{C}$-addresses. Going the other way is the inverse:
+$\mat{P}_{\mathcal{B}\leftarrow\mathcal{C}}=\big(\mat{P}_{\mathcal{C}\leftarrow\mathcal{B}}\big)\inv$.
+\end{focusbox}
+
+There is one case so common it deserves its own name. When $\mathcal{C}=\mathcal{E}$
+is the standard basis of $\R^n$, the coordinates of $\vec{b}_j$ \emph{are just
+$\vec{b}_j$ itself}. So the matrix that converts a $\mathcal{B}$-address into a
+standard address is simply the basis vectors stacked as columns:
+\[
+  \mat{B} = \mat{P}_{\mathcal{E}\leftarrow\mathcal{B}}
+  = \big[\;\vec{b}_1\;\big|\;\vec{b}_2\;\big|\cdots\big|\;\vec{b}_n\;\big].
+\]
+We will call this the \textbf{basis matrix} $\mat{B}$. It ``decodes'' a
+$\mathcal{B}$-address back into ordinary coordinates; its inverse $\mat{B}\inv$
+``encodes'' ordinary coordinates into the $\mathcal{B}$ language.
+
+\begin{trapbox}
+The basis matrix $\mat{B}$ (columns = your fancy basis vectors) goes \emph{from}
+fancy coordinates \emph{to} standard ones, not the other way. People constantly
+write $\mat{B}$ when they need $\mat{B}\inv$. A reliable check: $\mat{B}$ applied
+to $\colvec{1\\0\\\vdots}$ must return $\vec{b}_1$ -- and it does, because that is
+the first column. If your translation sends the first coordinate axis to $\vec{b}_1$,
+you have the ``decode'' matrix $\mat{B}$; if it sends $\vec{b}_1$ to an axis, you
+have $\mat{B}\inv$.
+\end{trapbox}
+
+\begin{example}[Translating addresses by hand]
+\label{ch31:ex-translate}
+Reuse the slanted basis $\vec{b}_1=\colvec{1\\1}$, $\vec{b}_2=\colvec{1\\-1}$ from
+Example~\ref{ch31:ex-two-addresses}. Stack them:
+\[
+  \mat{B} = \begin{bmatrix} 1 & 1\\ 1 & -1\end{bmatrix},
+  \qquad
+  \mat{B}\inv = \frac{1}{-2}\begin{bmatrix} -1 & -1\\ -1 & 1\end{bmatrix}
+  = \frac12\begin{bmatrix} 1 & 1\\ 1 & -1\end{bmatrix}.
+\]
+To get the $\mathcal{B}$-address of $\vec{v}=\colvec{4\\3}$ we \emph{encode} with
+$\mat{B}\inv$:
+\[
+  [\vec{v}]_{\mathcal{B}} = \mat{B}\inv\colvec{4\\3}
+  = \frac12\begin{bmatrix} 1 & 1\\ 1 & -1\end{bmatrix}\colvec{4\\3}
+  = \frac12\colvec{7\\1} = \colvec{7/2\\1/2},
+\]
+matching the answer we found by solving equations earlier. And to go back, the
+basis matrix \emph{decodes}:
+\[
+  \mat{B}\colvec{7/2\\1/2} = \begin{bmatrix} 1 & 1\\ 1 & -1\end{bmatrix}\colvec{7/2\\1/2}
+  = \colvec{4\\3} = \vec{v}.\;\checkmark
+\]
+Encode with $\mat{B}\inv$, decode with $\mat{B}$. Two matrices, exact inverses,
+that carry a single arrow between two languages.
+\end{example}
+
+\begin{labbox}
+Do this one fully by hand on paper. Let
+$\vec{b}_1=\colvec{2\\1}$, $\vec{b}_2=\colvec{1\\3}$, and $\vec{v}=\colvec{5\\5}$.
+(a) Write the basis matrix $\mat{B}$. (b) Compute $\mat{B}\inv$ using the
+$2\times2$ rule $\frac{1}{ad-bc}\begin{bsmallmatrix} d & -b\\ -c & a\end{bsmallmatrix}$.
+(c) Find $[\vec{v}]_{\mathcal{B}}=\mat{B}\inv\vec{v}$. (d) Verify by checking that
+your two weights times $\vec{b}_1,\vec{b}_2$ rebuild $\colvec{5\\5}$. You should
+get weights $\colvec{2\\1}$.
+\end{labbox}
+
+\subsection{The two pictures of a basis matrix}
+\label{ch31:two-pictures}
+
+There is a subtlety here that trips up nearly everyone. The
+matrix $\mat{B}$ with columns $\vec{b}_1,\vec{b}_2$ has \emph{two} jobs that look
+opposite but are the same equation read two ways.
+
+\emph{As a change of coordinates}, $\mat{B}$ takes a list of weights and decodes
+it: $\mat{B}\colvec{c_1\\c_2}=c_1\vec{b}_1+c_2\vec{b}_2$. Same numbers, new
+meaning.
+
+\emph{As an active transformation}, the very same $\mat{B}$ is a machine that
+\emph{moves} the standard grid to the slanted grid: it sends $\vec{e}_1\mapsto\vec{b}_1$
+and $\vec{e}_2\mapsto\vec{b}_2$, dragging the unit square into the parallelogram
+spanned by the basis. Whether you call $\mat{B}$ ``passive'' (relabeling the same
+point) or ``active'' (moving the point) is a matter of story, not of arithmetic --
+the formula $\mat{B}\vec{x}$ is identical. Hold both pictures; switch between them
+deliberately.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.9,>=Stealth]
+  \begin{scope}
+    \draw[step=1,gray!25,very thin] (0,0) grid (3,3);
+    \draw[->,vecblue,very thick] (0,0) -- (1,0) node[below]{$\vec{e}_1$};
+    \draw[->,vecblue,very thick] (0,0) -- (0,1) node[left]{$\vec{e}_2$};
+    \fill[vecblue,opacity=0.15] (0,0)--(1,0)--(1,1)--(0,1)--cycle;
+    \node at (1.5,-1) {\small standard grid};
+  \end{scope}
+  \draw[->,thick] (3.6,1.5) -- (5.0,1.5) node[midway,above]{$\mat{B}$};
+  \begin{scope}[shift={(5.8,0)}]
+    \draw[gray!25,very thin] (0,0)--(2,1); \draw[gray!25,very thin] (0,0)--(1,3);
+    \draw[gray!25,very thin] (2,1)--(3,4); \draw[gray!25,very thin] (1,3)--(3,4);
+    \draw[->,vecred,very thick] (0,0) -- (2,1) node[right]{$\vec{b}_1$};
+    \draw[->,vecred,very thick] (0,0) -- (1,3) node[above]{$\vec{b}_2$};
+    \fill[vecred,opacity=0.15] (0,0)--(2,1)--(3,4)--(1,3)--cycle;
+    \node at (1.5,-1) {\small slanted grid};
+  \end{scope}
+\end{tikzpicture}
+\caption{One matrix, two stories. $\mat{B}$ \emph{actively} carries the unit
+square to the parallelogram on $\vec{b}_1,\vec{b}_2$; \emph{passively} it decodes
+$\mathcal{B}$-addresses into standard ones. Same arithmetic, different narration.}
+\label{ch31:fig-active-passive}
+\end{figure}
+
+\section{The Same Operator in Different Coordinates}
+\label{ch31:same-operator}
+
+Now we combine the two threads -- the matrix of a map, and translating addresses
+-- into the formula this whole chapter has been walking toward. Picture an
+operator $T:\R^n\to\R^n$. In the standard basis it has the familiar matrix
+$\mat{A}$, so $[T\vec{v}]_{\mathcal{E}}=\mat{A}[\vec{v}]_{\mathcal{E}}$. A friend
+insists on working in a basis $\mathcal{B}$ (basis matrix $\mat{B}$). What does
+$T$ look like to them? We want the matrix $\mat{A}'$ with
+\[
+  [T\vec{v}]_{\mathcal{B}} = \mat{A}'\,[\vec{v}]_{\mathcal{B}}.
+\]
+
+Trace the journey in addresses, and the answer assembles itself like a
+travel itinerary. Start with a $\mathcal{B}$-address. We do not know how $T$ acts
+on $\mathcal{B}$-addresses directly -- but we know how it acts on standard ones.
+So:
+\begin{enumerate}
+  \item \textbf{Decode} the $\mathcal{B}$-address into standard coordinates with
+        $\mat{B}$.
+  \item \textbf{Apply $T$} in standard coordinates with $\mat{A}$.
+  \item \textbf{Encode} the result back into $\mathcal{B}$-coordinates with
+        $\mat{B}\inv$.
+\end{enumerate}
+Composing the three steps (right to left, the way matrices act):
+\[
+  \boxed{\;\mat{A}' = \mat{B}\inv\,\mat{A}\,\mat{B}.\;}
+\]
+
+\begin{intuitionbox}
+Read $\mat{B}\inv\mat{A}\mat{B}$ as a sentence you say in one breath:
+\emph{translate into the standard language} ($\mat{B}$), \emph{do the thing}
+($\mat{A}$), \emph{translate back into the new language} ($\mat{B}\inv$). The two
+$\mat{B}$'s are a round trip into and out of the world where you actually know how
+to compute. The operator $T$ never changed; we just hired interpreters on the way
+in and out.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1,>=Stealth, every node/.style={font=\small}]
+  \node (vb) at (0,2) {$[\vec{v}]_{\mathcal{B}}$};
+  \node (ve) at (0,0) {$[\vec{v}]_{\mathcal{E}}$};
+  \node (we) at (4,0) {$[T\vec{v}]_{\mathcal{E}}$};
+  \node (wb) at (4,2) {$[T\vec{v}]_{\mathcal{B}}$};
+  \draw[->,thick] (vb) -- (ve) node[midway,left]{$\mat{B}$ (decode)};
+  \draw[->,thick] (ve) -- (we) node[midway,below]{$\mat{A}$ (do $T$)};
+  \draw[->,thick] (we) -- (wb) node[midway,right]{$\mat{B}\inv$ (encode)};
+  \draw[->,vecred,very thick,dashed] (vb) -- (wb) node[midway,above]{$\mat{A}'=\mat{B}\inv\mat{A}\mat{B}$};
+\end{tikzpicture}
+\caption{The change-of-basis square. The top dashed road
+$\mat{A}'$ equals the long way around: down $\mat{B}$, across $\mat{A}$, up
+$\mat{B}\inv$. The diagram \emph{commutes}, which is exactly what
+$\mat{A}'=\mat{B}\inv\mat{A}\mat{B}$ asserts.}
+\label{ch31:fig-commute}
+\end{figure}
+
+\begin{trapbox}
+Is it $\mat{B}\inv\mat{A}\mat{B}$ or $\mat{B}\mat{A}\mat{B}\inv$? Both appear in
+textbooks because they answer different questions, and getting them backwards is
+the single most common change-of-basis error. The rule that never fails: the
+matrix \emph{closest to the input vector on the right} must \emph{accept that
+input's coordinate type}. Our input is a $\mathcal{B}$-address, and $\mat{B}$
+(decode) accepts $\mathcal{B}$-addresses -- so $\mat{B}$ sits on the right. If
+instead you were converting a standard-coordinate matrix \emph{from} the
+$\mathcal{B}$ description, the inverse would land on the right. Always sanity-check
+by asking what kind of address enters on the far right.
+\end{trapbox}
+
+\begin{example}[A shear that becomes a diagonal stretch]
+\label{ch31:ex-shear-diag}
+Let $T$ have standard matrix
+\[
+  \mat{A} = \begin{bmatrix} 2 & 1\\ 0 & 2\end{bmatrix}.
+\]
+In the standard grid this is an ugly shear-plus-scale. But suppose we view it in
+the basis $\vec{b}_1=\colvec{1\\1}$, $\vec{b}_2=\colvec{1\\-1}$ (basis matrix
+$\mat{B}$ from Example~\ref{ch31:ex-translate}). Compute
+$\mat{A}'=\mat{B}\inv\mat{A}\mat{B}$ in stages.
+
+First $\mat{A}\mat{B}$:
+\[
+  \begin{bmatrix} 2 & 1\\ 0 & 2\end{bmatrix}\begin{bmatrix} 1 & 1\\ 1 & -1\end{bmatrix}
+  = \begin{bmatrix} 3 & 1\\ 2 & -2\end{bmatrix}.
+\]
+Then $\mat{B}\inv(\mat{A}\mat{B})$ with $\mat{B}\inv=\tfrac12\begin{bsmallmatrix}1&1\\1&-1\end{bsmallmatrix}$:
+\[
+  \mat{A}' = \frac12\begin{bmatrix} 1 & 1\\ 1 & -1\end{bmatrix}\begin{bmatrix} 3 & 1\\ 2 & -2\end{bmatrix}
+  = \frac12\begin{bmatrix} 5 & -1\\ 1 & 3\end{bmatrix}
+  = \begin{bmatrix} 5/2 & -1/2\\ 1/2 & 3/2\end{bmatrix}.
+\]
+This particular basis did \emph{not} simplify $\mat{A}$ -- the new matrix is no
+nicer. That is the real lesson: most bases make things worse. The art is finding
+the special basis. For this $\mat{A}$, the magic basis is the eigenvector basis,
+which we turn to next.
+\end{example}
+
+\section{Similarity, Revisited}
+\label{ch31:similarity}
+
+The boxed formula $\mat{A}'=\mat{B}\inv\mat{A}\mat{B}$ is exactly the relation
+called \textbf{similarity}, which you may have met algebraically before having the
+geometry to feel it. Now you have the geometry.
+
+\begin{definition}[Similar matrices]
+\label{ch31:def-similar}
+Two $n\times n$ matrices $\mat{A}$ and $\mat{A}'$ are \textbf{similar} if there is
+an invertible matrix $\mat{P}$ with $\mat{A}'=\mat{P}\inv\mat{A}\mat{P}$.
+\end{definition}
+
+\begin{aestheticbox}
+Similarity is not some arbitrary algebraic relation. It is the precise statement
+\emph{``$\mat{A}$ and $\mat{A}'$ are the same operator, photographed in two
+different bases.''} Every similar pair is one machine wearing two outfits, and the
+matrix $\mat{P}$ is the dressing room -- the change-of-basis matrix between the two
+coordinate systems. That single reinterpretation turns a forgettable formula into
+the organizing idea of the back half of the book.
+\end{aestheticbox}
+
+Because similar matrices are the same operator, they must share everything that is
+truly a property of the operator and not of the chosen grid. Those shared
+quantities are the \textbf{similarity invariants}, and they are precisely the
+operator's coordinate-free features.
+
+\begin{theorem}[Similar matrices share their invariants]
+\label{ch31:thm-invariants}
+If $\mat{A}'=\mat{P}\inv\mat{A}\mat{P}$, then $\mat{A}$ and $\mat{A}'$ have the
+same determinant, the same trace, the same characteristic polynomial, and hence
+the same eigenvalues (with multiplicities) and the same rank.
+\end{theorem}
+
+\begin{proof}
+For the determinant, use multiplicativity:
+$\det(\mat{P}\inv\mat{A}\mat{P}) = \det(\mat{P}\inv)\det(\mat{A})\det(\mat{P})
+= \det(\mat{A})$, since $\det(\mat{P}\inv)\det(\mat{P})=\det(\mat{P}\inv\mat{P})=\det\mat{I}=1$.
+For the characteristic polynomial, the same cancellation works with
+$\mat{A}-\lambda\mat{I}$:
+\[
+  \mat{A}'-\lambda\mat{I} = \mat{P}\inv\mat{A}\mat{P}-\lambda\mat{P}\inv\mat{P}
+  = \mat{P}\inv(\mat{A}-\lambda\mat{I})\mat{P},
+\]
+so $\det(\mat{A}'-\lambda\mat{I})=\det(\mat{A}-\lambda\mat{I})$ for all $\lambda$.
+Equal characteristic polynomials force equal eigenvalues with multiplicities. The
+trace is (up to sign) a coefficient of that polynomial -- it equals the sum of
+eigenvalues -- so it is shared too; equivalently use the cyclic property
+$\tr(\mat{P}\inv\mat{A}\mat{P})=\tr(\mat{A}\mat{P}\mat{P}\inv)=\tr(\mat{A})$.
+Rank is preserved because multiplying by the invertible $\mat{P}$ and $\mat{P}\inv$
+cannot change the dimension of the image.
+\end{proof}
+
+\begin{strangbox}
+Strang introduces similarity right alongside diagonalization, often through the
+formula $\mat{A}=\mat{S}\Lambda\mat{S}\inv$, and emphasizes that ``$\mat{A}$ and
+$\Lambda$ have the same eigenvalues.'' Reading this chapter \emph{before} Strang,
+hold onto the why: eigenvalues are shared because $\mat{A}$ and $\Lambda$ are the
+literally-same operator in two coordinate systems, and eigenvalues belong to the
+operator, not the grid. Reading it \emph{after} Strang, notice that his $\mat{S}$
+is our basis matrix $\mat{B}$ -- columns are eigenvectors -- and his
+$\mat{S}\inv\mat{A}\mat{S}=\Lambda$ is our $\mat{B}\inv\mat{A}\mat{B}=\mat{A}'$
+with the luckiest possible basis.
+\end{strangbox}
+
+\begin{trapbox}
+Equal eigenvalues do \emph{not} imply similar. The two matrices
+$\begin{bsmallmatrix}1&1\\0&1\end{bsmallmatrix}$ and
+$\begin{bsmallmatrix}1&0\\0&1\end{bsmallmatrix}$ both have eigenvalue $1$ twice,
+yet they are not similar: the second is the identity, and $\mat{P}\inv\mat{I}\mat{P}=\mat{I}$
+for every $\mat{P}$, so the identity is similar only to itself. Sharing invariants
+is necessary, not sufficient. (The full bookkeeping of what \emph{else} is needed
+is the Jordan-form story.)
+\end{trapbox}
+
+\section{Choosing the Right Basis Is the Whole Game}
+\label{ch31:right-basis}
+
+We have built the machine: any basis $\mathcal{B}$ turns operator $T$ into the
+matrix $\mat{B}\inv\mat{A}\mat{B}$. Most choices, as Example~\ref{ch31:ex-shear-diag}
+showed, make the matrix uglier. The entire payoff of the theory is that for
+special operators there is a basis that makes the matrix as simple as a matrix can
+be -- and the columns of that magic $\mat{B}$ are the famous vectors of this book.
+
+\subsection{Eigenvectors: the basis that diagonalizes}
+\label{ch31:eigenbasis}
+
+Suppose $\mat{A}$ has $n$ independent eigenvectors $\vec{v}_1,\dots,\vec{v}_n$ with
+eigenvalues $\lambda_1,\dots,\lambda_n$. \emph{Use them as your basis.} Then in the
+eigenvector basis the operator does the simplest thing imaginable: along each axis
+$\vec{v}_j$ it just scales by $\lambda_j$ and does nothing else. The matrix
+becomes diagonal. To see it from our recipe, build $\mat{B}=[\vec{v}_1|\cdots|\vec{v}_n]$
+and recall $\mat{A}\vec{v}_j=\lambda_j\vec{v}_j$, so
+\[
+  \mat{A}\mat{B} = \big[\lambda_1\vec{v}_1\,\big|\cdots\big|\,\lambda_n\vec{v}_n\big]
+  = \mat{B}\diag(\lambda_1,\dots,\lambda_n),
+\]
+and multiplying on the left by $\mat{B}\inv$ gives the headline result
+\[
+  \mat{B}\inv\mat{A}\mat{B} = \diag(\lambda_1,\dots,\lambda_n) = \Lambda.
+\]
+This is diagonalization, and now you see it for what it is: \emph{not} a trick, but
+the statement that in the eigenvector coordinate system the operator is a pure,
+axis-aligned stretch (Figure~\ref{ch31:fig-eigenstretch}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.9,>=Stealth]
+  % left: standard grid, A skews the square
+  \begin{scope}
+    \draw[gray!30,very thin] (-0.2,-0.2) grid (2.2,2.2);
+    \draw[->,vecblue,very thick] (0,0) -- (1,0);
+    \draw[->,vecblue,very thick] (0,0) -- (0,1);
+    % eigen-directions drawn faintly on standard grid
+    \draw[->,structurepurple,thick] (0,0) -- (1.1,1.1) node[above right]{$\vec{v}_1$};
+    \draw[->,quotientorange,thick] (0,0) -- (1.1,-0.55) node[below right]{$\vec{v}_2$};
+    \node at (1,-1.1) {\small standard basis: $\mat{A}$ looks tangled};
+  \end{scope}
+  \draw[->,thick] (3.0,0.9) -- (4.4,0.9) node[midway,above]{$\mat{B}\inv\,\cdot\,\mat{B}$};
+  % right: eigenbasis, pure stretch along axes
+  \begin{scope}[shift={(5.4,0)}]
+    \draw[gray!30,very thin] (-0.2,-0.2) grid (2.2,2.2);
+    \draw[->,structurepurple,very thick] (0,0) -- (2,0) node[below right]{$\lambda_1\vec{v}_1$};
+    \draw[->,quotientorange,very thick] (0,0) -- (0,1.4) node[above left]{$\lambda_2\vec{v}_2$};
+    \node at (1,-1.1) {\small eigenbasis: $\Lambda$ stretches each axis};
+  \end{scope}
+\end{tikzpicture}
+\caption{Diagonalization as a change of viewpoint. In the standard grid the
+eigen-directions $\vec{v}_1,\vec{v}_2$ sit at awkward angles and $\mat{A}$ mixes
+the coordinates. Rotate your axes to \emph{be} the eigenvectors and the same
+operator becomes $\Lambda=\diag(\lambda_1,\lambda_2)$: each axis is simply scaled,
+nothing is mixed.}
+\label{ch31:fig-eigenstretch}
+\end{figure}
+
+\begin{example}[Finishing the shear example with the right basis]
+\label{ch31:ex-eigenbasis}
+Reconsider $\mat{A}=\begin{bsmallmatrix}2&1\\0&2\end{bsmallmatrix}$. Its only
+eigenvalue is $2$ (repeated), with eigenvectors solving
+$(\mat{A}-2\mat{I})\vec{v}=\vec{0}$, i.e.
+$\begin{bsmallmatrix}0&1\\0&0\end{bsmallmatrix}\vec{v}=\vec0$, giving the single
+direction $\vec{v}=\colvec{1\\0}$. There is only \emph{one} independent
+eigenvector, not two -- so no basis can diagonalize this $\mat{A}$. It is a
+\textbf{defective} matrix, and the closest we can get is the Jordan block, which is
+$\mat{A}$ itself. This is the true boundary of diagonalization, and it is exactly
+why the Jordan form and (for rectangular or non-diagonalizable situations) the SVD
+exist.
+
+Contrast with the symmetric matrix
+$\mat{A}=\begin{bsmallmatrix}2&1\\1&2\end{bsmallmatrix}$. Its characteristic
+polynomial is $(2-\lambda)^2-1=\lambda^2-4\lambda+3=(\lambda-3)(\lambda-1)$, so the
+eigenvalues are $3$ and $1$, with eigenvectors $\colvec{1\\1}$ and $\colvec{1\\-1}$.
+Two distinct eigenvalues force two independent eigenvectors, so the basis of those
+eigenvectors makes it the clean diagonal $\diag(3,1)$. Symmetry is the friendliest
+case of all -- it always yields a \emph{full, orthogonal} eigenbasis, the content
+of the spectral theorem.
+\end{example}
+
+\subsection{Singular vectors: the basis that works for every matrix}
+\label{ch31:svd-basis}
+
+Eigenvectors are picky -- they need a square matrix, and even then might not give
+a full basis (Example~\ref{ch31:ex-eigenbasis}). The singular value decomposition
+fixes this by allowing \emph{two} bases, one for the input space and one for the
+output, exactly the freedom we built in Section~\ref{ch31:matrix-of-T}. The SVD
+$\mat{A}=\mat{U}\Sigma\mat{V}\T$ says: choose the orthonormal basis $\mathcal{V}$
+(columns of $\mat{V}$) on the input side and $\mathcal{U}$ (columns of $\mat{U}$)
+on the output side, and in \emph{those} coordinates $T$ is the diagonal matrix
+$\Sigma$ -- it sends each input axis $\vec{v}_j$ straight to a stretched output
+axis $\sigma_j\vec{u}_j$. It is the change-of-basis idea pushed to its most general
+and most useful form: pick the best input basis and the best output basis
+\emph{independently}, and \emph{every} linear map becomes a simple nonnegative
+diagonal stretch (Figure~\ref{ch31:fig-svd}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.62,>=Stealth,every node/.style={font=\small}]
+  % unit circle
+  \begin{scope}
+    \draw[gray!40] (0,0) circle (1);
+    \draw[->,structurepurple,thick] (0,0) -- ({cos(20)},{sin(20)}) node[right]{$\vec{v}_1$};
+    \draw[->,quotientorange,thick] (0,0) -- ({cos(110)},{sin(110)}) node[above]{$\vec{v}_2$};
+    \node at (0,-1.7) {unit circle};
+  \end{scope}
+  \draw[->,thick] (1.7,0) -- (3.1,0) node[midway,above]{$\mat{V}\T$};
+  % after V^T: rotate so v_i land on axes
+  \begin{scope}[shift={(4.8,0)}]
+    \draw[gray!40] (0,0) circle (1);
+    \draw[->,structurepurple,thick] (0,0) -- (1,0);
+    \draw[->,quotientorange,thick] (0,0) -- (0,1);
+    \node at (0,-1.7) {axis-aligned};
+  \end{scope}
+  \draw[->,thick] (6.5,0) -- (7.9,0) node[midway,above]{$\Sigma$};
+  % after Sigma: stretch into ellipse
+  \begin{scope}[shift={(10.4,0)}]
+    \draw[gray!40] (0,0) ellipse (1.6 and 0.7);
+    \draw[->,structurepurple,thick] (0,0) -- (1.6,0) node[below right]{$\sigma_1$};
+    \draw[->,quotientorange,thick] (0,0) -- (0,0.7) node[above]{$\sigma_2$};
+    \node at (0,-1.7) {stretched};
+  \end{scope}
+  \draw[->,thick] (12.4,0) -- (13.8,0) node[midway,above]{$\mat{U}$};
+  % after U: rotate ellipse into output frame
+  \begin{scope}[shift={(16.4,0)}]
+    \draw[gray!40,rotate=25] (0,0) ellipse (1.6 and 0.7);
+    \draw[->,structurepurple,thick] (0,0) -- ({1.6*cos(25)},{1.6*sin(25)}) node[right]{$\sigma_1\vec{u}_1$};
+    \draw[->,quotientorange,thick] (0,0) -- ({-0.7*sin(25)},{0.7*cos(25)}) node[above]{$\sigma_2\vec{u}_2$};
+    \node at (0,-1.7) {output};
+  \end{scope}
+\end{tikzpicture}
+\caption{The SVD $\mat{A}=\mat{U}\Sigma\mat{V}\T$ as rotate--stretch--rotate.
+$\mat{V}\T$ turns the right singular vectors onto the axes, $\Sigma$ stretches
+each axis by a singular value $\sigma_j\ge 0$ (turning the circle into an
+ellipse), and $\mat{U}$ rotates that ellipse into the output frame. In the
+$\mathcal{V},\mathcal{U}$ bases the map is just the diagonal $\Sigma$.}
+\label{ch31:fig-svd}
+\end{figure}
+
+\begin{focusbox}
+The unifying slogan of the second half of the book:
+\begin{center}
+\emph{Diagonalization, the spectral theorem, and the SVD are all the same move --
+change to the basis in which the operator is diagonal.}
+\end{center}
+Diagonalization uses one eigenvector basis (square, diagonalizable case). The
+spectral theorem uses one \emph{orthonormal} eigenvector basis (symmetric case).
+The SVD uses two orthonormal bases (every matrix, no exceptions). Each is a smarter
+choice of $\mat{B}$ in $\mat{B}\inv\mat{A}\mat{B}$ -- or of $\mat{U},\mat{V}$ when
+the two sides differ.
+\end{focusbox}
+
+\begin{applicationbox}
+\textbf{Why data scientists obsess over the right basis.} A dataset is a cloud of
+points; its natural coordinates (``height in cm,'' ``income in dollars'') are an
+arbitrary basis, usually correlated and redundant. \textbf{Principal Component
+Analysis} is nothing but a change of basis: diagonalize the covariance matrix
+(symmetric, so the spectral theorem applies) and rotate the data into the
+eigenvector basis, where the axes are uncorrelated and ordered by variance. Keeping
+the top few axes is dimensionality reduction; it is the engine behind image
+compression, recommendation systems, and the embeddings inside modern machine
+learning. In a neural network, every layer is a learned linear map
+$\vec{x}\mapsto\mat{W}\vec{x}$ followed by a nonlinearity, and analyzing what a
+layer ``does'' almost always means looking at its singular vectors -- the basis in
+which the weight matrix is a clean stretch. ``Find the right basis'' is not an
+academic flourish; it is, quite literally, half of applied machine learning.
+\end{applicationbox}
+
+\begin{walkbox}
+Take a slow walk and turn this over: you and a friend describe the exact same
+rotation of the plane, but you use the standard grid and she uses a grid tilted
+$30^\circ$. Your matrices of numbers are different -- yet you must agree on the
+angle of rotation, on the determinant ($=1$), and on the fact that there are no
+real eigenvectors. \emph{Which} numbers in a matrix belong to the operator and
+which belong to your grid? When you can sort every number in a matrix into one of
+those two buckets, you have understood this chapter.
+\end{walkbox}
+
+\section{Putting It All Together: One Operator, Three Wardrobes}
+\label{ch31:capstone}
+
+Let me end with one operator carried through three coordinate systems, so the
+whole chapter lives in a single example.
+
+\begin{example}[The same projection, three matrices]
+\label{ch31:ex-capstone}
+Let $T$ be the orthogonal projection of $\R^2$ onto the line through
+$\vec{d}=\colvec{1\\1}$. Geometrically $T$ is one fixed act: flatten every arrow
+onto that diagonal line. Watch its matrix shift as we change clothes.
+
+\emph{Standard basis.} Using the projection formula
+$\proj_{\vec{d}}\vec{x}=\frac{\vec{d}\vec{d}\T}{\vec{d}\T\vec{d}}\vec{x}$ with
+$\vec{d}\T\vec{d}=2$,
+\[
+  \mat{A} = \frac12\colvec{1\\1}\begin{bmatrix}1&1\end{bmatrix}
+  = \frac12\begin{bmatrix}1&1\\1&1\end{bmatrix}
+  = \begin{bmatrix}1/2&1/2\\1/2&1/2\end{bmatrix}.
+\]
+Off-diagonal clutter; not obviously a projection at a glance.
+
+\emph{Eigenvector basis.} The eigenvectors are obvious from the geometry: anything
+\emph{on} the line is fixed (eigenvalue $1$) and anything \emph{perpendicular} is
+killed (eigenvalue $0$). So $\vec{b}_1=\colvec{1\\1}$ (eigenvalue $1$),
+$\vec{b}_2=\colvec{1\\-1}$ (eigenvalue $0$), $\mat{B}=\begin{bsmallmatrix}1&1\\1&-1\end{bsmallmatrix}$.
+By the diagonalization result of Section~\ref{ch31:eigenbasis},
+\[
+  \mat{B}\inv\mat{A}\mat{B} = \begin{bmatrix}1&0\\0&0\end{bmatrix}.
+\]
+Now the matrix \emph{tells} you the geometry: keep the first axis, delete the
+second. That is a projection, plainly. (Verify if you like: $\mat{A}\mat{B}
+=\begin{bsmallmatrix}1&0\\1&0\end{bsmallmatrix}$, and $\mat{B}\inv$ times that is
+$\begin{bsmallmatrix}1&0\\0&0\end{bsmallmatrix}$.)
+
+\emph{Some random basis,} say $\vec{c}_1=\colvec{1\\0},\vec{c}_2=\colvec{1\\2}$,
+$\mat{C}=\begin{bsmallmatrix}1&1\\0&2\end{bsmallmatrix}$,
+$\mat{C}\inv=\tfrac12\begin{bsmallmatrix}2&-1\\0&1\end{bsmallmatrix}$:
+\[
+  \mat{C}\inv\mat{A}\mat{C}
+  = \frac12\begin{bmatrix}2&-1\\0&1\end{bmatrix}\cdot\frac12\begin{bmatrix}1&1\\1&1\end{bmatrix}\cdot\begin{bmatrix}1&1\\0&2\end{bmatrix}
+  = \begin{bmatrix}1/4 & 3/4\\ 1/4 & 3/4\end{bmatrix}.
+\]
+A third matrix for the third basis -- ugliest of all. Yet all three are similar,
+so all three share $\det=0$, $\tr=1$, and eigenvalues $\{1,0\}$. Check: each has
+trace $1$ ($\tfrac12+\tfrac12$, $\;1+0$, $\;\tfrac14+\tfrac34$) and determinant $0$.
+The operator -- the act of flattening onto the diagonal -- never moved. We simply
+described it from three vantage points, and only the eigenvector vantage made the
+description transparent.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.95,>=Stealth]
+  \draw[->,gray!50] (-2,0) -- (3,0);
+  \draw[->,gray!50] (0,-2) -- (0,3);
+  \draw[structurepurple,thick] (-1.8,-1.8) -- (2.6,2.6) node[right]{line of $\vec{d}$};
+  % a vector and its projection
+  \draw[->,vecblue,very thick] (0,0) -- (2,0.4) node[right]{$\vec{x}$};
+  \coordinate (p) at (1.2,1.2); % projection of (2,0.4): (2.4/2)*(1,1)=(1.2,1.2)
+  \draw[->,vecred,very thick] (0,0) -- (p) node[above left]{$T\vec{x}$};
+  \draw[gray!60,dashed] (2,0.4) -- (p);
+  % perpendicular eigen-direction (killed)
+  \draw[->,targetgreen,thick] (0,0) -- (0.9,-0.9) node[below right]{killed dir ($\lambda=0$)};
+\end{tikzpicture}
+\caption{The fixed operator behind Example~\ref{ch31:ex-capstone}: project onto the
+line of $\vec{d}=(1,1)$. On the line, vectors are fixed ($\lambda=1$); perpendicular
+to it, they are erased ($\lambda=0$). The eigenvector basis sees exactly this.}
+\label{ch31:fig-capstone}
+\end{figure}
+
+\section{Summary}
+\label{ch31:summary}
+
+\begin{focusbox}
+The chapter in one breath:
+\begin{itemize}
+  \item A \textbf{linear map} is basis-free; its \textbf{matrix} exists only after
+        you choose bases. Columns of $[T]_{\mathcal{C}\leftarrow\mathcal{B}}$ are
+        ``where the input basis vectors land, written in the output basis.''
+  \item A vector's \textbf{coordinates} are its address in a basis. The
+        \textbf{basis matrix} $\mat{B}$ (columns = basis vectors) decodes a
+        $\mathcal{B}$-address to standard; $\mat{B}\inv$ encodes.
+  \item Same operator, new basis: $\mat{A}'=\mat{B}\inv\mat{A}\mat{B}$ -- decode,
+        do the thing, encode. This relation is \textbf{similarity}.
+  \item Similar matrices share determinant, trace, characteristic polynomial,
+        eigenvalues, and rank -- the operator's coordinate-free invariants.
+  \item \textbf{The whole game} is choosing the basis that makes $\mat{A}'$
+        simple: eigenvectors (diagonal), orthonormal eigenvectors (spectral
+        theorem), singular vectors on both sides (SVD).
+\end{itemize}
+\end{focusbox}
+
+\section*{Exercises}
+\addcontentsline{toc}{section}{Exercises}
+
+\begin{exercise}[Reading an address]
+\label{ch31:ex-address}
+Let $\vec{b}_1=\colvec{3\\1}$, $\vec{b}_2=\colvec{1\\2}$ and
+$\vec{v}=\colvec{5\\5}$. Find $[\vec{v}]_{\mathcal{B}}$ two ways: (a) by solving
+$c_1\vec{b}_1+c_2\vec{b}_2=\vec{v}$, and (b) by computing $\mat{B}\inv\vec{v}$.
+Confirm the two answers agree.
+\end{exercise}
+
+\begin{exercise}[Build a transformation matrix]
+\label{ch31:ex-build}
+Let $T:\R^2\to\R^2$ rotate by $90^\circ$ counterclockwise. Using the basis
+$\mathcal{B}=\{\colvec{1\\1},\colvec{1\\-1}\}$ for both input and output, compute
+$[T]_{\mathcal{B}\leftarrow\mathcal{B}}$ directly from the recipe (find $T\vec{b}_1,
+T\vec{b}_2$, then write them in $\mathcal{B}$-coordinates). Compare with
+$\mat{B}\inv\mat{R}\mat{B}$ where $\mat{R}=\begin{bsmallmatrix}0&-1\\1&0\end{bsmallmatrix}$;
+they must match.
+\end{exercise}
+
+\begin{exercise}[Derivative on a different basis]
+\label{ch31:ex-deriv-basis}
+On polynomials of degree $\le 2$, use the basis
+$\mathcal{B}=\{1,\,1+t,\,1+t+t^2\}$. Find the matrix of $D=\frac{d}{dt}$ in this
+basis. (Hint: compute $D$ of each basis polynomial, then express each result as a
+combination of the same three basis polynomials.)
+\end{exercise}
+
+\begin{exercise}[Active versus passive]
+\label{ch31:ex-active-passive}
+Let $\mat{B}=\begin{bsmallmatrix}2&0\\0&1\end{bsmallmatrix}$. (a) Describe
+$\mat{B}$ as an \emph{active} transformation of the unit square. (b) Describe the
+\emph{same} $\mat{B}$ as a \emph{passive} decoding of $\mathcal{B}$-coordinates,
+where $\mathcal{B}=\{\colvec{2\\0},\colvec{0\\1}\}$. (c) For the point with
+$\mathcal{B}$-address $\colvec{1\\3}$, give its standard coordinates.
+\end{exercise}
+
+\begin{exercise}[Diagonalize by changing basis]
+\label{ch31:ex-diag}
+Let $\mat{A}=\begin{bsmallmatrix}4&1\\2&3\end{bsmallmatrix}$. (a) Find the
+eigenvalues and eigenvectors. (b) Form the eigenvector basis matrix $\mat{B}$ and
+compute $\mat{B}\inv\mat{A}\mat{B}$; verify it is diagonal with the eigenvalues on
+the diagonal. (c) Use it to compute $\mat{A}^{5}$ via
+$\mat{A}^5=\mat{B}\Lambda^5\mat{B}\inv$ without multiplying $\mat{A}$ by itself
+five times.
+\end{exercise}
+
+\begin{exercise}[Invariants are necessary, not sufficient]
+\label{ch31:ex-invariants}
+(a) Show $\mat{A}=\begin{bsmallmatrix}3&0\\0&3\end{bsmallmatrix}$ and
+$\mat{A}'=\begin{bsmallmatrix}3&1\\0&3\end{bsmallmatrix}$ have equal determinant,
+trace, and eigenvalues. (b) Prove they are nonetheless \emph{not} similar.
+(Hint: what is $\mat{P}\inv\mat{A}\mat{P}$ when $\mat{A}=3\mat{I}$, for any
+invertible $\mat{P}$?)
+\end{exercise}
+
+\begin{exercise}[Trace is a similarity invariant -- prove it]
+\label{ch31:ex-trace}
+Prove $\tr(\mat{M}\mat{N})=\tr(\mat{N}\mat{M})$ for square matrices of compatible
+size, then deduce $\tr(\mat{P}\inv\mat{A}\mat{P})=\tr(\mat{A})$. Explain in one
+sentence why this means trace ``belongs to the operator,'' not the basis.
+\end{exercise}
+
+\begin{exercise}[Projection, three bases]
+\label{ch31:ex-proj-three}
+Let $T$ project $\R^2$ onto the line through $\colvec{2\\1}$. (a) Find the standard
+matrix $\mat{A}$ using $\frac{\vec{d}\vec{d}\T}{\vec{d}\T\vec{d}}$. (b) Find the
+eigenvector basis (the line direction and its perpendicular) and confirm
+$\mat{B}\inv\mat{A}\mat{B}=\begin{bsmallmatrix}1&0\\0&0\end{bsmallmatrix}$.
+(c) Confirm $\tr\mat{A}=1$ and $\det\mat{A}=0$ in both bases.
+\end{exercise}
+
+\begin{exercise}[Two bases, one rectangular map]
+\label{ch31:ex-rect}
+Let $T:\R^3\to\R^2$ be $T\colvec{x\\y\\z}=\colvec{x+z\\y-z}$. (a) Find its matrix
+in the standard bases. (b) Now use the input basis
+$\{\colvec{1\\0\\0},\colvec{0\\1\\0},\colvec{1\\0\\1}\}$ and the standard output
+basis; recompute the matrix from the recipe and explain which column changed and
+why.
+\end{exercise}
+
+\begin{exercise}[Conceptual: which numbers belong to the grid?]
+\label{ch31:ex-conceptual}
+A student computes the matrix of a $60^\circ$ rotation in some skewed basis and
+gets entries that are not the usual $\cos,\sin$ values -- in fact the off-diagonal
+entries are unequal in magnitude. Without computing, explain (i) why the entries
+can look so different from the standard rotation matrix, and (ii) which two numbers
+derived from the matrix she can nonetheless predict in advance, and what they are.
+\end{exercise}

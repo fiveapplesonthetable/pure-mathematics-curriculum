@@ -1,0 +1,801 @@
+\chapter{Least Squares and Regression}
+
+Here is a confession that every scientist makes sooner or later: the data never quite fit
+the model. You measure a spring stretching under various weights and you \emph{know}, from physics,
+that the stretch should be proportional to the weight -- a straight line through the origin. But
+when you plot your six measurements, they do not lie on any line. They wobble. They scatter. No
+straight line passes through all six dots, because your ruler shook, the spring was warm, the
+weights were dusty, and the universe is noisy.
+
+In the language of the previous chapters: you have a system $\mat{A}\vec{x}=\vec{b}$, and
+$\vec{b}$ is \emph{not} in the column space of $\mat{A}$. There is no solution. Gaussian
+elimination, fed this system, will shrug and report ``no solution,'' which is true but useless.
+We do not want to give up. We want the \emph{best} line, the one that comes closest to the data
+even though it cannot pass through all of it.
+
+That is the entire subject of this chapter. When $\mat{A}\vec{x}=\vec{b}$ has no solution because
+$\vec{b}$ sits off the column space, we stop demanding equality and instead minimize the
+\emph{error} -- the gap between what the model predicts and what we measured. The miracle, and it
+genuinely is a small miracle, is that the answer is not some messy numerical search. It is a clean
+linear system, the \textbf{normal equations} $\mat{A}\T\mat{A}\,\hat{\vec{x}}=\mat{A}\T\vec{b}$,
+and its geometry is exactly the projection you met in the last chapter. Least squares is where
+projection stops being a geometry exercise and becomes the workhorse of all of statistics and
+machine learning.
+
+\begin{focusbox}
+When $\mat{A}\vec{x}=\vec{b}$ has no solution, do not solve it -- \emph{approximate} it. Find the
+$\hat{\vec{x}}$ that makes $\mat{A}\hat{\vec{x}}$ as close to $\vec{b}$ as possible, measuring
+closeness by the squared length $\norm{\vec{b}-\mat{A}\vec{x}}^2$. That $\hat{\vec{x}}$ solves
+the normal equations
+\[
+  \mat{A}\T\mat{A}\,\hat{\vec{x}} \;=\; \mat{A}\T\vec{b},
+\]
+and geometrically $\mat{A}\hat{\vec{x}}$ is the \textbf{projection of $\vec{b}$ onto the column
+space of $\mat{A}$}.
+\end{focusbox}
+
+\section{Why \texorpdfstring{$\mat{A}\vec{x}=\vec{b}$}{Ax=b} usually has no solution}
+
+Let us be concrete before we are general. Suppose you believe two quantities are related by a
+straight line $y = c + d\,t$, and you collect three data points:
+\[
+  (t_1,y_1)=(0,6),\qquad (t_2,y_2)=(1,0),\qquad (t_3,y_3)=(2,0).
+\]
+If a single line $y=c+dt$ passed through all three, the unknowns $c,d$ would have to satisfy
+\[
+  \begin{aligned}
+    c + d\cdot 0 &= 6,\\
+    c + d\cdot 1 &= 0,\\
+    c + d\cdot 2 &= 0.
+  \end{aligned}
+\]
+In matrix form $\mat{A}\vec{x}=\vec{b}$ with
+\[
+  \mat{A}=\begin{bmatrix} 1 & 0\\ 1 & 1\\ 1 & 2\end{bmatrix},
+  \qquad
+  \vec{x}=\colvec{c\\d},
+  \qquad
+  \vec{b}=\colvec{6\\0\\0}.
+\]
+Three equations, two unknowns. The first equation forces $c=6$. The second then forces $d=-6$.
+But the third now reads $6 + 2(-6) = -6 \ne 0$. Contradiction. No line passes through all three
+points. The system is \textbf{inconsistent}.
+
+\begin{intuitionbox}
+Think of $\mat{A}$ as having two columns living in $\R^3$: the all-ones column $\colvec{1\\1\\1}$
+and the time column $\colvec{0\\1\\2}$. Every product $\mat{A}\vec{x}=c\colvec{1\\1\\1}
++d\colvec{0\\1\\2}$ is a combination of those two columns, so it lives in the \emph{plane} they
+span -- a flat two-dimensional sheet through the origin in three-dimensional space. The data
+vector $\vec{b}=\colvec{6\\0\\0}$ is a single arrow in $\R^3$, and there is no reason on earth it
+should happen to lie in that plane. It does not. So $\vec{b}$ floats off the plane, and
+$\mat{A}\vec{x}=\vec{b}$ has no solution.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.15,>=Stealth]
+  % a tilted plane (the span of the two columns) drawn as a parallelogram
+  \fill[sourceblue!12] (-1.5,-0.7) -- (2.6,-0.4) -- (3.4,1.2) -- (-0.7,0.9) -- cycle;
+  \draw[sourceblue!55,thick] (-1.5,-0.7) -- (2.6,-0.4) -- (3.4,1.2) -- (-0.7,0.9) -- cycle;
+  \node[sourceblue!70!black] at (2.95,1.0){$\col(\mat{A})$};
+  \coordinate (O) at (0.0,0.0);
+  \fill (O) circle (1.2pt);
+  % the two column vectors living in the plane
+  \draw[->,sourceblue!75!black,thick] (O)--(1.15,0.15)
+        node[below right,scale=0.85]{$\colvec{1\\1\\1}$};
+  \draw[->,sourceblue!75!black,thick] (O)--(0.45,0.7)
+        node[above left,scale=0.85]{$\colvec{0\\1\\2}$};
+  % b floating off the plane
+  \coordinate (B) at (1.4,2.2);
+  \draw[->,vecblue,very thick] (O)--(B) node[above right]{$\vec{b}=\colvec{6\\0\\0}$};
+  \fill (B) circle (1.2pt);
+  % dashed reminder that b is off the sheet
+  \coordinate (Bfoot) at (1.4,0.45);
+  \draw[vecred,dashed] (B)--(Bfoot);
+  \fill[vecred] (Bfoot) circle (1.0pt);
+  \node[spacegray,scale=0.85] at (1.95,1.5){off the plane};
+\end{tikzpicture}
+\caption{The two columns of $\mat{A}$, namely $(1,1,1)$ and $(0,1,2)$, span a flat plane through
+the origin in $\R^3$. Every combination $\mat{A}\vec{x}=c(1,1,1)+d(0,1,2)$ lands somewhere on that
+sheet. The data vector $\vec{b}=(6,0,0)$ points off the sheet, so no choice of $c,d$ reaches it:
+the system $\mat{A}\vec{x}=\vec{b}$ is inconsistent.}
+\label{ch19:plane-off}
+\end{figure}
+
+Figure~\ref{ch19:plane-off} draws exactly this: two columns spanning a sheet, and $\vec{b}$
+hovering off it. This is the normal situation, not a pathology. Whenever you have \emph{more
+equations than unknowns} -- more data points than parameters, which is what you always want in science -- the
+matrix $\mat{A}$ is tall and skinny ($m>n$), its column space is a thin subspace of the big
+output space $\R^m$, and a measured $\vec{b}$ almost never lands inside it. Demanding an exact
+solution is demanding that noisy data fall exactly on a model. It will not.
+
+\begin{trapbox}
+``No solution'' from elimination does not mean ``no answer.'' It means there is no \emph{exact}
+answer, which for over-determined data is the expected and even desirable state. An exact fit to
+many noisy points would usually mean your model has so many parameters that it is memorizing noise
+(we will meet this danger again under the name \emph{overfitting}). The right response to
+inconsistency is not despair but projection.
+\end{trapbox}
+
+\section{What ``closest'' should mean: the error vector}
+
+We give up on $\mat{A}\vec{x}=\vec{b}$ and instead ask: of all the vectors $\mat{A}\vec{x}$ we
+\emph{can} produce (all of which lie in the column space), which one is nearest to $\vec{b}$?
+Define the \textbf{residual} or \textbf{error vector}
+\[
+  \vec{e} \;=\; \vec{b}-\mat{A}\vec{x}.
+\]
+Its components are the individual misses: how far each predicted value $(\mat{A}\vec{x})_i$ sits
+from the measured $b_i$. We want to make this whole vector small. But ``small'' in what sense?
+
+The choice that makes everything work is to minimize the \textbf{squared length}
+\[
+  \norm{\vec{e}}^2 \;=\; \norm{\vec{b}-\mat{A}\vec{x}}^2
+  \;=\; \sum_{i=1}^{m} \bigl(b_i - (\mat{A}\vec{x})_i\bigr)^2 .
+\]
+This is the sum of the squared misses, and minimizing it is what gives the method its name:
+\textbf{least squares}. For the line-fitting problem, $(\mat{A}\vec{x})_i = c+dt_i$ is the height
+of the line above $t_i$, so $\norm{\vec{e}}^2 = \sum_i (y_i - c - d t_i)^2$ is the total squared
+vertical distance from the data points to the line.
+
+\begin{walkbox}
+Before reading on, ask yourself on a walk: why \emph{squared} distance, rather than the sum of the
+absolute misses $\sum_i \abs{e_i}$, which seems just as fair? Two reasons to hold in mind. First,
+squaring makes the objective smooth -- a differentiable bowl with one bottom -- so calculus finds
+the minimum cleanly, whereas $\abs{e}$ has a sharp corner. Second, and deeper, squared length is
+the ordinary Euclidean length, so ``minimize $\norm{\vec{e}}^2$'' is literally ``find the nearest
+point,'' and nearest points are projections. Absolute error is a real and useful alternative (it
+gives \emph{robust} regression, less sensitive to outliers), but it is not linear algebra -- it has
+no tidy formula. Squares do.
+\end{walkbox}
+
+The moral to carry forward: squares turn a fairness question into a \emph{geometry} question, and
+geometry is something we can solve in closed form. That is what the next section does.
+
+\section{The geometry: projection onto the column space}
+
+Here is the picture that organizes the entire chapter. All the achievable outputs $\mat{A}\vec{x}$
+form the column space $\col(\mat{A})$ -- a plane (or higher-dimensional flat) sitting inside
+$\R^m$. The data $\vec{b}$ is a point off that plane. We want the point \emph{in} the plane that
+is closest to $\vec{b}$.
+
+You already know what that point is: drop a perpendicular from $\vec{b}$ to the plane. The foot of
+that perpendicular is the projection $\vec{p}=\proj_{\col(\mat{A})}\vec{b}$. The closest reachable
+vector is $\vec{p}$, and the $\hat{\vec{x}}$ we seek is the one that produces it:
+$\mat{A}\hat{\vec{x}}=\vec{p}$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.25,>=Stealth]
+  % the column-space plane drawn as a parallelogram
+  \fill[sourceblue!12] (-1.6,-0.6) -- (2.4,-0.6) -- (3.2,1.1) -- (-0.8,1.1) -- cycle;
+  \draw[sourceblue!55,thick] (-1.6,-0.6) -- (2.4,-0.6) -- (3.2,1.1) -- (-0.8,1.1) -- cycle;
+  \node[sourceblue!70!black] at (2.55,0.85){$\col(\mat{A})$};
+  % origin
+  \coordinate (O) at (0.2,0.0);
+  \fill (O) circle (1.2pt);
+  % projection point p in the plane
+  \coordinate (P) at (1.7,0.45);
+  % b above the plane
+  \coordinate (B) at (2.0,2.0);
+  % vectors
+  \draw[->,vecblue,very thick] (O)--(B) node[above right]{$\vec{b}$};
+  \draw[->,targetgreen!70!black,very thick] (O)--(P) node[below right]{$\vec{p}=\mat{A}\hat{\vec{x}}$};
+  \draw[->,vecred,very thick] (P)--(B) node[midway,right]{$\vec{e}=\vec{b}-\mat{A}\hat{\vec{x}}$};
+  % right angle mark at P
+  \draw[vecred] ($(P)+(-0.18,0.0)$) -- ($(P)+(-0.18,0.18)$) -- ($(P)+(0.0,0.18)$);
+  \fill (P) circle (1.2pt);
+  \fill (B) circle (1.2pt);
+\end{tikzpicture}
+\caption{The least-squares picture. The reachable outputs fill the column-space plane
+$\col(\mat{A})$. The data $\vec{b}$ floats above it. The closest reachable point is the
+projection $\vec{p}=\mat{A}\hat{\vec{x}}$, the foot of the perpendicular from $\vec{b}$. The error
+$\vec{e}=\vec{b}-\mat{A}\hat{\vec{x}}$ is perpendicular to the whole plane -- that perpendicularity
+is the equation we solve.}
+\label{ch19:projection-picture}
+\end{figure}
+
+The key fact is the right angle. The shortest segment from a point to a plane is the
+perpendicular one; any other segment from $\vec{b}$ into the plane is the hypotenuse of a right
+triangle and hence longer. So at the optimum, the error $\vec{e}$ is \textbf{orthogonal to the
+column space}. That single geometric statement is the whole derivation, and we now turn it into
+algebra.
+
+\section{Deriving the normal equations}
+
+The error $\vec{e}=\vec{b}-\mat{A}\hat{\vec{x}}$ must be orthogonal to every vector in
+$\col(\mat{A})$. But every vector in the column space is a combination of the columns of
+$\mat{A}$, so it is enough that $\vec{e}$ be orthogonal to \emph{each column} of $\mat{A}$.
+Orthogonality of $\vec{e}$ to column $j$ means the dot product (column $j)\cdot\vec{e}=0$. Stacking
+all $n$ of these dot products is exactly the matrix product $\mat{A}\T\vec{e}$. So the condition is
+\[
+  \mat{A}\T\vec{e} \;=\; \vec{0}
+  \qquad\Longleftrightarrow\qquad
+  \mat{A}\T\bigl(\vec{b}-\mat{A}\hat{\vec{x}}\bigr) \;=\; \vec{0}.
+\]
+Distribute and move one term to the other side:
+\[
+  \boxed{\;\mat{A}\T\mat{A}\,\hat{\vec{x}} \;=\; \mat{A}\T\vec{b}.\;}
+\]
+These are the \textbf{normal equations}. The word ``normal'' here means ``perpendicular'' -- it
+records the right angle in Figure~\ref{ch19:projection-picture}. We started with an unsolvable tall
+system $\mat{A}\vec{x}=\vec{b}$ ($m$ equations, $n$ unknowns) and multiplied both sides by
+$\mat{A}\T$ to get a \emph{square} $n\times n$ system that is solvable.
+
+\begin{formalbox}
+\textbf{Least-squares solution.} Let $\mat{A}$ be $m\times n$ with linearly independent columns.
+Then $\mat{A}\T\mat{A}$ is invertible, and the unique minimizer of $\norm{\vec{b}-\mat{A}\vec{x}}^2$
+is
+\[
+  \hat{\vec{x}} \;=\; (\mat{A}\T\mat{A})\inv \mat{A}\T\vec{b}.
+\]
+The projection of $\vec{b}$ onto $\col(\mat{A})$ is $\vec{p}=\mat{A}\hat{\vec{x}}
+=\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T\vec{b}$, and the \textbf{projection matrix} onto the column
+space is $\mat{P}=\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T$.
+\end{formalbox}
+
+Let us also derive the normal equations a second way, by calculus, so you trust them no matter
+which language you think in. Write the squared error as a function of $\vec{x}$:
+\[
+  f(\vec{x}) \;=\; \norm{\vec{b}-\mat{A}\vec{x}}^2
+  \;=\; (\vec{b}-\mat{A}\vec{x})\T(\vec{b}-\mat{A}\vec{x})
+  \;=\; \vec{b}\T\vec{b} - 2\,\vec{x}\T\mat{A}\T\vec{b} + \vec{x}\T\mat{A}\T\mat{A}\,\vec{x}.
+\]
+This is a quadratic bowl in $\vec{x}$. Setting its gradient to zero (using
+$\nabla_{\vec{x}}(\vec{x}\T\mat{M}\vec{x})=2\mat{M}\vec{x}$ for symmetric $\mat{M}$, and
+$\nabla_{\vec{x}}(\vec{x}\T\vec{c})=\vec{c}$):
+\[
+  \nabla f(\vec{x}) \;=\; -2\,\mat{A}\T\vec{b} + 2\,\mat{A}\T\mat{A}\,\vec{x} \;=\; \vec{0}
+  \qquad\Longrightarrow\qquad
+  \mat{A}\T\mat{A}\,\vec{x} = \mat{A}\T\vec{b}.
+\]
+Same equations. Because $\mat{A}\T\mat{A}$ is positive semidefinite (it is, as we will see), the
+bowl opens \emph{upward}, so this critical point is a genuine minimum, not a maximum or saddle.
+
+\begin{connectionbox}
+Two completely different roads -- pure geometry (drop a perpendicular) and pure calculus (set the
+gradient of a quadratic to zero) -- arrive at the exact same matrix equation. This is not a
+coincidence; it is the linear-algebra shadow of a theme that runs through all of optimization.
+Minimizing a smooth function means finding where its gradient vanishes, and for a \emph{quadratic}
+function the gradient is linear, so ``gradient $=0$'' is a linear system. Least squares is the
+simplest nontrivial optimization problem in the world, and it is the one case where the optimum has
+a clean closed form. Every fancier method -- gradient descent, Newton's method, the whole edifice
+of convex optimization -- can be understood as ``what do you do when the bowl is not exactly
+quadratic.'' Here it is, so you get the answer in one step.
+\end{connectionbox}
+
+\subsection*{Why \texorpdfstring{$\mat{A}\T\mat{A}$}{A transpose A} is invertible}
+
+We claimed that independent columns make $\mat{A}\T\mat{A}$ invertible. Here is the short proof,
+worth seeing because it explains exactly when least squares fails. Suppose
+$\mat{A}\T\mat{A}\,\vec{x}=\vec{0}$. Dot both sides with $\vec{x}$:
+\[
+  0 \;=\; \vec{x}\T\mat{A}\T\mat{A}\,\vec{x} \;=\; (\mat{A}\vec{x})\T(\mat{A}\vec{x})
+  \;=\; \norm{\mat{A}\vec{x}}^2.
+\]
+A squared length is zero only when the vector is zero, so $\mat{A}\vec{x}=\vec{0}$. But if the
+columns of $\mat{A}$ are independent, the only $\vec{x}$ with $\mat{A}\vec{x}=\vec{0}$ is
+$\vec{x}=\vec{0}$. Thus the nullspace of $\mat{A}\T\mat{A}$ is trivial, and a square matrix with
+trivial nullspace is invertible. The computation also shows $\vec{x}\T\mat{A}\T\mat{A}\,\vec{x}
+=\norm{\mat{A}\vec{x}}^2\ge 0$, which is the positive-semidefiniteness that made the bowl open
+upward.
+
+\begin{trapbox}
+If the columns of $\mat{A}$ are \emph{dependent} -- say you accidentally fed in the same feature
+twice, or measured temperature in both Celsius and Fahrenheit -- then $\mat{A}\T\mat{A}$ is
+singular and $(\mat{A}\T\mat{A})\inv$ does not exist. The projection $\vec{p}$ is still perfectly
+well defined (the closest point on the plane is unique), but $\hat{\vec{x}}$ is not unique: many
+parameter vectors produce the same best fit. In statistics this is called \textbf{collinearity},
+and it is the bane of regression. The cure is either to drop redundant features or to add a penalty
+(ridge regression, below), which restores invertibility.
+\end{trapbox}
+
+\section{Worked example: fitting a line}
+
+Let us finish the three-point problem from the start of the chapter. We had
+\[
+  \mat{A}=\begin{bmatrix} 1 & 0\\ 1 & 1\\ 1 & 2\end{bmatrix},
+  \qquad
+  \vec{b}=\colvec{6\\0\\0},
+  \qquad
+  \hat{\vec{x}}=\colvec{c\\d}.
+\]
+Build the two pieces of the normal equations. First $\mat{A}\T\mat{A}$:
+\[
+  \mat{A}\T\mat{A}
+  = \begin{bmatrix} 1&1&1\\ 0&1&2\end{bmatrix}
+    \begin{bmatrix} 1&0\\ 1&1\\ 1&2\end{bmatrix}
+  = \begin{bmatrix} 3 & 3\\ 3 & 5\end{bmatrix}.
+\]
+The top-left entry $3$ is just the number of data points; the off-diagonal $3=\sum t_i$ and the
+bottom-right $5=\sum t_i^2$. Now $\mat{A}\T\vec{b}$:
+\[
+  \mat{A}\T\vec{b}
+  = \begin{bmatrix} 1&1&1\\ 0&1&2\end{bmatrix}\colvec{6\\0\\0}
+  = \colvec{6\\0}
+  = \colvec{\sum y_i \\ \sum t_i y_i}.
+\]
+So the normal equations are the tidy $2\times 2$ system
+\[
+  \begin{bmatrix} 3 & 3\\ 3 & 5\end{bmatrix}\colvec{c\\d} = \colvec{6\\0}.
+\]
+Solve it. From the first row $3c+3d=6$, i.e.\ $c+d=2$. From the second $3c+5d=0$. Subtract three
+times the first from the second: $(3c+5d)-(3c+3d)=2d=0-6=-6$, so $d=-3$, and then $c=5$. The
+best-fit line is
+\[
+  \boxed{\,y = 5 - 3t.\,}
+\]
+Let us check the fit. The line predicts $\hat{y}=(5,2,-1)$ at $t=(0,1,2)$, while the data were
+$\vec{b}=(6,0,0)$. So the projection and error are
+\[
+  \vec{p}=\mat{A}\hat{\vec{x}}=\colvec{5\\2\\-1},
+  \qquad
+  \vec{e}=\vec{b}-\vec{p}=\colvec{6\\0\\0}-\colvec{5\\2\\-1}=\colvec{1\\-2\\1}.
+\]
+Two sanity checks confirm the geometry. First, the residual should be orthogonal to both columns
+of $\mat{A}$. Against the all-ones column: $1-2+1=0$. Against the time column $(0,1,2)$:
+$0-2+2=0$. Perpendicular to the plane, exactly as the picture demanded. Second, the squared error
+is $\norm{\vec{e}}^2 = 1+4+1=6$; no other line does better.
+Figure~\ref{ch19:line-fit} shows the line, the data, and these residuals.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.1,>=Stealth]
+  \begin{axis}[
+    axis lines=middle, xlabel={$t$}, ylabel={$y$},
+    xmin=-0.4,xmax=2.6, ymin=-1.8,ymax=6.8,
+    width=10cm,height=6.4cm,
+    xtick={0,1,2}, ytick={-1,0,2,5,6},
+    enlargelimits=false, clip=false,
+  ]
+    % best fit line y=5-3t
+    \addplot[sourceblue,very thick,domain=-0.2:2.4]{5-3*x};
+    \node[sourceblue!70!black] at (axis cs:0.55,4.2){$y=5-3t$};
+    % data points
+    \addplot[only marks,vecblue,mark=*,mark size=2.4pt] coordinates {(0,6) (1,0) (2,0)};
+    % predicted points on the line
+    \addplot[only marks,targetgreen!70!black,mark=square*,mark size=2.0pt] coordinates {(0,5) (1,2) (2,-1)};
+    % residual segments (vertical)
+    \draw[vecred,thick] (axis cs:0,6)--(axis cs:0,5);
+    \draw[vecred,thick] (axis cs:1,0)--(axis cs:1,2);
+    \draw[vecred,thick] (axis cs:2,0)--(axis cs:2,-1);
+  \end{axis}
+\end{tikzpicture}
+\caption{Fitting $y=c+dt$ to the three points $(0,6),(1,0),(2,0)$. The blue line is the
+least-squares best fit $y=5-3t$. Filled circles are the data $\vec{b}$; green squares are the
+predictions $\vec{p}=\mat{A}\hat{\vec{x}}$ on the line; red segments are the residuals
+$e_i=b_i-p_i=(1,-2,1)$. Least squares makes the \emph{sum of the squared} red lengths as small as
+possible.}
+\label{ch19:line-fit}
+\end{figure}
+
+\begin{labbox}
+Do the whole thing yourself with a fresh tiny data set: points $(t,y)=(-1,1),(0,1),(1,3)$. Build
+$\mat{A}=\begin{bmatrix}1&-1\\1&0\\1&1\end{bmatrix}$, $\vec{b}=\colvec{1\\1\\3}$, form
+$\mat{A}\T\mat{A}=\begin{bmatrix}3&0\\0&2\end{bmatrix}$ and $\mat{A}\T\vec{b}=\colvec{5\\2}$, and
+read off $\hat{\vec{x}}=\colvec{5/3\\1}$. The best line is $y=\tfrac53 + t$. Verify the residual
+$\vec{e}=\colvec{1\\1\\3}-\colvec{2/3\\5/3\\8/3}=\colvec{1/3\\-2/3\\1/3}$ is orthogonal to both
+columns. (Notice how the centered times $t=-1,0,1$ made $\mat{A}\T\mat{A}$ \emph{diagonal} -- that
+is no accident, and the next box explains why it is a gift.)
+\end{labbox}
+
+\begin{aestheticbox}
+Look at what just happened to the bookkeeping. The matrix $\mat{A}\T\mat{A}$ for line fitting is
+\[
+  \begin{bmatrix} m & \sum t_i \\ \sum t_i & \sum t_i^2 \end{bmatrix},
+  \qquad
+  \mat{A}\T\vec{b}=\colvec{\sum y_i \\ \sum t_i y_i}.
+\]
+Every entry is a \emph{sum} you compute by sweeping through the data once. The grand projection
+geometry of $\R^m$ collapses into four little sums. This is why least squares scales: fitting a
+line to a billion points costs the same matrix as fitting it to three -- you only ever build a
+$2\times2$ system. The dimension of the data ($m$) never enters the size of the equations you
+solve, only the number of \emph{parameters} ($n$) does. That decoupling is what makes regression
+practical on enormous data.
+\end{aestheticbox}
+
+\section{Fitting a parabola, and any other model linear in its parameters}
+
+Nothing about the method needed the model to be a line. Suppose the data look curved and you want
+the best parabola $y=c_0+c_1 t+c_2 t^2$. The unknowns are $c_0,c_1,c_2$, and crucially the model
+is still \emph{linear in the unknowns} even though it is quadratic in $t$. Each data point gives
+one equation $c_0+c_1 t_i + c_2 t_i^2 = y_i$, so
+\[
+  \mat{A}=\begin{bmatrix}
+    1 & t_1 & t_1^2\\
+    1 & t_2 & t_2^2\\
+    \vdots & \vdots & \vdots\\
+    1 & t_m & t_m^2
+  \end{bmatrix},
+  \qquad
+  \vec{x}=\colvec{c_0\\c_1\\c_2},
+  \qquad
+  \vec{b}=\colvec{y_1\\\vdots\\y_m}.
+\]
+This tall matrix (the columns are powers of the time vector -- a \emph{Vandermonde} matrix) goes
+straight into the same normal equations $\mat{A}\T\mat{A}\,\hat{\vec{x}}=\mat{A}\T\vec{b}$. The
+recipe is identical; only the number of columns changed.
+
+\begin{example}\label{ch19:parabola}
+Fit $y=c_0+c_1t+c_2t^2$ to the four points $(t,y)=(-1,1),(0,1),(1,0),(2,4)$. Build
+\[
+  \mat{A}=\begin{bmatrix} 1&-1&1\\ 1&0&0\\ 1&1&1\\ 1&2&4\end{bmatrix},
+  \qquad
+  \vec{b}=\colvec{1\\1\\0\\4}.
+\]
+Then
+\[
+  \mat{A}\T\mat{A}
+  =\begin{bmatrix} 4 & 2 & 6\\ 2 & 6 & 8\\ 6 & 8 & 18\end{bmatrix},
+  \qquad
+  \mat{A}\T\vec{b}=\colvec{6\\7\\17}.
+\]
+(Each entry of $\mat{A}\T\mat{A}$ is again a sum of powers of $t_i$: the top-left $4=\sum t_i^0=m$,
+the next diagonal $6=\sum t_i^2$, the corner $18=\sum t_i^4$, and so on. The entries of
+$\mat{A}\T\vec{b}$ are $\sum y_i=6$, $\sum t_i y_i=7$, and $\sum t_i^2 y_i=17$.) Solving the
+$3\times3$ system by elimination gives
+\[
+  \hat{\vec{x}}=\colvec{c_0\\c_1\\c_2}=\colvec{1/10\\ -1/5 \\ 1}
+  \quad\Longrightarrow\quad
+  y = 0.1 - 0.2\,t + t^2 .
+\]
+The leading coefficient came out to $1$, recovering an underlying $t^2$ curvature, while the small
+constant and linear terms absorbed the scatter. The predictions are $\vec{p}=\mat{A}\hat{\vec{x}}
+=\bigl(\tfrac{13}{10},\tfrac{1}{10},\tfrac{9}{10},\tfrac{37}{10}\bigr)$, so the residual is
+$\vec{e}=\vec{b}-\vec{p}=\bigl(-\tfrac{3}{10},\tfrac{9}{10},-\tfrac{9}{10},\tfrac{3}{10}\bigr)$,
+which you can confirm is orthogonal to all three columns of $\mat{A}$ (each dot product is $0$).
+Figure~\ref{ch19:parabola-fit} plots the data, the curve, and these residuals.
+The fit is a true parabola, not a line, yet the normal equations stayed linear throughout.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.1,>=Stealth]
+  \begin{axis}[
+    axis lines=middle, xlabel={$t$}, ylabel={$y$},
+    xmin=-1.6,xmax=2.6, ymin=-0.6,ymax=4.6,
+    width=10cm,height=6.4cm,
+    xtick={-1,0,1,2}, ytick={0,1,2,3,4},
+    enlargelimits=false, clip=false,
+  ]
+    % best-fit parabola y = 0.1 - 0.2 t + t^2
+    \addplot[sourceblue,very thick,domain=-1.4:2.3,samples=80]{0.1-0.2*x+x^2};
+    \node[sourceblue!70!black] at (axis cs:-0.95,3.7){$y=0.1-0.2t+t^2$};
+    % data points
+    \addplot[only marks,vecblue,mark=*,mark size=2.4pt] coordinates {(-1,1) (0,1) (1,0) (2,4)};
+    % predicted points on the curve
+    \addplot[only marks,targetgreen!70!black,mark=square*,mark size=2.0pt]
+      coordinates {(-1,1.3) (0,0.1) (1,0.9) (2,3.7)};
+    % residual segments (vertical)
+    \draw[vecred,thick] (axis cs:-1,1)--(axis cs:-1,1.3);
+    \draw[vecred,thick] (axis cs:0,1)--(axis cs:0,0.1);
+    \draw[vecred,thick] (axis cs:1,0)--(axis cs:1,0.9);
+    \draw[vecred,thick] (axis cs:2,4)--(axis cs:2,3.7);
+  \end{axis}
+\end{tikzpicture}
+\caption{The least-squares parabola of Example~\ref{ch19:parabola}. Filled circles are the data
+$\vec{b}=(1,1,0,4)$; green squares are the predictions $\vec{p}=\mat{A}\hat{\vec{x}}
+=(\tfrac{13}{10},\tfrac{1}{10},\tfrac{9}{10},\tfrac{37}{10})$ on the curve; red segments are the
+residuals. Exactly the same normal-equation machine that fit a line now fits a curve -- only the
+number of feature columns changed.}
+\label{ch19:parabola-fit}
+\end{figure}
+
+\begin{focusbox}
+``Linear regression'' does not mean ``fit a straight line.'' It means \textbf{linear in the
+parameters}. You may use any features of your inputs you like -- powers $t,t^2,t^3$, products of
+two variables, $\sin t$, $\log t$, a hand-crafted indicator like ``is it a weekend'' -- and as long
+as the unknown coefficients enter \emph{linearly}, the fit is a least-squares problem with the same
+normal equations. The columns of $\mat{A}$ are your chosen features evaluated at each data point.
+This single idea -- build a feature matrix, then project -- is most of practical machine learning
+before neural networks.
+\end{focusbox}
+
+\section{Measuring the fit: residuals and \texorpdfstring{$R^2$}{R-squared}}
+
+A best-fit line is only as good as the data allows. How good is it? The currency that answers this
+is the residual vector $\vec{e}=\vec{b}-\mat{A}\hat{\vec{x}}$. Its squared length
+$\norm{\vec{e}}^2=\sum e_i^2$ is the \textbf{residual sum of squares}, often written $\mathrm{SS_{res}}$.
+Smaller is better, but it has units (squared $y$-units) and scale, so on its own a number like
+``$6$'' means nothing. We want a unitless score that says ``how much of the variation in $y$ did
+the model explain?''
+
+That score is $R^2$, the \textbf{coefficient of determination}, and it falls straight out of a
+Pythagorean theorem. Compare your model against the laziest possible model: predicting the constant
+mean $\bar{y}=\tfrac1m\sum y_i$ for every point. The lazy model's error is the
+\textbf{total sum of squares}
+\[
+  \mathrm{SS_{tot}} \;=\; \sum_{i=1}^m (y_i-\bar{y})^2,
+\]
+the raw variation in the data. Then define
+\[
+  \boxed{\;R^2 \;=\; 1 - \dfrac{\mathrm{SS_{res}}}{\mathrm{SS_{tot}}}
+  \;=\; 1 - \dfrac{\norm{\vec{b}-\mat{A}\hat{\vec{x}}}^2}{\norm{\vec{b}-\bar{y}\,\mathbf{1}}^2}.\;}
+\]
+If the model fits perfectly, $\mathrm{SS_{res}}=0$ and $R^2=1$. If the model does no better than
+predicting the mean, $\mathrm{SS_{res}}=\mathrm{SS_{tot}}$ and $R^2=0$. In between, $R^2$ is the
+fraction of the variance the model captured.
+
+\begin{intuitionbox}
+$R^2$ is two perpendiculars compared. Total variation $\mathrm{SS_{tot}}$ is how far the data
+spread from a flat horizontal mean-line; residual variation $\mathrm{SS_{res}}$ is how far the
+data spread from your fitted line. Your line can only do better than the mean (it \emph{contains}
+the mean as a special case when the slope is zero), so $\mathrm{SS_{res}}\le\mathrm{SS_{tot}}$, and
+$R^2$ measures how much of the spread your line vacuumed up. An $R^2$ of $0.9$ means your model
+explains $90\%$ of the wobble in the data and leaves $10\%$ as unexplained noise.
+\end{intuitionbox}
+
+\begin{example}\label{ch19:rsquared}
+For our line fit $y=5-3t$ we had $\vec{b}=(6,0,0)$ and residual $\vec{e}=(1,-2,1)$, so
+$\mathrm{SS_{res}}=\norm{\vec{e}}^2=6$. The mean is $\bar{y}=(6+0+0)/3=2$, so the deviations from
+the mean are $(6-2,\,0-2,\,0-2)=(4,-2,-2)$ and
+\[
+  \mathrm{SS_{tot}} = 4^2+(-2)^2+(-2)^2 = 16+4+4 = 24.
+\]
+Therefore
+\[
+  R^2 = 1-\frac{6}{24} = 1-\frac14 = 0.75 .
+\]
+The line explains $75\%$ of the variation in this (tiny, noisy) data set, leaving a quarter
+unexplained. With only three points and clear scatter, that is about what you would expect.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % the column-space plane (the fitting subspace, containing the all-ones direction)
+  \fill[sourceblue!12] (-1.7,-0.5) -- (2.5,-0.5) -- (3.3,1.0) -- (-0.9,1.0) -- cycle;
+  \draw[sourceblue!55,thick] (-1.7,-0.5) -- (2.5,-0.5) -- (3.3,1.0) -- (-0.9,1.0) -- cycle;
+  \node[sourceblue!70!black] at (2.7,0.78){$\col(\mat{A})$};
+  \coordinate (O) at (0.0,0.1);
+  % mean vector ybar*1 in the plane
+  \coordinate (M) at (-0.5,0.0);
+  % fit p in the plane
+  \coordinate (P) at (1.7,0.35);
+  % data b above the plane
+  \coordinate (B) at (2.0,2.1);
+  % the three legs
+  \draw[->,spacegray,thick] (M)--(P) node[midway,below]{$\sqrt{\mathrm{SS_{model}}}$};
+  \draw[->,vecred,very thick] (P)--(B) node[midway,right]{$\sqrt{\mathrm{SS_{res}}}\;=\;\norm{\vec{e}}$};
+  \draw[->,vecblue,very thick] (M)--(B) node[midway,left]{$\sqrt{\mathrm{SS_{tot}}}$};
+  % right angle at P
+  \draw[vecred] ($(P)+(-0.16,0.0)$) -- ($(P)+(-0.16,0.16)$) -- ($(P)+(0.0,0.16)$);
+  \node[below left] at (M){$\bar{y}\,\mathbf{1}$};
+  \node[below right] at (P){$\vec{p}=\mat{A}\hat{\vec{x}}$};
+  \node[above right] at (B){$\vec{b}$};
+  \fill (M) circle (1.2pt); \fill (P) circle (1.2pt); \fill (B) circle (1.2pt);
+\end{tikzpicture}
+\caption{$R^2$ is one right triangle. Measured from the mean vector $\bar{y}\,\mathbf{1}$, the data
+$\vec{b}$ reaches up a distance $\sqrt{\mathrm{SS_{tot}}}$ (the hypotenuse). The fit $\vec{p}$ stays
+in the column space, a leg of length $\sqrt{\mathrm{SS_{model}}}$; the residual $\vec{e}=\vec{b}
+-\vec{p}$ is the perpendicular leg of length $\sqrt{\mathrm{SS_{res}}}$. Pythagoras gives
+$\mathrm{SS_{tot}}=\mathrm{SS_{model}}+\mathrm{SS_{res}}$, and $R^2=1-\mathrm{SS_{res}}/
+\mathrm{SS_{tot}}$ is the squared fraction of the hypotenuse used up by the model leg.}
+\label{ch19:rsquared-triangle}
+\end{figure}
+
+\begin{connectionbox}
+The Pythagorean theorem is hiding in plain sight. Because the residual $\vec{e}$ is orthogonal to
+the column space and the fit $\vec{p}=\mat{A}\hat{\vec{x}}$ lives in it, $\vec{b}=\vec{p}+\vec{e}$
+splits into perpendicular pieces, and $\norm{\vec{b}}^2=\norm{\vec{p}}^2+\norm{\vec{e}}^2$.
+Subtracting the mean (which the all-ones column lets the fit reproduce) turns this into
+$\mathrm{SS_{tot}}=\mathrm{SS_{model}}+\mathrm{SS_{res}}$, the famous \emph{analysis of variance}
+(ANOVA) decomposition drawn in Figure~\ref{ch19:rsquared-triangle}. Statisticians spent decades building the theory of variance, and underneath
+it all sits one right triangle in $\R^m$. The correlation coefficient $r$ from your first stats
+course is literally $\pm\sqrt{R^2}$, the cosine of the angle between the centered data and the
+centered fit. Geometry was the statistics all along.
+\end{connectionbox}
+
+\begin{trapbox}
+A high $R^2$ does \emph{not} mean your model is correct or useful. You can always raise $R^2$ by
+adding more features (more columns to $\mat{A}$): in the extreme, fit $m$ points with an
+$(m{-}1)$-degree polynomial and you get $R^2=1$ exactly -- the curve threads every point -- yet the
+fit is a wild, useless wiggle that will predict the next data point terribly. This is
+\textbf{overfitting}, and it is why practitioners report \emph{adjusted} $R^2$, or hold out test
+data, or penalize complexity. $R^2$ measures fit to the data you have, not truth, and never
+prediction on data you have not seen.
+\end{trapbox}
+
+\section{Least squares as the engine of statistics and machine learning}
+
+Everything above was phrased as ``fit a curve,'' but the same three lines of algebra are the core
+of supervised learning. Let us translate.
+
+In machine learning you have $m$ training examples. Each example $i$ has a row of
+\textbf{features} $\vec{a}_i\T = (a_{i1},\dots,a_{in})$ and a numerical \textbf{label} $b_i$. Stack
+the feature rows into the \textbf{design matrix} $\mat{A}$ (one row per example, one column per
+feature) and the labels into $\vec{b}$. A \textbf{linear model} predicts $\hat{b}_i=\vec{a}_i\T
+\vec{x}$ using a weight vector $\vec{x}$ -- exactly $\mat{A}\vec{x}$. Training the model to minimize
+squared prediction error is \emph{precisely} least squares, and the optimal weights are
+\[
+  \hat{\vec{x}} = (\mat{A}\T\mat{A})\inv\mat{A}\T\vec{b}.
+\]
+The fitted weights tell you how much each feature pushes the prediction; the residuals tell you
+where the model is wrong; $R^2$ tells you how much signal you captured. This is \textbf{linear
+regression}, the first model in every machine-learning course and still, today, the model that
+runs quietly underneath an enormous fraction of deployed prediction systems because it is fast,
+interpretable, and hard to break.
+
+\begin{applicationbox}
+\textbf{Why regression is everywhere.} A bank scoring loan applications stacks each applicant's
+features (income, debt ratio, credit age) as a row of $\mat{A}$ and past repayment outcomes as
+$\vec{b}$; the weights $\hat{\vec{x}}$ become the scorecard. A climate model fits temperature
+against $\mathrm{CO}_2$, solar cycle, and aerosol features. A sports analyst predicts a player's
+value from box-score features. In all of them the computational heart is the same projection onto
+a column space.
+
+Three engineering notes from real practice:
+\begin{itemize}
+  \item \textbf{Never invert $\mat{A}\T\mat{A}$ directly} on a real problem. Forming
+  $\mat{A}\T\mat{A}$ squares the condition number and amplifies round-off; instead solve via the
+  $\mat{Q}\mat{R}$ factorization or the SVD (next chapters), which work with $\mat{A}$ itself and
+  are numerically stable. The normal equations are how you \emph{understand} least squares, not
+  always how you compute it.
+  \item \textbf{Collinear features} (nearly dependent columns) make $\mat{A}\T\mat{A}$ nearly
+  singular, so tiny data changes swing the weights wildly. The standard fix is \textbf{ridge
+  regression}: minimize $\norm{\vec{b}-\mat{A}\vec{x}}^2 + \lambda\norm{\vec{x}}^2$, whose normal
+  equations are $(\mat{A}\T\mat{A}+\lambda\mat{I})\hat{\vec{x}}=\mat{A}\T\vec{b}$. The added
+  $\lambda\mat{I}$ guarantees invertibility and shrinks the weights toward zero.
+  \item \textbf{Gradient descent} solves the very same problem one step at a time when $\mat{A}$ is
+  too large to factor: it walks downhill on the bowl $f(\vec{x})=\norm{\vec{b}-\mat{A}\vec{x}}^2$,
+  and because the bowl is convex it cannot get stuck. The least-squares bowl is the training ground
+  on which every optimizer in deep learning was first tested.
+\end{itemize}
+\end{applicationbox}
+
+\begin{strangbox}
+Strang frames least squares as the meeting point of the whole first half of his course: it needs
+the column space, orthogonality (the right angle of the error), and projections (the matrix
+$\mat{P}$), and it pays them all off in one formula
+$\mat{A}\T\mat{A}\hat{\vec{x}}=\mat{A}\T\vec{b}$. \emph{Before} Strang, hold onto the picture:
+data off a plane, drop a perpendicular. \emph{After} Strang, watch how this same equation returns
+in disguise -- as the pseudoinverse $\mat{A}^{+}=(\mat{A}\T\mat{A})\inv\mat{A}\T$, as the
+``minimum-norm'' solution built from the SVD, and as the linear layer at the output of a neural
+network. Strang's slogan is worth memorizing: \emph{``$\mat{A}\T\mat{A}$ is the most important
+matrix in applied mathematics,''} and least squares is why.
+\end{strangbox}
+
+\section{The projection matrix, revisited}
+
+Pulling the threads together, the fitted values are $\vec{p}=\mat{A}\hat{\vec{x}}=\mat{P}\vec{b}$
+where
+\[
+  \mat{P} \;=\; \mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T.
+\]
+This $\mat{P}$ is the projection matrix onto $\col(\mat{A})$, and it carries two signature
+properties that you can verify directly from its formula:
+\[
+  \mat{P}\T=\mat{P}\quad(\text{symmetric}),
+  \qquad
+  \mat{P}^2=\mat{P}\quad(\text{idempotent: projecting twice changes nothing}).
+\]
+The symmetry check: $\mat{P}\T=\bigl(\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T\bigr)\T
+=\mat{A}\bigl((\mat{A}\T\mat{A})\inv\bigr)\T\mat{A}\T=\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T=\mat{P}$,
+using that $\mat{A}\T\mat{A}$ is symmetric so its inverse is too. The idempotence check telescopes
+beautifully:
+\[
+  \mat{P}^2 = \mat{A}\underbrace{(\mat{A}\T\mat{A})\inv\mat{A}\T\mat{A}}_{=\;\mat{I}}
+  (\mat{A}\T\mat{A})\inv\mat{A}\T
+  = \mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T = \mat{P}.
+\]
+The middle $\mat{A}\T\mat{A}$ cancels its own inverse, leaving $\mat{P}$ untouched. Geometrically:
+once you have landed on the plane, projecting again does nothing, because you are already there.
+
+\begin{example}\label{ch19:Pmatrix}
+For our line-fitting $\mat{A}=\begin{bmatrix}1&0\\1&1\\1&2\end{bmatrix}$ we found
+$\mat{A}\T\mat{A}=\begin{bmatrix}3&3\\3&5\end{bmatrix}$, whose inverse is
+$\frac{1}{6}\begin{bmatrix}5&-3\\-3&3\end{bmatrix}$. Multiplying out
+$\mat{P}=\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T$ gives
+\[
+  \mat{P}=\frac16\begin{bmatrix} 5 & 2 & -1\\ 2 & 2 & 2\\ -1 & 2 & 5\end{bmatrix}.
+\]
+Check it against the data: $\mat{P}\vec{b}=\frac16\begin{bmatrix}5&2&-1\\2&2&2\\-1&2&5\end{bmatrix}
+\colvec{6\\0\\0}=\frac16\colvec{30\\12\\-6}=\colvec{5\\2\\-1}=\vec{p}$, matching the projection we
+computed by solving the normal equations. And $\mat{P}$'s rows sum to $1$ (it preserves the
+constant vector, since the constant lives in the column space), while $\tr\mat{P}
+=\tfrac{5+2+5}{6}=2$ equals the rank -- the dimension of the plane we projected onto.
+\end{example}
+
+\begin{remark}
+The complementary matrix $\mat{I}-\mat{P}$ projects onto the orthogonal complement of the column
+space (the left nullspace of $\mat{A}$), and it sends $\vec{b}$ to the residual:
+$(\mat{I}-\mat{P})\vec{b}=\vec{b}-\vec{p}=\vec{e}$. So $\mat{P}$ splits every data vector into
+``signal that the model can explain'' ($\mat{P}\vec{b}$, in the column space) plus ``noise it
+cannot'' ($\vec{e}$, perpendicular to it). That decomposition $\vec{b}=\mat{P}\vec{b}
++(\mat{I}-\mat{P})\vec{b}$ is the whole of least squares in one line.
+\end{remark}
+
+\section{Summary}
+
+\begin{focusbox}
+\textbf{The whole chapter in one breath.} When $\mat{A}\vec{x}=\vec{b}$ has no solution because
+$\vec{b}$ lies off the column space, project: the best approximate solution $\hat{\vec{x}}$ makes
+the error $\vec{e}=\vec{b}-\mat{A}\hat{\vec{x}}$ perpendicular to $\col(\mat{A})$, which gives the
+normal equations
+\[
+  \mat{A}\T\mat{A}\,\hat{\vec{x}}=\mat{A}\T\vec{b},
+  \qquad
+  \hat{\vec{x}}=(\mat{A}\T\mat{A})\inv\mat{A}\T\vec{b}
+  \ \text{ when columns are independent.}
+\]
+The fit is $\vec{p}=\mat{P}\vec{b}$ with $\mat{P}=\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T$
+symmetric and idempotent. To fit a line, parabola, or any model linear in its parameters, put your
+features in the columns of $\mat{A}$ and run the same machine. Quality of fit is
+$R^2=1-\mathrm{SS_{res}}/\mathrm{SS_{tot}}$. This is linear regression, the foundation of
+statistics and machine learning -- and it is nothing but projection wearing a lab coat.
+\end{focusbox}
+
+\section*{Exercises}
+
+\begin{exercise}\label{ch19:ex-line}
+Fit a line $y=c+dt$ by least squares to the four points $(0,1),(1,3),(2,4),(3,4)$. Form
+$\mat{A}\T\mat{A}$ and $\mat{A}\T\vec{b}$, solve the $2\times2$ normal equations, and report the
+best-fit line. Then compute the residual vector and verify it is orthogonal to both columns of
+$\mat{A}$.
+\end{exercise}
+
+\begin{exercise}\label{ch19:ex-rsquared}
+For your fit in Exercise~\ref{ch19:ex-line}, compute $\mathrm{SS_{res}}$, $\mathrm{SS_{tot}}$
+(using the mean $\bar{y}$), and $R^2$. In one sentence, say what the resulting $R^2$ means about
+the data.
+\end{exercise}
+
+\begin{exercise}\label{ch19:ex-horizontal}
+Show that fitting the constant model $y=c$ (a horizontal line, so $\mat{A}$ is the single all-ones
+column $\mathbf{1}$) by least squares gives $\hat{c}=\bar{y}$, the mean of the data. Conclude that
+the mean is the least-squares ``best single number'' summarizing a data set, and explain why this
+makes $R^2=0$ for the constant model.
+\end{exercise}
+
+\begin{exercise}\label{ch19:ex-parabola}
+Fit a parabola $y=c_0+c_1 t+c_2 t^2$ to the three points $(-1,1),(0,0),(1,1)$. (With three points
+and three parameters the fit should be \emph{exact}; predict before computing that the residual
+will be zero, then confirm it by solving and checking $R^2=1$.)
+\end{exercise}
+
+\begin{exercise}\label{ch19:ex-centering}
+Suppose you shift all the times so they sum to zero (replace $t_i$ by $t_i-\bar{t}$). Show that
+then $\mat{A}\T\mat{A}=\begin{bmatrix} m & 0\\ 0 & \sum t_i^2\end{bmatrix}$ is diagonal, and hence
+the best slope and intercept decouple into $\hat{d}=\dfrac{\sum t_i y_i}{\sum t_i^2}$ and
+$\hat{c}=\bar{y}$. Explain geometrically why centering the data makes the two columns of $\mat{A}$
+orthogonal.
+\end{exercise}
+
+\begin{exercise}\label{ch19:ex-P-properties}
+Let $\mat{P}=\mat{A}(\mat{A}\T\mat{A})\inv\mat{A}\T$ for an $m\times n$ matrix $\mat{A}$ with
+independent columns. Prove directly from the formula that (a) $\mat{P}\vec{p}=\vec{p}$ for any
+$\vec{p}$ in the column space, and (b) $\mat{P}\vec{v}=\vec{0}$ for any $\vec{v}$ orthogonal to
+every column of $\mat{A}$. Conclude that $\mat{P}$ acts as the identity on $\col(\mat{A})$ and as
+zero on its orthogonal complement.
+\end{exercise}
+
+\begin{exercise}\label{ch19:ex-trace-rank}
+Using the cyclic property $\tr(\mat{X}\mat{Y})=\tr(\mat{Y}\mat{X})$, show that $\tr\mat{P}=n$ for
+the projection matrix of an $m\times n$ matrix with independent columns. Interpret this number
+geometrically (what is the dimension of the space $\mat{P}$ projects onto?).
+\end{exercise}
+
+\begin{exercise}\label{ch19:ex-ridge}
+\textbf{(Ridge regression.)} For scalar data, suppose $\mat{A}=\mathbf{1}$ (the all-ones column,
+$m$ entries) and we minimize $\norm{\vec{b}-c\mathbf{1}}^2+\lambda c^2$. Derive the modified normal
+equation $(m+\lambda)\hat{c}=\sum b_i$, so $\hat{c}=\dfrac{m\,\bar{y}}{m+\lambda}$. Show that as
+$\lambda\to 0$ you recover the mean, and as $\lambda\to\infty$ the estimate shrinks to $0$.
+Explain in words why a penalty $\lambda\norm{\vec{x}}^2$ ``shrinks'' the fit.
+\end{exercise}
+
+\begin{exercise}\label{ch19:ex-two-features}
+\textbf{(Multiple regression.)} You want to predict $b$ from two features $u$ and $v$ with the
+model $b\approx x_1 u + x_2 v$ (no intercept). The data are
+$(u,v,b)=(1,0,1),(0,1,1),(1,1,3)$. Set up $\mat{A}=\begin{bmatrix}1&0\\0&1\\1&1\end{bmatrix}$,
+$\vec{b}=\colvec{1\\1\\3}$, solve the normal equations for $\hat{\vec{x}}$, and interpret each
+weight as the effect of one feature holding the other fixed.
+\end{exercise}
+
+\begin{exercise}\label{ch19:ex-why-squares}
+\textbf{(A proof about minimizing.)} Let $\vec{p}$ be the projection of $\vec{b}$ onto a subspace
+$S=\col(\mat{A})$, so $\vec{b}-\vec{p}\perp S$. Take \emph{any} other vector $\vec{q}\in S$ and
+prove $\norm{\vec{b}-\vec{q}}^2=\norm{\vec{b}-\vec{p}}^2+\norm{\vec{p}-\vec{q}}^2$ (Pythagoras),
+hence $\norm{\vec{b}-\vec{q}}\ge\norm{\vec{b}-\vec{p}}$ with equality only when $\vec{q}=\vec{p}$.
+This is the rigorous statement that the projection is the unique closest point -- the foundation the
+whole chapter rests on.
+\end{exercise}

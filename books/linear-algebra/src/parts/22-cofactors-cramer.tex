@@ -1,0 +1,890 @@
+\chapter{Cofactors and Cramer's Rule}
+
+In the previous chapter we learned what a determinant \emph{is}: a single number attached to a square
+matrix that measures signed volume -- the factor by which the matrix scales areas in $\R^2$, volumes
+in $\R^3$, and hyper-volumes beyond, together with a sign that records whether orientation is kept or
+flipped. We learned the headline facts. The determinant is zero exactly when the matrix collapses
+space (when its columns are dependent, when it is not invertible). It multiplies: $\det(\mat A \mat
+B)=\det\mat A\,\det\mat B$. It is unchanged by the row operation that elimination uses most.
+
+This chapter answers a different question. Not ``what does the determinant mean,'' but ``how is it
+\emph{built}, and what can we build \emph{out} of it.'' Two classical structures grow directly from
+the determinant: the \textbf{cofactor expansion}, which computes a big determinant by peeling it into
+smaller ones, and from there the \textbf{adjugate}, which assembles those small determinants into an
+explicit formula for the inverse. Cramer's rule then drops out as a one-line consequence, and it
+carries a clean geometric reading: each unknown in a linear system is a ratio of two volumes.
+
+A warning before we start, because it will shape how you read everything that follows. The formulas
+in this chapter are some of the most \emph{elegant} in all of linear algebra and among the
+\emph{least practical} for actual computation. That is not a contradiction. They are tools for
+\emph{proving things} and for \emph{seeing structure}, not tools for crunching numbers on a large
+matrix. Throughout, I will say plainly when a cofactor expansion is a gift and when it is a trap,
+and the chapter ends by weighing these formulas against the elimination you already know.
+
+\begin{focusbox}
+The whole chapter hangs on one identity, the \textbf{cofactor expansion}: a determinant equals a
+sum, along any single row or column, of each entry times a $\pm$ sign times the determinant of the
+smaller matrix you get by deleting that entry's row and column. Everything else -- the inverse
+formula, Cramer's rule, the volume interpretation -- is a consequence of reading that one identity
+the right way.
+\end{focusbox}
+
+\section{Peeling a Determinant Apart: Minors and Cofactors}
+
+Let us start where the geometry is easiest to hold: a $2\times2$ matrix, whose determinant you
+already know.
+\[
+\mat A=\begin{bmatrix} a & b \\ c & d \end{bmatrix},\qquad \det\mat A = ad-bc.
+\]
+Stare at $ad-bc$ and ask: where do the two terms come from? The $a$ multiplies the $d$ -- and $d$ is
+exactly the lone entry left over when you cross out $a$'s row (the top) and $a$'s column (the left).
+The $b$ multiplies $c$ -- and $c$ is what is left when you cross out $b$'s row and column. So the
+$2\times2$ determinant is already a sum over the top row: take each top entry, multiply it by ``the
+determinant of what remains,'' and attach an alternating sign $+,-$.
+
+That little observation is the entire idea, repeated at every size. Let us name the pieces.
+
+\begin{definition}[Minor]\label{ch22:def-minor}
+Let $\mat A$ be an $n\times n$ matrix. The \textbf{minor} $M_{ij}$ is the determinant of the
+$(n-1)\times(n-1)$ matrix obtained by deleting row $i$ and column $j$ of $\mat A$.
+\end{definition}
+
+\begin{definition}[Cofactor]\label{ch22:def-cofactor}
+The \textbf{cofactor} $C_{ij}$ is the signed minor
+\[
+C_{ij} = (-1)^{\,i+j}\,M_{ij}.
+\]
+The sign $(-1)^{i+j}$ is $+1$ when $i+j$ is even and $-1$ when $i+j$ is odd.
+\end{definition}
+
+The sign pattern is worth burning into memory, because it is the part everyone gets wrong first. Lay
+it out on the matrix like a checkerboard, always starting with $+$ in the top-left corner:
+\[
+\begin{bmatrix}
++ & - & + & \cdots \\
+- & + & - & \cdots \\
++ & - & + & \cdots \\
+\vdots & & & \ddots
+\end{bmatrix}.
+\]
+
+\begin{intuitionbox}
+A minor answers ``forget about entry $(i,j)$ entirely -- if I delete its whole row and column, how
+much volume does the leftover matrix make?'' The cofactor is that same number with a sign glued on.
+The sign is not decoration: it is bookkeeping for orientation, the same $\pm$ that distinguishes a
+rotation from a reflection. When we add up entry $\times$ cofactor, the signs make the cross-terms
+cancel in exactly the way that recovers signed volume.
+\end{intuitionbox}
+
+\begin{trapbox}
+The checkerboard sign $(-1)^{i+j}$ belongs to the \emph{cofactor}, not the minor. A frequent error is
+to compute the minors correctly, then forget the sign on the off-diagonal positions and get the wrong
+total. Equally common: starting the checkerboard with a $-$ in the top-left. It always starts with
+$+$, because $(-1)^{1+1}=(-1)^2=+1$.
+\end{trapbox}
+
+\subsection{The Cofactor Expansion Theorem}
+
+Now the central claim. You can compute the determinant by marching along \emph{any} row or
+\emph{any} column, multiplying each entry by its cofactor, and adding.
+
+\begin{theorem}[Cofactor / Laplace expansion]\label{ch22:thm-expansion}
+Let $\mat A$ be $n\times n$ with entries $a_{ij}$. For any fixed row $i$,
+\[
+\det\mat A \;=\; \sum_{j=1}^{n} a_{ij}\,C_{ij}
+\;=\; \sum_{j=1}^{n} (-1)^{i+j}\,a_{ij}\,M_{ij},
+\]
+and for any fixed column $j$,
+\[
+\det\mat A \;=\; \sum_{i=1}^{n} a_{ij}\,C_{ij}
+\;=\; \sum_{i=1}^{n} (-1)^{i+j}\,a_{ij}\,M_{ij}.
+\]
+\end{theorem}
+
+The remarkable word in that statement is \emph{any}. Expand along the top row, the bottom row, the
+middle column -- you get the same number every time. We will not give the full combinatorial proof
+from the permutation definition (that is a worthwhile but heavy bookkeeping exercise), but the
+geometric and recursive heart of it is easy to see, and we sketch it in the box below.
+
+\begin{formalbox}
+\textbf{Why expansion works (sketch).} The determinant can be \emph{defined} as the signed sum over
+all permutations $\sigma$ of $\{1,\dots,n\}$,
+\[
+\det\mat A=\sum_{\sigma}\operatorname{sgn}(\sigma)\,a_{1\sigma(1)}a_{2\sigma(2)}\cdots a_{n\sigma(n)}.
+\]
+Fix row $i$. Every term in that giant sum uses \emph{exactly one} entry from row $i$, say
+$a_{i\sigma(i)}$. Group the terms by which column $j$ that entry sits in. The terms with
+$\sigma(i)=j$, after factoring out $a_{ij}$, are precisely a signed sum over permutations of the
+remaining $n-1$ indices -- which is the determinant of the matrix with row $i$ and column $j$
+removed. Tracking how $\operatorname{sgn}(\sigma)$ splits gives exactly the factor $(-1)^{i+j}$. So
+the grouped sum is $\sum_j a_{ij}(-1)^{i+j}M_{ij}$. Because the original sum was symmetric in how we
+chose to single out a row, the same argument works for any row or column.
+\end{formalbox}
+
+\subsection{A worked \texorpdfstring{$3\times3$}{3x3} expansion}
+
+Let us actually do one, slowly, because the mechanics are where people stumble.
+\[
+\mat A=\begin{bmatrix} 2 & -1 & 3 \\ 0 & 4 & 5 \\ 1 & 0 & 6 \end{bmatrix}.
+\]
+We expand along the \textbf{first row}. The three top entries are $2,-1,3$, sitting in positions
+$(1,1),(1,2),(1,3)$, with signs $+,-,+$.
+
+\emph{First term} -- entry $2$, sign $+$. Delete row $1$, column $1$:
+\[
+M_{11}=\det\begin{bmatrix} 4 & 5 \\ 0 & 6 \end{bmatrix}=4\cdot6-5\cdot0=24,
+\qquad +\,2\cdot 24 = 48.
+\]
+\emph{Second term} -- entry $-1$, sign $-$. Delete row $1$, column $2$:
+\[
+M_{12}=\det\begin{bmatrix} 0 & 5 \\ 1 & 6 \end{bmatrix}=0\cdot6-5\cdot1=-5,
+\qquad -\,(-1)\cdot(-5) = -5.
+\]
+\emph{Third term} -- entry $3$, sign $+$. Delete row $1$, column $3$:
+\[
+M_{13}=\det\begin{bmatrix} 0 & 4 \\ 1 & 0 \end{bmatrix}=0\cdot0-4\cdot1=-4,
+\qquad +\,3\cdot(-4) = -12.
+\]
+Add them: $\det\mat A = 48-5-12 = 31$.
+
+Now the payoff of ``any row or column.'' That first column of $\mat A$ has a zero in it ($a_{21}=0$)
+and a one ($a_{31}=1$), which makes the arithmetic lighter. Expand down \textbf{column 1} instead,
+signs $+,-,+$:
+\[
+\det\mat A
+= +\,2\det\begin{bmatrix}4&5\\0&6\end{bmatrix}
+ -\,0\cdot(\cdots)
+ +\,1\det\begin{bmatrix}-1&3\\4&5\end{bmatrix}
+= 2(24) + 1\big((-1)(5)-3\cdot4\big)
+= 48 + (-17) = 31.
+\]
+Same $31$, and the middle term vanished for free. This is the one genuine computational lesson of the
+section, so we make it a rule.
+
+\begin{focusbox}
+\textbf{Expand along the row or column with the most zeros.} Each zero entry kills an entire cofactor
+-- a whole smaller determinant you never have to compute. Choosing wisely can turn a painful
+expansion into a short one.
+\end{focusbox}
+
+\begin{labbox}
+Compute $\det\!\begin{bmatrix} 1 & 2 & 0 \\ 3 & -1 & 0 \\ 4 & 5 & 2 \end{bmatrix}$ by hand. The third
+column has two zeros -- expand along it. You should find only one nonzero cofactor survives, and it is
+$2$ times a $2\times2$ determinant. (Answer: $2\cdot(1\cdot(-1)-2\cdot3)=2\cdot(-7)=-14$.) Now redo
+it expanding along the first row and confirm you get $-14$ again, with more work.
+\end{labbox}
+
+Here is a picture of the peeling process: one $3\times3$ determinant becomes three $2\times2$
+determinants, each living on the entries that survive a deletion.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.62, every node/.style={font=\small}]
+  % big matrix
+  \foreach \r in {0,1,2}{
+    \foreach \c in {0,1,2}{
+      \draw[gray!40] (\c,-\r) rectangle ++(1,1);
+    }
+  }
+  \node at (0.5,-0.5){$a_{11}$};
+  \node at (1.5,-0.5){$a_{12}$};
+  \node at (2.5,-0.5){$a_{13}$};
+  \node at (0.5,-1.5){$a_{21}$};
+  \node at (1.5,-1.5){$a_{22}$};
+  \node at (2.5,-1.5){$a_{23}$};
+  \node at (0.5,-2.5){$a_{31}$};
+  \node at (1.5,-2.5){$a_{32}$};
+  \node at (2.5,-2.5){$a_{33}$};
+  % highlight top row
+  \draw[vecblue,very thick] (0,0) rectangle (3,-1);
+  \node[vecblue] at (1.5,0.5){expand along this row};
+
+  % arrows to three minors
+  \begin{scope}[xshift=6cm,yshift=0.2cm]
+    \node[vecred] at (-0.7,-1) {$+\,a_{11}$};
+    \draw[gray!50] (0,0) rectangle (1,-1);
+    \draw[gray!50] (1,0) rectangle (2,-1);
+    \draw[gray!50] (0,-1) rectangle (1,-2);
+    \draw[gray!50] (1,-1) rectangle (2,-2);
+    \node at (0.5,-0.5){$a_{22}$}; \node at (1.5,-0.5){$a_{23}$};
+    \node at (0.5,-1.5){$a_{32}$}; \node at (1.5,-1.5){$a_{33}$};
+  \end{scope}
+  \begin{scope}[xshift=6cm,yshift=-3cm]
+    \node[vecred] at (-0.7,-1) {$-\,a_{12}$};
+    \draw[gray!50] (0,0) rectangle (1,-1);
+    \draw[gray!50] (1,0) rectangle (2,-1);
+    \draw[gray!50] (0,-1) rectangle (1,-2);
+    \draw[gray!50] (1,-1) rectangle (2,-2);
+    \node at (0.5,-0.5){$a_{21}$}; \node at (1.5,-0.5){$a_{23}$};
+    \node at (0.5,-1.5){$a_{31}$}; \node at (1.5,-1.5){$a_{33}$};
+  \end{scope}
+  \begin{scope}[xshift=6cm,yshift=-6cm]
+    \node[vecred] at (-0.7,-1) {$+\,a_{13}$};
+    \draw[gray!50] (0,0) rectangle (1,-1);
+    \draw[gray!50] (1,0) rectangle (2,-1);
+    \draw[gray!50] (0,-1) rectangle (1,-2);
+    \draw[gray!50] (1,-1) rectangle (2,-2);
+    \node at (0.5,-0.5){$a_{21}$}; \node at (1.5,-0.5){$a_{22}$};
+    \node at (0.5,-1.5){$a_{31}$}; \node at (1.5,-1.5){$a_{32}$};
+  \end{scope}
+  \draw[-{Stealth}] (3.1,-0.5) .. controls (4.5,-0.5) .. (5.2,-1);
+  \draw[-{Stealth}] (3.1,-0.5) .. controls (4.5,-3) .. (5.2,-4);
+  \draw[-{Stealth}] (3.1,-0.5) .. controls (4.5,-6) .. (5.2,-7);
+\end{tikzpicture}
+\caption{Cofactor expansion along the top row turns one $3\times3$ determinant into three signed
+$2\times2$ minors. Each minor lives on the entries that survive deleting the highlighted entry's row
+and column.}
+\label{ch22:fig-peel}
+\end{figure}
+
+\begin{strangbox}
+Strang introduces cofactors as the third of his ``three ways to compute a determinant'' (the others
+being elimination to triangular form, and the big permutation formula). Reading this \emph{before}
+Strang, hold onto the recursive picture in Figure~\ref{ch22:fig-peel}: a determinant of size $n$ is a
+signed combination of determinants of size $n-1$. Reading it \emph{after} Strang, notice that his
+``BIG formula'' (the permutation sum) and the cofactor formula are the same sum, merely grouped
+differently -- grouping by the choice in one row is exactly what produces the cofactors.
+\end{strangbox}
+
+\subsection{Cofactors and the cost of computing}
+
+It is tempting to think cofactor expansion is \emph{the} way to find a determinant. For tiny matrices
+it is fine. But count the work. To expand an $n\times n$ determinant you compute $n$ cofactors, each
+an $(n-1)\times(n-1)$ determinant; each of those spawns $n-1$ more, and so on. The number of
+multiplications grows like $n!$ -- factorial. For $n=10$ that is over three million products; for
+$n=20$ it is more than the number of seconds in the age of the universe. Elimination, by contrast,
+reaches a triangular form (whose determinant is just the product of the pivots) in roughly $n^3/3$
+operations. For $n=20$ that is a few thousand. We will return to this contrast in
+Section~\ref{ch22:sec-when}, but plant the flag now: \textbf{cofactor expansion is a reasoning tool,
+not a computing tool.}
+
+The gap is not a small constant factor -- it is the difference between two universes of growth. The
+plot below puts the two costs side by side on a logarithmic vertical axis (so each gridline is a
+factor of one hundred). Watch how the cofactor curve, $n!$, leaves the cubic curve, $n^3/3$, almost
+immediately and never looks back.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=12cm, height=7cm,
+    ymode=log,
+    xlabel={matrix size $n$},
+    ylabel={multiplications (log scale)},
+    xmin=1, xmax=15, ymin=1, ymax=1e13,
+    grid=both, grid style={gray!18},
+    legend pos=north west,
+    legend cell align=left,
+    every axis plot/.append style={very thick},
+    tick label style={font=\small}, label style={font=\small},
+]
+  % factorial cost ~ n!
+  \addplot[vecred, mark=*, mark size=1.4pt] coordinates {
+    (1,1)(2,2)(3,6)(4,24)(5,120)(6,720)(7,5040)(8,40320)(9,362880)
+    (10,3628800)(11,39916800)(12,479001600)(13,6227020800)(14,87178291200)(15,1307674368000)
+  };
+  \addlegendentry{cofactor expansion $\sim n!$}
+  % elimination ~ n^3/3
+  \addplot[sourceblue, mark=square*, mark size=1.4pt] coordinates {
+    (1,1)(2,3)(3,9)(4,21)(5,42)(6,72)(7,114)(8,171)(9,243)
+    (10,333)(11,444)(12,576)(13,732)(14,915)(15,1125)
+  };
+  \addlegendentry{elimination $\sim n^3/3$}
+\end{axis}
+\end{tikzpicture}
+\caption{The cost of a determinant, two ways. On a log scale the cofactor count $n!$ (red) rockets
+upward while elimination's $n^3/3$ (blue) barely lifts off the floor. By $n=15$ the cofactor route
+asks for over a trillion multiplications; elimination asks for about a thousand. This single picture
+is the whole computational argument of the chapter.}
+\label{ch22:fig-cost}
+\end{figure}
+
+\section{The Determinant of Special Matrices}
+
+Before we build the inverse formula, let us cash in the cofactor expansion for some facts that are
+constantly useful and that the expansion makes almost obvious. These are the matrices whose
+determinants you should be able to write down on sight.
+
+\subsection{Triangular matrices: just multiply the diagonal}
+
+\begin{theorem}[Determinant of a triangular matrix]\label{ch22:thm-triangular}
+If $\mat A$ is upper triangular or lower triangular, then
+\[
+\det\mat A = a_{11}\,a_{22}\,\cdots\,a_{nn},
+\]
+the product of its diagonal entries.
+\end{theorem}
+
+\begin{proof}
+Take $\mat A$ upper triangular, so every entry below the diagonal is zero. Expand along the
+\emph{first column}. Only $a_{11}$ is nonzero there, so
+\[
+\det\mat A = a_{11}\,C_{11}=a_{11}\,M_{11},
+\]
+and the minor $M_{11}$ is the determinant of the $(n-1)\times(n-1)$ matrix you get by deleting the
+first row and column -- which is \emph{still upper triangular}, with diagonal $a_{22},\dots,a_{nn}$.
+Expanding it along \emph{its} first column peels off $a_{22}$, and so on by induction until a single
+diagonal entry remains. Multiplying the peeled factors gives $a_{11}a_{22}\cdots a_{nn}$. The
+lower-triangular case is identical, expanding along the first row each time.
+\end{proof}
+
+\begin{intuitionbox}
+Geometrically a triangular matrix stretches space one axis at a time without ever mixing a later axis
+back into an earlier one. The volume scaling is then just the product of the per-axis stretches --
+exactly the diagonal entries. A zero on the diagonal means one axis got flattened, the volume is $0$,
+and the matrix is singular.
+\end{intuitionbox}
+
+This is precisely \emph{why} elimination computes determinants efficiently: row operations of the
+``subtract a multiple of one row from another'' type do not change the determinant, and they drive any
+matrix to triangular form, where the answer is a single product down the diagonal. Cofactors explain
+\emph{why} the triangular form is so easy; elimination delivers you \emph{to} it cheaply.
+
+\subsection{A worked diagonal and triangular check}
+
+\[
+\det\begin{bmatrix} 3 & 0 & 0 \\ 0 & -2 & 0 \\ 0 & 0 & 5 \end{bmatrix}=3\cdot(-2)\cdot5=-30,
+\qquad
+\det\begin{bmatrix} 4 & 7 & -1 \\ 0 & 2 & 9 \\ 0 & 0 & 6 \end{bmatrix}=4\cdot2\cdot6=48.
+\]
+The upper-triangular determinant ignores the entries $7,-1,9$ above the diagonal entirely. They
+contribute nothing -- a fact that looks like magic until the proof above makes it inevitable.
+
+\subsection{A few more determinants you can read off}
+
+\begin{itemize}
+\item \textbf{Identity:} $\det\mat I = 1$. (Triangular with all $1$'s.) It scales no volume.
+\item \textbf{A row or column of zeros:} $\det = 0$. Expand along that row; every term has a zero
+  factor. Geometrically the matrix flattens space.
+\item \textbf{Two equal rows (or columns):} $\det=0$. The columns are dependent, so volume collapses.
+\item \textbf{Scaling the whole matrix:} $\det(c\mat A)=c^n\det\mat A$ for $n\times n$. Each of the
+  $n$ axes is stretched by $c$, so volume scales by $c^n$ -- not by $c$. This trips people up
+  constantly.
+\item \textbf{Transpose:} $\det(\mat A\T)=\det\mat A$. This is exactly why ``any row or column'' works
+  in Theorem~\ref{ch22:thm-expansion}: rows of $\mat A$ are columns of $\mat A\T$.
+\end{itemize}
+
+\begin{trapbox}
+$\det(c\mat A)=c^n\det\mat A$, not $c\det\mat A$. If you double every entry of a $3\times3$ matrix you
+multiply its determinant by $2^3=8$, because you doubled all three edge-lengths of the box. Likewise
+$\det(\mat A+\mat B)$ is \emph{not} $\det\mat A+\det\mat B$ in general -- the determinant is wildly
+nonlinear in the matrix as a whole, even though it is linear in each row \emph{separately}.
+\end{trapbox}
+
+\section{The Adjugate and the Inverse Formula}
+
+We now turn the cofactors into something structural. Collect every cofactor $C_{ij}$ into a matrix,
+then \emph{transpose} it. That transposed grid is the object this section is built around.
+
+\begin{definition}[Adjugate]\label{ch22:def-adj}
+The \textbf{cofactor matrix} of $\mat A$ is the $n\times n$ matrix $\mat C$ whose $(i,j)$ entry is the
+cofactor $C_{ij}$. The \textbf{adjugate} (or classical adjoint) is its transpose:
+\[
+\operatorname{adj}(\mat A) = \mat C\T,
+\qquad\text{so}\qquad
+\big(\operatorname{adj}\mat A\big)_{ij} = C_{ji}.
+\]
+\end{definition}
+
+The transpose is easy to forget and it matters: the $(i,j)$ entry of the adjugate is the cofactor
+$C_{ji}$ with the indices \emph{swapped}. Now the key identity.
+
+\begin{theorem}[Adjugate identity]\label{ch22:thm-adj}
+For any square $\mat A$,
+\[
+\mat A\,\operatorname{adj}(\mat A) = \operatorname{adj}(\mat A)\,\mat A = (\det\mat A)\,\mat I.
+\]
+Consequently, if $\det\mat A\neq 0$,
+\[
+\boxed{\;\mat A\inv = \frac{1}{\det\mat A}\,\operatorname{adj}(\mat A).\;}
+\]
+\end{theorem}
+
+This formula is a small marvel. It says the inverse of \emph{any}
+invertible matrix can be written down with no row reduction at all -- purely as a grid of
+sub-determinants, scaled by one over the determinant. The reason it works is worth the detour.
+
+\subsection{Why the adjugate identity holds}
+
+Look at the $(i,i)$ diagonal entry of the product $\mat A\,\operatorname{adj}(\mat A)$. By the rule
+for matrix multiplication it is
+\[
+\big(\mat A\,\operatorname{adj}\mat A\big)_{ii}
+=\sum_{k} a_{ik}\big(\operatorname{adj}\mat A\big)_{ki}
+=\sum_{k} a_{ik}\,C_{ik}.
+\]
+But $\sum_k a_{ik}C_{ik}$ is exactly the cofactor expansion of $\det\mat A$ along row $i$
+(Theorem~\ref{ch22:thm-expansion})! So every diagonal entry equals $\det\mat A$. That handles the
+diagonal.
+
+Now the off-diagonal entry $(i,j)$ with $i\neq j$:
+\[
+\big(\mat A\,\operatorname{adj}\mat A\big)_{ij}
+=\sum_{k} a_{ik}\big(\operatorname{adj}\mat A\big)_{kj}
+=\sum_{k} a_{ik}\,C_{jk}.
+\]
+This sum pairs the entries of row $i$ with the cofactors of row $j$. Here is the clever observation:
+$\sum_k a_{ik}C_{jk}$ is the cofactor expansion (along row $j$) of a \emph{modified} matrix -- the
+matrix $\mat A$ with row $j$ \emph{replaced by a copy of row $i$}. Why? Because the cofactors $C_{jk}$
+of row $j$ depend only on the \emph{other} rows; they never see row $j$ itself. So feeding them the
+entries of row $i$ computes the determinant of a matrix that has row $i$ sitting in both position $i$
+and position $j$. That matrix has two identical rows, so its determinant is $0$.
+
+Therefore the product is $\det\mat A$ on the diagonal and $0$ everywhere else -- precisely $(\det\mat
+A)\mat I$. Dividing by $\det\mat A$ (when it is nonzero) gives the inverse formula.
+
+\begin{aestheticbox}
+Sit with that argument for a moment. The off-diagonal entries vanish not by accident but because of a
+deliberate ``wrong'' cofactor expansion -- pairing one row's entries with another row's cofactors
+secretly computes the determinant of a matrix with a repeated row, which must be zero. The same
+mechanism, ``a duplicated row kills the determinant,'' that we use to see when a matrix is singular
+is the mechanism that makes the inverse formula's off-diagonal entries disappear. One idea, two jobs.
+\end{aestheticbox}
+
+\subsection{The \texorpdfstring{$2\times2$}{2x2} inverse, finally explained}
+
+You have surely memorized the $2\times2$ inverse: ``swap the diagonal, negate the off-diagonal, divide
+by the determinant.'' The adjugate formula is \emph{where that recipe comes from}. For
+\[
+\mat A=\begin{bmatrix} a & b \\ c & d \end{bmatrix},
+\]
+the four cofactors are single entries with signs: $C_{11}=+d$, $C_{12}=-c$, $C_{21}=-b$, $C_{22}=+a$.
+The cofactor matrix is $\begin{bmatrix} d & -c \\ -b & a\end{bmatrix}$, and the adjugate is its
+transpose:
+\[
+\operatorname{adj}\mat A=\begin{bmatrix} d & -b \\ -c & a\end{bmatrix},
+\qquad
+\mat A\inv=\frac{1}{ad-bc}\begin{bmatrix} d & -b \\ -c & a\end{bmatrix}.
+\]
+There it is. The mysterious swap-and-negate is the cofactor pattern $+,-,-,+$ followed by a transpose.
+
+\begin{labbox}
+Verify the adjugate identity by hand on $\mat A=\begin{bmatrix}2&1\\5&3\end{bmatrix}$. Here $\det\mat
+A=1$. Form $\operatorname{adj}\mat A=\begin{bmatrix}3&-1\\-5&2\end{bmatrix}$ and multiply: $\mat
+A\,\operatorname{adj}\mat A=\begin{bmatrix}2&1\\5&3\end{bmatrix}\begin{bmatrix}3&-1\\-5&2\end{bmatrix}
+=\begin{bmatrix}1&0\\0&1\end{bmatrix}=(\det\mat A)\mat I.$ Because $\det\mat A=1$, the adjugate
+\emph{is} the inverse here.
+\end{labbox}
+
+\subsection{A full \texorpdfstring{$3\times3$}{3x3} inverse by cofactors}
+
+Let us do one $3\times3$ inverse from scratch, to see both the elegance and the labor. Take
+\[
+\mat A=\begin{bmatrix} 1 & 2 & 3 \\ 0 & 1 & 4 \\ 5 & 6 & 0 \end{bmatrix}.
+\]
+First the determinant; expand along column 1 (it has a zero):
+\[
+\det\mat A
+= 1\det\begin{bmatrix}1&4\\6&0\end{bmatrix}
+- 0
++ 5\det\begin{bmatrix}2&3\\1&4\end{bmatrix}
+= 1(0-24) + 5(8-3) = -24 + 25 = 1.
+\]
+A determinant of $1$ -- convenient, because the inverse will equal the adjugate exactly. Now grind out
+all nine cofactors. Remember the sign checkerboard.
+\[
+\begin{aligned}
+C_{11}&=+\det\begin{bmatrix}1&4\\6&0\end{bmatrix}=0-24=-24,
+&C_{12}&=-\det\begin{bmatrix}0&4\\5&0\end{bmatrix}=-(0-20)=20,\\[2pt]
+C_{13}&=+\det\begin{bmatrix}0&1\\5&6\end{bmatrix}=0-5=-5,
+&C_{21}&=-\det\begin{bmatrix}2&3\\6&0\end{bmatrix}=-(0-18)=18,\\[2pt]
+C_{22}&=+\det\begin{bmatrix}1&3\\5&0\end{bmatrix}=0-15=-15,
+&C_{23}&=-\det\begin{bmatrix}1&2\\5&6\end{bmatrix}=-(6-10)=4,\\[2pt]
+C_{31}&=+\det\begin{bmatrix}2&3\\1&4\end{bmatrix}=8-3=5,
+&C_{32}&=-\det\begin{bmatrix}1&3\\0&4\end{bmatrix}=-(4-0)=-4,\\[2pt]
+C_{33}&=+\det\begin{bmatrix}1&2\\0&1\end{bmatrix}=1-0=1.
+\end{aligned}
+\]
+The cofactor matrix and its transpose (the adjugate):
+\[
+\mat C=\begin{bmatrix} -24 & 20 & -5 \\ 18 & -15 & 4 \\ 5 & -4 & 1\end{bmatrix},
+\qquad
+\operatorname{adj}\mat A=\mat C\T=\begin{bmatrix} -24 & 18 & 5 \\ 20 & -15 & -4 \\ -5 & 4 & 1\end{bmatrix}.
+\]
+Since $\det\mat A=1$,
+\[
+\mat A\inv=\operatorname{adj}\mat A=\begin{bmatrix} -24 & 18 & 5 \\ 20 & -15 & -4 \\ -5 & 4 & 1\end{bmatrix}.
+\]
+You can (and should, at least once in your life) check $\mat A\mat A\inv=\mat I$ directly. Notice the
+labor: nine $2\times2$ determinants plus the original $3\times3$, for a single inverse. Elimination
+would have produced the same inverse with markedly less arithmetic. The formula is exact and
+beautiful; it is also slow.
+
+\begin{strangbox}
+Strang is blunt about this formula, and rightly so: he calls the cofactor inverse a formula to
+\emph{know} but rarely to \emph{use}. The reason to learn it is that it gives the inverse
+\emph{symbolically} -- every entry of $\mat A\inv$ is a polynomial in the entries of $\mat A$ divided
+by $\det\mat A$. That symbolic form is what lets you \emph{prove} general facts: that the inverse
+entries are continuous in $\mat A$, that the inverse of an integer matrix with $\det=\pm1$ is again an
+integer matrix, and more. Numbers come from elimination; \emph{theorems} often come from the
+adjugate.
+\end{strangbox}
+
+\begin{connectionbox}
+The adjugate gives a clean window into \emph{when integer matrices have integer inverses}, a question
+at the heart of the group $\mathrm{GL}_n(\Z)$ and of lattices and cryptography. Because every entry of
+$\operatorname{adj}\mat A$ is a sum of products of integer entries, it is an integer matrix whenever
+$\mat A$ is. So $\mat A\inv=\frac{1}{\det\mat A}\operatorname{adj}\mat A$ is an integer matrix exactly
+when $\det\mat A$ divides every adjugate entry -- and in particular always when $\det\mat A=\pm1$.
+Matrices with $\det=\pm1$ are called \emph{unimodular}; they are precisely the invertible integer
+matrices whose inverses are also integer matrices, and they form a group. This is why $\det=\pm1$
+shows up everywhere from lattice-based cryptography to the change-of-basis matrices that preserve a
+grid of points.
+\end{connectionbox}
+
+\section{Cramer's Rule}
+
+Now we harvest the formula we have been building toward. Cramer's rule solves a square linear system
+$\mat A\vec x=\vec b$ by writing \emph{each unknown} as a ratio of two determinants. No back
+substitution, no augmented matrix -- just determinants.
+
+\begin{theorem}[Cramer's rule]\label{ch22:thm-cramer}
+Let $\mat A$ be $n\times n$ with $\det\mat A\neq 0$, and consider $\mat A\vec x=\vec b$. Let $\mat
+A_i(\vec b)$ denote the matrix $\mat A$ with its $i$-th column replaced by $\vec b$. Then the unique
+solution has entries
+\[
+x_i=\frac{\det \mat A_i(\vec b)}{\det\mat A},\qquad i=1,\dots,n.
+\]
+\end{theorem}
+
+The single new idea in the statement is the matrix $\mat A_i(\vec b)$: take $\mat A$, throw away its
+$i$-th column, and slot $\vec b$ into the gap. Every other column stays put. Figure~\ref{ch22:fig-replace}
+shows the surgery for a $3\times3$ matrix, where the second column is the one replaced.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.6, every node/.style={font=\small}]
+  % original matrix A
+  \foreach \c in {0,1,2}{\draw[gray!50] (\c,0) rectangle ++(1,-3);}
+  \node at (0.5,-1.5){$\vec a_1$};
+  \node[trapred] at (1.5,-1.5){$\vec a_2$};
+  \node at (2.5,-1.5){$\vec a_3$};
+  \node at (1.5,0.6){$\mat A$};
+  % arrow
+  \draw[-{Stealth},thick] (3.4,-1.5) -- (5.1,-1.5) node[midway,above]{replace col 2};
+  % A_2(b)
+  \begin{scope}[xshift=5.5cm]
+    \foreach \c in {0,1,2}{\draw[gray!50] (\c,0) rectangle ++(1,-3);}
+    \fill[vecred!18] (1,0) rectangle (2,-3);
+    \node at (0.5,-1.5){$\vec a_1$};
+    \node[vecred] at (1.5,-1.5){$\vec b$};
+    \node at (2.5,-1.5){$\vec a_3$};
+    \node at (1.5,0.6){$\mat A_2(\vec b)$};
+  \end{scope}
+\end{tikzpicture}
+\caption{The matrix $\mat A_i(\vec b)$ is $\mat A$ with its $i$-th column overwritten by $\vec b$ (here
+$i=2$). Cramer's rule says $x_i$ is the ratio $\det\mat A_i(\vec b)/\det\mat A$ of this matrix's
+determinant to the original's.}
+\label{ch22:fig-replace}
+\end{figure}
+
+\subsection{Where it comes from}
+
+The cleanest derivation rides on the adjugate. From $\mat A\vec x=\vec b$ and $\mat A\inv=\frac{1}{\det
+\mat A}\operatorname{adj}\mat A$ we get
+\[
+\vec x=\mat A\inv\vec b=\frac{1}{\det\mat A}\,\operatorname{adj}(\mat A)\,\vec b.
+\]
+The $i$-th entry of $\operatorname{adj}(\mat A)\,\vec b$ is $\sum_k\big(\operatorname{adj}\mat
+A\big)_{ik}b_k=\sum_k C_{ki}\,b_k$. But $\sum_k b_k C_{ki}$ is exactly the cofactor expansion, down
+column $i$, of the matrix whose $i$-th column is $\vec b$ and whose other columns are those of $\mat
+A$ -- that is, $\det\mat A_i(\vec b)$. Hence $x_i=\det\mat A_i(\vec b)/\det\mat A$. Cramer's rule is
+the adjugate inverse, read one coordinate at a time.
+
+\subsection{A worked \texorpdfstring{$2\times2$}{2x2} system}
+
+Solve
+\[
+\begin{bmatrix} 2 & 1 \\ 1 & 3 \end{bmatrix}\begin{bmatrix} x_1 \\ x_2\end{bmatrix}
+=\begin{bmatrix} 5 \\ 6\end{bmatrix}.
+\]
+First $\det\mat A=2\cdot3-1\cdot1=5$. For $x_1$, replace column 1 by $\vec b=\colvec{5\\6}$:
+\[
+\det\mat A_1(\vec b)=\det\begin{bmatrix} 5 & 1 \\ 6 & 3\end{bmatrix}=15-6=9,
+\qquad x_1=\frac{9}{5}.
+\]
+For $x_2$, replace column 2 by $\vec b$:
+\[
+\det\mat A_2(\vec b)=\det\begin{bmatrix} 2 & 5 \\ 1 & 6\end{bmatrix}=12-5=7,
+\qquad x_2=\frac{7}{5}.
+\]
+Check: $2\cdot\frac95+\frac75=\frac{18+7}{5}=5$ and $\frac95+3\cdot\frac75=\frac{9+21}{5}=6$. Both
+equations hold.
+
+\subsection{A worked \texorpdfstring{$3\times3$}{3x3} system}
+
+Solve $\mat A\vec x=\vec b$ with
+\[
+\mat A=\begin{bmatrix} 1 & 0 & 2 \\ -1 & 3 & 1 \\ 2 & 1 & 1 \end{bmatrix},\qquad
+\vec b=\begin{bmatrix} 1 \\ 2 \\ 5\end{bmatrix}.
+\]
+Determinant (expand along row 1):
+\[
+\det\mat A=1\det\begin{bmatrix}3&1\\1&1\end{bmatrix}-0+2\det\begin{bmatrix}-1&3\\2&1\end{bmatrix}
+=1(3-1)+2(-1-6)=2-14=-12.
+\]
+Now three modified determinants. Replace column 1 by $\vec b$:
+\[
+\det\mat A_1=\det\begin{bmatrix} 1 & 0 & 2 \\ 2 & 3 & 1 \\ 5 & 1 & 1 \end{bmatrix}
+=1(3-1)-0+2(2-15)=2-26=-24,\quad x_1=\frac{-24}{-12}=2.
+\]
+Replace column 2 by $\vec b$:
+\[
+\det\mat A_2=\det\begin{bmatrix} 1 & 1 & 2 \\ -1 & 2 & 1 \\ 2 & 5 & 1 \end{bmatrix}
+=1(2-5)-1(-1-2)+2(-5-4)=-3+3-18=-18,\quad x_2=\frac{-18}{-12}=\tfrac32.
+\]
+Replace column 3 by $\vec b$:
+\[
+\det\mat A_3=\det\begin{bmatrix} 1 & 0 & 1 \\ -1 & 3 & 2 \\ 2 & 1 & 5 \end{bmatrix}
+=1(15-2)-0+1(-1-6)=13-7=6,\quad x_3=\frac{6}{-12}=-\tfrac12.
+\]
+So $\vec x=\big(2,\tfrac32,-\tfrac12\big)$. Quick check on the first equation:
+$1\cdot2+0\cdot\tfrac32+2\cdot(-\tfrac12)=2-1=1=b_1$. Good.
+
+\begin{trapbox}
+Cramer's rule needs $\det\mat A\neq0$. If $\det\mat A=0$ the formula divides by zero and is silent --
+it cannot distinguish ``no solution'' from ``infinitely many.'' That is a real limitation: when a
+system is singular, the determinant ratios collapse and you must fall back on elimination to learn
+which case you are in. Cramer answers only the square, unique-solution question.
+\end{trapbox}
+
+\section{The Geometry of Cramer's Rule: Each Unknown Is a Ratio of Volumes}
+
+Formulas are easier to trust when you can see them. Cramer's rule has a vivid geometric reading,
+and it is the reason this rule belongs in a geometry-first book at all.
+
+Recall the picture of $\mat A\vec x=\vec b$ as a statement about columns. Writing $\mat
+A=[\,\vec a_1\;\vec a_2\;\cdots\;\vec a_n\,]$, the equation says
+\[
+x_1\vec a_1+x_2\vec a_2+\cdots+x_n\vec a_n=\vec b.
+\]
+The unknowns $x_i$ are the \emph{coordinates of $\vec b$ in the basis of columns}. Cramer's rule
+recovers each coordinate as a volume ratio. Let us see exactly why in $\R^2$, where ``volume'' means
+area.
+
+Take columns $\vec a_1,\vec a_2$ in the plane. The determinant $\det\mat A$ is the signed area of the
+parallelogram they span. Now $\vec b=x_1\vec a_1+x_2\vec a_2$. Consider the parallelogram built from
+$\vec b$ and $\vec a_2$ -- its area is $\det[\,\vec b\;\;\vec a_2\,]=\det\mat A_1(\vec b)$. Replace
+$\vec b$ by its expansion:
+\[
+\det[\,\vec b\;\;\vec a_2\,]=\det[\,x_1\vec a_1+x_2\vec a_2\;\;\vec a_2\,]
+= x_1\det[\,\vec a_1\;\;\vec a_2\,]+x_2\det[\,\vec a_2\;\;\vec a_2\,].
+\]
+The second determinant is zero (two equal columns). So $\det[\,\vec b\;\;\vec a_2\,]=x_1\det\mat A$,
+giving $x_1=\det\mat A_1(\vec b)/\det\mat A$ -- Cramer's rule, derived from pure area.
+
+\begin{intuitionbox}
+Here is the one-sentence geometry. \textbf{$x_i$ is the factor by which you must stretch the $i$-th
+column so that, together with the \emph{other} columns, it spans the same volume as $\vec b$ does with
+those columns.} Replacing column $i$ by $\vec b$ and taking the area ratio peels off exactly that
+stretch factor, because the other columns are shared and the determinant is linear in the column you
+changed.
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.05, >={Stealth[length=2.4mm]}]
+  \def\ax{2.6}\def\ay{0.4}   % a1
+  \def\bx{0.7}\def\by{2.1}   % a2
+  % b = 0.8 a1 + 0.9 a2
+  \pgfmathsetmacro{\rx}{0.8*\ax+0.9*\bx}
+  \pgfmathsetmacro{\ry}{0.8*\ay+0.9*\by}
+  % full parallelogram a1,a2 (faint)
+  \fill[sourceblue!12] (0,0) -- (\ax,\ay) -- (\ax+\bx,\ay+\by) -- (\bx,\by) -- cycle;
+  % parallelogram b, a2 (the A_1(b) area)
+  \fill[vecred!16] (0,0) -- (\rx,\ry) -- (\rx+\bx,\ry+\by) -- (\bx,\by) -- cycle;
+  \draw[gray!50] (0,0) grid[step=0.5] (4,3);
+  % vectors
+  \draw[->,vecblue,very thick] (0,0) -- (\ax,\ay) node[below right]{$\vec a_1$};
+  \draw[->,targetgreen,very thick] (0,0) -- (\bx,\by) node[above left]{$\vec a_2$};
+  \draw[->,vecred,very thick] (0,0) -- (\rx,\ry) node[above right]{$\vec b$};
+  \node[sourceblue] at (1.9,1.2) {\small $\det\mat A$};
+  \node[vecred] at (0.95,2.35) {\small $\det\mat A_1(\vec b)$};
+\end{tikzpicture}
+\caption{Cramer in the plane. The blue parallelogram on $\vec a_1,\vec a_2$ has signed area $\det\mat
+A$. The red parallelogram on $\vec b,\vec a_2$ has area $\det\mat A_1(\vec b)$. Their ratio is $x_1$ --
+the amount of $\vec a_1$ inside $\vec b$ -- because the shared edge $\vec a_2$ cancels and the
+$\vec a_2$-component of $\vec b$ contributes no area against $\vec a_2$.}
+\label{ch22:fig-cramer}
+\end{figure}
+
+\begin{walkbox}
+Take a walk and turn this over. Why does the component of $\vec b$ \emph{along} $\vec a_2$ contribute
+nothing to the area $\det[\,\vec b\;\vec a_2\,]$? (Hint: a parallelogram with two parallel edges is
+flat.) And why does that fact mean the red area sees \emph{only} the $\vec a_1$-component of $\vec b$,
+which is exactly $x_1\vec a_1$? Once you feel why the parallel part drops out, Cramer's rule will
+never look like a formula again -- it will look like a shadow.
+\end{walkbox}
+
+\begin{aestheticbox}
+The deep reason Cramer's rule exists is that the determinant is \emph{multilinear} -- linear in each
+column separately -- and \emph{alternating} -- zero when two columns coincide. Those two properties
+alone force the volume ratio to extract a single coordinate. You will meet exactly the same pair of
+properties again when you study the wedge product, exterior algebra, and the volume forms of
+differential geometry. Cramer's rule is your first taste of a principle that runs all the way up to
+the integration theory on curved spaces: \emph{antisymmetry plus linearity equals volume}.
+\end{aestheticbox}
+
+\section{When These Formulas Help, and When Elimination Wins}\label{ch22:sec-when}
+
+Here is the verdict, laid out plainly.
+
+\textbf{Elimination wins for numbers.} To solve $\mat A\vec x=\vec b$ for a specific numeric $\mat A$
+and $\vec b$, Gaussian elimination costs about $n^3/3$ operations and solves all $n$ unknowns at once.
+Cramer's rule asks you to compute $n+1$ separate determinants; even computing each determinant
+\emph{by elimination} costs $\sim n^3/3$, so Cramer is roughly $n+1$ times more expensive -- and if
+you compute those determinants by cofactor expansion the cost explodes to $\sim n\cdot n!$. For
+anything beyond about $3\times3$, Cramer and cofactors are computationally hopeless. They are also
+numerically fragile: dividing by a tiny determinant amplifies round-off error badly.
+
+\textbf{Cofactors and Cramer win for structure, symbols, and small sizes.} Reach for them when:
+\begin{itemize}
+\item The matrix is \textbf{$2\times2$ or $3\times3$} and you want a quick closed form -- the $2\times
+  2$ inverse recipe is the adjugate, and you should keep it at your fingertips.
+\item You need a \textbf{single unknown}, not the whole solution. Cramer gives $x_3$ alone without
+  ever finding $x_1,x_2$ -- occasionally handy in a derivation or an exam.
+\item You are working \textbf{symbolically} -- the entries are letters or parameters -- and you want
+  to see \emph{how} the solution depends on them. The explicit polynomial-over-determinant form is
+  exactly right for sensitivity analysis and for proofs.
+\item You are \textbf{proving a theorem}. The adjugate identity, the continuity of $\mat A\inv$ in its
+  entries, the integrality results in the connection box -- all rest on these formulas, not on
+  elimination.
+\end{itemize}
+
+\begin{focusbox}
+Rule of thumb: \textbf{to get a number, eliminate; to get a formula or a proof, use cofactors.}
+Cramer's rule and the adjugate are the determinant's \emph{theoretical} face. They tell you what the
+answer \emph{is} as an expression, which is a different and sometimes more valuable thing than telling
+you what it equals as a decimal.
+\end{focusbox}
+
+\begin{applicationbox}
+\textbf{Where the adjugate quietly shows up in modern work.} In computer graphics and physics
+engines, surface \emph{normals} must be transformed correctly when an object is deformed by a matrix
+$\mat M$. A normal does not transform by $\mat M$ -- it transforms by the \emph{inverse transpose}
+$(\mat M\inv)\T$, and for the common case where you only care about direction, this is proportional to
+the \emph{transpose of the adjugate}, $\operatorname{adj}(\mat M)\T$. Because the adjugate avoids the
+$1/\det$ division, graphics code often uses it directly: it stays finite and correct even when $\det
+\mat M$ is small, and you only normalize the resulting direction at the end. Meanwhile in statistics,
+Cramer's rule is the cleanest way to \emph{see} how a single regression coefficient depends on the
+data: each coefficient in the normal equations is one determinant ratio, which makes the effect of
+adding or perturbing a variable transparent -- even though the coefficients themselves are computed by
+the far more stable $\mat Q\mat R$ or Cholesky methods, never by literally evaluating Cramer on a
+large design matrix. The formula is the explanation; elimination is the calculator.
+\end{applicationbox}
+
+\begin{connectionbox}
+\textbf{Cramer's rule and the implicit function theorem.} In multivariable calculus you ask: if
+several quantities are tied together by equations, how does one of them change when you nudge an
+input? Linearizing the equations turns that question into a linear system whose matrix is the
+\emph{Jacobian}. The implicit function theorem says you can solve for the derivative exactly when the
+Jacobian determinant is nonzero -- and the derivative you get is, term by term, a Cramer's-rule ratio
+of determinants. So the condition ``$\det\neq0$'' that lets Cramer run is the very same condition that
+lets calculus invert a map locally. The two subjects are telling the same story: a nonzero determinant
+means the linear approximation is invertible, so the answer is a clean ratio of volumes.
+\end{connectionbox}
+
+\section{Looking Back}
+
+We took the single number from the previous chapter -- the determinant as signed volume -- and learned
+to take it apart and put it back together.
+
+\begin{itemize}
+\item \textbf{Cofactor expansion} (Theorem~\ref{ch22:thm-expansion}) computes a determinant along any
+  row or column as a signed sum of smaller determinants. Expand where the zeros are. It is recursive,
+  exact, and -- for large matrices -- factorially slow.
+\item \textbf{Special matrices} fall out instantly: a triangular determinant is the product of its
+  diagonal (Theorem~\ref{ch22:thm-triangular}), which is exactly why elimination computes determinants
+  cheaply. And $\det(c\mat A)=c^n\det\mat A$, not $c\det\mat A$.
+\item \textbf{The adjugate} (Theorem~\ref{ch22:thm-adj}) packages the cofactors into an explicit
+  inverse, $\mat A\inv=\frac{1}{\det\mat A}\operatorname{adj}\mat A$. Its off-diagonal entries vanish
+  because pairing one row's entries with another row's cofactors secretly evaluates a determinant with
+  a repeated row.
+\item \textbf{Cramer's rule} (Theorem~\ref{ch22:thm-cramer}) reads each unknown as a ratio of
+  determinants, $x_i=\det\mat A_i(\vec b)/\det\mat A$, and geometrically each unknown is a ratio of
+  volumes (Figure~\ref{ch22:fig-cramer}) -- the determinant's multilinear, alternating nature
+  extracting one coordinate at a time.
+\item \textbf{The verdict:} these are tools of \emph{insight}, not of \emph{computation}. To
+  get a number, eliminate. To get a formula or a proof, reach for cofactors.
+\end{itemize}
+
+In the next chapters the determinant transforms again. The equation $\det(\mat A-\lambda\mat I)=0$ --
+the \emph{characteristic polynomial} -- will hand us the eigenvalues, the special numbers that reveal
+how a matrix acts along its own privileged directions. Cofactor expansion is exactly how you write
+that polynomial down by hand for a $2\times2$ or $3\times3$ matrix, so the mechanics you just practiced
+carry directly forward.
+
+\section{Exercises}
+
+\begin{exercise}\label{ch22:ex-warmup-expand}
+Compute $\det\begin{bmatrix} 3 & 1 & 0 \\ 2 & -1 & 4 \\ 0 & 5 & 2\end{bmatrix}$ twice: once by
+expanding along the first row, once by expanding along the first column. Confirm you get the same
+number, and say which expansion required less arithmetic and why.
+\end{exercise}
+
+\begin{exercise}\label{ch22:ex-zeros}
+Find a row or column with the most zeros and use it to evaluate
+$\det\begin{bmatrix} 4 & 0 & 0 & 1 \\ 7 & 2 & 0 & 0 \\ 1 & 3 & -1 & 0 \\ 0 & 6 & 5 & 2\end{bmatrix}$.
+(Hint: the third column has three zeros.)
+\end{exercise}
+
+\begin{exercise}\label{ch22:ex-triangular}
+Without expanding, write down $\det\begin{bmatrix} 5 & 99 & -3 & 7 \\ 0 & 2 & 11 & 8 \\ 0 & 0 & -1 & 4
+\\ 0 & 0 & 0 & 3\end{bmatrix}$. Then explain in one sentence why all the entries above the diagonal
+were irrelevant.
+\end{exercise}
+
+\begin{exercise}\label{ch22:ex-scaling}
+Let $\mat A$ be a $3\times3$ matrix with $\det\mat A=4$. Compute $\det(2\mat A)$, $\det(\mat A\T)$,
+$\det(\mat A\inv)$, and $\det(\mat A^2)$. State the general rule you used in each case.
+\end{exercise}
+
+\begin{exercise}\label{ch22:ex-adj2x2}
+For $\mat A=\begin{bmatrix} 4 & 3 \\ 6 & 5\end{bmatrix}$, write down the cofactor matrix, the adjugate,
+and $\mat A\inv$. Verify $\mat A\,\operatorname{adj}\mat A=(\det\mat A)\mat I$ by direct multiplication.
+\end{exercise}
+
+\begin{exercise}\label{ch22:ex-cramer2}
+Use Cramer's rule to solve $\begin{bmatrix} 3 & 2 \\ 1 & 4\end{bmatrix}\vec x=\begin{bmatrix} 7 \\
+9\end{bmatrix}$. Then check your answer by substitution.
+\end{exercise}
+
+\begin{exercise}\label{ch22:ex-cramer-one}
+For the system $\begin{bmatrix} 1 & 2 & -1 \\ 0 & 3 & 1 \\ 2 & 0 & 1\end{bmatrix}\vec
+x=\begin{bmatrix} 3 \\ 5 \\ 4\end{bmatrix}$, use Cramer's rule to find \emph{only} $x_2$, without
+computing $x_1$ or $x_3$. (This is the situation where Cramer earns its keep.)
+\end{exercise}
+
+\begin{exercise}\label{ch22:ex-adj3x3}
+Compute $\mat A\inv$ for $\mat A=\begin{bmatrix} 2 & 0 & 1 \\ 1 & 1 & 0 \\ 0 & 1 & 3\end{bmatrix}$ by
+the adjugate method: find $\det\mat A$, all nine cofactors, the adjugate, and divide. Then verify one
+column of $\mat A\mat A\inv=\mat I$.
+\end{exercise}
+
+\begin{exercise}\label{ch22:ex-cost}
+A computer does $10^9$ multiplications per second. Estimate, in seconds, how long a cofactor expansion
+($\sim n!$ multiplications) would take for $n=15$ versus how long elimination ($\sim n^3/3$) would
+take. Use your estimates to argue, in a sentence or two, why no serious software computes determinants
+by cofactors.
+\end{exercise}
+
+\begin{exercise}\label{ch22:ex-geom-cramer}
+In $\R^2$ let $\vec a_1=\colvec{3\\0}$, $\vec a_2=\colvec{1\\2}$, and $\vec b=\colvec{5\\4}$. Compute
+$x_1,x_2$ by Cramer's rule, then verify geometrically: confirm that the area of the parallelogram on
+$\vec b,\vec a_2$ equals $x_1$ times the area of the parallelogram on $\vec a_1,\vec a_2$. Sketch both
+parallelograms.
+\end{exercise}
+
+\begin{exercise}\label{ch22:ex-proof-singular}
+\textbf{(Proof.)} Use the adjugate identity $\mat A\,\operatorname{adj}\mat A=(\det\mat A)\mat I$ to
+prove that if $\det\mat A=0$ then $\mat A\,\operatorname{adj}\mat A=\mat 0$. Then argue that if in
+addition $\operatorname{adj}\mat A\neq\mat 0$, the matrix $\mat A$ must be singular with a nontrivial
+null space, and that the nonzero columns of $\operatorname{adj}\mat A$ lie in that null space.
+\end{exercise}
+
+\begin{exercise}\label{ch22:ex-proof-detadj}
+\textbf{(Challenge.)} For an invertible $n\times n$ matrix $\mat A$, take determinants of both sides
+of $\mat A\,\operatorname{adj}\mat A=(\det\mat A)\mat I$ to show that
+$\det\big(\operatorname{adj}\mat A\big)=(\det\mat A)^{\,n-1}$. Check your formula on a $2\times2$ and a
+$3\times3$ example.
+\end{exercise}
