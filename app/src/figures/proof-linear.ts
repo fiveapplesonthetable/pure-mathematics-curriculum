@@ -155,8 +155,10 @@ const mount: Mount = (root) => {
     });
   });
 
-  // 3. Formula readout on its own full-width line
+  // 3. Formula readout and step explanation on full-width lines
   const f = formula(root);
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.2rem 8px 0.35rem';
 
   // 4. Proof label
   h('p', { class: 'env-label' }, root, 'Proof');
@@ -429,6 +431,18 @@ const mount: Mount = (root) => {
     } else {
       f.set(`|f(x) - f(c)| = ${fxDist.toFixed(2)} < \\varepsilon = ${eps.toFixed(2)}`);
     }
+
+    const stepNotes = [
+      `Step 1: Fix any point c = ${c.toFixed(1)} (where f(c) = ${fc.toFixed(1)}) and horizontal tolerance band f(c) ± ε.`,
+      `Step 2: Because the line has slope 3, we divide the vertical tolerance by 3 and set the horizontal window half-width to δ = ε/3 = ${delta.toFixed(2)}.`,
+      `Step 3: Pick any test input x = ${x.toFixed(2)} inside the window (c − δ, c + δ), so its horizontal distance is |x − c| = ${xDist.toFixed(2)} < δ.`,
+      `Step 4: Measure the vertical output error |f(x) − f(c)|; the constant +2 cancels in (3x + 2) − (3c + 2).`,
+      `Step 5: Factor out the slope 3: the vertical rise |f(x) − f(c)| = ${fxDist.toFixed(2)} is exactly 3 times the horizontal run |x − c| = ${xDist.toFixed(2)}.`,
+      `Step 6: Since |x − c| < δ, multiplying by 3 bounds the vertical rise strictly below 3δ = ${(3 * delta).toFixed(2)}.`,
+      `Step 7: By our choice δ = ε/3, the bound 3δ equals ε = ${eps.toFixed(2)} — matching the top and bottom edges of the target box.`,
+      `Step 8: Every x in (c − δ, c + δ) maps inside (f(c) − ε, f(c) + ε), proving f(x) = 3x + 2 is continuous at c.`,
+    ];
+    note.textContent = stepNotes[currentStep] ?? '';
   }
 
   view.onResize(draw);

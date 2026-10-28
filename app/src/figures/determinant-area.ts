@@ -6,6 +6,7 @@
 import {
   responsiveSvg,
   s,
+  h,
   attr,
   handle,
   row,
@@ -105,12 +106,12 @@ const mount: Mount = (root) => {
     },
   });
 
-  // Formula readout and Reset button
-  const r = row(root);
+  // Formula readout, explanation note, and Reset button
   const f = formula(root);
-  r.prepend(f.el);
-  f.el.style.margin = '0';
-  f.el.style.flex = '1 1 260px';
+  f.el.style.fontSize = 'clamp(0.84rem, 3.8vw, 1rem)';
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
+  const r = row(root);
 
   button(r, 'Reset', () => {
     const fromA = a, fromC = c, fromB = b, fromD = d;
@@ -327,13 +328,25 @@ const mount: Mount = (root) => {
     hd1.move(p1x, p1y);
     hd2.move(p3x, p3y);
 
-    // Live formula
+    // Live formula & geometric explanation
     if (isFlat) {
-      f.set('\\det [\\mathbf{a}_1\\,\\mathbf{a}_2] = ad - bc = 0\\text{ (flat: zero area)}');
+      f.set(
+        W >= 460
+          ? '\\det [\\mathbf{a}_1\\,\\mathbf{a}_2] = ad - bc = 0\\text{ (flat: zero area)}'
+          : '\\det [\\mathbf{a}_1\\,\\mathbf{a}_2] = ad - bc = 0',
+      );
+      note.textContent = `Vectors a₁ = (${a.toFixed(1)}, ${c.toFixed(1)}) and a₂ = (${b.toFixed(1)}, ${d.toFixed(1)}) lie on the same line: the parallelogram flattens to zero area, so det [a₁ a₂] = 0.`;
     } else {
       const sign = det < 0 ? '-' : '';
       const val = Math.abs(det).toFixed(2);
-      f.set(`\\det [\\mathbf{a}_1\\,\\mathbf{a}_2] = ad - bc = ${sign}${val}\\text{ (= signed area)}`);
+      f.set(
+        W >= 460
+          ? `\\det [\\mathbf{a}_1\\,\\mathbf{a}_2] = ad - bc = ${sign}${val}\\text{ (= signed area)}`
+          : `\\det [\\mathbf{a}_1\\,\\mathbf{a}_2] = ad - bc = ${sign}${val}`,
+      );
+      note.textContent = isPositive
+        ? `Rotating from a₁ = (${a.toFixed(1)}, ${c.toFixed(1)}) to a₂ = (${b.toFixed(1)}, ${d.toFixed(1)}) goes counter-clockwise (right-handed), giving positive signed area ad − bc = +${val}.`
+        : `Sweeping a₁ past a₂ reverses orientation to clockwise (cw), flipping the sign of the determinant to ad − bc = −${val} while the geometric area is ${val}.`;
     }
   }
 

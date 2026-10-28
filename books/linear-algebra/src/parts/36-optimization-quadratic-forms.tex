@@ -23,8 +23,9 @@ alone, whether a surface curves up into a bowl (a minimum), down into a dome (a
 maximum), or twists into a saddle (neither). Along the way we will see that
 ``positive definite'' and ``convex'' and ``has a unique minimum'' are three phrasings
 of one idea, that least squares is just the gradient of a bowl set to zero, and that
-constrained optimization -- minimizing on a curve or a sphere -- hands us the
-eigenvalue problem all over again through Lagrange multipliers.
+constrained optimization -- whether gliding along smooth curves or bumping against
+solid inequality walls -- hands us the eigenvalue problem through Lagrange multipliers
+and reveals the Karush--Kuhn--Tucker conditions that power modern machine learning.
 
 \section{The landscape and its bottom}
 \label{ch36:landscape}
@@ -218,7 +219,7 @@ What if there is a cross term? Take
 \]
 The level curves $Q=\text{const}$ are still ellipses, but now they are \emph{tilted}
 -- their axes do not line up with the coordinate axes, precisely because of the $xy$
-term. The cross term is the algebraic fingerprint of a tilt. To see the bowl clearly
+term. The cross term is the algebraic fingerprint of a tilt. To visualize the bowl's principal geometry
 we want to rotate our coordinates until the tilt vanishes. And we already know how:
 diagonalize the symmetric matrix.
 
@@ -409,8 +410,8 @@ The \textbf{Hessian} $\mat{H}$ is the matrix of second partial derivatives:
    \dfrac{\partial^2 f}{\partial x_n\partial x_1} & \cdots & \dfrac{\partial^2 f}{\partial x_n^2}
   \end{bmatrix}.
 \]
-Because mixed partials are equal (for nice functions), $\mat{H}$ is \emph{symmetric}
--- and that is no accident. The Hessian is the symmetric matrix whose quadratic form
+Because mixed partials are equal (for nice functions), $\mat{H}$ is automatically \emph{symmetric}.
+The Hessian is the symmetric matrix whose quadratic form
 \emph{is} the local curvature of $f$. Here is the bridge, written precisely.
 
 \begin{formalbox}
@@ -432,6 +433,14 @@ exactly the single-variable second-derivative test you already know -- ``$f'=0$ 
 $f''>0$ means a minimum'' -- promoted to many dimensions, with the scalar $f''>0$
 replaced by the matrix statement ``$\mat{H}$ is positive definite.''
 \end{intuitionbox}
+
+\begin{historybox}
+In 1847, Augustin-Louis Cauchy invented gradient descent while trying to calculate the astronomical orbits of celestial bodies and comets. Cauchy observed that stepping in the direction of the negative gradient $-\nabla f$ guarantees an immediate decrease in function height. But he ran into a notorious geometric trap: in long, narrow ravines where one direction is steep and the perpendicular direction is shallow, steepest descent zigzags back and forth between the ravine walls. Because the gradient is always perpendicular to level curves, the steps waste energy bouncing across the valley rather than marching down its floor.
+
+Newton's method fixes the zigzag by using the second-derivative Hessian matrix $\mat{H}$ to leap straight to the bottom: $\Delta\vec{x} = -\mat{H}\inv \nabla f$. But computing and inverting an $n \times n$ Hessian costs $\mathcal{O}(n^3)$ operations and requires storing $n^2$ numbers, which is impossible when $n$ reaches thousands or millions of variables. Worse, if the Hessian has negative eigenvalues (saddle points), Newton's step can launch the search uphill toward a maximum.
+
+In 1952, Magnus Hestenes and Eduard Stiefel resolved this dilemma by inventing the \textbf{Conjugate Gradient (CG)} method for symmetric positive-definite systems. Instead of stepping along the gradient, CG constructs search directions that are mutually orthogonal with respect to the energy matrix: $\vec{d}_i\T\mat{A}\vec{d}_j = 0$. Each step completely eliminates error along an entire principal axis of the elliptical bowl without spoiling any progress from earlier steps. In exact arithmetic, CG reaches the exact bottom in at most $n$ iterations; in practice, it achieves high precision in only $\mathcal{O}(\sqrt{\kappa} \log(1/\epsilon))$ steps, becoming the gold standard for large-scale optimization.
+\end{historybox}
 
 \begin{formalbox}
 \label{ch36:thm-second-order}
@@ -646,41 +655,64 @@ preconditioning to round the bowl -- is the content of this chapter.
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[scale=1.0,>=Latex]
-  % --- Left: long thin bowl, zig-zag descent ---
-  \begin{scope}
-    \draw[->] (-2.5,0)--(2.7,0) node[right]{\small $x$};
-    \draw[->] (0,-2.3)--(0,2.5) node[above]{\small $y$};
-    % elongated ellipses: x^2/0.5 + y^2/4 style (steep in x, gentle in y)
-    \foreach \k in {0.5,1.0,1.7} {
-      \draw[spacegray!60] (0,0) ellipse ({sqrt(\k)*0.7} and {sqrt(\k)*2.1});
-    }
-    % zig-zag path bouncing across the narrow valley toward origin
-    \draw[vecred,very thick]
-      (1.05,1.9)--(-0.62,1.5)--(0.5,1.1)--(-0.34,0.78)--(0.26,0.55)
-      --(-0.17,0.36)--(0.11,0.22)--(0,0);
-    \fill[vecred] (1.05,1.9) circle (1.6pt);
-    \fill[black] (0,0) circle (1.6pt);
-    \node[align=center] at (0,-2.7) {\small long, thin bowl\\[-2pt]\small (large $\lambda_{\max}/\lambda_{\min}$)};
+\begin{tikzpicture}[scale=0.92,>=Latex]
+  % --- Left Panel: Ill-conditioned ravine, zig-zag descent ---
+  \begin{scope}[shift={(0,0)}]
+    \node[anchor=south,font=\scriptsize\scshape,text=spacegray!90!black] at (0,2.6) {1. Ill-Conditioned Ravine ($\lambda_{\max}/\lambda_{\min} \gg 1$)};
+    \draw[fill=codebg,draw=spacegray!30,rounded corners=4pt] (-2.8,-2.6) rectangle (2.8,2.4);
+
+    % Axes
+    \draw[->,gray!50] (-2.4,0) -- (2.5,0) node[right,font=\scriptsize]{$x$};
+    \draw[->,gray!50] (0,-2.2) -- (0,2.2) node[above,font=\scriptsize]{$y$};
+
+    % Shaded concentric ellipses (steep along x, gentle along y)
+    \draw[fill=quotientorange!8,draw=quotientorange!40] (0,0) ellipse (2.2 and 0.7);
+    \draw[fill=quotientorange!15,draw=quotientorange!60] (0,0) ellipse (1.5 and 0.48);
+    \draw[fill=quotientorange!22,draw=quotientorange!80] (0,0) ellipse (0.8 and 0.25);
+
+    % Zig-zag gradient descent trajectory (each step orthogonal to contour)
+    \draw[->,vecred,line width=1.4pt] (1.9,1.5) -- (0.4,0.35);
+    \draw[->,vecred,line width=1.4pt] (0.4,0.35) -- (-0.3,0.18);
+    \draw[->,vecred,line width=1.4pt] (-0.3,0.18) -- (0.15,0.08);
+    \draw[->,vecred,line width=1.4pt] (0.15,0.08) -- (0,0);
+
+    \fill[vecred] (1.9,1.5) circle (2pt) node[above right=1pt,font=\scriptsize]{$\vec{x}^{(0)}$};
+    \fill[black] (0,0) circle (2pt) node[below left=1pt,font=\scriptsize]{$\vec{x}^\star$};
+
+    \node[draw=quotientorange!70,fill=white,rounded corners=2pt,font=\tiny,align=center] at (0,-1.75) {
+      $-\nabla f$ orthogonal to contours:\\
+      oscillates across steep canyon walls
+    };
   \end{scope}
-  % --- Right: round bowl, straight descent ---
-  \begin{scope}[xshift=7.0cm]
-    \draw[->] (-2.5,0)--(2.7,0) node[right]{\small $x$};
-    \draw[->] (0,-2.3)--(0,2.5) node[above]{\small $y$};
-    \foreach \k in {0.4,1.0,1.8} {
-      \draw[spacegray!60] (0,0) circle ({sqrt(\k)*1.3});
-    }
-    \draw[vecblue,very thick] (1.6,1.6)--(0,0);
-    \fill[vecblue] (1.6,1.6) circle (1.6pt);
-    \fill[black] (0,0) circle (1.6pt);
-    \node[align=center] at (0,-2.7) {\small round bowl\\[-2pt]\small ($\lambda_{\max}/\lambda_{\min}\approx 1$)};
+
+  % --- Right Panel: Well-conditioned round bowl, direct descent ---
+  \begin{scope}[shift={(6.8,0)}]
+    \node[anchor=south,font=\scriptsize\scshape,text=spacegray!90!black] at (0,2.6) {2. Round Quadratic Bowl ($\lambda_{\max}/\lambda_{\min} \approx 1$)};
+    \draw[fill=codebg,draw=spacegray!30,rounded corners=4pt] (-2.8,-2.6) rectangle (2.8,2.4);
+
+    % Axes
+    \draw[->,gray!50] (-2.4,0) -- (2.5,0) node[right,font=\scriptsize]{$x$};
+    \draw[->,gray!50] (0,-2.2) -- (0,2.2) node[above,font=\scriptsize]{$y$};
+
+    % Shaded concentric circles
+    \draw[fill=sourceblue!8,draw=sourceblue!40] (0,0) circle (1.9);
+    \draw[fill=sourceblue!15,draw=sourceblue!60] (0,0) circle (1.3);
+    \draw[fill=sourceblue!22,draw=sourceblue!80] (0,0) circle (0.7);
+
+    % Direct gradient descent trajectory
+    \draw[->,vecblue,line width=1.6pt] (1.4,1.4) -- (0.45,0.45);
+    \draw[->,vecblue,line width=1.6pt] (0.45,0.45) -- (0,0);
+
+    \fill[vecblue] (1.4,1.4) circle (2pt) node[above right=1pt,font=\scriptsize]{$\vec{x}^{(0)}$};
+    \fill[black] (0,0) circle (2pt) node[below left=1pt,font=\scriptsize]{$\vec{x}^\star$};
+
+    \node[draw=sourceblue!70,fill=white,rounded corners=2pt,font=\tiny,align=center] at (0,-1.75) {
+      $-\nabla f$ points straight to center:\\
+      converges rapidly with zero oscillation
+    };
   \end{scope}
 \end{tikzpicture}
-\caption{Why the eigenvalue spread (condition number) sets the speed of gradient
-descent. On a long thin bowl (left) the steepest-descent step points across the valley,
-not down it, so the path zig-zags slowly toward the bottom. On a round bowl (right)
-every step aims straight at the minimum. Feature scaling reshapes the left picture into
-the right one by pulling the eigenvalues together.}
+\caption{Gradient descent trajectories on quadratic form level curves. Left: On an ill-conditioned quadratic form with wide eigenvalue spread ($\lambda_{\max} \gg \lambda_{\min}$), level curves are tightly compressed ellipses. The gradient $-\nabla f$ is orthogonal to the local tangent, causing steps to bounce back and forth between steep walls while progressing agonizingly slowly down the gentle valley floor. Right: On a well-conditioned or preconditioned bowl ($\lambda_{\max} \approx \lambda_{\min}$), level curves are circular and the negative gradient points straight toward the global minimum $\vec{x}^\star$.}
 \label{ch36:fig-condition}
 \end{figure}
 
@@ -842,6 +874,403 @@ $\vec{w}\T\mat{C}\vec{w}$ on the sphere -- the top eigenvector of the covariance
 matrix, found by the Rayleigh quotient.
 \end{aestheticbox}
 
+\section{Constrained convex optimization, duality, and the KKT conditions}
+\label{ch36:kkt}
+
+In Section~\ref{ch36:lagrange}, our marble was trapped on a tightrope: an equality constraint $g(\vec{x}) = 0$ forced motion along a narrow curve or surface. Stepping to either side was strictly forbidden. But in engineering, economics, and machine learning, real-world constraints rarely confine us to razor-thin curves. Instead, they give us \emph{room to roam}, bounded by one-sided barriers:
+\begin{itemize}
+  \item A financial portfolio must keep asset weights non-negative: $w_i \ge 0$.
+  \item A factory cannot exceed its raw material budget: $\sum c_i x_i \le B$.
+  \item A machine learning classifier must keep data points outside a decision margin: $y_i(\vec{w}\T\vec{x}_i + b) \ge 1$.
+\end{itemize}
+These are \emph{inequality constraints}. They replace tightropes with solid fences, dividing the universe of points into a safe interior, a contact boundary, and a forbidden exterior. To navigate them, we need to understand the shape of the safe region, the physical forces that keep an optimizer from crossing its boundary, and the Karush--Kuhn--Tucker (KKT) conditions that govern equilibrium.
+
+\subsection{Why convexity matters geometrically}
+\label{ch36:convex-geometry}
+
+Before erecting fences, we must confront a fundamental question: when can we trust that rolling downhill will lead to the best possible answer?
+
+On a general, non-convex landscape, optimization is a minefield. The surface may feature dozens of shallow valleys, deceptive plateaus, and treacherous saddle points. An algorithm rolling downhill can easily settle into a mediocre puddle, completely unaware that a much deeper canyon lies just over the next ridge. Unless you inspect every cubic millimeter of the domain, you can never be certain whether a local minimum is the true global minimum.
+
+Convexity is the geometric property that dismantles this trap. It requires two ingredients: a convex function, and a convex domain.
+
+\begin{definition}[Convex set]
+\label{ch36:def-convex-set}
+A set $C \subseteq \R^n$ is \emph{convex} if for any two points $\vec{x}, \vec{z} \in C$ and any scalar $t \in [0, 1]$, the line segment connecting them lies entirely within $C$:
+\[
+  t\vec{x} + (1-t)\vec{z} \in C.
+\]
+\end{definition}
+
+Picture walking in a straight line between any two spots in your yard. If the yard has no indentations, holes, or pinched waists, your path never steps outside the property line. A solid sphere, an ellipse, a cube, and a half-space $\{\vec{x} : \vec{a}\T\vec{x} \le b\}$ are all convex sets. A crescent moon, an hourglass, or a donut are not.
+
+Now place a convex function $f$ on top of this convex set $C$. As we saw in Definition~\ref{ch36:def-convex}, a function is convex when the straight line chord between any two points on its graph sits on or above the graph. When $f$ is twice differentiable, Theorem~\ref{ch36:thm-convex} guarantees that this is equivalent to the Hessian matrix being positive semidefinite everywhere:
+\[
+  \nabla^2 f(\vec{x}) \succeq 0 \qquad \text{for all } \vec{x} \in C.
+\]
+The eigenvalues of the Hessian are non-negative everywhere in the domain. The surface never flexes downward into domes or saddles; it cups upward in every direction.
+
+\begin{formalbox}
+\label{ch36:thm-convex-global}
+\textbf{The fundamental guarantee of convex optimization.} Let $f : C \to \R$ be a convex function defined on a convex set $C$. Then:
+\begin{enumerate}
+  \item Every local minimum of $f$ on $C$ is a global minimum of $f$ on $C$.
+  \item The set of all global minimizers is convex.
+  \item If $f$ is strictly convex (for instance, if $\nabla^2 f(\vec{x}) \succ 0$ is strictly positive definite), the global minimum is unique.
+\end{enumerate}
+\end{formalbox}
+
+\begin{proof}[Why local implies global]
+Suppose $\vec{x}^\star \in C$ is a local minimum, but there exists some other point $\vec{z} \in C$ with $f(\vec{z}) < f(\vec{x}^\star)$. Because $C$ is convex, the entire line segment $\vec{x}(t) = (1-t)\vec{x}^\star + t\vec{z}$ belongs to $C$ for all $t \in (0, 1]$. By the definition of a convex function,
+\[
+  f(\vec{x}(t)) \;\le\; (1-t)f(\vec{x}^\star) + t f(\vec{z}) \;<\; (1-t)f(\vec{x}^\star) + t f(\vec{x}^\star) \;=\; f(\vec{x}^\star).
+\]
+As $t \to 0$, the point $\vec{x}(t)$ approaches $\vec{x}^\star$ arbitrarily closely, yet $f(\vec{x}(t)) < f(\vec{x}^\star)$. This contradicts the premise that $\vec{x}^\star$ was a local minimum. Hence no such downhill point $\vec{z}$ can exist: $\vec{x}^\star$ must be a global minimum.
+\end{proof}
+
+This proof reveals why both ingredients are required. If the function is not convex, the graph can dip between two points. If the set is not convex, the connecting segment could pass through forbidden territory outside $C$, preventing the straight-line descent. When both $f$ and $C$ are convex, the landscape is guaranteed to have a single floor: downhill always leads home.
+
+\subsection{Inequality constraints as physical walls}
+\label{ch36:physical-walls}
+
+Now let us add constraints. We wish to solve the standard inequality-constrained problem:
+\[
+  \text{minimize } f(\vec{x}) \qquad \text{subject to } g(\vec{x}) \le 0.
+\]
+The function $g(\vec{x})$ defines our territory: the region where $g(\vec{x}) < 0$ is the interior of the yard, the set $g(\vec{x}) = 0$ is the boundary fence, and points with $g(\vec{x}) > 0$ lie in forbidden space.
+
+Picture rolling a marble on the surface $f(\vec{x})$ inside this fenced yard. Gravity pulls the marble downhill along the direction of steepest descent, which is the negative gradient vector $-\nabla f(\vec{x})$. When the marble comes to rest at an optimal point $\vec{x}^\star$, where does it sit?
+
+Nature offers exactly two possibilities, illustrated in Figure~\ref{ch36:fig-kkt-walls}:
+
+\begin{enumerate}
+  \item \textbf{Case 1: Inactive constraint ($g(\vec{x}^\star) < 0$, $\mu = 0$)}.
+  The bottom of the bowl lies safely inside the yard. The marble rolls down and settles at the natural unconstrained floor, where the ground is completely flat:
+  \[
+    \nabla f(\vec{x}^\star) = \vec{0}.
+  \]
+  Because the marble never touches the boundary fence, the fence exerts zero physical force on it. If we think of the fence as a physical barrier exerting an inward normal reaction force proportional to a Lagrange multiplier $\mu$, that force must be zero: $\mu = 0$. Removing the fence entirely would not change the position of the marble at all.
+
+  \item \textbf{Case 2: Active constraint ($g(\vec{x}^\star) = 0$, $\mu > 0$)}.
+  The true bottom of the bowl lies outside the fence, in forbidden territory. The marble rolls downhill until it collides with the fence boundary $g(\vec{x}) = 0$. It wants to continue rolling downhill into the forbidden zone, so the downhill pull of gravity $-\nabla f(\vec{x}^\star)$ points directly into the exterior, where $g(\vec{x}) > 0$.
+
+  Because the gradient $\nabla g(\vec{x}^\star)$ always points toward the direction of increasing $g$ (outward across the fence), the downhill gravity vector $-\nabla f(\vec{x}^\star)$ aligns with the outward normal $\nabla g(\vec{x}^\star)$. To prevent the marble from rolling through, the solid fence pushes back inward along the inward normal $-\nabla g(\vec{x}^\star)$. We write this inward normal reaction force as
+  \[
+    \vec{F}_{\text{wall}} = -\mu \nabla g(\vec{x}^\star).
+  \]
+  Because physical walls can only push to keep an object out -- they cannot act as sticky glue or reach out to pull the marble from afar -- the multiplier must be non-negative:
+  \[
+    \mu \ge 0.
+  \]
+  At equilibrium, the downhill pull of gravity and the inward push of the wall must cancel each other out:
+  \[
+    -\nabla f(\vec{x}^\star) + \vec{F}_{\text{wall}} \;=\; -\nabla f(\vec{x}^\star) - \mu \nabla g(\vec{x}^\star) \;=\; \vec{0}
+    \quad\Longrightarrow\quad \nabla f(\vec{x}^\star) + \mu \nabla g(\vec{x}^\star) \;=\; \vec{0}.
+  \]
+\end{enumerate}
+
+These two physical cases condense into a single algebraic equation:
+\[
+  \mu \cdot g(\vec{x}^\star) = 0.
+\]
+Look closely at what this equation says. If the constraint is inactive ($g < 0$), the multiplier $\mu$ must be $0$. If the multiplier is strictly positive ($\mu > 0$), the marble must be touching the wall ($g = 0$). At least one of the two factors must be zero. This is the condition of \textbf{complementary slackness}: \emph{you cannot feel a force from a wall you are not touching.}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.92,>=Latex]
+  % --- Panel A: Inactive Constraint (g(x*) < 0, mu = 0) ---
+  \begin{scope}[shift={(0,0)}]
+    \node[anchor=south,font=\scriptsize\scshape,text=spacegray!90!black] at (0,2.6) {1. Inactive Constraint ($g(\vec{x}^\star) < 0$, $\mu = 0$)};
+    \draw[fill=codebg,draw=spacegray!30,rounded corners=4pt] (-3.1,-2.5) rectangle (3.1,2.4);
+
+    \begin{scope}
+      \clip (-3.1,-1.45) rectangle (3.1,2.4);
+
+      % Feasible region shaded: x1 + x2 <= 1.2
+      \fill[sourceblue!12] (-3.1,-2.0) -- (3.1,-2.0) -- (3.1,-1.9) -- (-1.2,2.4) -- (-3.1,2.4) -- cycle;
+
+      % Axes
+      \draw[->,gray!50] (-2.7,0) -- (2.7,0) node[right,font=\scriptsize]{$x_1$};
+      \draw[->,gray!50] (0,-1.3) -- (0,2.2) node[above,font=\scriptsize]{$x_2$};
+
+      % Wall line g(x) = x1 + x2 - 1.2 = 0 with sloped label
+      \draw[targetgreen,line width=1.5pt] (-1.2,2.4) -- (2.7,-1.5)
+        node[pos=0.55,above=1pt,sloped,font=\scriptsize,text=targetgreen!90!black] {Wall: $g(\vec{x}) = 0$};
+
+      % Concentric contour ellipses of f centered at (-0.5, -0.1)
+      \draw[quotientorange!50,thick] (-0.5,-0.1) ellipse (0.55 and 0.38);
+      \draw[quotientorange!75,thick] (-0.5,-0.1) ellipse (1.05 and 0.72);
+      \draw[quotientorange,thick] (-0.5,-0.1) ellipse (1.55 and 1.06);
+
+      % Unconstrained minimum strictly inside
+      \fill[vecblue] (-0.5,-0.1) circle (2.5pt);
+      \node[font=\scriptsize,below=2pt] at (-0.5,-0.1) {$\vec{x}^\star$};
+      \node[font=\scriptsize,text=vecblue] at (-0.5,0.35) {$\nabla f(\vec{x}^\star) = \vec{0}$};
+
+      % Feasible label
+      \node[sourceblue!80!black,font=\scriptsize] at (-1.7,-1.0) {Feasible: $g(\vec{x}) \le 0$};
+    \end{scope}
+
+    \node[draw=sourceblue!70,fill=white,rounded corners=2pt,font=\tiny,align=center] at (0,-1.95) {
+      Bowl bottom lies strictly inside fence:\\
+      marble never touches wall $\implies$ zero normal force ($\mu = 0$)
+    };
+  \end{scope}
+
+  % --- Panel B: Active Constraint (g(x*) = 0, mu > 0) ---
+  \begin{scope}[shift={(6.6,0)}]
+    \node[anchor=south,font=\scriptsize\scshape,text=spacegray!90!black] at (0,2.6) {2. Active Constraint ($g(\vec{x}^\star) = 0$, $\mu > 0$)};
+    \draw[fill=codebg,draw=spacegray!30,rounded corners=4pt] (-3.1,-2.5) rectangle (3.1,2.4);
+
+    \begin{scope}
+      \clip (-3.1,-1.45) rectangle (3.1,2.4);
+
+      % Feasible region shaded: x1 + x2 <= 0.4
+      \fill[sourceblue!12] (-3.1,-2.0) -- (1.9,-2.0) -- (-2.0,2.4) -- (-3.1,2.4) -- cycle;
+
+      % Axes
+      \draw[->,gray!50] (-2.7,0) -- (2.7,0) node[right,font=\scriptsize]{$x_1$};
+      \draw[->,gray!50] (0,-1.3) -- (0,2.2) node[above,font=\scriptsize]{$x_2$};
+
+      % Wall line g(x) = x1 + x2 - 0.4 = 0
+      \draw[targetgreen,line width=1.5pt] (-2.0,2.4) -- (1.9,-1.5);
+      \node[targetgreen!90!black,font=\scriptsize] at (-1.7,1.4) {Wall: $g(\vec{x}) = 0$};
+
+      % Unconstrained minimum outside in forbidden zone at (1.2, 1.2)
+      \draw[dashed,gray!60] (1.2,1.2) circle (2.5pt);
+      \fill[gray!60] (1.2,1.2) circle (1.5pt);
+      \node[above=2pt,font=\scriptsize,text=gray!80!black] at (1.2,1.2) {$\vec{x}_{\text{unc}}$};
+
+      % Concentric level circles of f centered at (1.2, 1.2)
+      \draw[quotientorange!40,thick,dashed] (1.2,1.2) circle (0.65);
+      \draw[quotientorange,very thick] (1.2,1.2) circle (1.414);
+      \draw[quotientorange!60,thick] (1.2,1.2) circle (2.1);
+      \node[quotientorange!90!black,font=\tiny,right] at (1.9,0.3) {$f{=}f(\vec{x}^\star)$};
+
+      % Contact optimum on wall
+      \fill[vecblue] (0.2,0.2) circle (2.5pt);
+      \node[font=\scriptsize,below right=2pt] at (0.2,0.2) {$\vec{x}^\star$};
+
+      % Downhill gravity pull -grad f (points outward toward x_unc)
+      \draw[->,vecred,line width=1.4pt] (0.2,0.2) -- ++(0.42,0.42) node[above=2pt,font=\scriptsize]{$-\nabla f$};
+
+      % Inward wall reaction force -mu grad g (points inward)
+      \draw[->,targetgreen!80!black,line width=1.4pt] (0.2,0.2) -- ++(-0.42,-0.42) node[below left=-1pt,font=\scriptsize]{$-\mu\nabla g$};
+
+      % Feasible label
+      \node[sourceblue!80!black,font=\scriptsize] at (-1.7,-1.0) {Feasible: $g(\vec{x}) \le 0$};
+    \end{scope}
+
+    \node[draw=targetgreen!70,fill=white,rounded corners=2pt,font=\tiny,align=center] at (0,-1.95) {
+      Bowl bottom blocked by wall: $g(\vec{x}^\star) = 0$\\
+      Normal force balances gravity: $-\nabla f = \mu \nabla g$ ($\mu > 0$)
+    };
+  \end{scope}
+\end{tikzpicture}
+\caption{The two physical regimes of Karush--Kuhn--Tucker optimization. Left (Panel A): The unconstrained minimizer $\vec{x}^\star$ sits strictly inside the feasible region ($g(\vec{x}^\star) < 0$). The marble rests at the bottom of the bowl with zero slope ($\nabla f = \vec{0}$) and never touches the wall ($\mu = 0$). Right (Panel B): The unconstrained bottom $\vec{x}_{\text{unc}}$ lies outside in forbidden territory. The marble is stopped by the boundary wall $g(\vec{x}^\star) = 0$, where the inward normal force $-\mu \nabla g(\vec{x}^\star)$ ($\mu > 0$) balances the downhill pull of gravity $-\nabla f(\vec{x}^\star)$.}
+\label{ch36:fig-kkt-walls}
+\end{figure}
+
+\subsection{The Karush--Kuhn--Tucker (KKT) conditions}
+\label{ch36:kkt-conditions}
+
+When a problem involves multiple inequality constraints $g_i(\vec{x}) \le 0$ ($i = 1,\dots,m$) and equality constraints $h_j(\vec{x}) = 0$ ($j = 1,\dots,p$), each constraint contributes its own normal force to the marble.
+
+The general optimization problem is:
+\[
+\begin{array}{rll}
+  \text{minimize} & f(\vec{x}) & \\[4pt]
+  \text{subject to} & g_i(\vec{x}) \le 0, & i = 1, \dots, m, \\[2pt]
+                    & h_j(\vec{x}) = 0, & j = 1, \dots, p.
+\end{array}
+\]
+We collect the objective and all constraints into a single function, the \emph{Lagrangian}:
+\[
+  \mathcal{L}(\vec{x}, \vec{\mu}, \vec{\lambda}) \;=\; f(\vec{x}) \;+\; \sum_{i=1}^{m} \mu_i g_i(\vec{x}) \;+\; \sum_{j=1}^{p} \lambda_j h_j(\vec{x}),
+\]
+where each $\mu_i$ is the multiplier for inequality wall $g_i \le 0$, and each $\lambda_j$ is the multiplier for equality groove $h_j = 0$.
+
+\begin{formalbox}
+\label{ch36:thm-kkt}
+\textbf{The Karush--Kuhn--Tucker (KKT) conditions.} Let $\vec{x}^\star$ be an optimal point and let $(\vec{\mu}^\star, \vec{\lambda}^\star)$ be the associated Lagrange multipliers. Then they satisfy four conditions:
+\begin{enumerate}
+  \item \textbf{Primal Feasibility:}
+  \[
+    g_i(\vec{x}^\star) \;\le\; 0 \quad (i = 1, \dots, m), \qquad h_j(\vec{x}^\star) \;=\; 0 \quad (j = 1, \dots, p).
+  \]
+  \item \textbf{Dual Feasibility:}
+  \[
+    \mu_i^\star \;\ge\; 0 \quad (i = 1, \dots, m).
+  \]
+  \item \textbf{Complementary Slackness:}
+  \[
+    \mu_i^\star \cdot g_i(\vec{x}^\star) \;=\; 0 \quad (i = 1, \dots, m).
+  \]
+  \item \textbf{Stationarity:}
+  \[
+    \nabla_{\vec{x}} \mathcal{L}(\vec{x}^\star, \vec{\mu}^\star, \vec{\lambda}^\star) \;=\; \nabla f(\vec{x}^\star) \;+\; \sum_{i=1}^{m} \mu_i^\star \nabla g_i(\vec{x}^\star) \;+\; \sum_{j=1}^{p} \lambda_j^\star \nabla h_j(\vec{x}^\star) \;=\; \vec{0}.
+  \]
+\end{enumerate}
+\end{formalbox}
+
+Notice the physical meaning embedded in each line:
+\begin{itemize}
+  \item \emph{Primal feasibility} ensures the marble is inside the allowed territory.
+  \item \emph{Dual feasibility} ensures solid walls push inward rather than pulling like glue. Equality multipliers $\lambda_j$ are free to be positive or negative because an equality constraint is a two-sided track that can push from either direction.
+  \item \emph{Complementary slackness} confirms that a wall only pushes if the marble is actively pressed against it ($g_i = 0$); if the marble is in the interior ($g_i < 0$), the multiplier $\mu_i$ must vanish.
+  \item \emph{Stationarity} asserts that the sum of all forces -- gravity $-\nabla f$, wall pushes $-\mu_i \nabla g_i$, and track reactions $-\lambda_j \nabla h_j$ -- equals zero.
+\end{itemize}
+
+\subsection{Lagrange duality and Slater's condition}
+\label{ch36:duality}
+
+There is a second, complementary angle on these multipliers: the perspective of \emph{duality}.
+
+Consider the minimax game hidden inside the Lagrangian. If we choose a vector $\vec{x}$ that violates a constraint -- say, $g_1(\vec{x}) > 0$ -- then a challenger who wants to maximize $\mathcal{L}(\vec{x}, \vec{\mu}, \vec{\lambda})$ with respect to $\vec{\mu} \ge \vec{0}$ can choose $\mu_1 \to +\infty$, driving $\mathcal{L}$ to positive infinity. If $\vec{x}$ is feasible, however, each $g_i(\vec{x}) \le 0$, so the best the challenger can do is set $\mu_i = 0$ whenever $g_i < 0$, giving an optimal value of exactly $f(\vec{x})$.
+
+Therefore, the original primal optimization problem can be phrased as:
+\[
+  p^\star \;=\; \min_{\vec{x}} \; \max_{\vec{\mu} \ge \vec{0}, \, \vec{\lambda}} \; \mathcal{L}(\vec{x}, \vec{\mu}, \vec{\lambda}).
+\]
+Now reverse the order of operations. What happens if we maximize first, and minimize second? Define the \textbf{Lagrange dual function}:
+\[
+  d(\vec{\mu}, \vec{\lambda}) \;=\; \inf_{\vec{x}} \; \mathcal{L}(\vec{x}, \vec{\mu}, \vec{\lambda}).
+\]
+Because the dual function is the pointwise infimum of a collection of affine functions in $(\vec{\mu}, \vec{\lambda})$, it is \emph{always concave}, regardless of whether the original objective $f$ was convex!
+
+Even more striking, for any valid choice of multipliers $\vec{\mu} \ge \vec{0}$ and any feasible point $\tilde{\vec{x}}$,
+\[
+  d(\vec{\mu}, \vec{\lambda}) \;\le\; \mathcal{L}(\tilde{\vec{x}}, \vec{\mu}, \vec{\lambda}) \;=\; f(\tilde{\vec{x}}) + \sum_{i=1}^m \underbrace{\mu_i g_i(\tilde{\vec{x}})}_{\le\, 0} + \sum_{j=1}^p \lambda_j \underbrace{h_j(\tilde{\vec{x}})}_{=\,0} \;\le\; f(\tilde{\vec{x}}).
+\]
+Because this holds for every feasible $\tilde{\vec{x}}$, taking the infimum on the right yields the fundamental inequality of \textbf{weak duality}:
+\[
+  d(\vec{\mu}, \vec{\lambda}) \;\le\; p^\star \qquad \text{for all } \vec{\mu} \ge \vec{0}, \; \vec{\lambda}.
+\]
+Every evaluation of the dual function establishes a rigorous lower bound on the best possible value of our original problem!
+
+The \textbf{dual problem} seeks the tightest possible lower bound:
+\[
+  d^\star \;=\; \max_{\vec{\mu} \ge \vec{0}, \, \vec{\lambda}} \; d(\vec{\mu}, \vec{\lambda}).
+\]
+Weak duality ensures that $d^\star \le p^\star$. The gap $p^\star - d^\star \ge 0$ is the \emph{duality gap}.
+
+When does the gap close completely, so that $d^\star = p^\star$? This state of \textbf{strong duality} is the dream of optimization: it means solving the dual problem gives the exact minimum of the primal problem.
+
+\begin{theorem}[Slater's condition for strong duality]
+\label{ch36:thm-slater}
+Suppose the objective $f$ and the inequality functions $g_1,\dots,g_m$ are convex, and the equality functions $h_1,\dots,h_p$ are affine ($h_j(\vec{x}) = \vec{a}_j\T\vec{x} - b_j$). If there exists at least one point $\vec{x}_0$ that is \emph{strictly feasible}, meaning
+\[
+  g_i(\vec{x}_0) < 0 \quad (i = 1, \dots, m) \qquad \text{and} \qquad h_j(\vec{x}_0) = 0 \quad (j = 1, \dots, p),
+\]
+then strong duality holds ($d^\star = p^\star$), and the dual maximum is attained. Furthermore, under Slater's condition, the KKT conditions are both \textbf{necessary and sufficient} for global optimality.
+\end{theorem}
+
+Slater's condition requires only that the feasible region possesses a genuine interior: the fence must enclose some volume, rather than collapsing into an empty set or a flat pancake. When it holds, solving the KKT equations guarantees you have found the unique global optimum.
+
+\subsection{A worked two-dimensional quadratic program}
+\label{ch36:worked-qp}
+
+Let us work through a concrete problem from beginning to end, watching how complementary slackness reveals whether the boundary wall is active.
+
+\begin{example}[A constrained quadratic bowl]
+\label{ch36:ex-qp2d}
+Minimize the distance from $(3, 2)$ subject to a diagonal wall:
+\[
+  \text{minimize } f(x_1, x_2) = (x_1 - 3)^2 + (x_2 - 2)^2 \qquad \text{subject to } x_1 + x_2 \le 3.
+\]
+
+\textbf{Step 1: Inspect the unconstrained minimum.}
+The objective $f$ is a circular paraboloid centered at $(3, 2)$, with minimum value $0$. Let us check whether this point satisfies the constraint:
+\[
+  g(3, 2) = 3 + 2 - 3 = 2 > 0.
+\]
+The natural bottom of the bowl lies in forbidden territory! Hence the marble cannot settle in the interior; it must be stopped by the boundary.
+
+\textbf{Step 2: Apply complementary slackness.}
+Because $g(\vec{x}^\star) < 0$ is impossible (the unconstrained point violates the fence), complementary slackness $\mu \cdot g(\vec{x}^\star) = 0$ dictates that the constraint must be \textbf{active}:
+\[
+  x_1^\star + x_2^\star = 3 \qquad \text{and} \qquad \mu > 0.
+\]
+
+\textbf{Step 3: Stationarity.}
+The gradient of $f$ and the gradient of the constraint $g(x_1, x_2) = x_1 + x_2 - 3$ are:
+\[
+  \nabla f(\vec{x}) = \colvec{2(x_1 - 3) \\ 2(x_2 - 2)}, \qquad \nabla g(\vec{x}) = \colvec{1 \\ 1}.
+\]
+Setting the gradient of the Lagrangian to zero gives:
+\[
+  \nabla f(\vec{x}) + \mu \nabla g(\vec{x}) = \colvec{2(x_1 - 3) + \mu \\ 2(x_2 - 2) + \mu} = \colvec{0 \\ 0}.
+\]
+Solving for the coordinates in terms of the multiplier $\mu$:
+\[
+  x_1 = 3 - \frac{\mu}{2}, \qquad x_2 = 2 - \frac{\mu}{2}.
+\]
+
+\textbf{Step 4: Solve for the multiplier.}
+Substitute these coordinates into the active boundary equation $x_1 + x_2 = 3$:
+\[
+  \left(3 - \frac{\mu}{2}\right) + \left(2 - \frac{\mu}{2}\right) \;=\; 3
+  \quad\Longrightarrow\quad 5 - \mu = 3
+  \quad\Longrightarrow\quad \mu = 2.
+\]
+
+\textbf{Step 5: Verify dual feasibility and find the optimum.}
+We found $\mu = 2 > 0$, satisfying the dual feasibility condition $\mu \ge 0$.
+The optimal coordinates are:
+\[
+  x_1^\star = 3 - \frac{2}{2} = 2, \qquad x_2^\star = 2 - \frac{2}{2} = 1.
+\]
+The constrained minimum is $\vec{x}^\star = (2, 1)$, with optimal objective value:
+\[
+  f(2, 1) = (2 - 3)^2 + (1 - 2)^2 = (-1)^2 + (-1)^2 = 2.
+\]
+
+\textbf{Step 6: Check the physical force balance.}
+Evaluate the gradients at $\vec{x}^\star = (2, 1)$:
+\[
+  \nabla f(2, 1) = \colvec{2(2-3) \\ 2(1-2)} = \colvec{-2 \\ -2}, \qquad \nabla g(2, 1) = \colvec{1 \\ 1}.
+\]
+The downhill pull of gravity is:
+\[
+  -\nabla f(\vec{x}^\star) = \colvec{2 \\ 2}.
+\]
+The inward reaction force from the wall is:
+\[
+  \vec{F}_{\text{wall}} = -\mu \nabla g(\vec{x}^\star) = -2 \colvec{1 \\ 1} = \colvec{-2 \\ -2}.
+\]
+The two forces are equal in magnitude and point in precisely opposite directions:
+\[
+  -\nabla f(\vec{x}^\star) + \vec{F}_{\text{wall}} = \colvec{2 \\ 2} + \colvec{-2 \\ -2} = \colvec{0 \\ 0}.
+\]
+The marble rests in perfect mechanical equilibrium against the wall at $(2, 1)$.
+\end{example}
+
+\begin{applicationbox}
+\textbf{Why Support Vector Machines only care about boundary points.}
+In classification problems, a linear Support Vector Machine (SVM) separates two clouds of data points (labeled $y_i \in \{-1, +1\}$) by finding a decision hyperplane $\vec{w}\T\vec{x} + b = 0$ with the widest possible empty corridor (the \emph{margin}) between them. Maximizing this margin is equivalent to minimizing the energy $\tfrac12 \|\vec{w}\|^2$ subject to keeping every data point on the correct side of the margin boundary:
+\[
+  y_i(\vec{w}\T\vec{x}_i + b) \;\ge\; 1 \quad\Longleftrightarrow\quad g_i(\vec{w}, b) \;=\; 1 - y_i(\vec{w}\T\vec{x}_i + b) \;\le\; 0 \qquad (i = 1, \dots, N).
+\]
+Every single training example represents an inequality wall!
+
+Now write down KKT complementary slackness for this system:
+\[
+  \mu_i \cdot \big(1 - y_i(\vec{w}\T\vec{x}_i + b)\big) \;=\; 0 \qquad (i = 1, \dots, N).
+\]
+And examine the stationarity condition with respect to the weight vector $\vec{w}$:
+\[
+  \nabla_{\vec{w}} \mathcal{L} \;=\; \vec{w} - \sum_{i=1}^N \mu_i y_i \vec{x}_i \;=\; \vec{0}
+  \quad\Longrightarrow\quad \vec{w}^\star \;=\; \sum_{i=1}^N \mu_i^\star y_i \vec{x}_i.
+\]
+Look at the profound consequence of these two lines:
+\begin{itemize}
+  \item If a training example $\vec{x}_i$ lies safely inside its class territory, away from the margin boundary ($y_i(\vec{w}\T\vec{x}_i + b) > 1$), then $g_i < 0$. Complementary slackness forces its multiplier to be identically zero: $\mu_i^\star = 0$.
+  \item Because $\mu_i^\star = 0$, that data point vanishes completely from the sum for $\vec{w}^\star$!
+  \item Only the rare points that lie directly on the boundary of the margin corridor ($g_i = 0$) can possess a positive multiplier $\mu_i^\star > 0$.
+\end{itemize}
+These critical boundary examples are the \textbf{support vectors}. If your dataset contains ten million images, but only twenty of them press against the margin wall, the optimal classifier $\vec{w}^\star$ depends solely on those twenty images. You could delete the other 9,999,980 examples from your hard drive, retrain the model, and the decision boundary would not move by a fraction of a millimeter. The sparsity and robustness of modern kernel machines is nothing other than KKT complementary slackness in action.
+\end{applicationbox}
+
 \section{Putting it together: a worked classification}
 \label{ch36:worked}
 
@@ -890,7 +1319,7 @@ upward. Reread it once and the pattern, not the arithmetic, is what should stick
 \label{ch36:summary}
 
 \begin{focusbox}
-\textbf{The five ideas of this chapter.}
+\textbf{The six ideas of this chapter.}
 \begin{enumerate}
 \item A \emph{quadratic form} $\vec{x}\T\mat{A}\vec{x}$ (with $\mat{A}$ symmetric) is
 the matrix version of $ax^2$: bowl, dome, or saddle.
@@ -902,9 +1331,13 @@ trace/determinant or leading minors.
 \item To \emph{find} optima of a general $f$: gradient zero locates flat spots; the
 \emph{Hessian} (a quadratic form) classifies them. Positive definite Hessian
 $\Leftrightarrow$ convex $\Leftrightarrow$ unique minimum.
-\item \emph{Constrained} optima align gradients ($\nabla f=\lambda\nabla g$). On the
+\item \emph{Equality constraints} align gradients ($\nabla f=\lambda\nabla g$). On the
 unit sphere this regenerates the eigenvalue problem, and the Rayleigh quotient bounds
 the form between $\lambda_{\min}$ and $\lambda_{\max}$.
+\item \emph{Inequality walls and KKT:} Solid boundary walls ($g_i(\vec{x})\le 0$) can
+only push inward ($\mu_i \ge 0$). Complementary slackness ($\mu_i g_i(\vec{x}^\star) = 0$)
+means an untouched wall exerts zero force. For convex problems with Slater's condition,
+the four KKT conditions give an exact characterization of the global optimum.
 \end{enumerate}
 \end{focusbox}
 
@@ -916,6 +1349,29 @@ single most useful property a problem can have: it is the guarantee that your
 landscape is a bowl, that downhill leads home, and that the best answer exists, is
 unique, and can be found. Carry the bowl with you; it is hiding under almost
 everything that follows.
+
+\subsection*{What We Can Now Do (Capabilities Unlocked)}
+\begin{itemize}
+  \item \textbf{Curvature Classification via Eigenvalues:} By diagonalizing the symmetric matrix of a quadratic form $\vec{x}\T\mat{A}\vec{x} = \sum \lambda_i y_i^2$, we immediately classify multidimensional landscapes into convex upward bowls (all $\lambda_i > 0$), downward domes (all $\lambda_i < 0$), or indefinite saddles (mixed signs).
+  \item \textbf{Multivariable Extrema Certification:} By computing the Hessian matrix $\mat{H} = \nabla^2 f(\vec{x}^\star)$ at a stationary point ($\nabla f = \vec{0}$), we provide an airtight second-order condition: $\mat{H} \succ 0$ rigorously certifies a local minimum.
+  \item \textbf{Conjugate Gradient Acceleration:} For large symmetric positive-definite systems $\mat{A}\vec{x} = \vec{b}$, we replace slow $\mathcal{O}(n^3)$ Gaussian elimination and zigzagging gradient descent with Conjugate Gradients, reaching high accuracy in $\mathcal{O}(\sqrt{\kappa} \log(1/\epsilon))$ matrix-vector products without forming $\mat{A}\inv$.
+  \item \textbf{Constrained Optimization via Rayleigh Quotients:} Using Lagrange multipliers, we maximize or minimize quadratic forms on spheres ($\norm{\vec{x}} = 1$), proving that the critical values are precisely the eigenvalues of $\mat{A}$ bounded by $[\lambda_{\min}, \lambda_{\max}]$.
+  \item \textbf{Constrained Convex Programming via KKT:} For problems bounded by inequality constraints, we determine whether constraints are active via complementary slackness $\mu_i g_i(\vec{x}^\star) = 0$ and solve the KKT system, unlocking the sparse dual representations used by support vector machines.
+\end{itemize}
+
+\subsection*{Honest Downsides and Limitations}
+\begin{itemize}
+  \item \textbf{Anisotropic Ravines and Condition Number Bottlenecks:} If the condition number $\kappa = \lambda_{\max}/\lambda_{\min}$ is large, elliptical level curves become extremely eccentric ravines. Standard first-order gradient descent requires $\mathcal{O}(\kappa)$ iterations, making learning or convergence agonizingly slow without preconditioning.
+  \item \textbf{Saddle Points in High Dimensions:} In non-convex optimization (such as deep learning loss landscapes), stationary points $\nabla f = \vec{0}$ are overwhelmingly saddle points with negative eigenvalues rather than true local minima. Second-order methods can stall or jump toward maxima unless modified with trust regions or cubic regularization.
+  \item \textbf{Hessian Memory Wall:} Storing an $n \times n$ dense Hessian matrix requires $\mathcal{O}(n^2)$ memory. For a network with $n = 10^9$ parameters, an explicit Hessian would require exabytes of memory, forcing practitioners to use Hessian-free products or stochastic quasi-Newton approximations (L-BFGS).
+  \item \textbf{Loss of Direction Conjugacy in Floating Point:} In finite precision, roundoff errors cause computed conjugate directions to lose orthogonality after $\approx 20$ iterations, degrading theoretical $n$-step termination into an iterative approximation process.
+\end{itemize}
+
+\subsection*{Where We Go Next in the Book}
+\begin{itemize}
+  \item \textbf{Chapter 37 (Connections: Groups, Tensors, and Functional Analysis):} We expand beyond finite-dimensional Euclidean optimization into infinite-dimensional spaces. We see how quadratic forms generalize to Hilbert space inner products, how continuous transformation groups (Lie groups) preserve geometric structures, and how tensor products represent multi-linear interactions in quantum physics.
+  \item \textbf{Appendix Chapters 38 and 39:} Provide the rigorous foundations of algebraic fields ($\R, \C, \mathbb{F}_p$) and the multivariable index calculus necessary to differentiate complex tensor expressions.
+\end{itemize}
 
 \section*{Exercises}
 \addcontentsline{toc}{section}{Exercises}
@@ -997,4 +1453,12 @@ positive-definite $\mat{A}$ is strictly convex, directly from the chord definiti
 (Hint: for $t\in(0,1)$, expand $f(t\vec{x}+(1-t)\vec{z})$ and show
 $t f(\vec{x})+(1-t)f(\vec{z}) - f(t\vec{x}+(1-t)\vec{z}) = \tfrac12 t(1-t)(\vec{x}-
 \vec{z})\T\mat{A}(\vec{x}-\vec{z}) > 0$ whenever $\vec{x}\ne\vec{z}$.)
+\end{exercise}
+
+\begin{exercise}[Inequality constraints and complementary slackness]
+\label{ch36:exr-kkt}
+Minimize the quadratic form $f(x_1, x_2) = (x_1 - 4)^2 + (x_2 - 4)^2$ subject to the linear inequality constraint $x_1 + 2x_2 \le 6$.
+(a) Find the unconstrained minimizer $\vec{x}_{\text{unc}}$ and verify that it violates the constraint.
+(b) Formulate the KKT conditions and determine the Lagrange multiplier $\mu$.
+(c) Compute the constrained minimizer $\vec{x}^\star$ and confirm that the downhill gradient $-\nabla f(\vec{x}^\star)$ is balanced by the inward normal reaction force of the wall.
 \end{exercise}

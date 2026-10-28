@@ -6,6 +6,7 @@
 import {
   responsiveSvg,
   s,
+  h as hDom,
   attr,
   handle,
   row,
@@ -151,8 +152,10 @@ const mount: Mount = (root) => {
   const lblQ = label(svgEl, 0, 0, 'Q', 'lbl-acc', 'start');
 
   // Controls row: 'Shrink h' and 'Reset'
-  const r = row(root);
   const f = formula(root);
+  const note = hDom('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
+  const r = row(root);
 
   let cancelTween = () => {};
 
@@ -326,6 +329,8 @@ const mount: Mount = (root) => {
         `\\text{slope} = \\frac{f(a+h) - f(a)}{h} = ${mStr}, \\quad f'(a) = 1`,
       );
     }
+    const errSlope = Math.abs(slope - F_PRIME_A);
+    note.textContent = `For f(x) = ½x² at a = 1, the difference quotient simplifies algebraically to 1 + h/2 = ${mStr}. Shrinking |h| = ${formatExact(Math.abs(h))} toward 0 makes the discrepancy |h|/2 = ${formatExact(errSlope)} vanish as the secant line pivots onto the tangent slope f′(1) = 1.`;
   }
 
   view.onResize(draw);

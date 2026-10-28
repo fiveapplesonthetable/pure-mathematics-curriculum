@@ -194,6 +194,8 @@ const mount: Mount = (root) => {
 
   // Controls
   const f = formula(root);
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
 
   // Preset buttons row
   const r1 = row(root);
@@ -373,11 +375,18 @@ const mount: Mount = (root) => {
       });
     }
 
-    // Update formula
+    // Update formula & geometric explanation
     const det = a * d - b * c;
     f.set(
       `A = \\begin{bmatrix} ${fmtNum(a)} & ${fmtNum(b)} \\\\ ${fmtNum(c)} & ${fmtNum(d)} \\end{bmatrix} \\qquad \\det A = ${fmtNum(det)}`,
     );
+    if (Math.abs(det) < 0.02) {
+      note.textContent = `Columns Ae₁ = (${fmtNum(a)}, ${fmtNum(c)}) and Ae₂ = (${fmtNum(b)}, ${fmtNum(d)}) are collinear (det A = 0): the entire 2D grid is squashed onto a lower-dimensional line or point.`;
+    } else if (det < 0) {
+      note.textContent = `Column 1 lands at Ae₁ = (${fmtNum(a)}, ${fmtNum(c)}) and Column 2 at Ae₂ = (${fmtNum(b)}, ${fmtNum(d)}); because det A = ${fmtNum(det)} < 0, the transformation flips orientation (turning the plane inside-out) and scales areas by ${fmtNum(Math.abs(det))}.`;
+    } else {
+      note.textContent = `Column 1 lands at Ae₁ = (${fmtNum(a)}, ${fmtNum(c)}) and Column 2 at Ae₂ = (${fmtNum(b)}, ${fmtNum(d)}), carrying the unit square to a parallelogram of area det A = ${fmtNum(det)} while preserving orientation.`;
+    }
   }
 
   view.onResize(draw);

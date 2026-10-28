@@ -298,7 +298,7 @@ const SIMPLE = {
   times: '×', copyright: '©', dag: '†', textdegree: '°', ss: 'ß', ae: 'æ', o: 'ø', aa: 'å', i: 'ı', today: '', par: ' ', relax: '', textquotesingle: "'", 
 };
 const IGNORE_TEXT = new Set(['small', 'footnotesize', 'scriptsize', 'tiny', 'large', 'Large', 'LARGE', 'huge', 'Huge', 'normalsize', 'centering', 'raggedright', 'raggedleft', 'noindent', 'indent', 'hfill', 'vfill', 'protect', 'medskip', 'bigskip', 'smallskip', 'newpage', 'clearpage', 'pagebreak', 'nopagebreak', 'chapterline', 'bfseries', 'itshape', 'em', 'normalfont', 'ttfamily', 'sffamily', 'rmfamily', 'upshape', 'mdseries', 'selectfont', 'break', 'allowbreak', 'nobreak', 'qed', 'hline', 'toprule', 'midrule', 'bottomrule', 'item', 'maketitle', 'tableofcontents', 'frontmatter', 'mainmatter', 'backmatter', 'appendix', 'null', 'leavevmode', 'strut', 'displaystyle', 'sloppy', 'qedhere']);
-const DROP_ARGS = { vspace: 1, hspace: 1, label: 1, addcontentsline: 3, needspace: 1, setlength: 2, addtocontents: 2, phantomsection: 0, markboth: 2, markright: 1, index: 1, rule: 2, color: 1, pagestyle: 1, thispagestyle: 1, setcounter: 2, addtocounter: 2, enlargethispage: 1, vskip: 0, fontsize: 2 };
+const DROP_ARGS = { vspace: 1, hspace: 1, label: 1, addcontentsline: 3, needspace: 1, setlength: 2, addtocontents: 2, phantomsection: 0, markboth: 2, markright: 1, index: 1, rule: 2, color: 1, pagestyle: 1, thispagestyle: 1, setcounter: 2, addtocounter: 2, enlargethispage: 1, vskip: 0, fontsize: 2, addlinespace: 0 };
 
 let footnotes = [];
 
@@ -874,7 +874,7 @@ function splitBook(cfg) {
   const parts = [];
   let preface = null;
   if (cfg.unit === 'section') {
-    const pieces = body.split(/^\\section(\*?)\{/m);
+    const pieces = body.split(/^\\section(\*?)(?:\[[^\]]*\])?\{/m);
     let n = 0;
     for (let p = 1; p < pieces.length; p += 2) {
       const [title, end] = group('{' + pieces[p + 1], 0);

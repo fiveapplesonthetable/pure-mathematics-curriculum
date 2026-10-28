@@ -105,12 +105,11 @@ const mount: Mount = (root) => {
   hdEps.el.setAttribute('aria-valuemin', String(E_MIN));
   hdEps.el.setAttribute('aria-valuemax', String(E_MAX));
 
-  // Controls row, live formula, status note
-  const r = row(root);
+  // Live formula, status note, and controls row
   const f = formula(root);
-  r.prepend(f.el);
-  f.el.style.margin = '0';
-  f.el.style.flex = '1 1 260px';
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
+  const r = row(root);
 
   button(r, 'Reset', () => {
     const fromL = L;
@@ -121,9 +120,6 @@ const mount: Mount = (root) => {
       draw();
     });
   });
-
-  const note = h('div', { class: 'fig-note' }, root);
-  note.style.margin = '0.3rem 8px 0';
 
   function setL(v: number) {
     L = clamp(v, Math.max(L_MIN, -2.25 + eps), Math.min(L_MAX, 2.25 - eps));
@@ -229,20 +225,31 @@ const mount: Mount = (root) => {
     hdL.move(x0, yL);
     hdEps.move(x1 - 12, yTop);
 
-    // Formula line
+    // Formula line & geometric explanation
     let texStr = '';
+    const compact = W < 460;
     if (evenOutside && oddOutside) {
-      texStr = `L = ${L.toFixed(2)},\\; \\varepsilon = ${eps.toFixed(2)}:\\; \\text{terms escape for ever: no } N`;
+      texStr = compact
+        ? `L=${L.toFixed(2)},\\,\\varepsilon=${eps.toFixed(2)}:\\;|a_n-L|\\ge\\varepsilon\\;(\\forall n)`
+        : `L = ${L.toFixed(2)},\\; \\varepsilon = ${eps.toFixed(2)}:\\; |a_n - L| \\ge \\varepsilon \\text{ for all } n`;
+      note.textContent = `Neither +1 nor −1 lies inside (${(L - eps).toFixed(2)}, ${(L + eps).toFixed(2)}): every single term escapes the ε-band, so no cutoff N exists.`;
     } else if (oddOutside) {
-      texStr = `L = ${L.toFixed(2)},\\; \\varepsilon = ${eps.toFixed(2)}:\\; \\text{terms escape for ever: no } N`;
+      texStr = compact
+        ? `L=${L.toFixed(2)},\\,\\varepsilon=${eps.toFixed(2)}:\\;|a_{2k-1}-L|=${Math.abs(-1 - L).toFixed(2)}\\ge\\varepsilon`
+        : `L = ${L.toFixed(2)},\\; \\varepsilon = ${eps.toFixed(2)}:\\; |a_{2k-1} - L| = ${Math.abs(-1 - L).toFixed(2)} \\ge \\varepsilon`;
+      note.textContent = `Even terms (+1) lie inside the band, but every odd term a_{2k−1} = −1 stays at distance ${Math.abs(-1 - L).toFixed(2)} ≥ ε from L — infinitely many terms escape forever, so no N works.`;
     } else if (evenOutside) {
-      texStr = `L = ${L.toFixed(2)},\\; \\varepsilon = ${eps.toFixed(2)}:\\; \\text{terms escape for ever: no } N`;
+      texStr = compact
+        ? `L=${L.toFixed(2)},\\,\\varepsilon=${eps.toFixed(2)}:\\;|a_{2k}-L|=${Math.abs(1 - L).toFixed(2)}\\ge\\varepsilon`
+        : `L = ${L.toFixed(2)},\\; \\varepsilon = ${eps.toFixed(2)}:\\; |a_{2k} - L| = ${Math.abs(1 - L).toFixed(2)} \\ge \\varepsilon`;
+      note.textContent = `Odd terms (−1) lie inside the band, but every even term a_{2k} = +1 stays at distance ${Math.abs(1 - L).toFixed(2)} ≥ ε from L — infinitely many terms escape forever, so no N works.`;
     } else {
-      texStr = `L = ${L.toFixed(2)},\\; \\varepsilon = ${eps.toFixed(2)}:\\; \\text{every term is inside: } N = 1`;
+      texStr = compact
+        ? `L=${L.toFixed(2)},\\,\\varepsilon=${eps.toFixed(2)}:\\;|a_n-L|<\\varepsilon\\;(\\forall n)`
+        : `L = ${L.toFixed(2)},\\; \\varepsilon = ${eps.toFixed(2)}:\\; |a_n - L| < \\varepsilon \\text{ for all } n`;
+      note.textContent = `A wide band (ε = ${eps.toFixed(2)}) covers both +1 and −1, but convergence requires a working N for EVERY ε > 0. Shrink ε below ${(1 - Math.abs(L)).toFixed(2)} and at least one branch escapes forever.`;
     }
     f.set(texStr);
-
-    note.textContent = '';
   }
 
   view.onResize(draw);

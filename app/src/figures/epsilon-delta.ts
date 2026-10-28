@@ -44,7 +44,7 @@ const mount: Mount = (root) => {
   let eps = E0;
   let delta = D0;
 
-  const pad = { l: 44, r: 44, t: 28, b: 44 };
+  const pad = { l: 44, r: 44, t: 28, b: 48 };
   let x = scale(XMIN, XMAX, 0, 1);
   let y = scale(YMIN, YMAX, 1, 0);
 
@@ -98,7 +98,7 @@ const mount: Mount = (root) => {
   const fnLbl = label(svgEl, 0, 0, 'f(x) = 3x + 2', 'lbl', 'start');
   const epsLbl = label(svgEl, 0, 0, '', 'lbl-acc', 'middle');
   const deltaLbl = label(svgEl, 0, 0, '', 'lbl-acc', 'middle');
-  const cAxisLbl = label(svgEl, 0, 0, '', 'lbl-fg', 'end');
+  const cAxisLbl = label(svgEl, 0, 0, '', 'lbl-fg', 'middle');
   const fcAxisLbl = label(svgEl, 0, 0, 'f(c)', 'lbl-fg', 'end');
 
   // Animation helper
@@ -177,6 +177,8 @@ const mount: Mount = (root) => {
 
   // Controls below figure
   const fFormula = formula(root);
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
   const r = row(root);
   button(r, 'Use δ = ε/3', () => {
     const fromD = delta;
@@ -240,17 +242,22 @@ const mount: Mount = (root) => {
     for (const tVal of [-1, 1, 2, 3]) {
       const tx = x(tVal);
       s('line', { class: 'ax', x1: tx, x2: tx, y1: yAxisLine - 3, y2: yAxisLine + 3 }, ticksG);
-      // Suppress tick label if it lies under the c handle
-      if (Math.abs(tVal - c) > 0.22) {
+      // Suppress tick label if it lies near the c label
+      if (Math.abs(tx - pxC) > 42) {
         label(ticksG, tx, yAxisLine + 17, String(tVal), 'lbl', 'middle');
       }
     }
     for (const tVal of [2, 4, 6, 8, 10]) {
       const ty = y(tVal);
       s('line', { class: 'ax', x1: xAxisLine - 3, x2: xAxisLine + 3, y1: ty, y2: ty }, ticksG);
-      label(ticksG, xAxisLine - 6, ty + 4, String(tVal), 'lbl', 'end');
+      // Suppress y-tick label if it lies near f(c)
+      if (Math.abs(ty - pyFc) > 18) {
+        label(ticksG, xAxisLine - 6, ty + 4, String(tVal), 'lbl', 'end');
+      }
     }
-    label(ticksG, xAxisLine - 8, yAxisLine + 17, '0', 'lbl', 'end');
+    if (Math.abs(xAxisLine - pxC) > 42) {
+      label(ticksG, xAxisLine - 8, yAxisLine + 17, '0', 'lbl', 'end');
+    }
 
     // Horizontal epsilon band
     attr(epsBand, { x: x0, width: x1 - x0, y: pyTop, height: pyBot - pyTop });
@@ -326,7 +333,7 @@ const mount: Mount = (root) => {
     // Clean label above the plot area on the left
     attr(fnLbl, { x: pad.l, y: pad.t - 10 });
 
-    attr(cAxisLbl, { x: pxC - 14, y: yAxisLine - 10 });
+    attr(cAxisLbl, { x: pxC, y: yAxisLine + 17 });
     cAxisLbl.textContent = `c = ${c.toFixed(2)}`;
 
     attr(fcAxisLbl, { x: xAxisLine - 8, y: pyFc + 4 });
@@ -340,7 +347,7 @@ const mount: Mount = (root) => {
     deltaLbl.textContent = `δ = ${delta.toFixed(2)}`;
     attr(deltaLbl, {
       x: clamp(pxRight, pad.l + 30, x1 - 25),
-      y: H - pad.b + 24,
+      y: H - pad.b + 28,
     });
 
     // Move handles
@@ -354,6 +361,9 @@ const mount: Mount = (root) => {
     const cmp = works ? '\\le' : '>';
     const verdict = works ? '\\text{works}' : '\\text{fails}';
     fFormula.set(`3\\delta = ${threeDelta.toFixed(2)} ${cmp} \\varepsilon = ${eps.toFixed(2)}:\\ \\delta = ${delta.toFixed(2)}\\ ${verdict}`);
+    note.textContent = works
+      ? `Slope 3 stretches the input half-width δ = ${delta.toFixed(2)} to vertical spread 3δ = ${threeDelta.toFixed(2)} ≤ ε = ${eps.toFixed(2)}, so the graph exits through the vertical sides of the target box.`
+      : `Slope 3 stretches δ = ${delta.toFixed(2)} to vertical spread 3δ = ${threeDelta.toFixed(2)} > ε = ${eps.toFixed(2)}, so the highlighted ends escape above and below the ε-band (shrink δ to ≤ ${(eps / 3).toFixed(2)}).`;
   }
 
   view.onResize(draw);

@@ -253,9 +253,11 @@ const mount: Mount = (root) => {
   h('span', { class: 'spacer' }, rButtons);
   button(rButtons, 'Reset', () => reset());
 
-  // Formula readout
+  // Formula readout and note
   const f = formula(root);
   f.el.style.fontSize = '0.9rem';
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
 
   let cancelAnim = () => {};
 
@@ -403,6 +405,7 @@ const mount: Mount = (root) => {
     f.set(
       `P(a < X < b) = \\Phi\\bigl(\\tfrac{b-\\mu}{\\sigma}\\bigr) - \\Phi\\bigl(\\tfrac{a-\\mu}{\\sigma}\\bigr) = ${prob.toFixed(4)}`,
     );
+    note.textContent = `Standardizing shifts by μ = ${mu.toFixed(1)} and scales by σ = ${sigma.toFixed(1)}, mapping [a, b] = [${a.toFixed(2)}, ${b.toFixed(2)}] to z-scores [${za.toFixed(2)}, ${zb.toFixed(2)}] and capturing ${(prob * 100).toFixed(2)}% of the total probability mass.`;
   }
 
   view.onResize(draw);

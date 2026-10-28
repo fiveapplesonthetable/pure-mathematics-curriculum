@@ -3,7 +3,7 @@
 // choose ε; the smallest N that honours the contract moves live, and the axis
 // zooms out when N runs past the visible terms.
 
-import { responsiveSvg, s, attr, handle, row, button, formula, tween, clamp, scale, label, lerp, type Mount } from './lib';
+import { responsiveSvg, s, h, attr, handle, row, button, formula, tween, clamp, scale, label, lerp, type Mount } from './lib';
 
 const L = 1;
 const a = (n: number) => 1 + (n % 2 ? -1 : 1) / n;
@@ -52,6 +52,9 @@ const mount: Mount = (root) => {
   hd.el.setAttribute('aria-valuemax', String(EMAX));
 
   const f = formula(root);
+  f.el.style.fontSize = 'clamp(0.84rem, 3.8vw, 1rem)';
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
   const r = row(root);
   button(r, 'Reset', () => {
     const from = eps;
@@ -111,9 +114,16 @@ const mount: Mount = (root) => {
     for (let n = stepT; n <= shown; n += stepT) label(ticks, x(n), H - pad.b + 18, String(n));
     label(ticks, x(1), H - pad.b + 18, 'n = 1');
 
-    f.set(
-      `N=${N}:\\ \\ n\\ge ${N}\\implies |a_n-1|=\\tfrac1n\\le\\tfrac1{${N}}<${eps.toFixed(2)}=\\varepsilon`,
-    );
+    if (W >= 460) {
+      f.set(
+        `N=${N}:\\ \\ n\\ge ${N}\\implies |a_n-1|=\\tfrac1n\\le\\tfrac1{${N}}<${eps.toFixed(2)}=\\varepsilon`,
+      );
+    } else {
+      f.set(
+        `n\\ge ${N}\\implies |a_n-1|=\\tfrac1n<${eps.toFixed(2)}=\\varepsilon`,
+      );
+    }
+    note.textContent = `Solving 1/n < ${eps.toFixed(2)} gives n > ${(1 / eps).toFixed(1)}, so N = ${N} is the earliest cutoff where every term from a_${N} onward stays locked inside the band (1 − ε, 1 + ε).`;
   }
   view.onResize(draw);
   draw();

@@ -81,11 +81,36 @@ for (const n of chapters) {
       missingFigs: document.querySelectorAll('.tikz-missing').length,
       brokenImgs: [...document.querySelectorAll('img.tikz')].filter((i) => i.complete && i.naturalWidth === 0).length,
       overflow: document.documentElement.scrollWidth - window.innerWidth,
-      figures: [...document.querySelectorAll('figure.fig')].map((f) => ({
-        name: f.dataset.fig,
-        empty: !f.querySelector('.fig-body')?.childElementCount,
-        width: f.getBoundingClientRect().width,
-      })),
+      figures: [...document.querySelectorAll('figure.fig')].map((f) => {
+        const svg = f.querySelector('svg');
+        const sr = svg ? svg.getBoundingClientRect() : null;
+        const texts = svg ? [...svg.querySelectorAll('text')].filter((t) => (t.textContent || '').trim().length > 0) : [];
+        const rects = texts.map((t) => ({ text: (t.textContent || '').trim(), r: t.getBoundingClientRect() }));
+        const overlaps = [];
+        for (let i = 0; i < rects.length; i++) {
+          for (let j = i + 1; j < rects.length; j++) {
+            const a = rects[i].r, b = rects[j].r;
+            if (a.right > b.left + 2 && a.left < b.right - 2 && a.bottom > b.top + 2 && a.top < b.bottom - 2) {
+              overlaps.push(`"${rects[i].text}" overlaps "${rects[j].text}"`);
+            }
+          }
+        }
+        const oob = sr
+          ? rects
+              .filter(({ r }) => r.width > 0 && (r.left < sr.left - 4 || r.right > sr.right + 4 || r.top < sr.top - 4 || r.bottom > sr.bottom + 4))
+              .map(({ text }) => `"${text}" outside SVG`)
+          : [];
+        const fm = f.querySelector('.fig-formula');
+        const fmOver = fm ? fm.scrollWidth - fm.clientWidth : 0;
+        return {
+          name: f.dataset.fig,
+          empty: !f.querySelector('.fig-body')?.childElementCount,
+          width: f.getBoundingClientRect().width,
+          overlaps,
+          oob,
+          fmOver,
+        };
+      }),
       wide: [...document.querySelectorAll('article *')]
         .filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1 && !e.closest('.display, .md, .m.wide, .katex-mathml, .table, pre, .fig-formula'))
         .slice(0, 5)
@@ -93,7 +118,12 @@ for (const n of chapters) {
     }));
     const problems = [...errors];
     if (info.overflow > 0) problems.push(`horizontal overflow ${info.overflow}px: ${info.wide.join(', ')}`);
-    for (const f of info.figures) if (f.empty) problems.push(`figure ${f.name} rendered nothing`);
+    for (const f of info.figures) {
+      if (f.empty) problems.push(`figure ${f.name} rendered nothing`);
+      for (const ov of f.overlaps || []) problems.push(`figure ${f.name}: ${ov}`);
+      for (const ob of f.oob || []) problems.push(`figure ${f.name}: ${ob}`);
+      if ((f.fmOver || 0) > 2) problems.push(`figure ${f.name}: formula clipped by ${f.fmOver}px`);
+    }
     for (const k of info.katexErrors) problems.push(`KaTeX error: ${k}`);
     if (info.missingFigs) problems.push(`${info.missingFigs} book figure(s) not rendered`);
     void t0;
