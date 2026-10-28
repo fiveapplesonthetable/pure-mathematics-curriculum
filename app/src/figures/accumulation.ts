@@ -89,6 +89,8 @@ const mount: Mount = (root) => {
 
   // Controls & Formula
   const f = formula(root);
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
   const r = row(root);
   h('span', { class: 'spacer' }, r);
   button(r, 'Reset', () => {
@@ -249,17 +251,24 @@ const mount: Mount = (root) => {
       y1: Y_top0 - 2,
       y2: yBotZero,
     });
-    attr(wallLabel, { x: xPx, y: Y_top0 - 10 });
+    attr(wallLabel, { x: clamp(xPx + 8, x0 + 68, x1 - 12), y: Math.round((Y_top1 + Y_bot0) / 2) + 4 });
 
     // --- Move handle on top panel ---
     hd.move(xPx, yTop(curF));
 
-    // --- Live formula ---
+    // --- Live formula & geometric explanation ---
     const fShown = fixZero(curF);
     const aShown = fixZero(curA);
     f.set(
       `A(x) = ${aShown.toFixed(2)}, \\quad A'(x) = f(x) = ${fShown.toFixed(2)}`,
     );
+    if (Math.abs(curF) < 0.06) {
+      note.textContent = `At x = ${xVal.toFixed(2)}, the height of the curve is f(x) ≈ 0, so sweeping the wall adds zero instantaneous area and the tangent to A(x) is horizontal (local extremum).`;
+    } else if (curF > 0) {
+      note.textContent = `At x = ${xVal.toFixed(2)}, f(x) = +${fShown.toFixed(2)} > 0 lies above the axis: sweeping the wall right adds positive area at rate f(x), so A(x) climbs with tangent slope +${fShown.toFixed(2)}.`;
+    } else {
+      note.textContent = `At x = ${xVal.toFixed(2)}, f(x) = ${fShown.toFixed(2)} < 0 lies below the axis: sweeping the wall right accumulates negative signed area, so A(x) falls with tangent slope ${fShown.toFixed(2)}.`;
+    }
   }
 
   view.onResize(draw);

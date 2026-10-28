@@ -7,6 +7,7 @@
 import {
   responsiveSvg,
   s,
+  h,
   attr,
   handle,
   row,
@@ -90,6 +91,8 @@ const mount: Mount = (root) => {
   hd.el.setAttribute('aria-valuemax', String(EMAX));
 
   const f = formula(root);
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
   const r = row(root);
   const halveBtn = button(r, 'Halve ε', () => halve());
   button(r, 'Reset', () => reset());
@@ -200,6 +203,8 @@ const mount: Mount = (root) => {
     f.set(
       `N(\\varepsilon) = \\lfloor 1/\\varepsilon \\rfloor + 1 = \\lfloor 1/${epsStr} \\rfloor + 1 = ${N}`,
     );
+    const nextJump = 1 / N;
+    note.textContent = `Because 1/n < ε requires n > 1/ε = ${(1 / eps).toFixed(2)}, N(ε) stays constant at ${N} on (${nextJump.toFixed(3)}, ${(1 / (N - 1)).toFixed(3)}] and jumps up by 1 whenever ε crosses a unit fraction 1/k. Halving ε roughly doubles N.`;
   }
 
   view.onResize(draw);

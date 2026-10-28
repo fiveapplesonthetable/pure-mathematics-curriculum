@@ -120,7 +120,9 @@ const mount: Mount = (root) => {
     st?.go(0);
   });
 
-  // 3. Proof environment label
+  // 3. Step explanation note & Proof environment label
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0.35rem';
   h('p', { class: 'env-label' }, root, 'Proof');
 
   function setEps(v: number) {
@@ -277,6 +279,17 @@ const mount: Mount = (root) => {
       s('line', { class: 'ax', x1: cx, x2: cx, y1: y0, y2: y0 + 4 }, ticksG);
       label(ticksG, cx, y0 + 17, String(xt), 'lbl', 'middle');
     }
+
+    const stepNotes = [
+      `Step 1: The challenger fixes an arbitrary tolerance band (0, ε) with ε = ${eps.toFixed(2)}.`,
+      `Step 2: By the Archimedean property, we place the vertical cutoff at N = ${N} > 1/ε = ${(1 / eps).toFixed(2)}.`,
+      `Step 3: We shade the tail n ≥ ${N}; every highlighted dot to the right of the N-line is now under inspection.`,
+      `Step 4: Since 1/n > 0, the distance |1/n − 0| to the limit is simply the height 1/n of each dot.`,
+      `Step 5: Because 1/n decreases as n grows, every tail term n ≥ ${N} sits at or below the dashed ceiling 1/N = ${(1 / N).toFixed(3)}.`,
+      `Step 6: Our choice N > 1/ε guarantees that the ceiling 1/N = ${(1 / N).toFixed(3)} lies strictly below the band edge ε = ${eps.toFixed(2)}.`,
+      `Step 7: Chaining 1/n ≤ 1/N < ε locks the entire tail n ≥ ${N} inside the ε-band, completing the proof.`,
+    ];
+    note.textContent = stepNotes[currentStep] ?? '';
   }
 
   // 4. Stepper proof lines faithfully matching the book

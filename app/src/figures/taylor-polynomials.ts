@@ -5,6 +5,7 @@
 import {
   responsiveSvg,
   s,
+  h,
   attr,
   handle,
   row,
@@ -242,9 +243,11 @@ const mount: Mount = (root) => {
     },
   });
 
-  // Formula readout
+  // Formula readout and explanation note
   const fFormula = formula(root);
   fFormula.el.style.fontSize = '0.86rem';
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
 
   // Controls row
   const rControls = row(root);
@@ -468,8 +471,16 @@ const mount: Mount = (root) => {
     attr(legPLbl, { x: legX + 22, y: legY + 16 });
     legPLbl.textContent = `P${toSub(n)}(x)`;
 
-    // Update formula
+    // Update formula & live stage note
     fFormula.set(getFormulaTex(currentFunc, n, x0Clamped));
+    const errVal = Math.abs(fVal0 - pnVal0);
+    if (currentFunc === 'ln' && x0Clamped > 1) {
+      note.textContent = `At x₀ = ${x0Clamped.toFixed(2)} > 1 (outside the radius of convergence R = 1 due to the singularity at x = −1), the terms (−1)^{k−1}x₀^k/k grow without bound: higher degree n makes P_n(x₀) diverge away from ln(1 + x₀).`;
+    } else if (currentFunc === 'ln') {
+      note.textContent = `Inside (−1, 1], matching derivatives 0 through ${n} at x = 0 pulls P_${n}(x) onto ln(1 + x); at x₀ = ${x0Clamped.toFixed(2)}, the remainder |R_${n}(x₀)| is ${errVal < 1e-4 ? errVal.toExponential(1) : errVal.toFixed(4)}.`;
+    } else {
+      note.textContent = `Matching the first ${n} derivatives at x = 0 locks P_${n}(x) onto ${def.label} over a wider neighborhood as n grows; at x₀ = ${x0Clamped.toFixed(2)}, the Taylor remainder |f(x₀) − P_${n}(x₀)| is ${errVal < 1e-4 ? errVal.toExponential(1) : errVal.toFixed(4)}.`;
+    }
   }
 
   view.onResize(draw);

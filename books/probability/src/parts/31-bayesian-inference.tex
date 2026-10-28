@@ -107,6 +107,86 @@ family. The normalizer was never carrying information about $\theta$; it was onl
 carrying the bill for making probabilities sum to one.
 \end{whybox}
 
+\begin{intuitionbox}
+\textbf{The morphing lens: how data reshapes belief.}
+Think of the prior $p(\theta)$ as an initial landscape of plausibility across candidate
+parameters. When data $D$ arrives, the likelihood function $p(D\given\theta)$ acts like an
+optical lens laid over that landscape. Wherever the data finds a parameter value
+compelling, the lens is transparent and amplifies the curve; wherever a parameter value
+would make the observed data astonishingly improbable, the lens is dark and suppresses it.
+Multiplying prior by likelihood morphs the curve: its peak drifts toward values favored by
+the evidence, and its shoulders squeeze inward. Finally, dividing by the evidence
+$p(D)$ simply scales the total area back to $1$ without distorting the relative contours.
+The prior has been sculpted under the likelihood lens into the posterior
+(Figure~\ref{ch31:fig-morph}).
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=priorAxis,
+  width=5.0cm, height=4.4cm,
+  title={1. Prior $p(\theta)$},
+  title style={font=\small},
+  xlabel={$\theta$}, ylabel={density},
+  domain=0.001:0.999, samples=80,
+  xmin=0, xmax=1, ymin=0, ymax=2.2,
+  axis lines=left,
+  x label style={font=\footnotesize},
+  y label style={font=\footnotesize},
+  tick label style={font=\scriptsize},
+]
+\addplot[sourceblue, thick, fill=sourceblue!15] {6*x*(1-x)} \closedcycle;
+\node[sourceblue, font=\footnotesize] at (axis cs:0.5,1.7) {$\Bet(2,2)$};
+\end{axis}
+
+\begin{axis}[
+  name=likAxis,
+  at={($(priorAxis.east)+(0.8cm,0)$)},
+  anchor=west,
+  width=5.0cm, height=4.4cm,
+  title={2. Likelihood lens $L(\theta)$},
+  title style={font=\small},
+  xlabel={$\theta$}, ylabel={relative lik.},
+  domain=0.001:0.999, samples=80,
+  xmin=0, xmax=1, ymin=0, ymax=1.1,
+  axis lines=left,
+  x label style={font=\footnotesize},
+  y label style={font=\footnotesize},
+  tick label style={font=\scriptsize},
+]
+\addplot[quotientorange, thick, fill=quotientorange!15] {(x^7 * (1-x)^2)/0.00863} \closedcycle;
+\node[quotientorange, font=\footnotesize] at (axis cs:0.75,0.9) {$7\text{ up}, 2\text{ down}$};
+\end{axis}
+
+\begin{axis}[
+  name=postAxis,
+  at={($(likAxis.east)+(0.8cm,0)$)},
+  anchor=west,
+  width=5.0cm, height=4.4cm,
+  title={3. Morphed Posterior},
+  title style={font=\small},
+  xlabel={$\theta$}, ylabel={density},
+  domain=0.001:0.999, samples=100,
+  xmin=0, xmax=1, ymin=0, ymax=4.2,
+  axis lines=left,
+  x label style={font=\footnotesize},
+  y label style={font=\footnotesize},
+  tick label style={font=\scriptsize},
+]
+\addplot[targetgreen, thick, fill=targetgreen!18] {exp(7.59085 + 8*ln(x) + 3*ln(1-x))} \closedcycle;
+\node[targetgreen, font=\footnotesize] at (axis cs:0.72,3.3) {$\Bet(9,4)$};
+\end{axis}
+\end{tikzpicture}
+\caption{Bayesian updating as curve morphing. The symmetric prior belief (left) passes
+through the multiplicative lens of the likelihood (middle), which amplifies parameter
+values supported by the data ($7$ ups, $2$ downs) and suppresses the rest. Re-normalizing
+the total area under the product to unity yields the posterior (right), whose mass is
+shifted rightward and sharpened.}
+\label{ch31:fig-morph}
+\end{figure}
+
 \subsection{A First Update by Hand}
 
 Let us toss the tack three times and get \emph{up, up, down}. Suppose, to keep the first
@@ -200,20 +280,30 @@ $\theta \sim \Bet(\alpha,\beta)$ has density
   p(\theta) \;=\; \frac{1}{B(\alpha,\beta)}\,\theta^{\alpha-1}(1-\theta)^{\beta-1},
   \qquad 0 \le \theta \le 1,
 \]
-where $B(\alpha,\beta)$ is the constant that makes it integrate to one. Look at the shape:
-$\theta^{\alpha-1}(1-\theta)^{\beta-1}$. It is \emph{the same algebraic form as the
-binomial likelihood}, a power of $\theta$ times a power of $1-\theta$. Multiply them and
-the powers simply add:
+where $B(\alpha,\beta)$ is Euler's Beta function, the normalizing constant ensuring the density integrates to unity:
+\[
+  B(\alpha,\beta) \;=\; \int_0^1 \theta^{\alpha-1}(1-\theta)^{\beta-1}\,\dd\theta
+  \;=\; \frac{\Gamma(\alpha)\,\Gamma(\beta)}{\Gamma(\alpha+\beta)}.
+\]
+Look at the algebraic skeleton of the density: $\theta^{\alpha-1}(1-\theta)^{\beta-1}$. It mirrors the exact functional dependence of the binomial likelihood $\theta^k (1-\theta)^{n-k}$. When we multiply them to form the joint distribution of data and parameter, the powers of $\theta$ and $1-\theta$ combine seamlessly:
 \begin{align*}
-  p(\theta \given D)
-  &\;\propto\; \underbrace{\theta^{k}(1-\theta)^{n-k}}_{\text{likelihood}}
-      \cdot \underbrace{\theta^{\alpha-1}(1-\theta)^{\beta-1}}_{\text{prior}} \\[2pt]
-  &\;=\; \theta^{\,(\alpha+k)-1}\,(1-\theta)^{\,(\beta + n - k)-1}.
+  p(D, \theta) \;=\; p(D\given\theta)\,p(\theta)
+  &\;=\; \binom{n}{k}\theta^k (1-\theta)^{n-k} \cdot \frac{1}{B(\alpha,\beta)}\,\theta^{\alpha-1}(1-\theta)^{\beta-1} \\[4pt]
+  &\;=\; \frac{\binom{n}{k}}{B(\alpha,\beta)}\;\theta^{(\alpha+k)-1}\,(1-\theta)^{(\beta+n-k)-1}.
 \end{align*}
-The right-hand side is, up to its normalizing constant, exactly the density of a
-$\Bet(\alpha + k,\; \beta + n - k)$. We did not have to compute a single integral. The
-posterior is Beta because the prior was Beta and the likelihood was binomial; we say the
-Beta family is \emph{conjugate} to the binomial likelihood.
+To find the marginal likelihood (the evidence) $p(D)$ that sits in the denominator of Bayes' theorem, we integrate this joint density over the whole parameter space $\theta \in [0,1]$:
+\begin{align*}
+  p(D) &\;=\; \int_0^1 p(D,\theta)\,\dd\theta
+  \;=\; \frac{\binom{n}{k}}{B(\alpha,\beta)} \int_0^1 \theta^{(\alpha+k)-1}\,(1-\theta)^{(\beta+n-k)-1}\,\dd\theta \\[4pt]
+  &\;=\; \binom{n}{k}\,\frac{B(\alpha+k,\;\beta+n-k)}{B(\alpha,\beta)}.
+\end{align*}
+The integral on the right is, by definition, the Beta integral for parameters $\alpha+k$ and $\beta+n-k$. Dividing the joint distribution by this evidence normalizer yields the posterior density in closed form:
+\begin{equation}
+  p(\theta \given D) \;=\; \frac{p(D,\theta)}{p(D)}
+  \;=\; \frac{1}{B(\alpha+k,\;\beta+n-k)}\;\theta^{(\alpha+k)-1}\,(1-\theta)^{(\beta+n-k)-1}.
+  \label{ch31:beta-posterior-derivation}
+\end{equation}
+Notice the beauty of what just happened. We did not need numerical quadrature or approximation. The posterior belongs to the very same family as the prior, with the parameters updated by simple addition: $\alpha \mapsto \alpha + k$ and $\beta \mapsto \beta + (n-k)$. When the prior and posterior share the same parametric family under a given likelihood, the prior is said to be \emph{conjugate} to that likelihood.
 
 \begin{formalbox}
 \textbf{Beta--Binomial update.} If the prior is $\theta \sim \Bet(\alpha,\beta)$ and we
@@ -555,8 +645,69 @@ solutions. The \emph{equal-tailed} interval chops $2.5\%$ off each end, taking $
 the $2.5$th and $97.5$th posterior percentiles --- easy and the usual default. The
 \emph{highest posterior density} (HPD) interval instead takes the shortest interval with
 $95\%$ mass, equivalently the set of $\theta$ whose posterior density exceeds some
-threshold. For a symmetric unimodal posterior the two coincide; for a skewed one the HPD is
-shorter and always contains the mode, which the equal-tailed one need not.
+threshold $c$. For a symmetric unimodal posterior the two coincide; for a skewed one the HPD is
+shorter and always contains the mode, which the equal-tailed one need not (Figure~\ref{ch31:fig-hpd-vs-et}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+% Left panel: Equal-tailed
+\begin{axis}[
+  name=etAxis,
+  width=7.2cm, height=5.2cm,
+  title={Equal-tailed $95\%$ credible interval},
+  title style={font=\small},
+  xlabel={$\theta$}, ylabel={posterior density},
+  domain=0.01:0.99, samples=120,
+  xmin=0, xmax=1, ymin=0, ymax=3.6,
+  axis lines=left,
+  x label style={font=\footnotesize},
+  y label style={font=\footnotesize},
+  tick label style={font=\scriptsize},
+]
+\addplot[distblue, thick] {exp(5.12396 + 5*ln(x) + 2*ln(1-x))};
+\addplot[draw=none, fill=trapred!35, domain=0.01:0.33] {exp(5.12396 + 5*ln(x) + 2*ln(1-x))} \closedcycle;
+\addplot[draw=none, fill=trapred!35, domain=0.94:0.99] {exp(5.12396 + 5*ln(x) + 2*ln(1-x))} \closedcycle;
+\addplot[draw=none, fill=distblue!15, domain=0.33:0.94] {exp(5.12396 + 5*ln(x) + 2*ln(1-x))} \closedcycle;
+\draw[distblue, thick] (axis cs:0.33,0) -- (axis cs:0.33,1.0);
+\draw[distblue, thick] (axis cs:0.94,0) -- (axis cs:0.94,0.65);
+\node[trapred, font=\scriptsize] at (axis cs:0.25,0.4) {$2.5\%$};
+\node[trapred, font=\scriptsize] at (axis cs:0.96,0.3) {$2.5\%$};
+\node[distblue, font=\footnotesize] at (axis cs:0.65,1.5) {$95\%$ area};
+\draw[<->, thick, black] (axis cs:0.33,-0.35) -- (axis cs:0.94,-0.35);
+\node[below, font=\scriptsize] at (axis cs:0.635,-0.35) {$[L_{\mathrm{ET}}, U_{\mathrm{ET}}]$};
+\end{axis}
+
+% Right panel: HPD
+\begin{axis}[
+  name=hpdAxis,
+  at={($(etAxis.east)+(1.2cm,0)$)},
+  anchor=west,
+  width=7.2cm, height=5.2cm,
+  title={Highest Posterior Density (HPD)},
+  title style={font=\small},
+  xlabel={$\theta$}, ylabel={posterior density},
+  domain=0.01:0.99, samples=120,
+  xmin=0, xmax=1, ymin=0, ymax=3.6,
+  axis lines=left,
+  x label style={font=\footnotesize},
+  y label style={font=\footnotesize},
+  tick label style={font=\scriptsize},
+]
+\addplot[targetgreen!80!black, thick] {exp(5.12396 + 5*ln(x) + 2*ln(1-x))};
+\addplot[draw=none, fill=targetgreen!20, domain=0.38:0.97] {exp(5.12396 + 5*ln(x) + 2*ln(1-x))} \closedcycle;
+\draw[densityred, dashed, thick] (axis cs:0.1,0.85) -- (axis cs:0.99,0.85);
+\node[densityred, anchor=south, font=\scriptsize] at (axis cs:0.3,0.85) {density threshold $c$};
+\draw[targetgreen!80!black, thick] (axis cs:0.38,0) -- (axis cs:0.38,0.85);
+\draw[targetgreen!80!black, thick] (axis cs:0.97,0) -- (axis cs:0.97,0.85);
+\node[targetgreen!80!black, font=\footnotesize] at (axis cs:0.68,1.5) {$95\%$ area};
+\draw[<->, thick, black] (axis cs:0.38,-0.35) -- (axis cs:0.97,-0.35);
+\node[below, font=\scriptsize] at (axis cs:0.675,-0.35) {$[L_{\mathrm{HPD}}, U_{\mathrm{HPD}}]$ (shorter)};
+\end{axis}
+\end{tikzpicture}
+\caption{Two ways to summarize posterior uncertainty with a $95\%$ credible interval on a skewed density. Left: the equal-tailed interval isolates exactly $2.5\%$ probability in each tail, regardless of height. Right: the Highest Posterior Density (HPD) interval slices the distribution at a horizontal density threshold $c$ (the waterline), keeping every point whose plausibility exceeds $c$. The HPD interval always contains the mode and has the shortest possible length for any $95\%$ region.}
+\label{ch31:fig-hpd-vs-et}
+\end{figure}
 
 \begin{example}[Credible interval for the A/B test]
 \label{ch31:ex-credible}

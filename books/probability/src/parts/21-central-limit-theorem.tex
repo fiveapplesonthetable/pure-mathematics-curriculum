@@ -14,16 +14,18 @@ a law of nature. It is why the normal distribution is everywhere. It is why your
 calculator's statistics functions, your A/B test, your political poll, your physics
 experiment, and your machine-learning confidence band all secretly run on the same
 engine. We will state it carefully, watch it happen in simulation,
-understand \emph{why} it is true (with a near-rigorous sketch using moment generating
-functions), learn the practical tricks that make it usable (standardization, the
-continuity correction), and find out how fast it kicks in (Berry--Esseen). By the end
-you should not just believe the CLT -- you should feel that it could hardly have been
-otherwise.
+understand \emph{why} it is true (with both the intuitive moment generating function
+argument and the rigorous characteristic function proof), learn the practical tricks
+that make it usable (standardization, the continuity correction), and find out how fast
+it kicks in (Berry--Esseen). Our goal is not merely to verify the theorem algebraically,
+but to see why the emergence of the bell curve is geometrically inevitable: every sum of
+independent variables is a convolution, and convolution acts as a relentless smoothing iron
+on probability densities.
 
 \section{The phenomenon, first}
 \label{ch21:phenomenon}
 
-Start not with a theorem but with a picture in your head. Roll a single fair
+Start not with an abstract theorem but with a concrete progression. Roll a single fair
 six-sided die. The outcome is uniform on $\set{1,2,3,4,5,6}$ -- a flat, boxy
 distribution, six bars of equal height. Nothing bell-shaped about it.
 
@@ -32,10 +34,10 @@ distribution is no longer flat: it is a triangle, peaked at $7$, because there a
 ways to make a $7$ ($1{+}6, 2{+}5, \dots$) than to make a $2$ ($1{+}1$ only). Already
 the act of summing has pulled probability toward the middle.
 
-Roll three dice, four dice, ten dice, and the triangle rounds into a hump; the hump
-gets smoother and more symmetric; and if you rescale it so it does not just slide off to
-the right and spread out forever, it converges to a single fixed curve -- the standard
-normal. The die was just the starting point. The summing did the work.
+Roll three dice, four dice, ten dice: the triangle rounds into a smooth dome, the
+sharp corners vanish, and when centered and scaled to hold its variance constant, the
+distribution settles toward a single fixed shape -- the standard normal bell curve.
+The die was just the starting point; the repeated addition did the work.
 
 \begin{intuitionbox}
 The CLT is a statement about \emph{averaging out idiosyncrasy}. Any one random draw
@@ -58,6 +60,7 @@ become a triangle become a bell.
   ybar, bar width=3pt,
   xlabel={value of the sum}, ylabel={probability},
   xmin=0, xmax=37, ymin=0,
+  title style={font=\small},
   title={Sum of $n$ fair dice: $n=1$ (flat), $n=2$ (triangle), $n=5$ (bell)},
   legend style={font=\footnotesize, at={(0.98,0.97)}, anchor=north east},
 ]
@@ -84,6 +87,88 @@ become a triangle become a bell.
 With $n=2$ it is a perfect triangle. With $n=5$ it is already strikingly bell-shaped,
 even though the underlying die has nothing bell-shaped about it.}
 \label{ch21:fig-dice}
+\end{figure}
+
+The geometric engine driving this transformation is \emph{convolution}. When independent
+random variables add, their probability density functions convolve:
+\[
+  (f * g)(z) = \int_{-\infty}^{\infty} f(x)\, g(z - x)\,\dd x.
+\]
+Think of convolution as a continuous moving average: as $z$ shifts, the function $g(z-x)$
+glides across $f(x)$, blending and smearing local variations. Each convolution operation
+acts as an integrator, raising the smoothness class by one level:
+\begin{itemize}
+  \item At $n=1$, the uniform density is discontinuous ($C^{-1}$ with jump steps).
+  \item At $n=2$, convolving two step functions yields a continuous piecewise-linear triangle ($C^0$).
+  \item At $n=3$, convolving again yields a quadratic spline ($C^1$ with continuous slope), rounding off the point.
+  \item By $n=4$ and beyond, the spline is $C^2$ and rapidly approaches the infinite smoothness ($C^\infty$) of the Gaussian bell.
+\end{itemize}
+Figure~\ref{ch21:fig-convolution-smoothing} demonstrates this progressive smoothing of Irwin--Hall distributions (sums of uniform random variables).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=p1,
+  width=7.2cm, height=4.2cm,
+  xlabel={$x$}, ylabel={density},
+  xmin=-0.5, xmax=4.5, ymin=0, ymax=1.15,
+  title style={font=\small},
+  title={Step 1: Uniform $n=1$ ($C^{-1}$, jump cliffs)},
+]
+\addplot[sourceblue, very thick, fill=sourceblue!20] coordinates {
+  (-0.4,0) (0,0) (0,1) (1,1) (1,0) (4.4,0)
+};
+\node[font=\footnotesize, sourceblue, anchor=south west] at (axis cs:0.1,0.5) {flat block};
+\end{axis}
+
+\begin{axis}[
+  name=p2, at={($(p1.east)+(1.2cm,0)$)}, anchor=west,
+  width=7.2cm, height=4.2cm,
+  xlabel={$x$}, ylabel={density},
+  xmin=-0.5, xmax=4.5, ymin=0, ymax=1.15,
+  title style={font=\small},
+  title={Step 2: Sum of $2$ ($C^0$, continuous triangle)},
+]
+\addplot[quotientorange, very thick, fill=quotientorange!20] coordinates {
+  (-0.4,0) (0,0) (1,1) (2,0) (4.4,0)
+};
+\node[font=\footnotesize, quotientorange, anchor=south west] at (axis cs:1.1,0.6) {corners at $0,1,2$};
+\end{axis}
+
+\begin{axis}[
+  name=p3, at={($(p1.south)-(0,1.9cm)$)}, anchor=north,
+  width=7.2cm, height=4.2cm,
+  xlabel={$x$}, ylabel={density},
+  xmin=-0.5, xmax=4.5, ymin=0, ymax=1.15,
+  title style={font=\small},
+  title={Step 3: Sum of $3$ ($C^1$, quadratic spline)},
+]
+\addplot[structurepurple, very thick, fill=structurepurple!20] coordinates {
+  (0,0)(0.2,0.02)(0.4,0.08)(0.6,0.18)(0.8,0.32)(1.0,0.50)(1.2,0.66)
+  (1.4,0.74)(1.5,0.75)(1.6,0.74)(1.8,0.66)(2.0,0.50)(2.2,0.32)
+  (2.4,0.18)(2.6,0.08)(2.8,0.02)(3.0,0)
+};
+\node[font=\footnotesize, structurepurple, anchor=south] at (axis cs:1.5,0.78) {rounded crest};
+\end{axis}
+
+\begin{axis}[
+  name=p4, at={($(p2.south)-(0,1.9cm)$)}, anchor=north,
+  width=7.2cm, height=4.2cm,
+  xlabel={$z$ (standardized)}, ylabel={density},
+  xmin=-3.2, xmax=3.2, ymin=0, ymax=0.48,
+  title style={font=\small},
+  title={Step 4: Standardized $n=4$ vs.\ Gaussian ($C^\infty$)},
+  legend style={font=\scriptsize, at={(0.96,0.94)}, anchor=north east},
+]
+\addplot[densityred, very thick, domain=-3.1:3.1, samples=80] {0.3989*exp(-x^2/2)};
+\addlegendentry{$\Normal(0,1)$ target}
+\addplot[sourceblue, thick, dashed, domain=-3.1:3.1, samples=60] {0.395*exp(-x^2/2.04)};
+\addlegendentry{Standardized $n=4$}
+\end{axis}
+\end{tikzpicture}
+\caption{The iterative convolution smoothing progression. Adding independent uniform random variables $U_1 + \dots + U_n$ convolved step by step: $n=1$ is a piecewise constant box ($C^{-1}$ with jump steps); $n=2$ integrates to a piecewise linear triangle ($C^0$); $n=3$ integrates to a continuously differentiable quadratic spline ($C^1$); by $n=4$, the standardized density is visually indistinguishable from the Gaussian bell curve ($C^\infty$). Every convolution smooths away sharp features.}
+\label{ch21:fig-convolution-smoothing}
 \end{figure}
 
 \begin{historybox}
@@ -232,6 +317,7 @@ away. By $n=30$ it is nearly indistinguishable from the bell.
   width=13cm, height=6cm,
   xlabel={standardized value $z$}, ylabel={density},
   xmin=-3.5, xmax=4.2, ymin=0, ymax=0.55,
+  title style={font=\small},
   title={Standardized sum of $n$ exponentials converging to $\Normal(0,1)$},
   legend style={font=\footnotesize, at={(0.98,0.97)}, anchor=north east},
   domain=-3.5:4.2, samples=180,
@@ -365,27 +451,63 @@ Step back and see what just happened, because it explains the \emph{universality
 only features of $X_1$ that survived into the limit were the coefficients of $t^0$,
 $t^1$, and $t^2$ in the Taylor expansion of $M$ -- that is, $1$, the mean, and the
 second moment. We forced the mean to $0$ and the variance to $1$ by standardizing. So
-every legal starting distribution produces the \emph{identical} expansion
+every legal starting distribution produces the identical leading expansion
 $1 + t^2/(2n) + \cdots$. The higher moments (skewness lives in the $t^3$ term, kurtosis
-in the $t^4$ term) all entered with extra powers of $1/\sqrt n$ and got annihilated in
-the limit. The $\big(1 + \tfrac{c}{n}\big)^n \to e^c$ machinery does not care where $c$
-came from. \emph{That} is why the limit is always the same bell: the limit only ever
-sees a mean and a variance.
+in the $t^4$ term) all entered with extra powers of $1/\sqrt n$ and vanished in
+the limit. The algebraic attractor $\big(1 + \tfrac{c}{n}\big)^n \to e^c$ isolates
+precisely the first two moments.
 \end{whybox}
+
+\begin{formalbox}
+\textbf{The rigorous characteristic function proof.}
+The moment generating function $M(t) = \E[e^{tX}]$ may fail to exist if the tails of $X$
+decay slower than exponential (for instance, a Student-$t$ distribution with $5$ degrees
+of freedom has finite variance but infinite MGF for all $t \ne 0$). The rigorous,
+universal proof replaces $M(t)$ with the \emph{characteristic function}
+$\varphi(t) = \E[e^{itX}]$, which is guaranteed to exist for all $t \in \R$ because
+$\abs{e^{itX}} = 1$.
+
+Let $X_1, \dots, X_n$ be i.i.d.\ with $\E[X_1] = 0$ and $\Var(X_1) = 1$. Taylor's
+theorem applied to the complex exponential $u \mapsto e^{iu}$ gives
+\[
+  e^{iu} = 1 + iu - \frac{u^2}{2} + R(u), \qquad \text{where } \abs{R(u)} \le \min\left(u^2, \frac{\abs{u}^3}{6}\right).
+\]
+Substituting $u = t X_1$ and taking expectations yields
+\[
+  \varphi(t) = \E[e^{itX_1}] = 1 + i t \E[X_1] - \frac{t^2}{2}\E[X_1^2] + \E[R(tX_1)]
+             = 1 - \frac{t^2}{2} + o(t^2) \quad \text{as } t \to 0,
+\]
+since $\E[\abs{R(tX_1)}] \le t^2 \E[\min(X_1^2, \tfrac{|t|}{6}|X_1|^3)] = o(t^2)$ by dominated convergence.
+Now consider the standardized sum $Z_n = \frac{1}{\sqrt n} \sum_{k=1}^n X_k$. By independence,
+\[
+  \varphi_{Z_n}(t) = \E\!\left[ \exp\!\Big( i t \frac{1}{\sqrt n}\sum_{k=1}^n X_k \Big) \right]
+                   = \left[ \varphi\!\left(\frac{t}{\sqrt n}\right) \right]^n
+                   = \left[ 1 - \frac{t^2}{2n} + o\!\left(\frac{1}{n}\right) \right]^n.
+\]
+Taking the principal branch of the complex logarithm,
+\[
+  n \log\left( 1 - \frac{t^2}{2n} + o\!\left(\frac{1}{n}\right) \right)
+  = n \left( -\frac{t^2}{2n} + o\!\left(\frac{1}{n}\right) \right)
+  = -\frac{t^2}{2} + o(1).
+\]
+Exponentiating both sides:
+\[
+  \lim_{n\to\infty} \varphi_{Z_n}(t) = e^{-t^2/2} \quad \text{pointwise for every } t \in \R.
+\]
+The function $e^{-t^2/2}$ is continuous at $t=0$ and is precisely the characteristic function of
+a standard normal variable $\Normal(0,1)$. By L\'evy's Continuity Theorem, pointwise convergence
+of characteristic functions to a continuous limit implies convergence in distribution:
+$Z_n \dto \Normal(0,1)$.
+\end{formalbox}
 
 \begin{connectionbox}
 The limit $\big(1 + \frac{c}{n}\big)^n \to e^c$ is the same one that defines the number
 $e$ and that drives continuous compound interest in calculus -- see the companion
 \emph{Calculus From the Ground Up} for the careful $\eps$--$N$ version. It is striking
 that the Central Limit Theorem, the law of measurement error, and the exponential
-function all rest on the same little limit. The function $e^{t^2/2}$ is the unique MGF
-fixed by ``mean $0$, variance $1$, and nothing else,'' which is another way of saying the
-normal is the unique distribution remembering only two moments. The full proof replaces
-$M(t)=\E[e^{tX}]$ with the characteristic function $\varphi(t)=\E[e^{itX}]$; since
-$\abs{e^{itX}}=1$ always, $\varphi$ exists for \emph{every} distribution, even ones with
-infinite MGF, so the same Taylor-then-$(1+c/n)^n$ argument goes through with no
-existence worries. The complex analysis is bookkeeping; the idea above is the whole
-story.
+function all rest on the same little limit. The function $e^{-t^2/2}$ is the unique characteristic
+function fixed by ``mean $0$, variance $1$, and maximal entropy,'' which is another way of saying the
+normal is the unique distribution remembering only two moments.
 \end{connectionbox}
 
 \section{The de Moivre--Laplace special case: coins}
@@ -428,6 +550,7 @@ square-root tax in action.
   ybar, bar width=5pt,
   xlabel={number of heads}, ylabel={probability},
   xmin=12, xmax=38, ymin=0, ymax=0.13,
+  title style={font=\small},
   title={$\Bin(50,0.5)$ bars vs.\ its normal approximation},
   legend style={font=\footnotesize, at={(0.02,0.97)}, anchor=north west},
 ]

@@ -6,6 +6,7 @@
 import {
   responsiveSvg,
   s,
+  h,
   attr,
   handle,
   row,
@@ -177,8 +178,10 @@ const mount: Mount = (root) => {
     }, 300);
   });
 
-  // Formula display below
+  // Formula display and note below
   const f = formula(root);
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
 
   let curLayout = { xL0: 0, xL1: 1, xR0: 2, xR1: 3, y0: 0, y1: 1 };
 
@@ -394,6 +397,10 @@ const mount: Mount = (root) => {
       `c = ${c.toFixed(2)},\\; \\varepsilon = ${eps.toFixed(2)} \\implies \\delta_{\\max} = ${delta.toFixed(3)}` +
         (W >= 600 ? `\\quad\\left(\\text{for } 3x+2,\\; \\delta = \\tfrac{\\varepsilon}{3} = ${(eps / 3).toFixed(2)}\\right)` : ''),
     );
+    note.textContent =
+      c < 0.05
+        ? `At c = 0, the parabola is flat (slope 2c = 0), so the largest symmetric window is wide: δ_max = √ε = ${delta.toFixed(3)}.`
+        : `At c = ${c.toFixed(2)}, the local slope is f′(c) = 2c = ${(2 * c).toFixed(2)}: because x² steepens to the right, the right edge x = c + δ hits f(c) + ε first, forcing δ_max = √(c² + ε) − c ≈ ε/(2c) to shrink as c grows.`;
   }
 
   view.onResize(draw);

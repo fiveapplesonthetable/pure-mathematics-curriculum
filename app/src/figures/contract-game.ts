@@ -119,6 +119,8 @@ const mount: Mount = (root) => {
 
   // Formula display right below the diagram
   const f = formula(root);
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
 
   // Move 1 and Move 2 controls
   const r1 = row(root);
@@ -357,6 +359,13 @@ const mount: Mount = (root) => {
       macros: { ...MACROS },
     });
     f.el.innerHTML = `${mathHtml} <span class="fig-note">— ${status}</span>`;
+    if (N >= safeN) {
+      note.textContent = `Your cutoff N = ${N} ≥ smallest safe N = ${safeN} wins the contract: because 1/n decreases, even the challenger's worst allowed index n = ${N} has 1/${N} = ${(1 / N).toFixed(3)} < ε = ${eps.toFixed(2)}.`;
+    } else if (holds) {
+      note.textContent = `Term n = ${cur_n} happens to lie inside the band, but your cutoff N = ${N} < ${safeN} is unsafe — click "Test the worst n" (n = ${N}) to see where 1/${N} = ${(1 / N).toFixed(3)} ≥ ε breaks the contract.`;
+    } else {
+      note.textContent = `Contract broken at n = ${cur_n} ≥ N: 1/${cur_n} = ${(1 / cur_n).toFixed(3)} ≥ ε = ${eps.toFixed(2)}. Increase N to at least ${safeN} so every n ≥ N lies below ε.`;
+    }
   }
 
   view.onResize(draw);

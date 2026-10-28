@@ -143,9 +143,10 @@ first Borel--Cantelli lemma: if for every $\eps>0$
 \[
   \sum_{n=1}^{\infty} \P\!\left(\abs{X_n - X} \ge \eps\right) < \infty,
 \]
-then $X_n \asto X$. (The probabilities not only go to zero, they go to zero fast
-enough to sum.) This is the workhorse behind most strong-law-type proofs: bound the
-tail probabilities, show the bounds are summable, done.
+then $X_n \asto X$: the deviation probabilities shrink fast enough to form a convergent
+infinite series. This is the workhorse behind most strong-law proofs: bound the
+tail probabilities using Chebyshev or Chernoff inequalities, verify that the bounds are summable,
+and almost sure convergence follows immediately.
 \end{formalbox}
 
 \section{Convergence in probability}
@@ -339,6 +340,8 @@ pinned at $1$. The area of the spike refuses to shrink.
   width=11.5cm, height=5.4cm,
   xlabel={$\omega$}, ylabel={$X_n(\omega)$},
   xmin=0, xmax=1, ymin=0, ymax=6.5,
+  title style={font=\small},
+  title={Rare giant spikes: height $n$, width $1/n$, area $\E[X_n]=1$},
   legend pos=north east, legend cell align=left,
   grid=both, grid style={gray!18},
   every axis plot/.append style={very thick},
@@ -414,6 +417,8 @@ that the shape should not be hostage to.
   xlabel={$x$}, ylabel={CDF},
   domain=-3.5:3.5, samples=160,
   ymin=-0.05, ymax=1.08, xmin=-3.5, xmax=3.5,
+  title style={font=\small},
+  title={Convergence in distribution: cumulative distributions $F_n \to F$},
   legend pos=north west, legend cell align=left,
   every axis plot/.append style={very thick},
   grid=both, grid style={gray!18},
@@ -469,35 +474,100 @@ function against test functions, form (2) will feel like home: a distribution is
 known by how it integrates against probes.
 \end{connectionbox}
 
-\section{The implication diagram}
+\section{The implication diagram and intuitive filters}
 \label{ch22:diagram}
 
-Now assemble the hierarchy. Here are all the implications, with the crucial fact that
-\emph{none of the missing arrows hold in general}.
+We now assemble the full hierarchy of stochastic convergence. The four modes
+act as an intuitive cascade of filters, each testing a different property of the
+sequence of random variables:
+\begin{itemize}
+  \item \textbf{Pathwise lock-in filter (Almost Sure):} Evaluates each sample path $\omega \mapsto X_n(\omega)$ individually. Tests whether the path enters an $\eps$-tube around $X(\omega)$ and stays trapped inside for all large $n$.
+  \item \textbf{Energy / outlier penalty filter ($L^p$ Mean):} Evaluates the overall magnitude of deviations, $\E\abs{X_n - X}^p$. Harshly penalizes rare but extreme spikes.
+  \item \textbf{Flickering mass filter (In Probability):} Takes a snapshot of the whole sample space $\Omega$ at time $n$. Tests whether the total probability mass of points outside the $\eps$-tube vanishes as $n \to \infty$, even if individual points flicker in and out.
+  \item \textbf{Collective shadow / shape filter (In Distribution):} Discards the sample space entirely. Tests only whether the cumulative distribution functions $F_n(x)$ align with $F(x)$ at continuity points.
+\end{itemize}
+
+Figure~\ref{ch22:fig-diagram} lays out the resulting hierarchy, the forward implications, and the counterexamples demonstrating where reverse arrows fail.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-  box/.style={draw, rounded corners, align=center, font=\small,
-              minimum width=2.9cm, minimum height=1.0cm},
-  imp/.style={-{Stealth[length=3mm]}, very thick}
+  box/.style={draw=#1, line width=1pt, rounded corners=4pt, align=center,
+              font=\small, inner sep=6pt},
+  imp/.style={-{Stealth[length=3.5mm]}, very thick},
+  cex/.style={draw=trapred!70, fill=trapred!8, rounded corners=3pt, font=\scriptsize, align=center, inner sep=4pt},
+  bridge/.style={draw=targetgreen!70, fill=targetgreen!8, rounded corners=3pt, font=\scriptsize, align=center, inner sep=4pt}
 ]
-  \node[box, fill=structurepurple!15] (as) at (0,3.6) {Almost surely\\ $X_n\asto X$};
-  \node[box, fill=quotientorange!15] (lp) at (6,3.6) {In $L^p$\\ $X_n\xrightarrow{L^p}X$};
-  \node[box, fill=sourceblue!15] (prob) at (3,1.9) {In probability\\ $X_n\pto X$};
-  \node[box, fill=targetgreen!15] (dist) at (3,0.3) {In distribution\\ $X_n\dto X$};
+  % Top lane: Strongest modes
+  \node[box=structurepurple, fill=structurepurple!12, minimum width=4.6cm] (as) at (-0.2,4.2) {
+    \textbf{Almost Surely ($X_n \asto X$)}\\[2pt]
+    \footnotesize \textit{Pathwise lock-in filter}\\
+    \scriptsize $\P(\lim_{n\to\infty} X_n(\omega) = X(\omega)) = 1$
+  };
 
-  \draw[imp] (as)  -- (prob);
-  \draw[imp] (lp)  -- (prob);
-  \draw[imp] (prob)-- (dist);
+  \node[box=quotientorange, fill=quotientorange!12, minimum width=4.6cm] (lp) at (5.8,4.2) {
+    \textbf{In $L^p$ Mean ($X_n \xrightarrow{L^p} X$)}\\[2pt]
+    \footnotesize \textit{Energy / outlier filter}\\
+    \scriptsize $\lim_{n\to\infty} \E\abs{X_n - X}^p = 0$
+  };
 
-  \node[font=\scriptsize, structurepurple] at (-1.8,2.7) {strongest};
-  \node[font=\scriptsize, targetgreen] at (6.0,0.3) {weakest};
+  % Middle lane: In Probability
+  \node[box=sourceblue, fill=sourceblue!12, minimum width=5.2cm] (prob) at (2.8,2.1) {
+    \textbf{In Probability ($X_n \pto X$)}\\[2pt]
+    \footnotesize \textit{Flickering mass filter}\\
+    \scriptsize $\lim_{n\to\infty} \P(\abs{X_n - X} \ge \eps) = 0$
+  };
+
+  % Bottom lane: In Distribution
+  \node[box=targetgreen, fill=targetgreen!12, minimum width=5.2cm] (dist) at (2.8,0.0) {
+    \textbf{In Distribution ($X_n \dto X$)}\\[2pt]
+    \footnotesize \textit{Collective shadow / CDF filter}\\
+    \scriptsize $\lim_{n\to\infty} F_n(x) = F(x)$ at continuity pts
+  };
+
+  % Forward implication arrows
+  \draw[imp, structurepurple] (as.south) -- (prob.north west)
+    node[midway, above left, font=\scriptsize, structurepurple] {Tail bounds};
+  \draw[imp, quotientorange] (lp.south) -- (prob.north east)
+    node[midway, above right, font=\scriptsize, quotientorange] {Markov inequality};
+  \draw[imp, sourceblue] (prob.south) -- (dist.north)
+    node[midway, right=3pt, font=\scriptsize, sourceblue] {Portmanteau};
+
+  % Counterexample callouts
+  \node[cex] at (-3.4,2.3) {
+    \textbf{No reverse: Typewriter}\\
+    sliding bump hits all $\omega$ i.o.;\\
+    $\pto 0$ holds, $\asto 0$ fails
+  };
+  \draw[trapred, thick, dashed, -{Stealth[length=2.5mm]}] (-1.6,2.2) -- (prob.west);
+
+  \node[cex] at (8.8,2.3) {
+    \textbf{No reverse: Giant spike}\\
+    $X_n = n^2 \ind_{[0,1/n]}$;\\
+    $\pto 0$ holds, $\E[X_n]=n \to \infty$
+  };
+  \draw[trapred, thick, dashed, -{Stealth[length=2.5mm]}] (7.0,2.2) -- (prob.east);
+
+  \node[cex] at (8.8,0.0) {
+    \textbf{No reverse: Opposite coin}\\
+    $X_n = 1-X$ with $X \sim \Bern(\tfrac12)$;\\
+    $\dto$ holds, but $\P(\abs{X_n-X}=1)=1$
+  };
+  \draw[trapred, thick, dashed, -{Stealth[length=2.5mm]}] (7.0,0.0) -- (dist.east);
+
+  \node[bridge] at (-3.4,0.0) {
+    \textbf{Bridge for constants:}\\
+    If $X = c$ is constant,\\
+    $X_n \dto c \;\Longleftrightarrow\; X_n \pto c$
+  };
+  \draw[targetgreen!80!black, thick, <->, >=Stealth] (-1.6,0.0) -- (dist.west);
+
 \end{tikzpicture}
 \caption{The hierarchy of stochastic convergence. Almost sure and $L^p$ each imply
-convergence in probability, which implies convergence in distribution. No other arrow
-holds in general: a.s. and $L^p$ do not imply each other; in probability implies
-neither; in distribution implies none of the upper three.}
+convergence in probability, which implies convergence in distribution. None of the
+reverse implications hold in general: the typewriter sequence shows $\pto \not\Rightarrow \asto$;
+rare giant spikes show $\pto \not\Rightarrow L^p$; and opposite coin flips show
+$\dto \not\Rightarrow \pto$. For a constant limit $c$, however, $\dto c$ upgrades to $\pto c$.}
 \label{ch22:fig-diagram}
 \end{figure}
 
@@ -551,7 +621,7 @@ F(x)$.
 The reverse, ``in distribution $\Rightarrow$ in probability,'' is false in a way that
 beginners trip on constantly. Let $Z\sim\Normal(0,1)$ and set $X_n = (-1)^n Z$. By
 symmetry of the normal, every $X_n$ has the \emph{same} distribution as $Z$, so
-trivially $X_n\dto Z$. But $\abs{X_n - Z}$ is either $0$ (even $n$) or $2\abs{Z}$
+immediately $X_n\dto Z$. But $\abs{X_n - Z}$ is either $0$ (even $n$) or $2\abs{Z}$
 (odd $n$), so for odd $n$, $\P(\abs{X_n - Z}\ge\eps)=\P(2\abs Z\ge\eps)\not\to0$. The
 distributions agree perfectly while the \emph{values} stay far apart. Distribution
 convergence sees the shape, never the alignment.
@@ -767,6 +837,8 @@ slope squared.}
   xlabel={$t$}, ylabel={$g(t)$},
   domain=0.2:3, samples=120,
   xmin=0.2, xmax=3, ymin=-1.4, ymax=1.4,
+  title style={font=\small},
+  title={The delta method: local linearization $g(t) \approx g(\theta) + g'(\theta)(t-\theta)$},
   legend pos=south east, grid=both, grid style={gray!18},
   every axis plot/.append style={very thick},
 ]
@@ -889,6 +961,8 @@ theorems are looking at the same average through different magnifications.
   xlabel={$n$ (number of samples)},
   ylabel={running average $\bar X_n$},
   xmin=0, xmax=200, ymin=0.1, ymax=0.9,
+  title style={font=\small},
+  title={Strong Law of Large Numbers: pathwise convergence $\bar X_n \to \mu$},
   legend pos=north east, grid=both, grid style={gray!18},
   every axis plot/.append style={thick},
 ]

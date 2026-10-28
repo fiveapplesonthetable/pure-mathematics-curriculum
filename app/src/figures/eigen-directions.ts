@@ -194,9 +194,11 @@ const mount: Mount = (root) => {
   hd.el.setAttribute('aria-valuemin', '0');
   hd.el.setAttribute('aria-valuemax', '360');
 
-  // Formula line under the picture
+  // Formula line and explanation note under the picture
   const f = formula(root);
   f.el.style.fontSize = 'clamp(0.82rem, 3.6vw, 0.95rem)';
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
 
   // Controls Row 1: Matrix presets
   const rPresets = row(root);
@@ -517,15 +519,21 @@ const mount: Mount = (root) => {
       statusLbl.textContent = `${matrixName}x is turned by ${degTurn}° (not an eigenvector)`;
     }
 
-    // Live KaTeX formula
+    // Live KaTeX formula & explanation note
     if (isAligned) {
       f.set(
         `${matrixName}\\vec{x} = \\lambda\\vec{x} = ${matchedLambda}\\vec{x} \\quad (\\lambda = ${matchedLambda > 0 ? '+' : ''}${matchedLambda}, \\; \\det(${matrixName}-\\lambda I)=0)`,
       );
+      note.textContent = `Along this invariant line, ${matrixName} does not rotate x at all — it simply scales x by the eigenvalue λ = ${matchedLambda}, meaning (${matrixName} − ${matchedLambda}I)x = 0.`;
     } else {
       f.set(
         `${matrixName}\\vec{x} = \\begin{bmatrix} ${fmtNum(u)} \\\\ ${fmtNum(v)} \\end{bmatrix} \\quad (${cur.charEqTex})`,
       );
+      const degTurn = Math.round(Math.abs((angleDiff * 180) / Math.PI));
+      note.textContent =
+        cur.eigenvalues.length === 0
+          ? `A 90° rotation turns every non-zero vector by 90°, so no real line stays fixed and the characteristic polynomial λ² + 1 = 0 has only complex roots ±i.`
+          : `At this angle, ${matrixName}x is knocked ${degTurn}° off the line of x. Drag x toward a dashed invariant line (or click "Snap to an eigenvector") to make the turning angle vanish.`;
     }
   }
 

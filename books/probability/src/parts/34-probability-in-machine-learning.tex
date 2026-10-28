@@ -135,7 +135,8 @@ later, logistic regression) so well-behaved.
   domain=0.02:0.98, samples=120,
   xmin=0, xmax=1,
   grid=both,
-  title={Log-likelihood for 14 heads in 20 flips}
+  title={Log-likelihood for 14 heads in 20 flips},
+  title style={font=\small}
 ]
 \addplot[densityred, thick] {14*ln(x) + 6*ln(1-x)};
 \addplot[dashed, gray] coordinates {(0.7,-30) (0.7,-12.2)};
@@ -410,7 +411,8 @@ decision boundary.
   domain=-7:7, samples=160,
   ymin=-0.05, ymax=1.05, xmin=-7, xmax=7,
   grid=both,
-  title={The logistic (sigmoid) link}
+  title={The logistic (sigmoid) link},
+  title style={font=\small}
 ]
 \addplot[distblue, very thick] {1/(1+exp(-x))};
 \addplot[dashed, gray] coordinates {(-7,0.5) (7,0.5)};
@@ -544,6 +546,7 @@ part of the generative story but is missing from the data.
 \centering
 \begin{tikzpicture}
 \begin{axis}[
+title style={font=\small},
   width=11cm, height=5.6cm,
   xlabel={$x$}, ylabel={density},
   domain=-6:10, samples=180,
@@ -571,6 +574,7 @@ attaching a probability to each membership rather than a hard verdict.
 \centering
 \begin{tikzpicture}
 \begin{axis}[
+title style={font=\small},
   width=8.4cm, height=6.0cm,
   xlabel={$x_1$}, ylabel={$x_2$},
   xmin=-4, xmax=8, ymin=-4, ymax=8,
@@ -630,16 +634,76 @@ global peak.
 \end{intuitionbox}
 
 \begin{whybox}
-Why must each round increase the likelihood? EM does not maximize the awkward
-log-likelihood $\log\sum_z p(x,z\given\theta)$ directly. Instead it maximizes a
-\emph{lower bound} $\mathcal{Q}$ built using the current responsibilities (the
-bound comes from Jensen's inequality applied to the concave $\log$). The E-step
-makes the bound \emph{touch} the true log-likelihood at the current $\theta$; the
-M-step pushes the bound -- and hence the touching log-likelihood -- uphill. Climbing
-a bound that touches the true objective guarantees the true objective never
-decreases. EM is hill-climbing where you cannot see the hill, only a tangent
-surface you keep re-drawing.
+\textbf{Why EM works: coordinate ascent on the ELBO.}
+The observed log-likelihood involves an intractable log-sum over the latent variables $z$:
+$\ell(\theta) = \sum_{i=1}^n \log \sum_{z} p(x_i, z \given \theta)$.
+For any candidate distribution $q(z)$ over the latent variables, introduce $q(z)$ inside the logarithm:
+\begin{align*}
+  \log p(x\given\theta)
+  &\;=\; \log \sum_z q(z)\,\frac{p(x,z\given\theta)}{q(z)} \\[4pt]
+  &\;\ge\; \sum_z q(z)\,\log\frac{p(x,z\given\theta)}{q(z)} \;=:\; \mathcal{L}(q, \theta),
+\end{align*}
+where the inequality follows from Jensen's inequality applied to the concave logarithm.
+The quantity $\mathcal{L}(q, \theta)$ is the \textbf{Evidence Lower Bound} (ELBO).
+The gap between the true log-likelihood and the lower bound is, by immediate algebra, exactly the KL divergence:
+\[
+  \log p(x\given\theta) \;=\; \mathcal{L}(q, \theta) + \KL\big(q(z) \,\big\|\, p(z\given x,\theta)\big).
+\]
+Now the two steps of EM reveal their geometry:
+\begin{enumerate}
+  \item \textbf{E-step}: Fix $\theta = \theta^{(t)}$ and maximize $\mathcal{L}(q, \theta^{(t)})$ over all distributions $q$. Because $\log p(x\given\theta^{(t)})$ is fixed, maximizing the ELBO is equivalent to minimizing $\KL(q \,\|\, p(z\given x, \theta^{(t)}))$. Setting $q(z) = p(z\given x, \theta^{(t)})$ (the posterior responsibility!) makes the KL divergence vanish, causing the lower bound to \emph{touch} the true log-likelihood exactly at $\theta^{(t)}$.
+  \item \textbf{M-step}: Fix $q$ and maximize $\mathcal{L}(q, \theta)$ over $\theta$ to obtain $\theta^{(t+1)}$.
+\end{enumerate}
+Because the bound touches the true curve at $\theta^{(t)}$ and we step uphill along the bound to $\theta^{(t+1)}$, we have:
+\[
+  \ell(\theta^{(t+1)}) \;\ge\; \mathcal{L}(q, \theta^{(t+1)}) \;\ge\; \mathcal{L}(q, \theta^{(t)}) \;=\; \ell(\theta^{(t)}).
+\]
+The true log-likelihood is mathematically guaranteed never to decrease (Figure~\ref{ch34:fig-em-elbo}).
 \end{whybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6.2cm,
+  title={EM as coordinate ascent on the Evidence Lower Bound (ELBO)},
+  title style={font=\small},
+  xlabel={parameter $\theta$},
+  ylabel={objective value},
+  domain=-3:4, samples=120,
+  xmin=-3, xmax=4, ymin=-4, ymax=2.5,
+  axis lines=left,
+  legend pos=south east, legend style={font=\footnotesize},
+  x label style={font=\footnotesize},
+  y label style={font=\footnotesize},
+  tick label style={font=\scriptsize},
+]
+\addplot[black, very thick] {1.8 - 0.2*(x-0.8)^2 - 0.4*sin(deg(2*x))};
+\addlegendentry{True log-likelihood $\ell(\theta)$}
+
+\addplot[sourceblue, thick, dashed, domain=-3:1.5] {0.68 - 0.7*(x + 1.2)^2 + 0.35*(x + 1.2)};
+\addlegendentry{ELBO bound $\mathcal{L}(q^{(t)}, \theta)$}
+
+\fill[densityred] (axis cs:-1.2, 0.68) circle (2.2pt);
+\node[densityred, font=\scriptsize, anchor=south east] at (axis cs:-1.2, 0.75) {E-step: bound touches $\ell(\theta^{(t)})$};
+
+\fill[targetgreen!80!black] (axis cs:-0.95, 0.724) circle (2.2pt);
+\draw[->, thick, targetgreen!80!black] (axis cs:-1.2,0.68) -- (axis cs:-0.95, 0.724);
+\node[targetgreen!80!black, font=\scriptsize, anchor=north] at (axis cs:-0.8, 0.65) {M-step: maximize bound $\to \theta^{(t+1)}$};
+
+\fill[densityred] (axis cs:-0.95, 1.26) circle (2.2pt);
+\draw[->, thick, densityred, dashed] (axis cs:-0.95, 0.724) -- (axis cs:-0.95, 1.26);
+\node[densityred, font=\scriptsize, anchor=west] at (axis cs:-0.9, 1.0) {Next E-step};
+
+\draw[gray, dotted] (axis cs:-1.2,-3.5) -- (axis cs:-1.2, 0.68);
+\node[below, font=\scriptsize] at (axis cs:-1.2,-3.5) {$\theta^{(t)}$};
+\draw[gray, dotted] (axis cs:-0.95,-3.5) -- (axis cs:-0.95, 1.26);
+\node[below, font=\scriptsize] at (axis cs:-0.95,-3.5) {$\theta^{(t+1)}$};
+\end{axis}
+\end{tikzpicture}
+\caption{The geometry of the EM algorithm. The true log-likelihood $\ell(\theta)$ (black) is difficult to optimize directly due to latent variables. The E-step constructs a tractable lower bound (blue dashed) that is guaranteed to touch $\ell(\theta)$ at the current iterate $\theta^{(t)}$ with zero gap ($\KL=0$). The M-step then maximizes this bound to obtain $\theta^{(t+1)}$. Because the bound touches the true curve, climbing the bound guarantees that the true log-likelihood strictly increases.}
+\label{ch34:fig-em-elbo}
+\end{figure}
 
 \begin{connectionbox}
 The familiar $k$-means algorithm is EM's stern cousin. Replace the soft
@@ -710,6 +774,7 @@ and then wanders there, each recorded state a (correlated) draw.
 \centering
 \begin{tikzpicture}
 \begin{axis}[
+title style={font=\small},
   width=12cm, height=5.0cm,
   xlabel={iteration $t$}, ylabel={state $\theta^{(t)}$},
   xmin=0, xmax=80, ymin=-1, ymax=6,
@@ -790,6 +855,7 @@ predicted} probability. Perfect calibration lies on the $45^\circ$ line. An over
 \centering
 \begin{tikzpicture}
 \begin{axis}[
+title style={font=\small},
   width=9.6cm, height=6.4cm,
   xlabel={mean predicted probability},
   ylabel={observed fraction positive},

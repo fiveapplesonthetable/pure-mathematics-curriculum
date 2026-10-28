@@ -5,6 +5,7 @@
 import {
   responsiveSvg,
   s,
+  h,
   attr,
   row,
   button,
@@ -185,8 +186,10 @@ const mount: Mount = (root) => {
     }
   });
 
-  // Controls row 3: live formula
+  // Controls row 3: live formula & note
   const f = formula(root);
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
 
   function setDist(id: string) {
     const d = dists.find((item) => item.id === id);
@@ -319,9 +322,10 @@ const mount: Mount = (root) => {
     attr(legRect, { x: 0, y: 12, width: 18, height: 10 });
     attr(legRectLbl, { x: 24, y: 21 });
 
-    // Live formula update
+    // Live formula update & geometric explanation
     const ks = computeKolmogorovDistance(curDist, n);
     f.set(`n = ${n}, \\quad \\max |F_n - \\Phi| = ${ks.toFixed(4)}`);
+    note.textContent = `Convolving n = ${n} independent copies of the "${curDist.name}" distribution (μ = ${curDist.mu.toFixed(2)}, σ = ${curDist.sigma.toFixed(2)}) and standardizing by √n packs the bars at spacing Δz = 1/(σ√n) = ${dz.toFixed(3)}, shrinking the worst CDF gap max |F_n − Φ| to ${ks.toFixed(4)} (~1/√n).`;
   }
 
   view.onResize(draw);

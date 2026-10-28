@@ -9,6 +9,7 @@
 import {
   responsiveSvg,
   s,
+  h as hDom,
   attr,
   row,
   button,
@@ -106,9 +107,11 @@ const mount: Mount = (root) => {
   // Current tip dot
   const tipDot = s('circle', { class: 'dot', r: 3.5 }, svgEl);
 
-  // KaTeX formula line under the figure
+  // KaTeX formula line and note under the figure
   const f = formula(root);
   f.el.style.fontSize = '0.92rem';
+  const note = hDom('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
 
   // Controls: row 1 (action buttons)
   const rActions = row(root);
@@ -323,6 +326,8 @@ const mount: Mount = (root) => {
     f.set(
       `\\text{heads}/n = \\tfrac{${h}}{${displayN}} = ${meanStr},\\quad |\\bar X_n - 0.5| = ${diffStr}`,
     );
+    const stdErr = 0.5 / Math.sqrt(displayN);
+    note.textContent = `At n = ${displayN.toLocaleString('en-US')}, standard error is σ/√n = 1/(2√n) ≈ ${stdErr.toFixed(3)}; the sample mean last exited the ±${eps.toFixed(2)} corridor at n = ${lastOutside.toLocaleString('en-US')} and stays trapped inside as 1/√n shrinks.`;
   }
 
   updateButtonStates();

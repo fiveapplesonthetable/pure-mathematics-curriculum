@@ -558,6 +558,16 @@ the only reason a deep network can do something a single matrix cannot. Linear a
 supplies the power; the bend supplies the \emph{novelty}.
 \end{focusbox}
 
+\begin{historybox}
+In 1958, Cornell psychologist Frank Rosenblatt unveiled the Perceptron at the Cornell Aeronautical Laboratory. Built as a five-ton custom computer with motorized dials, the machine was hailed by the press as the first step toward conscious artificial intelligence. Mathematically, it was a single affine hyperplane: $\vec{w}\T\vec{x} + b \gtrless 0$.
+
+Eleven years later, MIT mathematicians Marvin Minsky and Seymour Papert published a famous mathematical critique in their book \emph{Perceptrons}. They proved that a single straight hyperplane could not even compute the basic Exclusive-OR ($\mathrm{XOR}$) logic gate: four points in the plane where opposite corners share the same label. Because no straight line can separate them, Minsky and Papert argued that perceptrons were fundamentally limited. The research community took this as proof that neural networks were a dead end, triggering the multi-decade freeze known as the First AI Winter.
+
+The field revived when researchers discovered that adding hidden layers with nonlinear bends effortlessly curves decision boundaries to solve XOR and far more. In 1989, Yann LeCun applied backpropagation to read handwritten postal digits. Underneath the biological metaphor, backpropagation is simply the multivariable chain rule written in matrix notation: forward signals multiply by weight matrices $\mat{W}$, and backward error signals multiply by their transposes $\mat{W}\T$.
+
+In 2017, the architecture simplified again. Ashish Vaswani and coauthors introduced the Transformer in \emph{Attention is All You Need}, replacing recurrence with linear projections into query, key, and value subspaces: $\mat{Q} = \mat{X}\mat{W}_Q$, $\mat{K} = \mat{X}\mat{W}_K$, $\mat{V} = \mat{X}\mat{W}_V$. Scaled dot products measure token relationships across space in parallel. And when models grew to hundreds of billions of parameters, Edward Hu and colleagues introduced LoRA (2021), decomposing parameter updates into low-rank products $\Delta\mat{W} = \mat{B}\mat{A}$ ($r \ll d$)---a direct modern application of low-rank matrix approximation.
+\end{historybox}
+
 The most common bend today is the \textbf{ReLU}, ``rectified linear unit,''
 $\sigma(z)=\max(0,z)$: it passes positive values through and zeros out negatives. It is
 about as gentle a bend as exists -- piecewise linear, just a single kink at the origin --
@@ -949,44 +959,93 @@ plus one exponential.
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[scale=0.92,>=Stealth]
-  % Q
-  \node at (0,2.6) {\small $\mat{Q}$};
-  \draw[fill=sourceblue!12] (-0.4,0.8) rectangle (0.4,2.2);
-  % times K^T
-  \node at (1.0,1.5) {\small $\times$};
-  \node at (2.0,2.6) {\small $\mat{K}\T$};
-  \draw[fill=targetgreen!12] (1.5,1.2) rectangle (2.9,1.8);
-  % equals scores
-  \node at (3.4,1.5) {\small $=$};
-  \node at (4.6,2.9) {\small scores $\mat{Q}\mat{K}\T$};
-  \draw[fill=quotientorange!15] (3.9,0.9) rectangle (5.3,2.1);
-  % softmax
-  \draw[->,thick] (5.5,1.5) -- (6.5,1.5) node[midway,above]{\small softmax};
-  \draw[fill=structurepurple!15] (6.7,0.9) rectangle (8.1,2.1);
-  \node[align=center] at (7.4,2.7) {\small weights\\[-2pt]\small (rows sum to 1)};
-  % times V
-  \node at (8.4,1.5) {\small $\times\,\mat{V}$};
-  \draw[->,thick] (8.9,1.5) -- (9.7,1.5);
-  \draw[fill=vecblue!15] (9.9,0.9) rectangle (10.7,2.1);
-  \node at (10.3,2.5) {\small output};
+\begin{tikzpicture}[scale=0.88,>=Stealth]
+  % Lane 1: Geometric Projections into Semantic Subspaces
+  \begin{scope}[shift={(0,4.2)}]
+    \node[anchor=south,font=\footnotesize\scshape,text=spacegray!90!black] at (6.6,2.2) {1. Linear Projections into Semantic Subspaces};
+    \draw[fill=codebg,draw=spacegray!30,rounded corners=4pt] (-0.6,-1.6) rectangle (13.8,2.1);
+
+    % Token input space
+    \node[draw=spacegray!70,fill=white,rounded corners=3pt,inner sep=4pt,font=\footnotesize,align=center] (tok) at (1.2,0.2) {
+      \textbf{Token $\vec{x}_i$}\\
+      $\vec{x}_1, \vec{x}_2 \in \R^d$
+    };
+
+    % Target Subspace Boxes
+    \node[draw=sourceblue!70,fill=sourceblue!12,rounded corners=3pt,inner sep=3.5pt,font=\scriptsize,align=center] (qbox) at (5.0,1.35) {
+      \textbf{Query Space}\\
+      $\vec{q}_i = \mat{W}_Q \vec{x}_i$
+    };
+    \node[draw=targetgreen!70,fill=targetgreen!12,rounded corners=3pt,inner sep=3.5pt,font=\scriptsize,align=center] (kbox) at (5.0,0.2) {
+      \textbf{Key Space}\\
+      $\vec{k}_j = \mat{W}_K \vec{x}_j$
+    };
+    \node[draw=quotientorange!70,fill=quotientorange!12,rounded corners=3pt,inner sep=3.5pt,font=\scriptsize,align=center] (vbox) at (5.0,-0.95) {
+      \textbf{Value Space}\\
+      $\vec{v}_j = \mat{W}_V \vec{x}_j$
+    };
+
+    % Projection arrows
+    \draw[->,thick,sourceblue] (tok) -- (qbox) node[midway,above,font=\tiny]{$\mat{W}_Q$};
+    \draw[->,thick,targetgreen] (tok) -- (kbox) node[midway,above,font=\tiny]{$\mat{W}_K$};
+    \draw[->,thick,quotientorange] (tok) -- (vbox) node[midway,below,font=\tiny]{$\mat{W}_V$};
+
+    % Explanatory labels on the right
+    \node[anchor=west,font=\scriptsize,text=sourceblue!90!black] at (7.8,1.35) {Probes: ``What information am I searching for?''};
+    \node[anchor=west,font=\scriptsize,text=targetgreen!90!black] at (7.8,0.2) {Tags: ``What information do I offer to others?''};
+    \node[anchor=west,font=\scriptsize,text=quotientorange!90!black] at (7.8,-0.95) {Payload: ``What vector content is transferred?''};
+  \end{scope}
+
+  % Lane 2: Geometric Dot-Product Scoring and Convex Value Blending
+  \begin{scope}[shift={(0,0)}]
+    \node[anchor=south,font=\footnotesize\scshape,text=spacegray!90!black] at (6.6,2.3) {2. Dot-Product Alignment and Convex Value Combination};
+    \draw[fill=codebg,draw=spacegray!30,rounded corners=4pt] (-0.6,-1.7) rectangle (13.8,2.2);
+
+    % Left: Dot product angle
+    \begin{scope}[shift={(1.8,0.2)}]
+      \draw[->,gray!50] (-0.3,0) -- (2.4,0);
+      \draw[->,gray!50] (0,-0.3) -- (0,1.8);
+      \draw[->,sourceblue,line width=1.4pt] (0,0) -- (1.8,0.5) node[right,font=\scriptsize]{$\vec{q}_1$};
+      \draw[->,targetgreen,line width=1.4pt] (0,0) -- (1.5,1.4) node[above,font=\scriptsize]{$\vec{k}_2$};
+      \draw[gray!70] (0.6,0.17) arc (15:43:0.6);
+      \node[font=\tiny] at (0.9,0.45) {$\theta_{12}$};
+      \node[font=\scriptsize,align=center] at (1.0,-1.1) {Score: $\vec{q}_1\T\vec{k}_2 / \sqrt{d_k}$\\$\propto \cos\theta_{12}$};
+    \end{scope}
+
+    % Middle: Softmax normalization arrow
+    \draw[->,thick,spacegray!80!black] (4.0,0.2) -- (6.0,0.2)
+      node[midway,above,font=\scriptsize,text=structurepurple!90!black]{softmax}
+      node[midway,below,font=\tiny]{$\sum \alpha_{1j} = 1$};
+
+    % Right: Convex combination in Value Space
+    \begin{scope}[shift={(9.2,0.2)}]
+      \draw[quotientorange!60,dashed,line width=1.2pt] (0,1.3) -- (2.4,-0.2);
+      \draw[->,quotientorange,line width=1.3pt] (0,0) -- (0,1.3) node[above left,font=\scriptsize]{$\vec{v}_1$};
+      \draw[->,quotientorange,line width=1.3pt] (0,0) -- (2.4,-0.2) node[below right,font=\scriptsize]{$\vec{v}_2$};
+      \fill[quotientorange] (0,1.3) circle (2pt);
+      \fill[quotientorange] (2.4,-0.2) circle (2pt);
+
+      % Resulting blend vector
+      \coordinate (blend) at (1.6,0.3); % 0.33 v1 + 0.67 v2
+      \draw[->,vecred,line width=1.6pt] (0,0) -- (blend) node[above right,font=\small]{$\text{Out}_1$};
+      \fill[vecred] (blend) circle (2.2pt);
+      \node[font=\scriptsize,align=center] at (1.2,-1.1) {Convex blend in Value Space:\\$\text{Out}_1 = \alpha_{11}\vec{v}_1 + \alpha_{12}\vec{v}_2$};
+    \end{scope}
+  \end{scope}
 \end{tikzpicture}
-\caption{Attention as a pipeline of familiar operations. Dot products $\mat{Q}\mat{K}\T$
-score every query against every key (a Gram-style similarity matrix); softmax turns each
-row into weights; multiplying by $\mat{V}$ averages the values by those weights. Every box
-is a matrix; every arrow is a matrix product or a row-wise normalization.}
+\caption{The geometric mechanism of self-attention. Top: Input token vectors are linearly projected into Query, Key, and Value semantic subspaces via learned weight matrices $\mat{W}_Q, \mat{W}_K, \mat{W}_V$. Bottom: The query $\vec{q}_1$ acts as a directional probe, evaluating its dot-product projection against each key $\vec{k}_j$. Softmax normalizes these scores into non-negative weights summing to $1$, which then synthesize a convex combination of value vectors in Value Space.}
 \label{ch34:fig-attention}
 \end{figure}
 
 \begin{applicationbox}
-\textbf{Why transformers scale.} The reason attention powers today's largest models is
-that its core is dense matrix multiplication -- $\mat{Q}\mat{K}\T$ and then
+\textbf{Why transformers scale.} The reason attention powers modern language models is
+that at its operational core lies dense matrix multiplication -- $\mat{Q}\mat{K}\T$ and then
 $(\cdots)\mat{V}$ -- which is exactly the operation GPUs are built to do astronomically
 fast. A model with hundreds of billions of parameters is, in the inner loop, a long
 sequence of big matrix multiplies. When you read that a language model was ``trained on
 thousands of GPUs,'' the thing those GPUs were multiplying, over and over, were matrices
 of queries, keys, values, and weights. The linear algebra in this book is, quite
-literally, the bottleneck operation of modern AI.
+literally, the computational engine of modern AI.
 \end{applicationbox}
 
 \begin{trapbox}
@@ -1006,7 +1065,7 @@ both why models can be compressed and why they generalize at all.
 
 \subsection{Rank as the number of independent directions}
 
-Recall that the \textbf{rank} of a matrix is the number of independent directions in its
+The \textbf{rank} of a matrix is the count of independent directions in its
 column space -- the true dimensionality of what it does. A matrix can be huge,
 $1000\times1000$, and yet have rank $5$: its million entries are really controlled by only
 a handful of underlying patterns. The SVD makes this precise. Any matrix factors as
@@ -1107,6 +1166,28 @@ right thing to ignore, and one where it might throw away something you care abou
 perfectly round bowl, would the path to the bottom be straight or curved? What about a
 long, narrow valley?
 \end{walkbox}
+
+\subsection*{What We Can Now Do (Capabilities Unlocked)}
+\begin{itemize}
+  \item \textbf{Affine-Nonlinear Composition:} We can construct arbitrary continuous function approximators by composing linear transformations with elementwise scalar bends ($\sigma(\mat{W}\vec{x} + \vec{b})$), breaking through the linear separability limitations of classical models.
+  \item \textbf{Transpose Backpropagation:} Using reverse-mode automatic differentiation, we compute exact gradients across millions of parameters simultaneously via matrix transpose vector multiplications ($\delta_{\text{in}} = \mat{W}\T \delta_{\text{out}}$), keeping training costs linear in parameter count.
+  \item \textbf{High-Dimensional Semantic Embeddings:} We can embed discrete entities (words, images, graphs) into continuous metric spaces $\R^d$ where cosine similarity ($\frac{\vec{u}\T\vec{v}}{\norm{\vec{u}}\norm{\vec{v}}}$) captures contextual and relational semantics.
+  \item \textbf{Scalable Attention and Low-Rank Adaptation:} We formulate transformer self-attention as parallel Gram-matrix dot products ($\mat{Q}\mat{K}\T$) and compress parameter updates using low-rank matrix factorizations ($\Delta\mat{W} = \mat{B}\mat{A}$), enabling global context synthesis.
+\end{itemize}
+
+\subsection*{Honest Downsides and Limitations}
+\begin{itemize}
+  \item \textbf{Quadratic Attention Footprint:} Standard scaled dot-product attention computes and stores the full $N \times N$ token affinity matrix $\mat{A} = \operatorname{softmax}(\mat{Q}\mat{K}\T/\sqrt{d_k})$. For context windows of $N = 100{,}000$ tokens, materializing this matrix requires tens of gigabytes of memory per layer, necessitating sparse or linear attention approximations.
+  \item \textbf{Vanishing and Exploding Gradient Cascades:} Deep linear compositions $\prod_{l=1}^L \mat{W}_l$ are numerically perilous. If the singular values $\sigma_i(\mat{W}_l)$ systematically exceed $1$, gradients explode exponentially; if they are less than $1$, gradients vanish to machine zero. This forces delicate normalization techniques (LayerNorm, Residual connections).
+  \item \textbf{Non-Convex Optimization and Lack of Guarantees:} Unlike ordinary least squares (which enjoys a unique global minimum found via QR or normal equations), deep neural network loss surfaces are non-convex, studded with saddle points, local minima, and ill-conditioned ravines where gradient descent can stall.
+  \item \textbf{Black-Box Representation Geometry:} Although linear algebra describes the forward and backward passes perfectly, the resulting high-dimensional weight representations lack direct interpretability; polysemantic neurons and superposition make inspecting internal reasoning challenging.
+\end{itemize}
+
+\subsection*{Where We Go Next in the Book}
+\begin{itemize}
+  \item \textbf{Chapter 35 (Graphs, Networks, and Markov Chains):} Real-world data is rarely an independent grid of rows; it is connected by webs of relations. We generalize matrix transformations to graphs, studying adjacency matrices, random walks, and the Google PageRank spectral theory.
+  \item \textbf{Chapter 36 (Optimization and Quadratic Forms):} How do we make gradient descent faster and analyze the curvature of the loss surface? We examine the second derivative Hessian matrix $\mat{H} = \nabla^2 L$, condition numbers along narrow valleys, and the Conjugate Gradient method.
+\end{itemize}
 
 \section{Exercises}
 \label{ch34:exercises}

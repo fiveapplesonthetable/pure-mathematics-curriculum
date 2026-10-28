@@ -1,6 +1,7 @@
 import {
   responsiveSvg,
   s,
+  h,
   attr,
   handle,
   slider,
@@ -165,7 +166,8 @@ const mount: Mount = (root) => {
 
   // Collapsed span line and note (when |det| < 0.05)
   const spanLine = s('line', { 'clip-path': `url(#${clipId})`, class: 'curve-muted', style: 'stroke-width: 2;' }, svgEl);
-  const spanNote = label(svgEl, 0, 0, 'span is a line', 'lbl', 'start');
+  const spanNote = label(svgEl, 24, 32, 'span is a line', 'lbl', 'start');
+  spanNote.style.display = 'none';
 
   // Parallelogram fill
   const poly = s('polygon', { class: 'band-muted' }, svgEl);
@@ -328,8 +330,10 @@ const mount: Mount = (root) => {
     });
   });
 
-  // Live Formula display
+  // Live Formula display and explanation note
   const f = formula(root);
+  const note = h('div', { class: 'fig-note' }, root);
+  note.style.margin = '0.25rem 8px 0';
 
   function draw() {
     const { W, H } = view;
@@ -367,11 +371,11 @@ const mount: Mount = (root) => {
     const isParallel = Math.abs(det) < 0.05;
 
     // Skewed grid vs collapsed span line
+    attr(spanNote, { x: pad.l + 8, y: pad.t + 16 });
     if (isParallel) {
       attr(skewedGridG, { opacity: 0 });
       attr(spanLine, { opacity: 1 });
-      attr(spanNote, { opacity: 1 });
-      attr(spanNote, { x: pad.l + 8, y: pad.t + 16 });
+      spanNote.style.display = '';
 
       // Determine span line direction
       let dx = v.x, dy = v.y;
@@ -392,7 +396,7 @@ const mount: Mount = (root) => {
     } else {
       attr(skewedGridG, { opacity: 1 });
       attr(spanLine, { opacity: 0 });
-      attr(spanNote, { opacity: 0 });
+      spanNote.style.display = 'none';
 
       // Skewed lattice lines:
       // Family 1: lines parallel to w shifted by i * v
@@ -453,6 +457,9 @@ const mount: Mount = (root) => {
     f.set(
       `a\\vec{v} + b\\vec{w} = ${fmtNum(a)}\\begin{bmatrix}${fmtNum(v.x)}\\\\${fmtNum(v.y)}\\end{bmatrix} ${bSign} ${fmtNum(absB)}\\begin{bmatrix}${fmtNum(w.x)}\\\\${fmtNum(w.y)}\\end{bmatrix} = \\begin{bmatrix}${fmtNum(rx)}\\\\${fmtNum(ry)}\\end{bmatrix}`
     );
+    note.textContent = isParallel
+      ? `Vectors v and w are collinear (det = 0): the skewed grid collapses onto a single line, so linear combinations a·v + b·w cannot reach points off that line.`
+      : `Walking a = ${fmtNum(a)} steps along v and b = ${fmtNum(b)} steps along w traces the parallelogram to (${fmtNum(rx)}, ${fmtNum(ry)}); because v and w are independent (det = ${fmtNum(det)} ≠ 0), their skewed grid spans the entire plane.`;
   }
 
   view.onResize(draw);

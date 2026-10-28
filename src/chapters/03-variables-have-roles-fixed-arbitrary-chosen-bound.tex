@@ -1,0 +1,171 @@
+\section{Variables Have Roles: Fixed, Arbitrary, Chosen, Bound}
+\chapterline
+
+In elementary algebra, a variable is usually introduced as an ``unknown number'' waiting to be solved. You manipulate an equation like $3x + 4 = 19$, isolate $x$, and conclude that $x = 5$.
+
+\begin{historybox}
+For most of human history, even elementary algebra was purely rhetorical. Medieval mathematicians had no symbols for unknowns or coefficients; every problem was written out verbally using terms like \emph{cosa} (``the thing'') and \emph{census} (``the square''). In 1591, the French mathematician Fran\c{c}ois Vi\`ete revolutionized the subject in \emph{In artem analyticem isagoge} by systematically using letters: vowels ($A, E, I$) for unknowns and consonants ($B, C, D$) for known parameters. For the first time, mathematicians could manipulate entire families of equations at once.
+
+Yet introducing letters created a stubborn misconception that lasted for two centuries. In the 1700s, Euler, d'Alembert, and the Bernoullis often treated variables as physical quantities that ``flow with time''---an intuition inherited from Isaac Newton's calculus of fluxions. This temporal metaphor caused serious errors in multivariable calculus, where mathematicians frequently treated an arbitrary parameter as a fixed constant in one step and varied it in the next, accidentally deducing contradictory identities.
+
+Between 1889 and 1895, Giuseppe Peano dismantled this confusion by formalizing variable binding and lexical scope. A variable is neither an unknown number nor a moving physical particle; it is a scoped placeholder governed by strict visibility permissions. Distinguishing the four hats a variable wears creates leak-proof proofs, preventing variable capture and illegal substitutions. Yet scoping alone does not tell us who moves first when multiple variables interact. In Chapter~4 (\emph{Quantifiers: The Game of For Every and There Exists}), we see how quantifiers ($\forall, \exists$) turn variable scoping into a dynamic strategic game.
+\end{historybox}
+
+In proof-based mathematics, treating every variable as an unknown number to solve will quickly lead to confusion. Letters in a proof are not uniform; they perform radically different jobs, carry distinct permissions, and live inside specific boundaries of visibility. Conflating these roles is the single most common cause of invalid proofs.
+
+To read and write proofs with confidence, you need to recognize which of the four fundamental hats a variable is wearing at any given sentence.
+
+\subsection{The four roles of variables}
+
+\begin{center}
+\begin{tikzpicture}[
+    font=\small,
+    lane/.style={draw=#1!70!black, fill=#1!5, rounded corners=3pt, thick, text width=12.5cm, inner sep=7pt},
+    badge/.style={font=\scriptsize\bfseries\scshape, text=white, fill=#1!80!black, rounded corners=2pt, inner sep=3pt}
+]
+
+% Lane 1: Fixed Constant
+\node[lane=gray] (l1) at (0, 7.5) {
+    \textbf{\color{gray!90!black}1. Fixed Constant} \quad \colorbox{gray!75}{\color{white}\scriptsize\bfseries Scope: Global to Problem} \ \colorbox{gray!75}{\color{white}\scriptsize\bfseries Permission: Read-Only}\\[0.3em]
+    \footnotesize
+    \textbf{Initiation:} ``Let $c > 0$ be given'' or ``Fix an integer $n \ge 2$.''\\
+    \textbf{Behavior:} Handed down by the problem statement. Its value never changes during the argument, but you cannot assume it equals any specific number like $3$ or $10$.
+};
+
+% Lane 2: Arbitrary Universal
+\node[lane=sourceblue] (l2) at (0, 5.0) {
+    \textbf{\color{sourceblue!90!black}2. Arbitrary Universal} \quad \colorbox{sourceblue!80}{\color{white}\scriptsize\bfseries Scope: Universal Block} \ \colorbox{sourceblue!80}{\color{white}\scriptsize\bfseries Permission: Handed by Adversary}\\[0.3em]
+    \footnotesize
+    \textbf{Initiation:} ``Let $x \in \R$ be arbitrary.''\\
+    \textbf{Behavior:} Introduced to prove a $\forall x$ statement. Think of $x$ as chosen by a skeptical adversary designed to break your claim. You may assume \emph{only} that $x$ belongs to the stated domain.
+};
+
+% Lane 3: Chosen Witness
+\node[lane=targetgreen] (l3) at (0, 2.5) {
+    \textbf{\color{targetgreen!90!black}3. Chosen Witness} \quad \colorbox{targetgreen!80}{\color{white}\scriptsize\bfseries Scope: Local Witness} \ \colorbox{targetgreen!80}{\color{white}\scriptsize\bfseries Permission: Actively Built by Prover}\\[0.3em]
+    \footnotesize
+    \textbf{Initiation:} ``Choose $y = x + 1$'' or ``Set $k = 2m$.''\\
+    \textbf{Behavior:} Introduced to prove an $\exists y$ claim. You hold complete freedom to engineer this object, and it may depend on any variables introduced earlier in the scope.
+};
+
+% Lane 4: Bound Dummy
+\node[lane=structurepurple] (l4) at (0, 0.0) {
+    \textbf{\color{structurepurple!90!black}4. Bound / Dummy Variable} \quad \colorbox{structurepurple!80}{\color{white}\scriptsize\bfseries Scope: Internal Expression} \ \colorbox{structurepurple!80}{\color{white}\scriptsize\bfseries Permission: Invisible Outside}\\[0.3em]
+    \footnotesize
+    \textbf{Initiation:} Appears inside $\sum_{i=1}^n$, $\int_a^b f(t)\,dt$, $\{x \in \R : x > 0\}$, or $\forall x P(x)$.\\
+    \textbf{Behavior:} A purely internal placeholder. It cannot be referenced outside its containing expression. Renaming it changes nothing: $\sum_{i=1}^n i = \sum_{k=1}^n k$.
+};
+
+\end{tikzpicture}
+\end{center}
+
+\subsection{Lexical scope: mathematical proofs as programs}
+
+If you have written software, you are already comfortable with variable scope. A local variable declared inside a function body ceases to exist once that function returns. Trying to access that variable outside the curly braces generates a compiler error.
+
+Mathematical proofs obey identical scoping disciplines:
+
+\begin{center}
+\begin{tikzpicture}[font=\small]
+
+% Code block comparison
+\node[draw=gray!40, fill=gray!3, rounded corners=3pt, text width=5.4cm, inner sep=8pt, align=left] (code) at (0, 0) {
+    \textbf{\footnotesize In Software (C / Java / Rust):}\\[0.3em]
+    \texttt{\footnotesize void verifyForAll(Domain D) \{}\\
+    \quad\texttt{\footnotesize for (Object x : D) \{}\\
+    \quad\quad\texttt{\footnotesize Object y = construct(x);}\\
+    \quad\quad\texttt{\footnotesize assert(satisfies(x, y));}\\
+    \quad\texttt{\footnotesize \}}\\
+    \quad\texttt{\footnotesize // Error: 'y' and 'x' are out of scope!}\\
+    \texttt{\footnotesize \}}
+};
+
+% Math block comparison
+\node[draw=sourceblue!40, fill=sourceblue!3, rounded corners=3pt, text width=5.4cm, inner sep=8pt, align=left] (math) at (8.8, 0) {
+    \textbf{\footnotesize In a Mathematical Proof:}\\[0.3em]
+    \footnotesize \textbf{Goal:} Prove $\forall x \in D, \exists y \in D, P(x, y)$.\\[0.3em]
+    \quad \textbf{Step 1:} Let $x \in D$ be arbitrary. \emph{(Scope opens)}\\
+    \quad \textbf{Step 2:} Choose $y = f(x)$.\\
+    \quad \textbf{Step 3:} Verify $P(x, y)$ holds.\\
+    \quad \emph{(Scope closes)}\\
+    \footnotesize In the next paragraph, $x$ and $y$ have no meaning!
+};
+
+\draw[-{Latex[length=3mm]}, thick, quotientorange] (3.05, 0) -- node[above=3pt, font=\scriptsize\bfseries, text=quotientorange]{Identical Scope Rules} (5.75, 0);
+
+\end{tikzpicture}
+\end{center}
+
+When a proof says ``Let $x \in \R$ be arbitrary,'' it opens a local scope block. Inside that block, $x$ is treated as an immutable object about which nothing is known except that $x \in \R$. Once you show that the desired property holds for that $x$, the universal statement $\forall x \in \R, \ldots$ is established, and the scope block closes. You cannot subsequently refer to ``that $x$'' in later arguments.
+
+\subsection{Free versus bound variables}
+
+Look at the following three mathematical expressions:
+\[
+\text{(A)}\quad \sum_{i=1}^n i^2, \qquad\qquad \text{(B)}\quad \int_0^1 x^2 \, dx, \qquad\qquad \text{(C)}\quad x^2 + y^2 = 1.
+\]
+
+In expression (A), the index $i$ is \emph{bound} by the summation. The letter $n$, however, is \emph{free}: the numerical value of the sum depends directly on what $n$ is. If you change $n$ from $3$ to $4$, the sum changes from $14$ to $30$. But if you replace every occurrence of $i$ with $j$, getting $\sum_{j=1}^n j^2$, the value is completely unchanged. The index $i$ is merely a dummy counter.
+
+In expression (B), the variable $x$ is bound by the integral. The expression evaluates to the concrete number $1/3$. There is no $x$ remaining in the answer.
+
+In expression (C), both $x$ and $y$ are free. Without additional context, the equation does not assert a truth; it defines a geometric relationship (a circle) satisfied by certain pairs of real numbers.
+
+\subsection{A worked example of quantifier and role parsing}
+
+Consider the statement:
+\[
+\forall x \in \R, \, \exists y \in \R \text{ such that } x + y = 0.
+\]
+
+Let us trace the roles and permissions line by line:
+\begin{enumerate}
+\item \textbf{The universal player moves first}: The statement begins with $\forall x \in \R$. Therefore, in our proof, we must begin by accepting an \emph{arbitrary} real number:
+\begin{quote}
+``Let $x \in \R$ be arbitrary.''
+\end{quote}
+We cannot choose $x = 0$ or $x = 5$. We must leave $x$ completely general.
+\item \textbf{The existential player responds}: The next quantifier is $\exists y \in \R$. We must now produce a \emph{chosen witness}. Because $y$ comes \emph{after} $x$ in the quantifier order, our choice of $y$ is legally permitted to depend on $x$:
+\begin{quote}
+``Choose $y = -x$.''
+\end{quote}
+\item \textbf{Verify the requirements}: We verify two things: first, that $-x \in \R$ (it is), and second, that $x + y = x + (-x) = 0$.
+\item \textbf{Conclude and close scope}: Both conditions are satisfied, so the statement is proved.
+\end{enumerate}
+
+Now observe what happens if the quantifiers are reversed:
+\[
+\exists y \in \R \text{ such that } \forall x \in \R, \, x + y = 0.
+\]
+Here, $y$ must be chosen \emph{first}, before $x$ is revealed! Any candidate $y$ you propose (say $y = 0$) can be immediately defeated by the adversary choosing $x = 1$, since $1 + 0 = 1 \neq 0$. Reversing the order switches who plays first.
+
+\begin{trapbox}
+Never define an existential witness using a variable that has not yet been introduced. In the statement $\forall x \, \exists y$, your formula for $y$ may use $x$. In $\exists y \, \forall x$, your formula for $y$ must be an absolute constant independent of $x$.
+\end{trapbox}
+
+\subsection{What role discipline unlocked---and where quantifiers enter the game}
+
+Classifying variables into their four operational hats brings the discipline of modern software engineering into mathematical proof. Just as a compiler halts when a program tries to access a private variable outside its local block, mathematical rigor rejects any proof that attempts to treat an arbitrary universal input as a chosen constant or leak a bound dummy index into an outer paragraph.
+
+Yet scoping discipline alone is only half the battle. In theorems involving multiple variables, what determines who chooses first? When can a chosen witness depend on an input, and when is it required to work uniformly for all inputs simultaneously? In Chapter~4 (\emph{Quantifiers: The Game of For Every and There Exists}), we turn variable scoping into an interactive game of strategy, discovering how the precise ordering of $\forall$ and $\exists$ resolved one of the greatest crises in the history of calculus.
+
+\subsection{Exercises}
+
+For each variable in the statements below, identify its exact role: Fixed Constant, Arbitrary Universal, Chosen Witness, or Bound Dummy:
+\begin{enumerate}
+\item In the statement $\forall n \in \Z, \, \exists m \in \Z \text{ such that } n = 2m + 1$: identify the roles of $n$ and $m$.
+\item In the definition of continuity: ``For every $\eps > 0$, there exists $\delta > 0$ such that for all $x \in \R$, if $|x - c| < \delta$, then $|f(x) - f(c)| < \eps$'': identify the roles of $c$, $\eps$, $\delta$, and $x$.
+\item In the expression $\lim_{n \to \infty} \sum_{k=1}^n \frac{k}{n^2}$: which variables are bound dummies, and what is the final value?
+\item Explain the bug in the following pseudo-proof:
+\begin{quote}
+\itshape Claim: Every integer is even.\\
+False proof: Let $n \in \Z$ be arbitrary. Choose $n = 4$. Since $4 = 2(2)$, $n$ is even. Therefore every integer is even.
+\end{quote}
+Which role permission was violated?
+\end{enumerate}
+
+\begin{walkbox}
+When reading an advanced textbook, pause at every variable name. Ask yourself: ``Is this an input I was given, an adversary's move, a witness I built, or a local counter that will vanish at the end of the sentence?''
+\end{walkbox}
+
+\newpage

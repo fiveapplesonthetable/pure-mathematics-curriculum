@@ -114,6 +114,7 @@ eventually becomes necessary --- see the rigorous treatment later in the book.)
   domain=-2:6, samples=120, no markers,
   legend pos=north east, legend cell align=left,
   title={Slicing a bivariate normal: $Y\given X{=}x$ for three values of $x$},
+  title style={font=\small},
   ymin=0,
 ]
 % For standard bivariate normal with corr rho, Y|X=x ~ N(rho*x, 1-rho^2).
@@ -466,6 +467,7 @@ the irreducible Poisson noise.
   xtick=data, nodes near coords, nodes near coords align={vertical},
   ymin=0, ymax=4,
   title={Law of total variance for the Poisson--Uniform mixture},
+  title style={font=\small},
   enlarge x limits=0.3,
 ]
 \addplot[fill=densityred!70] coordinates {(Within (noise),2) (Between (signal),1.333) (Total,3.333)};
@@ -477,19 +479,376 @@ but never the first.}
 \label{ch15:fig-eve}
 \end{figure}
 
-\begin{paradoxbox}
-\textbf{Simpson's paradox: when conditioning flips the story.} The law of total expectation warns you, quietly, that \emph{group averages must be weighted by group
-size}. Ignore that warning and you get Simpson's paradox. Suppose treatment A beats treatment B for
-men, \emph{and} A beats B for women, yet B beats A overall. Impossible? No --- it happens whenever the
-two treatments were given to very different mixes of men and women. Within each group ($X = $ sex), A
-wins: $\E[\text{cure}\given A, X] > \E[\text{cure}\given B, X]$. But the overall average
-$\E[\text{cure}\given A] = \sum_x \E[\text{cure}\given A, X=x]\,\P(X=x\given A)$ uses the
-\emph{conditional group mix} $\P(X = x \given A)$, which can differ wildly between A and B. If A was
-mostly given to the harder-to-cure group, A's good within-group rates get drowned by bad weights. The
-paradox is not a paradox once you internalize that conditional expectation is a \emph{weighted}
-reassembly --- and that the weights are part of the data, not a nuisance to be averaged away. The
-lesson: never average group means without their proper $\P(X = x)$ weights.
-\end{paradoxbox}
+\section{Confounding, Simpson's paradox, and seeing vs.~doing}
+\label{ch15:simpsons-causal}
+
+The law of total expectation, $\E[Y] = \E[\E[Y \given X]]$, looks utterly benign. It says that to calculate the grand average of a quantity across an entire population, you can slice the population by some feature $X$, compute the average within each slice, and reassemble them by weighting each slice by its proportion in the population.
+
+Yet hidden inside this weighted reassembly lurks one of the most unsettling phenomena in empirical science: \textbf{Simpson's paradox}. It occurs when an apparent relationship observed within every subgroup of a population completely reverses when the subgroups are pooled together. A medical treatment can outperform its rival on men and outperform its rival on women, yet appear worse on the combined population. A university department can admit women at a higher rate than men in every major, yet have a lower overall female admission rate.
+
+The paradox is not a mathematical contradiction. The arithmetic is consistent. Rather, the paradox exposes a fatal blind spot in human intuition: we instinctively confuse \emph{observing} an event with \emph{causing} an outcome. We confuse conditioning on evidence, $\P(Y \given X)$, with intervening in the world, $\P(Y \given \operatorname{do}(X))$.
+
+\subsection{The clinical puzzle: Charig et al.~(1986)}
+\label{ch15:kidney-stones}
+
+To see the paradox with real numbers, consider a landmark study published by Charig et al.~in the \emph{British Medical Journal} (1986). The study evaluated $700$ patients treated for kidney stones, comparing two procedures:
+\begin{itemize}
+  \item \textbf{Treatment A}: Traditional open surgery (invasive surgical incision).
+  \item \textbf{Treatment B}: Percutaneous nephrolithotomy (a newer, minimally invasive procedure extracting stones through a small keyhole incision).
+\end{itemize}
+Each treatment was given to $350$ patients. The clinical outcome was recorded as success ($Y = 1$, stone completely cleared) or failure ($Y = 0$).
+
+When patients are categorized by the severity of their condition --- the diameter of the kidney stone $Z \in \set{\text{Small}, \text{Large}}$ --- the clinical records reveal a consistent picture (Table~\ref{ch15:tab-kidney-stones}):
+\begin{enumerate}
+  \item \textbf{Small stones} ($Z = \text{Small}$): Treatment A cured $81$ out of $87$ patients ($93.1\%$). Treatment B cured $234$ out of $270$ patients ($86.7\%$). \textbf{Treatment A wins} by $6.4$ percentage points.
+  \item \textbf{Large stones} ($Z = \text{Large}$): Treatment A cured $192$ out of $263$ patients ($73.0\%$). Treatment B cured $55$ out of $80$ patients ($68.8\%$). \textbf{Treatment A wins again} by $4.2$ percentage points.
+\end{enumerate}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+& \multicolumn{2}{c}{\textbf{Treatment A} (Open surgery)} & \multicolumn{2}{c}{\textbf{Treatment B} (Keyhole procedure)} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5}
+\textbf{Stone Size} ($Z$) & Successes / Total & Cure Rate & Successes / Total & Cure Rate \\
+\midrule
+Small stones ($Z = \text{Small}$) & $81 / 87$ & $\mathbf{93.1\%}$ & $234 / 270$ & $86.7\%$ \\
+Large stones ($Z = \text{Large}$) & $192 / 263$ & $\mathbf{73.0\%}$ & $55 / 80$ & $68.8\%$ \\
+\midrule
+\textbf{Pooled Total} & $273 / 350$ & $78.0\%$ & $289 / 350$ & $\mathbf{82.6\%}$ \\
+\bottomrule
+\end{tabular}
+\caption{Clinical success rates from Charig et al.~(1986). Treatment A achieves a higher cure rate than Treatment B on small stones ($93.1\% > 86.7\%$) and on large stones ($73.0\% > 68.8\%$), yet Treatment B achieves a higher success rate in the pooled total ($82.6\% > 78.0\%$).}
+\label{ch15:tab-kidney-stones}
+\end{table}
+
+Every physician evaluating a patient knows: if the stone is small, Treatment A offers the higher chance of recovery ($93.1\% > 86.7\%$). If the stone is large, Treatment A again offers the higher chance of recovery ($73.0\% > 68.8\%$). Whether the stone is small or large, Treatment A is clinically superior.
+
+Then a hospital administrator aggregates the columns, ignoring stone size:
+\[
+  \text{Treatment A:}\quad \frac{81 + 192}{87 + 263} = \frac{273}{350} = 78.0\%, \qquad
+  \text{Treatment B:}\quad \frac{234 + 55}{270 + 80} = \frac{289}{350} \approx 82.6\%.
+\]
+The pooled total declares Treatment B the overall winner by $4.6$ percentage points!
+
+If a patient walks into the clinic and the stone size has not yet been measured, which treatment should the doctor recommend? Should they prescribe Treatment B because it wins overall, or Treatment A because it wins in every category?
+
+\subsection{Unwrapping the paradox: weights, slopes, and vector addition}
+\label{ch15:vector-addition}
+
+How can four positive fractions satisfy
+\[
+  \frac{a_1}{b_1} > \frac{c_1}{d_1} \quad\text{and}\quad \frac{a_2}{b_2} > \frac{c_2}{d_2},
+  \qquad\text{yet}\qquad
+  \frac{a_1 + a_2}{b_1 + b_2} < \frac{c_1 + c_2}{d_1 + d_2}?
+\]
+The algebraic explanation lies in the distinction between an unweighted arithmetic mean and a \emph{weighted} average. The pooled ratio is not the average of the two cure rates; it is their weighted average, where the weights are the subgroup shares:
+\begin{equation}
+\label{ch15:eq-weighted-pooled}
+  \frac{a_1 + a_2}{b_1 + b_2}
+  \;=\; \left(\frac{a_1}{b_1}\right) \underbrace{\left(\frac{b_1}{b_1 + b_2}\right)}_{w_1}
+  \;+\; \left(\frac{a_2}{b_2}\right) \underbrace{\left(\frac{b_2}{b_1 + b_2}\right)}_{w_2}.
+\end{equation}
+Look closely at the weights $w_1$ and $w_2$ for the two treatments:
+\begin{itemize}
+  \item For \textbf{Treatment A}: $b_1 = 87$ small stones and $b_2 = 263$ large stones. The weights are
+  \[
+    w_{A,\text{Small}} = \frac{87}{350} \approx 24.9\%, \qquad
+    w_{A,\text{Large}} = \frac{263}{350} \approx 75.1\%.
+  \]
+  Doctors directed three-quarters of Treatment A patients from the difficult, low-recovery large-stone group.
+  \item For \textbf{Treatment B}: $d_1 = 270$ small stones and $d_2 = 80$ large stones. The weights are
+  \[
+    w_{B,\text{Small}} = \frac{270}{350} \approx 77.1\%, \qquad
+    w_{B,\text{Large}} = \frac{80}{350} \approx 22.9\%.
+  \]
+  Doctors directed more than three-quarters of Treatment B patients from the easy, high-recovery small-stone group.
+\end{itemize}
+
+Because large stones are inherently harder to cure than small stones (cure rates hover around $70\%$ rather than $90\%$), Treatment A was forced to carry an overwhelming caseload of severe patients. The pooled cure rate of Treatment A is pulled down toward its $73.0\%$ subgroup rate by its heavy $75.1\%$ weight. Meanwhile, Treatment B was mostly assigned to mild cases, so its pooled cure rate is lifted toward its $86.7\%$ subgroup rate by its heavy $77.1\%$ weight.
+
+\begin{intuitionbox}
+Think of each success ratio $a/b$ as a vector $\vec{v} = (b, a)$ in the $(\text{Trials}, \text{Successes})$ coordinate plane. The slope of the vector is $\Delta y / \Delta x = a/b$, which equals the success rate.
+When we pool two data sets, we add the trials $(b_1 + b_2)$ and add the successes $(a_1 + a_2)$. That is literally \textbf{2D vector addition}:
+\[
+  \begin{pmatrix} b_1 + b_2 \\ a_1 + a_2 \end{pmatrix}
+  \;=\; \begin{pmatrix} b_1 \\ a_1 \end{pmatrix} \;+\; \begin{pmatrix} b_2 \\ a_2 \end{pmatrix}.
+\]
+By the parallelogram rule, the sum vector lies between the two component vectors. Its slope is a compromise between the two component slopes, leaning closest to whichever vector has greater horizontal length (more patients).
+Treatment A has a steeper slope than Treatment B on small stones ($0.931 > 0.867$), and Treatment A has a steeper slope than Treatment B on large stones ($0.730 > 0.688$). But because Treatment A's long vector points in the low-slope direction while Treatment B's long vector points in the high-slope direction, the resultant vector for Treatment B ends up with a steeper overall slope than Treatment A (Figure~\ref{ch15:fig-simpson-causal}, Panel A)!
+\end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.94]
+  % -------------------------------------------------------------
+  % Panel A: Vector Slope Reversal
+  % -------------------------------------------------------------
+  \begin{scope}[shift={(0,0)}]
+    \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-0.8,-1.1) rectangle (7.1,6.0);
+    \node[anchor=north, font=\small\bfseries, sourceblue!90!black] at (3.15,5.8) {Panel A: Vector Slope Reversal};
+
+    % Axes (Origin at 0.9, 0.9)
+    \coordinate (O) at (0.9, 0.9);
+    \draw[->, thick, gray!70] (O) -- (5.2, 0.9);
+    \draw[->, thick, gray!70] (O) -- (0.9, 5.0);
+
+    % Rotated Y axis label
+    \node[rotate=90, font=\scriptsize, gray!90!black] at (0.05, 2.9) {Cured ($Y$)};
+
+    % X axis label centered below axis ticks
+    \node[font=\scriptsize, gray!90!black] at (2.8, 0.25) {Patients / Trials ($N$)};
+
+    % Coordinate transformations:
+    % 3.7 cm for 350 patients -> 0.01057 cm/pt
+    % 3.6 cm for 300 cures -> 0.012 cm/cure
+    % Ticks on x: 0 (0.9), 100 (1.96), 200 (3.01), 300 (4.07), 350 (4.60)
+    % Ticks on y: 0 (0.9), 100 (2.10), 200 (3.30), 300 (4.50)
+
+    % Grid guides
+    \draw[gray!20, dotted] (0.9, 2.10) -- (4.8, 2.10);
+    \draw[gray!20, dotted] (0.9, 3.30) -- (4.8, 3.30);
+    \draw[gray!20, dotted] (0.9, 4.50) -- (4.8, 4.50);
+    \draw[gray!20, dotted] (1.96, 0.9) -- (1.96, 4.7);
+    \draw[gray!20, dotted] (3.01, 0.9) -- (3.01, 4.7);
+    \draw[gray!20, dotted] (4.07, 0.9) -- (4.07, 4.7);
+    \draw[gray!20, dotted] (4.60, 0.9) -- (4.60, 4.7);
+
+    % Axis ticks
+    \node[below=2pt, font=\tiny, gray] at (0.9, 0.9) {$0$};
+    \node[below=2pt, font=\tiny, gray] at (1.96, 0.9) {$100$};
+    \node[below=2pt, font=\tiny, gray] at (3.01, 0.9) {$200$};
+    \node[below=2pt, font=\tiny, gray] at (4.07, 0.9) {$300$};
+    \node[below=2pt, font=\tiny, gray] at (4.60, 0.9) {$350$};
+
+    \node[left=3pt, font=\tiny, gray] at (0.9, 2.10) {$100$};
+    \node[left=3pt, font=\tiny, gray] at (0.9, 3.30) {$200$};
+    \node[left=3pt, font=\tiny, gray] at (0.9, 4.50) {$300$};
+
+    % Points for Treatment A:
+    % Small: N=87, Y=81 -> (0.9 + 0.92, 0.9 + 0.97) = (1.82, 1.87)
+    % Large: Delta N=263, Delta Y=192 -> Total (4.60, 4.18)
+    \coordinate (A0) at (0.9, 0.9);
+    \coordinate (A1) at (1.82, 1.87);
+    \coordinate (A_tot) at (4.60, 4.18);
+
+    % Points for Treatment B:
+    % Small: N=270, Y=234 -> (0.9 + 2.85, 0.9 + 2.81) = (3.75, 3.71)
+    % Large: Delta N=80, Delta Y=55 -> Total (4.60, 4.37)
+    \coordinate (B0) at (0.9, 0.9);
+    \coordinate (B1) at (3.75, 3.71);
+    \coordinate (B_tot) at (4.60, 4.37);
+
+    % Dashed resultant secants from Origin
+    \draw[dashed, sourceblue!50, thick] (A0) -- (A_tot);
+    \draw[dashed, quotientorange!50, thick] (B0) -- (B_tot);
+
+    % Vectors for Treatment A (Blue)
+    \draw[-{Stealth[length=4.5pt]}, line width=1.3pt, sourceblue] (A0) -- (A1);
+    \draw[-{Stealth[length=4.5pt]}, line width=1.3pt, sourceblue] (A1) -- (A_tot)
+      node[midway, below right=-2pt, font=\tiny\bfseries, sourceblue] {$\mathbf{A}_{\text{Large}}: 73.0\%$};
+    \fill[sourceblue] (A1) circle (1.8pt);
+    \fill[sourceblue] (A_tot) circle (2pt);
+
+    % Leader callout for A1 to ensure zero overlap
+    \draw[thin, sourceblue!80] (A1) -- ++(-0.25, 0.45)
+      node[above, font=\tiny\bfseries, sourceblue] {$\mathbf{A}_{\text{Small}}: 93.1\%$};
+
+    % Vectors for Treatment B (Orange)
+    \draw[-{Stealth[length=4.5pt]}, line width=1.3pt, quotientorange] (B0) -- (B1)
+      node[pos=0.6, below right=-2pt, font=\tiny\bfseries, quotientorange!90!black] {$\mathbf{B}_{\text{Small}}: 86.7\%$};
+    \draw[-{Stealth[length=4.5pt]}, line width=1.3pt, quotientorange] (B1) -- (B_tot)
+      node[midway, above left=-2pt, font=\tiny\bfseries, quotientorange!90!black] {$\mathbf{B}_{\text{Large}}: 68.8\%$};
+    \fill[quotientorange] (B1) circle (1.8pt);
+    \fill[quotientorange] (B_tot) circle (2pt);
+
+    % Callout leader lines to endpoints (compact 2-line labels inside card)
+    \draw[thin, quotientorange!80] (B_tot) -- ++(0.3, 0.3) -- ++(0.2, 0)
+      node[right=-1pt, align=left, font=\tiny\bfseries, quotientorange!90!black] {Total B: $\mathbf{82.6\%}$\\[-1pt]\tiny ($289/350$)};
+    \draw[thin, sourceblue!80] (A_tot) -- ++(0.3, -0.3) -- ++(0.2, 0)
+      node[right=-1pt, align=left, font=\tiny\bfseries, sourceblue!90!black] {Total A: $78.0\%$\\[-1pt]\tiny ($273/350$)};
+
+    % Sub-annotation
+    \node[text width=6.7cm, align=center, font=\tiny, draw=gray!30, fill=white, rounded corners=2pt, inner sep=2pt]
+      at (3.15, -0.6) {Subgroups: A beats B everywhere ($93.1\% > 86.7\%$ and $73.0\% > 68.8\%$).\\
+      Pooled: B wins ($82.6\% > 78.0\%$) due to heavy weighting toward easy cases.};
+  \end{scope}
+
+  % -------------------------------------------------------------
+  % Panel B: Seeing vs. Doing Causal DAGs
+  % -------------------------------------------------------------
+  \begin{scope}[shift={(7.8,0)}]
+    \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-0.4,-1.1) rectangle (7.2,6.0);
+    \node[anchor=north, font=\small\bfseries, structurepurple!90!black] at (3.4,5.8) {Panel B: Seeing vs.~Doing (Causal Graph)};
+
+    % Sub-panel 1: Observational DAG P(Y|X)
+    \coordinate (Z1) at (1.5, 4.4);
+    \coordinate (X1) at (0.5, 2.6);
+    \coordinate (Y1) at (2.5, 2.6);
+
+    \node[draw=structurepurple, fill=structurepurple!12, rounded corners=3pt, font=\scriptsize\bfseries, inner sep=2.5pt]
+      (nZ1) at (Z1) {Stone Size $Z$};
+    \node[draw=sourceblue, fill=sourceblue!12, rounded corners=3pt, font=\scriptsize\bfseries, inner sep=2.5pt]
+      (nX1) at (X1) {Treatment $X$};
+    \node[draw=targetgreen, fill=targetgreen!12, rounded corners=3pt, font=\scriptsize\bfseries, inner sep=2.5pt]
+      (nY1) at (Y1) {Cure $Y$};
+
+    \draw[-{Stealth[length=4.5pt]}, line width=1.1pt, trapred] (nZ1) -- (nX1)
+      node[midway, above left=-3pt, font=\tiny\bfseries, trapred] {confounds};
+    \draw[-{Stealth[length=4.5pt]}, line width=1.1pt, structurepurple] (nZ1) -- (nY1);
+    \draw[-{Stealth[length=4.5pt]}, line width=1.1pt, sourceblue] (nX1) -- (nY1)
+      node[midway, below=1pt, font=\tiny\bfseries] {causal};
+
+    \node[text width=3.1cm, align=center, font=\tiny] at (1.5, 1.1) {
+      \textbf{Observational} $\P(Y \given X)$\\[2pt]
+      Confounding fork open:\\
+      $X \leftarrow Z \to Y$\\[2pt]
+      Weights $\P(Z \given X)$ shift with $X$
+    };
+
+    % Divider between DAGs
+    \draw[gray!30, dashed] (3.4, 0.4) -- (3.4, 5.0);
+
+    % Sub-panel 2: Interventional DAG P(Y|do(X))
+    \coordinate (Z2) at (5.3, 4.4);
+    \coordinate (X2) at (4.3, 2.6);
+    \coordinate (Y2) at (6.3, 2.6);
+
+    \node[draw=structurepurple, fill=structurepurple!12, rounded corners=3pt, font=\scriptsize\bfseries, inner sep=2.5pt]
+      (nZ2) at (Z2) {Stone Size $Z$};
+    \node[draw=sourceblue, fill=sourceblue!25, line width=1.1pt, rounded corners=3pt, font=\scriptsize\bfseries, inner sep=2.5pt]
+      (nX2) at (X2) {$\operatorname{do}(X)$};
+    \node[draw=targetgreen, fill=targetgreen!12, rounded corners=3pt, font=\scriptsize\bfseries, inner sep=2.5pt]
+      (nY2) at (Y2) {Cure $Y$};
+
+    % Severed arrow Z2 to X2
+    \draw[dashed, gray!40, thick] (nZ2) -- (nX2);
+    \coordinate (cut) at ($(nZ2)!0.5!(nX2)$);
+    \draw[trapred, line width=1.4pt] ($(cut)+(-0.13,-0.13)$) -- ($(cut)+(0.13,0.13)$);
+    \draw[trapred, line width=1.4pt] ($(cut)+(-0.13,0.13)$) -- ($(cut)+(0.13,-0.13)$);
+    \node[above left=-2pt, font=\tiny\bfseries, trapred] at (cut) {severed};
+
+    \draw[-{Stealth[length=4.5pt]}, line width=1.1pt, structurepurple] (nZ2) -- (nY2);
+    \draw[-{Stealth[length=4.5pt]}, line width=1.1pt, sourceblue] (nX2) -- (nY2)
+      node[midway, below=1pt, font=\tiny\bfseries] {causal};
+
+    \node[text width=3.1cm, align=center, font=\tiny] at (5.3, 1.1) {
+      \textbf{Interventional} $\P(Y \given \operatorname{do}(X))$\\[2pt]
+      Backdoor path cut: $Z \not\to X$\\[2pt]
+      Intervention sets $X \indep Z$\\[2pt]
+      Fixed weights $\P(Z)$ for all
+    };
+
+    % Sub-annotation
+    \node[text width=6.8cm, align=center, font=\tiny, draw=gray!30, fill=white, rounded corners=2pt, inner sep=2pt]
+      at (3.4, -0.6) {Backdoor adjustment: evaluate both on identical population weights $\P(Z)$:\\
+      $\P(\text{Cure}\given \operatorname{do}(A)) = \mathbf{83.2\%} > \P(\text{Cure}\given \operatorname{do}(B)) = \mathbf{77.9\%}$ (A is superior).};
+  \end{scope}
+\end{tikzpicture}
+\caption{Simpson's paradox resolved geometrically and causally. \textbf{Panel A}: In the $(\text{Patients}, \text{Cured})$ plane, subgroup cure rates are vector slopes. Treatment A has steeper slopes in both subgroups ($93.1\% > 86.7\%$ and $73.0\% > 68.8\%$). However, because doctors directed $75\%$ of Treatment A patients from the difficult Large-stone group while giving $77\%$ of Treatment B to easy Small-stone cases, vector addition pulls A's pooled vector toward the lower slope and B's toward the higher slope, flipping the overall comparison. \textbf{Panel B}: In observational data $\P(Y \given X)$, the confounding fork $X \leftarrow Z \to Y$ is open because stone size $Z$ influenced doctor choice $X$. In an intervention $\P(Y \given \operatorname{do}(X))$, the arrow $Z \to X$ is severed, leaving $X \indep Z$ and re-weighting both treatments across the true population distribution $\P(Z)$, proving Treatment A is genuinely superior.}
+\label{ch15:fig-simpson-causal}
+\end{figure}
+
+\subsection{Seeing vs.~doing: Judea Pearl's \texorpdfstring{$\operatorname{do}$}{do}-operator}
+\label{ch15:seeing-vs-doing}
+
+The geometric insight explains \emph{how} the numbers flip, but it leaves the fundamental decision question unresolved: which number tells the truth about medical efficacy? If you must choose a treatment, do you pick A or B?
+
+To answer this, we need a mathematical distinction that probability theory alone cannot express: the distinction between \textbf{passive observation} (``seeing'') and \textbf{active intervention} (``doing''), formalized by Judea Pearl in the causal inference framework.
+
+Let:
+\begin{itemize}
+  \item $X \in \set{A, B}$ denote the treatment administered.
+  \item $Y \in \set{0, 1}$ denote the outcome ($1 = \text{cure}, 0 = \text{failure}$).
+  \item $Z \in \set{\text{Small}, \text{Large}}$ denote stone size (the underlying severity).
+\end{itemize}
+
+When we passively inspect hospital records, we compute the conditional probability $\P(Y = 1 \given X = x)$. By the law of total probability, conditioning on $X = x$ breaks into subgroups as:
+\begin{equation}
+\label{ch15:eq-observational-cond}
+  \P(Y = 1 \given X = x)
+  \;=\; \sum_{z} \P(Y = 1 \given X = x, Z = z)\,\P(Z = z \given X = x).
+\end{equation}
+Notice the weights: $\P(Z = z \given X = x)$. These weights depend on $x$!
+In observational data, doctors did not toss a fair coin to choose treatments. They inspected the patient's stone size $Z$ and used that diagnosis to decide $X$. Because open surgery was the established invasive standard, doctors preferentially reserved Treatment A for the severe large-stone cases, creating a causal arrow in the data-generating process:
+\[
+  Z \longrightarrow X.
+\]
+At the same time, stone size directly affects recovery, since larger stones are biologically more difficult to clear:
+\[
+  Z \longrightarrow Y.
+\]
+And the treatment itself affects recovery:
+\[
+  X \longrightarrow Y.
+\]
+Together, these three arrows form a \textbf{confounding fork}: $X \longleftarrow Z \longrightarrow Y$ (Figure~\ref{ch15:fig-simpson-causal}, Panel B, left).
+The path $X \leftarrow Z \to Y$ is known as a \textbf{backdoor path}. When we condition on observational data $X = x$, information flows backward through this path. Observing that a patient received open surgery ($X = A$) conveys information about $Z$: it tells us the patient likely had a large, severe stone ($\P(Z = \text{Large} \given X = A) = 263/350 \approx 75.1\%$). That negative prognosis suppresses the observed recovery rate.
+
+Now contrast this with an \textbf{intervention}. Suppose a clinical trial assigns Treatment A to every patient in the target population by medical protocol or randomization. We write this intervention using Pearl's \textbf{$\operatorname{do}$-operator}:
+\[
+  \P(Y = 1 \given \operatorname{do}(X = x)).
+\]
+The statement $\operatorname{do}(X = x)$ means: physically set $X = x$ by external decree, severing the choice of treatment from the patient's disease severity. In the causal diagram, an intervention \textbf{deletes all incoming arrows into $X$}:
+\[
+  Z \;\not\longrightarrow\; X.
+\]
+Under this intervention, the backdoor path $X \leftarrow Z \to Y$ is completely blocked (Figure~\ref{ch15:fig-simpson-causal}, Panel B, right). The stone size $Z$ still affects cure $Y$, but $Z$ no longer influences treatment assignment $X$. In this manipulated system, $X$ and $Z$ are statistically independent, so the distribution of stone sizes among patients assigned $\operatorname{do}(X = x)$ is simply the overall population distribution $\P(Z = z)$, identical for both treatments!
+
+This delivers Pearl's \textbf{backdoor adjustment formula}:
+\begin{equation}
+\label{ch15:eq-backdoor-adjustment}
+  \P(Y = y \given \operatorname{do}(X = x))
+  \;=\; \sum_{z} \P(Y = y \given X = x, Z = z)\,\P(Z = z).
+\end{equation}
+
+\begin{happeningbox}
+Compare the observational formula \eqref{ch15:eq-observational-cond} with the interventional formula \eqref{ch15:eq-backdoor-adjustment}:
+\[
+  \begin{aligned}
+    \text{Seeing:}\quad &\P(Y = 1 \given X = x) &&= \sum_z \P(Y = 1 \given X = x, Z = z)\,\mathbf{\P(Z = z \given X = x)}, \\
+    \text{Doing:}\quad &\P(Y = 1 \given \operatorname{do}(X = x)) &&= \sum_z \P(Y = 1 \given X = x, Z = z)\,\mathbf{\P(Z = z)}.
+  \end{aligned}
+\]
+The subgroup cure rates $\P(Y = 1 \given X = x, Z = z)$ are identical in both formulas. What changes is solely the weights.
+Passive observation uses the \emph{treatment-specific patient mix} $\P(Z = z \given X = x)$, which penalizes treatments assigned to sicker patients.
+Intervention uses the \emph{universal population mix} $\P(Z = z)$, evaluating both treatments on the exact same patient distribution.
+\end{happeningbox}
+
+\subsection{Resolving the paradox on the clinical data}
+\label{ch15:resolving-kidney-paradox}
+
+We can now compute the true causal efficacy of Treatment A and Treatment B on the kidney stone cohort.
+Across all $700$ patients in the study, the baseline population distribution of stone sizes is:
+\begin{itemize}
+  \item Total small stones: $87 + 270 = 357$, so $\P(Z = \text{Small}) = \frac{357}{700} = 0.510$ ($51.0\%$).
+  \item Total large stones: $263 + 80 = 343$, so $\P(Z = \text{Large}) = \frac{343}{700} = 0.490$ ($49.0\%$).
+\end{itemize}
+
+Applying the backdoor adjustment formula \eqref{ch15:eq-backdoor-adjustment}:
+For \textbf{Treatment A} (Open surgery):
+\[
+\begin{aligned}
+  \P(\text{Cure} \given \operatorname{do}(X = A))
+  &= \P(\text{Cure} \given A, \text{Small})\,\P(\text{Small}) \;+\; \P(\text{Cure} \given A, \text{Large})\,\P(\text{Large}) \\
+  &= \left(\frac{81}{87}\right)(0.510) \;+\; \left(\frac{192}{263}\right)(0.490) \\
+  &\approx (0.9310)(0.510) \;+\; (0.7300)(0.490) \\
+  &= 0.4748 \;+\; 0.3577 \;=\; \mathbf{83.2\%}.
+\end{aligned}
+\]
+For \textbf{Treatment B} (Keyhole procedure):
+\[
+\begin{aligned}
+  \P(\text{Cure} \given \operatorname{do}(X = B))
+  &= \P(\text{Cure} \given B, \text{Small})\,\P(\text{Small}) \;+\; \P(\text{Cure} \given B, \text{Large})\,\P(\text{Large}) \\
+  &= \left(\frac{234}{270}\right)(0.510) \;+\; \left(\frac{55}{80}\right)(0.490) \\
+  &\approx (0.8667)(0.510) \;+\; (0.6875)(0.490) \\
+  &= 0.4420 \;+\; 0.3369 \;=\; \mathbf{77.9\%}.
+\end{aligned}
+\]
+
+The paradox dissolves completely. When both procedures are evaluated fairly across the same patient distribution, Treatment A cures $83.2\%$ of patients, while Treatment B cures $77.9\%$. Treatment A is genuinely the superior treatment, providing an advantage of $+5.3$ percentage points across the population. The apparent pooled superiority of Treatment B in raw observational records was an artifact of confounding: Treatment B looked effective overall only because doctors selected it for patients who were already easy to cure.
 
 \section{Conditional expectation is the best predictor}
 \label{ch15:best-predictor}
@@ -536,15 +895,71 @@ is the unique minimizer.
 \end{proof}
 
 \begin{happeningbox}
-That ``cross term vanishes'' is not an algebraic accident --- it is \emph{orthogonality}. Think of
+The vanishing of the cross term reflects a deeper geometric truth: \emph{orthogonality}. Think of
 random variables (with finite variance) as vectors, with inner product
 $\langle U, V\rangle = \E[UV]$. The proof shows the prediction error $Y - \E[Y\given X]$ is orthogonal
 to \emph{every} function of $X$. So $\E[Y\given X]$ is the \emph{orthogonal projection} of $Y$ onto the
 subspace of all functions of $X$. ``Best predictor'' literally means ``foot of the perpendicular.'' And
 the decomposition $\E[(Y-h)^2] = \E[(Y-m)^2] + \E[(m-h)^2]$ is the Pythagorean theorem in this
-geometry. The law of total variance is the same Pythagorean theorem with $h$ taken to be the constant
+geometry (Figure~\ref{ch15:fig-projection}). The law of total variance is the same Pythagorean theorem with $h$ taken to be the constant
 $\E[Y]$: total $=$ residual $+$ explained.
 \end{happeningbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.05]
+  % Subspace plane H_X (all functions of X)
+  \fill[sourceblue!8, draw=sourceblue!50, thick, rounded corners=4pt]
+    (-3.4,-1.4) -- (4.6,-1.4) -- (5.8,1.4) -- (-2.2,1.4) -- cycle;
+  \node[sourceblue!90!black, font=\small\bfseries, anchor=north west] at (-3.1, 1.2) {$\mathcal{H}_X = \{h(X)\}$};
+
+  % Origin / constant E[Y]
+  \coordinate (EY) at (-1.4, -0.4);
+  \fill[black] (EY) circle (2pt) node[below=3pt, font=\footnotesize] {$\E[Y]$};
+
+  % Point Y (random variable in L^2 above the plane)
+  \coordinate (Y) at (1.2, 3.2);
+  \fill[densityred] (Y) circle (2.2pt) node[above=2pt, font=\small\bfseries, densityred] {$Y$};
+
+  % Orthogonal projection Y_hat = E[Y|X] on the plane
+  \coordinate (Yhat) at (1.2, 0.1);
+  \fill[structurepurple] (Yhat) circle (2.2pt);
+  \node[structurepurple, font=\footnotesize\bfseries, below=5pt] at (Yhat) {$\hat Y = \E[Y\mid X]$};
+
+  % Arbitrary competitor h(X) on the plane
+  \coordinate (H) at (4.0, -0.35);
+  \fill[targetgreen!80!black] (H) circle (2pt) node[below=2pt, font=\footnotesize\bfseries, targetgreen!80!black] {$h(X)$};
+
+  % Orthogonal dropped perpendicular Y -> Yhat
+  \draw[very thick, structurepurple, -{Stealth}] (Y) -- (Yhat)
+    node[pos=0.45, right=4pt, font=\scriptsize\bfseries, structurepurple] {Residual: $Y - \hat Y$};
+
+  % Right angle symbol at Yhat for perpendicular
+  \draw[gray!70, thick] ($(Yhat)+(-0.2,0)$) -- ($(Yhat)+(-0.2,0.2)$) -- ($(Yhat)+(0,0.2)$);
+
+  % Distance to competitor Y -> H
+  \draw[thick, dashed, targetgreen!80!black] (Y) -- (H)
+    node[pos=0.18, above right=2pt, font=\scriptsize\bfseries, targetgreen!80!black] {Error: $\|Y - h(X)\|$};
+
+  % Line on plane from Yhat to H
+  \draw[thick, dashed, targetgreen!80!black] (Yhat) -- (H)
+    node[pos=0.62, below=3pt, font=\scriptsize, targetgreen!80!black] {$\|\hat Y - h(X)\|$};
+
+  % Total variance vectors: EY -> Yhat and EY -> Y
+  \draw[thick, sourceblue!80!black, -{Stealth}] (EY) -- (Yhat)
+    node[pos=0.42, below=4pt, font=\scriptsize\bfseries, sourceblue!80!black] {Signal: $\Var(\hat Y)$};
+  \draw[thick, densityred!80!black, -{Stealth}] (EY) -- (Y)
+    node[pos=0.55, above left=3pt, font=\scriptsize\bfseries, densityred!80!black] {Total: $\Var(Y)$};
+
+  % Bottom summary badge
+  \node[align=center, font=\footnotesize, draw=gray!40, fill=white, rounded corners=3pt, inner sep=4pt] at (1.2, -2.1) {
+    \textbf{Pythagorean Minimization:} $\|Y - h(X)\|^2 = \|Y - \hat Y\|^2 + \|\hat Y - h(X)\|^2 \;\ge\; \|Y - \hat Y\|^2$\\[3pt]
+    \textbf{Law of Total Variance:} $\Var(Y) = \E[\Var(Y\mid X)] + \Var(\E[Y\mid X])$
+  };
+\end{tikzpicture}
+\caption{Conditional expectation as orthogonal projection in Hilbert space $L^2$. The best predictor $\hat Y = \E[Y\mid X]$ is the perpendicular shadow dropped by $Y$ onto the subspace $\mathcal{H}_X$ of all functions of $X$. Any other predictor $h(X)$ adds an orthogonal leg $\|\hat Y - h(X)\|^2$, strictly increasing mean squared error. The same right triangle with vertex at $\E[Y]$ yields the Law of Total Variance.}
+\label{ch15:fig-projection}
+\end{figure}
 
 \begin{aestheticbox}
 Step back and admire the unity. Conditional expectation is \emph{simultaneously}: (i) a within-group
@@ -596,6 +1011,7 @@ distribution. They coincide exactly when the regression function is linear.
   domain=0:1, samples=120, no markers,
   legend pos=north west, legend cell align=left,
   title={Best predictor vs.\ best line for $Y = X^2 + W$, $X\sim\Unif(0,1)$},
+  title style={font=\small},
   ymin=-0.25, ymax=1.05, xmin=0, xmax=1,
 ]
 % True regression function E[Y|X=x] = x^2.
@@ -624,6 +1040,7 @@ Theorem~\ref{ch15:thm-best-predictor} and Exercise~\ref{ch15:exr-best}.}
   domain=0:1, samples=80, no markers,
   legend pos=north west, legend cell align=left,
   title={A data cloud and the curve threading its conditional means},
+  title style={font=\small},
   xmin=0, xmax=1, ymin=-0.3, ymax=1.1,
 ]
 \addplot[only marks, mark=*, mark size=1.1pt, draw=sourceblue, fill=sourceblue, opacity=0.8]
@@ -679,8 +1096,8 @@ $\Bern(q)$ defect, so
 \]
 Plug in: $0.1\cdot 0.9\cdot 10 + 0.01\cdot 10 = 0.9 + 0.1 = 1.0$. So $\Var(D) = 1$.
 
-\textbf{Step 4 --- recognize the answer.} We found $\E[D] = \Var(D) = 1 = \lambda q$. That is no
-coincidence: \emph{thinning a Poisson is Poisson.} Indeed $D \sim \Pois(\lambda q)$ exactly, a fact you
+\textbf{Step 4 --- recognize the answer.} We found $\E[D] = \Var(D) = 1 = \lambda q$. This
+reflects the classical property: \emph{thinning a Poisson yields a Poisson.} Indeed $D \sim \Pois(\lambda q)$ exactly, a fact you
 can prove directly but which the tower/EVVE computation already strongly suggests. Conditioning gave us
 the moments with almost no algebra.
 
