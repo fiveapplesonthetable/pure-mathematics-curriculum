@@ -24,6 +24,8 @@ export default defineConfig({
         icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
       },
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         // Text, maths and code are precached so every chapter reads offline.
         // Book figures (about 700 SVGs) are cached as they are first viewed.
         globPatterns: ['**/*.{js,css,html,woff2,json}', 'icon.svg'],
