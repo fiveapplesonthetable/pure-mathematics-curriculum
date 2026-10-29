@@ -156,9 +156,9 @@ const mount: Mount = (root) => {
     attr(topEdge, { x1: x0, x2: x1, y1: yTop, y2: yTop });
     attr(botEdge, { x1: x0, x2: x1, y1: yBot, y2: yBot });
 
-    // Limit line & label
+    // Limit line & label (offset 20px to cleanly clear the handle knob ring)
     attr(limLine, { x1: x0, x2: x1, y1: yL, y2: yL });
-    attr(limLbl, { x: x0 + 16, y: yL - 6 });
+    attr(limLbl, { x: x0 + 20, y: yL - 6 });
     limLbl.textContent = `L = ${L.toFixed(2)}`;
 
     // Epsilon label: position inside the band when top edge is below 1, or above when at/above 1

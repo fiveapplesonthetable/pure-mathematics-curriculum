@@ -1,36 +1,27 @@
 \chapter{Bayesian Inference}
 
-In the chapter on maximum likelihood we learned to point at the single value of a
-parameter that makes the data look least surprising, and to call that value our estimate.
-It is a sharp, powerful idea, and it has one quietly unsatisfying feature: it hands you a
-number and walks away. Ask it ``how sure are you?'' and it can only mumble about standard
-errors computed from a curvature it pretends to trust. Ask it ``what did you believe
-\emph{before} you saw the data?'' and it shrugs --- it has no notion of belief at all,
-only of likelihood.
+In maximum likelihood estimation, we identified the single parameter value that maximizes
+the likelihood of the observed sample. However, point estimation outputs a single number
+without providing an intrinsic probability distribution over parameter space, and it incorporates
+no prior information about the parameter.
 
-Bayesian inference is the other half of statistics, the half that takes the word
-\emph{belief} seriously and treats it as something you can do arithmetic with. The idea
-is breathtakingly simple, and you have already met its engine: Bayes' theorem, the rule
-for running the arrow of cause and effect backwards. In the diagnosis chapter we used it
-to update from a positive test to a disease. Here we do exactly the same thing, but the
-``hidden cause'' is now a \emph{parameter} --- the bias of a coin, the rate of a Poisson
-process, the mean of a normal --- and the ``evidence'' is a whole dataset. The output is
-not a single number but an entire probability distribution over the parameter: a complete,
-quantitative description of everything the data has taught us, uncertainty
-included.
+Bayesian inference provides a complementary framework in which uncertainty about unknown
+parameters is represented directly by a probability distribution. The foundational tool
+is Bayes' theorem: in earlier chapters we used it to update from symptoms to a disease state;
+here, the unknown cause is a \emph{parameter} --- such as the bias of a coin, the rate of a
+Poisson process, or the mean of a normal distribution --- and the evidence is an entire dataset.
+The output is not a single point estimate but an entire probability distribution over the
+parameter, quantifying both our best estimate and our remaining uncertainty.
 
-That distribution is called the \emph{posterior}, and learning to compute it, read it,
-summarize it, and trust it is the business of this chapter. We will start with the
-three-part incantation --- prior, likelihood, posterior --- and watch a real belief
-sharpen as coin flips arrive. We will discover the small miracle of \emph{conjugate
-priors}, where the posterior comes out in the same family as the prior and the update is a
-one-line bookkeeping step. We will work three of these in full --- Beta--Binomial,
-Gamma--Poisson, Normal--Normal --- and plot the posterior tightening with every data
-point. We will learn to draw \emph{credible intervals} that mean exactly what a confidence
-interval is so often mistaken to mean. We will contrast the single-point \emph{MAP}
-summary with the full posterior, set the Bayesian and frequentist worldviews fairly side
-by side, and finish in the engine room of modern machine learning, where these ideas run
-billions of times a day.
+That updated distribution is called the \emph{posterior}. In this chapter, we develop the core
+triad --- prior, likelihood, and posterior --- and examine how distributions sharpen as data
+arrive. We will study \emph{conjugate priors}, where the posterior belongs to the same
+parametric family as the prior, making updates computationally straightforward.
+We work three classic examples in detail --- Beta--Binomial, Gamma--Poisson, and
+Normal--Normal. We define \emph{credible intervals} and compare them with frequentist
+confidence intervals, contrast the maximum a posteriori (\emph{MAP}) estimate with the full
+posterior, compare Bayesian and frequentist paradigms, and examine how these concepts
+underpin modern machine learning.
 
 \chapterline
 
@@ -96,22 +87,18 @@ it is reflex.
 \end{focusbox}
 
 \begin{whybox}
-Why is the posterior \emph{proportional} to likelihood times prior, and not equal to it?
-Because the product $p(D\given\theta)p(\theta)$ is a perfectly good shape but the wrong
-height: its total area is $p(D)$, not $1$. Dividing by $p(D)$ rescales the area to $1$
-without touching the shape. So the prior$\,\times\,$likelihood product already \emph{is}
-the posterior up to a vertical rescaling, and the rescaling is forced --- it is the unique
-constant that makes a valid density. This is why we can so often ignore the denominator,
-do the algebra on the shape, and read off the answer by pattern-matching to a known
-family. The normalizer was never carrying information about $\theta$; it was only ever
-carrying the bill for making probabilities sum to one.
+Why is the posterior only \emph{proportional} to likelihood times prior, rather than equal to it?
+Because the product $p(D\given\theta)\,p(\theta)$ integrates over $\theta$ to $p(D)$, not to $1$.
+Dividing by $p(D)$ rescales the curve so its total area is $1$ without changing its shape in
+$\theta$. In practice, once you recognize the functional form of $p(D\given\theta)\,p(\theta)$
+as a familiar family (such as a Beta, Gamma, or Normal), its normalizing constant comes for free.
 \end{whybox}
 
 \begin{intuitionbox}
 \textbf{The morphing lens: how data reshapes belief.}
-Think of the prior $p(\theta)$ as an initial landscape of plausibility across candidate
+Think of the prior $p(\theta)$ as an initial distribution of plausibility across candidate
 parameters. When data $D$ arrives, the likelihood function $p(D\given\theta)$ acts like an
-optical lens laid over that landscape. Wherever the data finds a parameter value
+optical lens laid over that initial profile. Wherever the data finds a parameter value
 compelling, the lens is transparent and amplifies the curve; wherever a parameter value
 would make the observed data astonishingly improbable, the lens is dark and suppresses it.
 Multiplying prior by likelihood morphs the curve: its peak drifts toward values favored by
@@ -143,7 +130,7 @@ The prior has been sculpted under the likelihood lens into the posterior
 
 \begin{axis}[
   name=likAxis,
-  at={($(priorAxis.east)+(0.8cm,0)$)},
+  at={($(priorAxis.east)+(1.0cm,0)$)},
   anchor=west,
   width=5.0cm, height=4.4cm,
   title={2. Likelihood lens $L(\theta)$},
@@ -157,26 +144,26 @@ The prior has been sculpted under the likelihood lens into the posterior
   tick label style={font=\scriptsize},
 ]
 \addplot[quotientorange, thick, fill=quotientorange!15] {(x^7 * (1-x)^2)/0.00863} \closedcycle;
-\node[quotientorange, font=\footnotesize] at (axis cs:0.75,0.9) {$7\text{ up}, 2\text{ down}$};
+\node[quotientorange, font=\footnotesize] at (axis cs:0.42,0.88) {$7\text{ up}, 2\text{ down}$};
 \end{axis}
 
 \begin{axis}[
   name=postAxis,
-  at={($(likAxis.east)+(0.8cm,0)$)},
+  at={($(likAxis.east)+(1.0cm,0)$)},
   anchor=west,
   width=5.0cm, height=4.4cm,
   title={3. Morphed Posterior},
   title style={font=\small},
   xlabel={$\theta$}, ylabel={density},
   domain=0.001:0.999, samples=100,
-  xmin=0, xmax=1, ymin=0, ymax=4.2,
+  xmin=0, xmax=1, ymin=0, ymax=4.6,
   axis lines=left,
   x label style={font=\footnotesize},
   y label style={font=\footnotesize},
   tick label style={font=\scriptsize},
 ]
 \addplot[targetgreen, thick, fill=targetgreen!18] {exp(7.59085 + 8*ln(x) + 3*ln(1-x))} \closedcycle;
-\node[targetgreen, font=\footnotesize] at (axis cs:0.72,3.3) {$\Bet(9,4)$};
+\node[targetgreen, font=\footnotesize] at (axis cs:0.72,3.65) {$\Bet(9,4)$};
 \end{axis}
 \end{tikzpicture}
 \caption{Bayesian updating as curve morphing. The symmetric prior belief (left) passes
@@ -249,17 +236,33 @@ candidates in exactly the order of their likelihoods $\theta^2(1-\theta)$.}
 \end{figure}
 
 \begin{historybox}
-The reverend Thomas Bayes (c.\ 1701--1761) never published the theorem that bears his
-name; it was found in his papers after his death and read to the Royal Society in 1763 by
-his friend Richard Price. Bayes' own example was, in spirit, exactly our thumbtack: a ball
-rolled onto a table at an unknown position, with later balls reported only as landing left
-or right of it, and the question of what could be inferred about the first ball's place.
-It was Pierre-Simon Laplace, working independently a few years later, who turned the idea
-into a general tool and used it on everything from the masses of planets to the ratio of
-male to female births in Paris. For most of the next century the method was simply called
-``inverse probability,'' and it was the dominant mode of statistical reasoning. The name
-``Bayesian'' --- and the fierce twentieth-century rivalry with the frequentist school we
-will meet later --- came much later still.
+The reverend Thomas Bayes (c.\ 1701--1761) never published the theorem that bears
+his name. His manuscript was discovered posthumously by his friend Richard Price,
+who presented it to the Royal Society in 1763. Bayes framed the problem with a
+thought experiment: a billiard ball is rolled onto a table at an unknown position
+$\theta$, and subsequent balls are tossed, with an observer reporting only whether
+each lands to the left or right. Bayes asked: what can be inferred about the first
+ball's position from these reports?
+
+Working independently a decade later, Pierre-Simon Laplace formulated the general
+continuous principle of ``inverse probability'' in 1774, applying it to estimate
+planetary masses and birth ratios across Paris. For over a century, inverse
+probability was the dominant approach to statistical inference.
+
+In the early twentieth century, Ronald Fisher, Jerzy Neyman, and Egon Pearson
+pushed back, arguing that science requires objective long-run guarantees across
+repeated trials rather than subjective prior beliefs. They developed $p$-values,
+confidence intervals, and hypothesis tests, pushing Bayesian methods into the
+background. Harold Jeffreys, Leonard Savage, and Bruno de Finetti maintained the
+Bayesian foundation, proving that coherent betting behavior requires updating
+beliefs by Bayes' rule.
+
+For decades, Bayesian calculations remained trapped by calculus: outside conjugate
+families, the evidence integral $\int p(D\given\theta)p(\theta)\,\dd\theta$ cannot
+be evaluated in closed form. What broke the stalemate in the late 1980s and 1990s
+was cheap computing and Markov chain Monte Carlo (MCMC), allowing statisticians
+to sample from posterior distributions directly without computing the normalizing
+constant.
 \end{historybox}
 
 \section{The Beta--Binomial Conjugate Pair}
@@ -273,8 +276,8 @@ as a function of $\theta$:
   \;\propto\; \theta^{k}(1-\theta)^{\,n-k},
 \]
 where we dropped $\binom{n}{k}$ because it does not involve $\theta$ and so disappears into
-the proportionality. We need a prior on $[0,1]$. We could pick any density there, but one
-family is magic for this likelihood: the \emph{Beta} distribution. Recall
+the proportionality. We need a prior on $[0,1]$. A particularly natural and mathematically
+convenient family for this likelihood is the \emph{Beta} distribution. Recall
 $\theta \sim \Bet(\alpha,\beta)$ has density
 \[
   p(\theta) \;=\; \frac{1}{B(\alpha,\beta)}\,\theta^{\alpha-1}(1-\theta)^{\beta-1},
@@ -285,7 +288,7 @@ where $B(\alpha,\beta)$ is Euler's Beta function, the normalizing constant ensur
   B(\alpha,\beta) \;=\; \int_0^1 \theta^{\alpha-1}(1-\theta)^{\beta-1}\,\dd\theta
   \;=\; \frac{\Gamma(\alpha)\,\Gamma(\beta)}{\Gamma(\alpha+\beta)}.
 \]
-Look at the algebraic skeleton of the density: $\theta^{\alpha-1}(1-\theta)^{\beta-1}$. It mirrors the exact functional dependence of the binomial likelihood $\theta^k (1-\theta)^{n-k}$. When we multiply them to form the joint distribution of data and parameter, the powers of $\theta$ and $1-\theta$ combine seamlessly:
+Look at the algebraic skeleton of the density: $\theta^{\alpha-1}(1-\theta)^{\beta-1}$. It mirrors the exact functional dependence of the binomial likelihood $\theta^k (1-\theta)^{n-k}$. When we multiply them to form the joint distribution of data and parameter, the powers of $\theta$ and $1-\theta$ combine directly by adding exponents:
 \begin{align*}
   p(D, \theta) \;=\; p(D\given\theta)\,p(\theta)
   &\;=\; \binom{n}{k}\theta^k (1-\theta)^{n-k} \cdot \frac{1}{B(\alpha,\beta)}\,\theta^{\alpha-1}(1-\theta)^{\beta-1} \\[4pt]
@@ -303,7 +306,7 @@ The integral on the right is, by definition, the Beta integral for parameters $\
   \;=\; \frac{1}{B(\alpha+k,\;\beta+n-k)}\;\theta^{(\alpha+k)-1}\,(1-\theta)^{(\beta+n-k)-1}.
   \label{ch31:beta-posterior-derivation}
 \end{equation}
-Notice the beauty of what just happened. We did not need numerical quadrature or approximation. The posterior belongs to the very same family as the prior, with the parameters updated by simple addition: $\alpha \mapsto \alpha + k$ and $\beta \mapsto \beta + (n-k)$. When the prior and posterior share the same parametric family under a given likelihood, the prior is said to be \emph{conjugate} to that likelihood.
+The posterior belongs to the exact same family as the prior, with its parameters updated by simple addition: $\alpha \mapsto \alpha + k$ and $\beta \mapsto \beta + (n-k)$. When the prior and posterior share the same parametric family under a given likelihood, the prior is said to be \emph{conjugate} to that likelihood.
 
 \begin{formalbox}
 \textbf{Beta--Binomial update.} If the prior is $\theta \sim \Bet(\alpha,\beta)$ and we
@@ -368,8 +371,8 @@ narrower: the belief is becoming both more accurate and more confident at the sa
 % Beta(57,25): logC = 50.93005
 \addplot[densityred] {exp(50.93005 + 56*ln(x) + 24*ln(1-x))};
 \addlegendentry{after 80 tosses, $\Bet(57,25)$}
-\draw[black, thin, dotted] (axis cs:0.7,0) -- (axis cs:0.7,9);
-\node[anchor=south] at (axis cs:0.7,8.2) {\scriptsize truth $0.7$};
+\draw[black, thin, dotted] (axis cs:0.7,0) -- (axis cs:0.7,8.0);
+\node[anchor=south, fill=white, inner sep=1pt] at (axis cs:0.7,8.08) {\scriptsize truth $0.7$};
 \end{axis}
 \end{tikzpicture}
 \caption{The posterior tightening as data arrives. Starting from a flat prior, each batch
@@ -416,6 +419,19 @@ probability that the true rate exceeds $0.25$ is $\int_{0.25}^{1} p(\theta\given
 frequentist $p$-value cannot legally utter. That is what has made Bayesian A/B testing
 popular in industry: the output is a direct probability about the thing you care about.
 \end{example}
+
+\begin{recoverybox}
+\textbf{Pause and think.} Suppose your prior on a coin's bias was $\Bet(100, 100)$, reflecting firm conviction that coins are fair. You flip it $10$ times and see $10$ heads.
+\begin{enumerate}[label=(\alph*)]
+  \item What is the new posterior distribution?
+  \item What is the posterior mean, and how does it compare to the sample proportion $10/10 = 1.0$?
+  \item Why does the Bayesian update resist declaring the coin completely one-sided?
+\end{enumerate}
+\textit{Check your intuition:}
+(a) The posterior is $\Bet(100+10, 100+0) = \Bet(110, 100)$.
+(b) The posterior mean is $110/(110+100) = 110/210 \approx 0.524$, far below the sample proportion $1.0$.
+(c) The prior's 200 ``pseudocounts'' of experience anchor the belief: ten straight heads is unusual, but not nearly enough to overturn a lifetime of fair coin flips.
+\end{recoverybox}
 
 \section{The Gamma--Poisson Conjugate Pair}
 \label{ch31:gamma-poisson}
@@ -478,8 +494,9 @@ examine next.
   xlabel={$\lambda$ (goals per match)},
   ylabel={density},
   domain=0.001:5, samples=160,
-  xmin=0, xmax=5, ymin=0, ymax=1.1,
+  xmin=0, xmax=5, ymin=0, ymax=1.15,
   legend pos=north east, legend cell align=left,
+  legend style={font=\footnotesize},
   every axis plot/.append style={very thick},
   axis lines=left,
 ]
@@ -489,12 +506,12 @@ examine next.
 \addlegendentry{prior $\Gam(2,1)$}
 % posterior after 5 matches Gamma(12,6): logC = 3.99881
 \addplot[quotientorange] {exp(3.99881 + 11*ln(x) - 6*x)};
-\addlegendentry{after 5 matches, $\Gam(12,6)$}
+\addlegendentry{5 matches: $\Gam(12,6)$}
 % posterior after 10 matches Gamma(22,11): logC = 7.37356
 \addplot[densityred] {exp(7.37356 + 21*ln(x) - 11*x)};
-\addlegendentry{after 10 matches, $\Gam(22,11)$}
-\draw[black, thin, dotted] (axis cs:2,0) -- (axis cs:2,1.0);
-\node[anchor=south] at (axis cs:2,0.97) {\scriptsize mean $2.0$};
+\addlegendentry{10 matches: $\Gam(22,11)$}
+\draw[black, thin, dotted] (axis cs:2,0) -- (axis cs:2,0.95);
+\node[anchor=south, fill=white, inner sep=1pt] at (axis cs:2,0.98) {\scriptsize mean $2.0$};
 \end{axis}
 \end{tikzpicture}
 \caption{Gamma--Poisson updating for the goals example. The broad $\Gam(2,1)$ prior
@@ -525,7 +542,7 @@ measurement noise $\sigma^2$ is known and only the mean $\mu$ is unknown. Take a
 prior on the mean, $\mu \sim \Normal(\mu_0, \tau_0^2)$, encoding a prior best guess $\mu_0$
 with prior uncertainty $\tau_0^2$.
 
-The algebra is slightly heavier because of the exponentials, but the punchline is clean and
+The algebra is slightly heavier because of the exponentials, but the final formula is clean and
 worth deriving. With $n$ observations of sample mean $\bar x$, the likelihood is (dropping
 constants)
 \[
@@ -548,24 +565,23 @@ $\mu\given D \sim \Normal(\mu_n, \tau_n^2)$ where it is cleanest in terms of
 \end{equation}
 \end{formalbox}
 
-Stare at \eqref{ch31:normal-update} until it speaks. \emph{Precisions add.} Your prior
-carries precision $1/\tau_0^2$; each of the $n$ data points carries precision
-$1/\sigma^2$; the posterior precision is simply their sum. And the posterior mean $\mu_n$
-is a precision-weighted average of the prior mean and the data mean --- each source pulls
-the answer toward itself in proportion to how precise it is. A confident prior (large
-$1/\tau_0^2$) and a noisy measurement (small $1/\sigma^2$) leave the posterior near the
-prior; abundant precise data overwhelm the prior. It is the same weighted-average story as
-Beta--Binomial and Gamma--Poisson, now told in the currency of precision.
+Equation~\eqref{ch31:normal-update} shows that \emph{precisions add}. The prior
+has precision $1/\tau_0^2$; each of the $n$ data points contributes precision
+$1/\sigma^2$; the posterior precision is their sum. The posterior mean $\mu_n$
+is a precision-weighted average of the prior mean and the sample mean $\bar x$ --- each source
+influences the posterior in proportion to its precision. A precise prior (large
+$1/\tau_0^2$) and noisy measurements (small $1/\sigma^2$) keep the posterior near the
+prior; abundant or precise data pull the posterior toward the sample mean.
+This mirrors the weighted-average structure seen in the Beta--Binomial and Gamma--Poisson cases.
 
 \begin{whybox}
-Why do \emph{precisions} add rather than variances? Because in the exponent of a Gaussian,
-the coefficient of $\mu^2$ is $-\tfrac12 \times (\text{precision})$, and multiplying two
-Gaussians adds the exponents, hence adds those coefficients, hence adds precisions. Variance
-is the inverse, so it does the opposite of adding --- combining two equally precise sources
-\emph{halves} the variance. This is the deep reason the standard error of a mean falls like
-$\sigma/\sqrt n$: each independent observation contributes one unit of precision, $n$ of
-them give precision $n/\sigma^2$, and the posterior standard deviation is the reciprocal
-square root. The familiar $1/\sqrt n$ is precision-addition wearing a disguise.
+Why do precisions add rather than variances? In the exponent of a Gaussian density,
+the coefficient of $\mu^2$ is $-\tfrac12 \times (\text{precision})$. Multiplying two
+Gaussian densities adds their exponents, adding those quadratic coefficients and therefore
+adding the precisions. Consequently, combining two independent sources of equal precision
+halves the variance. This explains why the standard error of the mean scales as
+$\sigma/\sqrt n$: each independent observation adds $1/\sigma^2$ to the total precision,
+yielding total precision $n/\sigma^2$, whose reciprocal square root is $\sigma/\sqrt n$.
 \end{whybox}
 
 \begin{figure}[H]
@@ -620,14 +636,14 @@ The posterior is the complete answer, but humans want a headline. Two summaries 
 
 \subsection{Credible Intervals}
 
-A \emph{credible interval} is an interval that contains the parameter with a stated
-posterior probability. A $95\%$ credible interval $[L,U]$ is any pair with
+A \emph{credible interval} is an interval that contains the parameter with a specified
+posterior probability. A $95\%$ credible interval $[L,U]$ satisfies
 \[
   \int_{L}^{U} p(\theta\given D)\,\dd\theta = 0.95.
 \]
-Read that integral literally: \emph{given the data, there is a $95\%$ probability that
-$\theta$ lies in $[L,U]$.} That is the sentence everyone wishes a confidence interval
-meant. It is the sentence a credible interval actually means.
+This integral states directly that, conditional on the observed data $D$ and the prior, the
+probability that $\theta$ lies in $[L,U]$ is $0.95$. This provides a direct probability statement
+about the parameter given the data.
 
 \begin{trapbox}
 A frequentist $95\%$ \emph{confidence} interval does \emph{not} say there is a $95\%$
@@ -657,9 +673,9 @@ shorter and always contains the mode, which the equal-tailed one need not (Figur
   width=7.2cm, height=5.2cm,
   title={Equal-tailed $95\%$ credible interval},
   title style={font=\small},
-  xlabel={$\theta$}, ylabel={posterior density},
+  xlabel={$\theta$}, xlabel style={yshift=-0.55cm}, ylabel={posterior density},
   domain=0.01:0.99, samples=120,
-  xmin=0, xmax=1, ymin=0, ymax=3.6,
+  xmin=0, xmax=1, ymin=0, ymax=3.6, clip=false,
   axis lines=left,
   x label style={font=\footnotesize},
   y label style={font=\footnotesize},
@@ -672,7 +688,7 @@ shorter and always contains the mode, which the equal-tailed one need not (Figur
 \draw[distblue, thick] (axis cs:0.33,0) -- (axis cs:0.33,1.0);
 \draw[distblue, thick] (axis cs:0.94,0) -- (axis cs:0.94,0.65);
 \node[trapred, font=\scriptsize] at (axis cs:0.25,0.4) {$2.5\%$};
-\node[trapred, font=\scriptsize] at (axis cs:0.96,0.3) {$2.5\%$};
+\node[trapred, font=\scriptsize, anchor=south west] at (axis cs:0.94,0.7) {$2.5\%$};
 \node[distblue, font=\footnotesize] at (axis cs:0.65,1.5) {$95\%$ area};
 \draw[<->, thick, black] (axis cs:0.33,-0.35) -- (axis cs:0.94,-0.35);
 \node[below, font=\scriptsize] at (axis cs:0.635,-0.35) {$[L_{\mathrm{ET}}, U_{\mathrm{ET}}]$};
@@ -686,9 +702,9 @@ shorter and always contains the mode, which the equal-tailed one need not (Figur
   width=7.2cm, height=5.2cm,
   title={Highest Posterior Density (HPD)},
   title style={font=\small},
-  xlabel={$\theta$}, ylabel={posterior density},
+  xlabel={$\theta$}, xlabel style={yshift=-0.55cm}, ylabel={posterior density},
   domain=0.01:0.99, samples=120,
-  xmin=0, xmax=1, ymin=0, ymax=3.6,
+  xmin=0, xmax=1, ymin=0, ymax=3.6, clip=false,
   axis lines=left,
   x label style={font=\footnotesize},
   y label style={font=\footnotesize},
@@ -697,7 +713,7 @@ shorter and always contains the mode, which the equal-tailed one need not (Figur
 \addplot[targetgreen!80!black, thick] {exp(5.12396 + 5*ln(x) + 2*ln(1-x))};
 \addplot[draw=none, fill=targetgreen!20, domain=0.38:0.97] {exp(5.12396 + 5*ln(x) + 2*ln(1-x))} \closedcycle;
 \draw[densityred, dashed, thick] (axis cs:0.1,0.85) -- (axis cs:0.99,0.85);
-\node[densityred, anchor=south, font=\scriptsize] at (axis cs:0.3,0.85) {density threshold $c$};
+\node[densityred, anchor=south, font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:0.3,0.92) {density threshold $c$};
 \draw[targetgreen!80!black, thick] (axis cs:0.38,0) -- (axis cs:0.38,0.85);
 \draw[targetgreen!80!black, thick] (axis cs:0.97,0) -- (axis cs:0.97,0.85);
 \node[targetgreen!80!black, font=\footnotesize] at (axis cs:0.68,1.5) {$95\%$ area};
@@ -717,6 +733,19 @@ $97.5$th percentiles of that Beta, read from software or tables). So we report: 
 data, the green conversion rate is $95\%$ likely to lie between roughly $18\%$ and $46\%$,
 with posterior mean $31\%$.'' Compact, accurate, and directly interpretable.
 \end{example}
+
+\begin{recoverybox}
+\textbf{Pause and think.} Suppose your posterior distribution for a failure probability $\theta$ is $\Bet(1, 20)$, which is heavily skewed toward zero.
+\begin{enumerate}[label=(\alph*)]
+  \item Where is the posterior mode (the MAP estimate)?
+  \item Why would an equal-tailed $95\%$ credible interval exclude the mode $\hat\theta_{\mathrm{MAP}} = 0$, while the HPD interval includes it?
+  \item In safety engineering, why does reporting the full credible interval matter far more than reporting the single number $\hat\theta_{\mathrm{MAP}} = 0$?
+\end{enumerate}
+\textit{Check your intuition:}
+(a) For $\Bet(1, 20)$, the density is proportional to $(1-\theta)^{19}$, so the mode is at $\theta = 0$.
+(b) The equal-tailed interval cuts off the bottom $2.5\%$ of probability, so its lower bound is strictly positive ($L > 0$), omitting the single most likely value! The HPD interval cuts horizontally across the highest density, capturing $\theta=0$ first.
+(c) The mode claims $\hat\theta=0$ (zero failures), falsely suggesting complete perfection. The credible interval reveals the truth: $\theta$ could plausibly be as large as $14\%$.
+\end{recoverybox}
 
 \subsection{MAP versus the Full Posterior}
 
@@ -794,20 +823,7 @@ others it is a curiosity. Either way it shows the two frameworks are genuinely, 
 cosmetically, different.
 \end{paradoxbox}
 
-\begin{historybox}
-The twentieth century saw a long cold war between the camps. Ronald Fisher, Jerzy Neyman,
-and Egon Pearson built the frequentist edifice --- $p$-values, confidence intervals,
-hypothesis tests --- partly in explicit reaction against ``inverse probability,'' which
-they distrusted for its reliance on subjective priors. Harold Jeffreys kept the Bayesian
-flame through mid-century; Leonard Savage and Bruno de Finetti gave it rigorous decision-
-and belief-theoretic foundations. For decades Bayesian methods were admired in theory and
-avoided in practice, for one brutally simple reason: the evidence integral $\int p(D\given
-\theta)p(\theta)\,\dd\theta$ is usually impossible to do by hand outside the conjugate
-families. What broke the stalemate was not a new theorem but cheap computers and the
-\emph{Markov chain Monte Carlo} revolution of the late 1980s and early 1990s, which let us
-\emph{sample} from any posterior without ever computing that integral. Today the
-distinction in practice is less a war than a toolkit; most working statisticians use both.
-\end{historybox}
+This philosophical divide reflects the fundamental trade-off of the discipline. The frequentist asks for guarantees that hold across hypothetical repetitions of the experiment; the Bayesian asks for direct probabilities conditioned on the single dataset actually observed. For decades, that debate was shadowed by computational limits. When posteriors do not fall into clean conjugate families, how can anyone calculate the evidence integral?
 
 \begin{aestheticbox}
 The conjugate families of this chapter are beautiful precisely because they sidestep the
@@ -826,17 +842,17 @@ The vocabulary of this chapter is the hidden skeleton of a great deal of machine
 Three of these connections deserve to be spelled out.
 
 \begin{applicationbox}
-\textbf{Regularization is a prior in disguise.} Training a model by minimizing a loss plus
+\textbf{Regularization corresponds to a prior.} Training a model by minimizing a loss plus
 a penalty $\lambda\norm{w}^2$ (``ridge'' or weight decay) is \emph{exactly} MAP estimation
 with a Gaussian prior $w\sim\Normal(0,\,\sigma^2 I)$ on the weights. Take the log of
 posterior $\propto$ likelihood $\times$ prior: the log-likelihood is the usual fit term,
 and the log of a Gaussian prior is $-\norm{w}^2/(2\sigma^2)$ plus a constant --- precisely
 the squared penalty, with $\lambda = 1/(2\sigma^2)$. Likewise an $L_1$ penalty (``lasso'')
 is MAP under a Laplace prior, whose sharp peak at zero is what drives weights exactly to
-zero. So every time a practitioner ``adds regularization to prevent overfitting,'' they
-are, whether they know it or not, declaring a prior belief that the weights are small. The
-strength $\lambda$ is the prior's confidence. Overfitting, in this light, is what happens
-when you let a flexible model believe the data with no prior skepticism at all.
+zero. Thus, adding regularization to prevent overfitting is equivalent to placing a
+prior distribution on the parameters, where the penalty parameter $\lambda$ controls
+the prior's precision. Overfitting, from this perspective, occurs when a flexible
+model is fit to data without any prior constraint.
 \end{applicationbox}
 
 \begin{applicationbox}
@@ -916,28 +932,30 @@ tail pulls it back. Feel how the gentle prior keeps the early estimates from lur
 the way to $1$ after three straight heads --- that restraint is the prior doing its job.
 \end{labbox}
 
-\section{Conclusion}
+\section{What to Carry Away}
 \label{ch31:conclusion}
 
-Bayesian inference is one idea applied relentlessly: \emph{posterior $\propto$ likelihood
-$\times$ prior}. The prior states what you believed before; the likelihood states what the
-data say; the posterior is the disciplined combination, a full distribution over the
-unknown rather than a lonely point. We saw that for the three great conjugate pairs ---
-Beta--Binomial, Gamma--Poisson, Normal--Normal --- the combination is a one-line update of
-counts or precisions, and we watched the posterior tighten toward the truth as data
-arrived, its narrowing width a true accounting of remaining doubt. We learned to read
-off credible intervals that mean what people wish confidence intervals meant, to summarize
-with MAP while remembering how much MAP discards, and to predict the future by averaging
-over the posterior rather than betting on its peak.
+Bayesian inference centers on the relation \emph{posterior $\propto$ likelihood
+$\times$ prior}. The prior specifies the distribution before observing data; the likelihood
+quantifies the probability of the data given the parameter; the posterior represents the updated
+distribution given the evidence. For conjugate pairs ---
+Beta--Binomial, Gamma--Poisson, and Normal--Normal --- the update reduces to simple arithmetic on
+hyperparameters or precisions. As sample size grows, the posterior narrows and concentrates near the
+true parameter value. We can extract credible intervals that capture specified posterior probability,
+compute MAP estimates as point summaries while acknowledging what they omit, and construct posterior
+predictive distributions that integrate out parameter uncertainty.
 
-The deepest lesson is one of attitude. A frequentist asks, ``what procedure has good
-long-run behavior?'' A Bayesian asks, ``what should I believe, right now, given exactly
-what I have seen?'' Both are legitimate; the second happens to be the question we ask in
-ordinary life, and it is the one that, scaled up on fast computers, now quietly powers
-spam filters, recommendation engines, robot navigation, and the calibrated uncertainty of
-modern AI. You began this book learning to compute the probability of outcomes. You end
-this chapter doing the inverse and far more human thing: computing, and rationally
-updating, your beliefs about the hidden causes behind what you see.
+The Bayesian and frequentist frameworks address different questions. A frequentist assesses
+the performance of procedures under hypothetical repetitions of an experiment; a Bayesian evaluates
+the conditional probability distribution of the parameter given the observed dataset and prior. Both
+frameworks are widely used in statistics and machine learning. In machine learning, Bayesian methods
+form the conceptual basis for regularization, probabilistic classification, and uncertainty quantification.
+
+In many public settings -- drug trials, courtrooms, safety regulations --
+personal priors are contested. Decision-makers demand procedures with error
+guarantees that hold regardless of subjective belief. In Chapter~32, we return to
+the frequentist approach, constructing confidence intervals with certified
+coverage and using hypothesis tests to control false-alarm rates.
 
 \section{Exercises}
 \label{ch31:exercises}

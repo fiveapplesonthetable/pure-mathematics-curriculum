@@ -11,22 +11,26 @@ varies, and another, perpendicular to it, along which it barely varies at all.
 
 \textbf{Principal Component Analysis} -- PCA -- finds that grain. It hands you the
 directions in which your data spreads out the most, ranked from most spread to
-least, together with a number for ``how much spread'' each one carries. Here is the
-surprise that earns this chapter a place in a linear algebra book rather than a
-statistics book: those special directions are nothing more exotic than the
-\emph{eigenvectors of a symmetric matrix} -- or, equivalently and more robustly, the
-\emph{singular vectors} of the data itself. Symmetric matrices, the spectral
-theorem, the SVD -- everything from the earlier chapters converges on the single
-most-used algorithm in all of data analysis.
+least, together with a number for ``how much spread'' each one carries.
 
-The approach here is slow and geometric. We learn to \emph{center} a cloud of data,
-then build the \emph{covariance matrix}, the little symmetric matrix that records
-how the cloud spreads, and watch its eigenvectors pick out the grain. From there:
-what ``variance explained'' means and how it lets us throw away dimensions without
-throwing away information; the link to the SVD of the centered data matrix, which is
-the form a numerical analyst actually uses; and the modern payoff -- compressing
-images, building ``eigenfaces,'' and making sense of the embedding vectors that
-power machine learning.
+In the previous chapter, we dissected matrices using the Singular Value
+Decomposition: every matrix, regardless of its shape, acts by rotating space,
+stretching along orthogonal axes, and rotating again ($\mat A = \mat U\mat\Sigma\mat V\T$).
+What makes PCA a theorem of linear algebra rather than a purely statistical recipe
+is that those directions of greatest spread are the \emph{eigenvectors of a symmetric
+covariance matrix} -- or, equivalently and more stably, the \emph{right singular
+vectors} of the centered data matrix. Symmetric matrices, the spectral theorem,
+and the SVD all come together directly in PCA.
+
+The approach here is slow, geometric, and visual. We learn to \emph{center} a cloud
+of data -- sliding it bodily so its balance point sits at the origin -- then build
+the \emph{covariance matrix}, the little symmetric matrix that records how the
+cloud spreads and how features vary together, and watch its eigenvectors pick out
+the grain. From there: what ``variance explained'' means and how it lets us throw
+away dimensions without throwing away meaningful information; the link to the SVD
+of the centered data matrix, which is the form a numerical analyst actually uses;
+and the modern payoff -- compressing images, building ``eigenfaces,'' and making
+sense of the high-dimensional embedding vectors that power modern machine learning.
 
 \chapterline
 
@@ -34,9 +38,10 @@ power machine learning.
 
 \subsection{The data matrix}
 
-All of data analysis starts with a table. You have $n$ \textbf{samples} (people,
-images, transactions, days) and for each one you record $d$ \textbf{features}
-(height, arm span, pixel brightness, temperature). Stack each sample as a row, and
+All of data analysis starts with a table. You have $n$ \textbf{samples}
+(individual observations, such as people, images, transactions, or days) and for each
+one you record $d$ \textbf{features} (the numerical quantities you measured, such as
+height, arm span, pixel brightness, or temperature). Stack each sample as a row, and
 you get an $n\times d$ \textbf{data matrix}
 \[
   \mat{X} \;=\;
@@ -50,8 +55,9 @@ you get an $n\times d$ \textbf{data matrix}
 \]
 Row $i$ is one sample $\vec x_i\in\R^d$. Column $j$ is one feature measured across
 all $n$ samples. Geometrically, each row is a single point living in
-$d$-dimensional \emph{feature space}, and the whole dataset is a cloud of $n$
-points in $\R^d$.
+$d$-dimensional \emph{feature space} -- the coordinate space where each axis
+corresponds to one measured feature -- and the whole dataset is a cloud of $n$
+points floating in $\R^d$.
 
 \begin{focusbox}
 Keep the two readings of $\mat X$ straight. \textbf{Rows} are points in feature
@@ -81,7 +87,7 @@ hand before the chapter is done.
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[scale=0.68,>=Latex]
+\begin{tikzpicture}[scale=0.64,>=Latex]
   % Left Panel: Raw Data
   \begin{scope}[shift={(0,0)}]
     \node[anchor=south, font=\footnotesize\bfseries, spacegray] at (4.5, 6.2) {Raw Data (Shifted Cloud)};
@@ -100,12 +106,12 @@ hand before the chapter is done.
   \end{scope}
 
   % Centering arrow
-  \draw[->, thick, quotientorange] (10.3, 3) -- (11.8, 3)
+  \draw[->, thick, quotientorange] (10.2, 3) -- (11.6, 3)
     node[midway, above, font=\scriptsize] {subtract $\vec{\mu}$}
     node[midway, below, font=\tiny\itshape] {center};
 
   % Right Panel: Centered Data
-  \begin{scope}[shift={(16.2,3.0)}]
+  \begin{scope}[shift={(16.8,3.0)}]
     \node[anchor=south, font=\footnotesize\bfseries, spacegray] at (0, 3.6) {Centered Data ($\vec{\mu}=\vec{0}$)};
     \draw[->,gray!50] (-4.5,0) -- (4.5,0) node[right, font=\tiny]{$\tilde{x}_1$};
     \draw[->,gray!50] (0,-3.2) -- (0,3.1) node[above, font=\tiny]{$\tilde{x}_2$};
@@ -224,7 +230,8 @@ arithmetic and will flag where the choice matters.)
 
 Two features can each be spread out, but the interesting question is whether they
 spread \emph{together}. When height is above its mean, is arm span usually above
-its mean too? The number that measures this is the \textbf{covariance}. For two
+its mean too? The number that measures this is the \textbf{covariance} -- the
+average product of how far two variables stray from their respective means. For two
 centered columns $\vec a$ and $\vec b$ of $\mat B$,
 \[
   \Cov(\vec a,\vec b) \;=\; \frac{1}{n}\sum_{i=1}^n a_i b_i
@@ -238,8 +245,8 @@ axis-aligned. And covariance of a feature with \emph{itself} is exactly its
 variance.
 
 \begin{intuitionbox}
-Covariance is a dot product in disguise, and you already know what dot products
-mean: alignment. Two centered features have large positive covariance for the same
+Covariance is an inner product normalized by sample size, measuring directional alignment.
+Two centered features have large positive covariance for the same
 reason two arrows have a large positive dot product -- they point ``the same way''
 across the samples. Variance is the special case where a feature is dotted with
 itself, the squared length. The entire covariance matrix is the table of all these
@@ -251,7 +258,8 @@ pairwise dot products, scaled by $1/n$.
 We have $d$ features, so there are $d^2$ pairwise covariances (including each
 feature with itself). Arrange them in a $d\times d$ grid: entry $(j,k)$ is the
 covariance of feature $j$ with feature $k$. This is the \textbf{covariance matrix}
-$\mat C$, and the dot-product view writes it in one stroke:
+$\mat C$ -- a square symmetric table holding the variance of each feature along its
+main diagonal and the pairwise covariances off the diagonal:
 \[
   \boxed{\;\mat C \;=\; \frac{1}{n}\,\mat B\T \mat B\;}
   \qquad\in\R^{d\times d}.
@@ -286,12 +294,11 @@ never be negative.
 \begin{connectionbox}
 The quantity $\vec w\T\mat C\vec w$ in the positive-semidefinite check is a
 \textbf{quadratic form}, the same object you met with positive definite matrices
-and will meet again in optimization. Here it has a vivid meaning: $\vec w\T\mat C\vec
+and will meet again in optimization. Here it has a direct geometric interpretation: $\vec w\T\mat C\vec
 w$ is the variance of the data \emph{after projecting it onto the direction}
 $\vec w$ (when $\vec w$ is a unit vector). The covariance matrix is precisely the
 machine that turns a direction into ``how much does the cloud spread that way.''
-We are about to ask: which direction makes that number as large as possible? That
-is an eigenvalue problem wearing a statistics costume.
+Maximizing that variance over unit vectors is an eigenvalue problem for the symmetric matrix $\mat C$.
 \end{connectionbox}
 
 \begin{example}\label{ch30:cov-compute}
@@ -323,6 +330,23 @@ Read it off: feature 1 has variance $4$, feature 2 has variance $3.2$, and they
 covary positively ($2.8>0$) -- the cloud tilts up to the right, exactly as
 Figure~\ref{ch30:cloud} showed.
 \end{example}
+
+\begin{recoverybox}
+\textbf{Pause and think: Scaling the cloud.}
+Suppose you multiply all entries in your raw dataset by $10$ (for instance,
+converting measurements from centimeters to millimeters).
+\begin{itemize}
+  \item What happens to the mean $\bar{\vec x}$ and the centered matrix $\mat B$?
+  \item What happens to the covariance matrix $\mat C$ and its eigenvalues?
+  \item What happens to the principal component directions $\vec v_k$?
+\end{itemize}
+\emph{Answer:} The sample mean $\bar{\vec x}$ and the centered rows of $\mat B$
+are scaled by $10$. The covariance matrix $\mat C = \tfrac1n\mat B\T\mat B$ is
+scaled by $10^2 = 100$, so every eigenvalue $\lambda_k$ grows by a factor of $100$
+(since variance is a squared distance). But the eigenvectors $\vec v_k$ do not
+change at all! The grain of the cloud depends on its geometric shape and
+orientation, not on whether you measure in centimeters or millimeters.
+\end{recoverybox}
 
 \begin{labbox}
 Build covariance intuition with three hand clouds, each centered. (a) Four points
@@ -428,18 +452,25 @@ directions); the eigenvalues $\lambda_k$ are the \textbf{variances explained} by
 each component.
 \end{formalbox}
 
-The ``and so on'' is worth a sentence. Once you have removed the $\vec v_1$
-direction, the same argument runs again on the leftover subspace: the next-best
-direction is the next eigenvector, because the eigenvalues are sorted. The
-principal components form an \emph{orthonormal} set of axes, ranked by how much of
-the data's spread each one carries. They are a rotated coordinate system, custom
-fit to your cloud.
+The ``and so on'' is worth spelling out. Why is the next direction $\vec v_2$?
+If we require a unit vector $\vec w$ to be orthogonal to the first principal
+direction $\vec v_1$, its coordinate along $\vec v_1$ must vanish:
+$c_1 = \vec w\cdot\vec v_1 = 0$. The weighted sum of eigenvalues then starts at
+the second term:
+\[
+  \vec w\T\mat C\,\vec w \;=\; \sum_{j=2}^d \lambda_j c_j^2
+  \;\le\; \lambda_2 \sum_{j=2}^d c_j^2 \;=\; \lambda_2 ,
+\]
+with equality achieved when $c_2 = 1$ and all other weights are zero, which means
+$\vec w = \vec v_2$. Repeating this orthogonal constraint step by step picks out
+each eigenvector down the sorted list. The principal components thus form a complete
+\emph{orthonormal} set of axes, ranked by how much of the data's spread each one
+carries. They are a rotated coordinate system, custom fit to your cloud.
 
 \begin{intuitionbox}
 The covariance matrix stretches space. Feed it the unit circle of directions and it
-reports back a variance for each. The biggest variance is found by pointing along
-the matrix's own favorite direction -- its top eigenvector -- which is exactly the
-long axis of the elliptical cloud. The eigenvectors are the axes of the data
+reports back a variance for each. The largest variance occurs along the top
+eigenvector of $\mat C$, which is the long axis of the elliptical cloud. The eigenvectors are the axes of the data
 ellipse; the eigenvalues are (the squares of) how far the ellipse reaches along
 each axis. PCA is ``find the axes of the ellipse your data traces out.''
 \end{intuitionbox}
@@ -543,8 +574,8 @@ and component 2 the remaining $0.77/7.2\approx 10.7\%$. Nearly nine tenths of
 everything the five points do is captured by a single direction.
 
 \begin{aestheticbox}
-This is the quiet miracle that makes PCA so useful. Real high-dimensional data is
-almost never genuinely high-dimensional. A thousand pixels of a face, a hundred
+This structural property explains why PCA is so effective in practice. Real high-dimensional datasets are
+rarely genuinely high-dimensional. A thousand pixels of a face, a hundred
 survey questions, the daily prices of five hundred stocks -- the underlying signal
 lives on a thin, gently curved, low-dimensional sheet, and most of the ambient
 dimensions carry almost no variance. PCA measures exactly how thin that sheet is.
@@ -633,6 +664,31 @@ along }\vec w)+(\text{mean squared error})$. The left side does not depend on
 $\vec w$. So \textbf{maximizing the variance captured is identical to minimizing the
 reconstruction error.}
 \end{formalbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.88,>=Latex]
+  \draw[structurepurple, thick] (-1.35, -0.66) -- (6.8, 3.32) node[above right, font=\footnotesize, structurepurple] {line $\operatorname{span}(\vec w)$};
+  \draw[spacegray, thick] (3.640, 1.776) -- (3.487, 2.091) -- (3.802, 2.244);
+  \draw[->, targetgreen, very thick] (0,0) -- (3.955, 1.929);
+  \node[targetgreen, font=\footnotesize, anchor=north west] at (2.0, 0.8) {projection $(\vec x_i\cdot\vec w)\vec w$};
+  \draw[->, trapred, very thick, dashed] (3.955, 1.929) -- (2.903, 4.086);
+  \node[trapred, font=\footnotesize, align=left, anchor=west] at (3.5, 3.2) {error\\$\vec x_i - (\vec x_i\cdot\vec w)\vec w$};
+  \draw[->, vecblue, very thick] (0,0) -- (2.903, 4.086);
+  \node[vecblue, font=\footnotesize, anchor=south east] at (1.35, 2.1) {$\vec x_i$ (fixed length $\norm{\vec x_i}$)};
+  \fill[vecblue] (2.903, 4.086) circle (3.5pt) node[above, font=\footnotesize] {point $\vec x_i$};
+  \fill[targetgreen] (3.955, 1.929) circle (3pt) node[below right, font=\footnotesize] {projection foot};
+  \fill[black] (0,0) circle (2.5pt) node[below left, font=\footnotesize] {origin $\vec 0$};
+  \draw[->, structurepurple, line width=1.3pt] (0,0) -- ({1.5*cos(26)}, {1.5*sin(26)}) node[above left, font=\scriptsize] {$\vec w$};
+\end{tikzpicture}
+\caption{The Pythagorean decomposition for a single centered point $\vec x_i$.
+The distance to the origin, $\norm{\vec x_i}$, is fixed. The projection along
+unit vector $\vec w$ forms the base of a right triangle, and the reconstruction error
+forms the perpendicular leg. Because $\text{base}^2 + \text{height}^2 = \text{hypotenuse}^2$,
+tilting the candidate line $\vec w$ to maximize projected spread (variance) is identical
+to minimizing perpendicular reconstruction error.}
+\label{ch30:pythagoras}
+\end{figure}
 
 \begin{strangbox}
 Strang teaches least squares as ``project $\vec b$ onto the column space of $\mat
@@ -754,8 +810,8 @@ the three motions in order.
     \draw[vecblue,thick,rotate=35] (0,0) ellipse (1.4 and 0.55);
     \draw[->,vecblue,thick] (0,0) -- ({1.4*cos(35)},{1.4*sin(35)});
     \draw[->,vecred,thick]  (0,0) -- ({0.55*cos(125)},{0.55*sin(125)});
-    \node at ({0.78*cos(35)+0.25},{0.78*sin(35)+0.25}) {\small$\sigma_1$};
-    \node at ({0.30*cos(125)-0.25},{0.30*sin(125)}) {\small$\sigma_2$};
+    \node[above left, font=\small, inner sep=1pt] at ({0.75*cos(35)},{0.75*sin(35)}) {$\sigma_1$};
+    \node[below left, font=\small, inner sep=1pt] at ({0.35*cos(125)},{0.35*sin(125)}) {$\sigma_2$};
     \node[align=center] at (0,-1.5) {\small data\\\small ellipse};
   \end{scope}
   \draw[->,gray!70] (8.1,0) -- (8.9,0) node[midway,above]{\small$\mat U$};
@@ -803,6 +859,23 @@ is governed by the singular values you dropped:
 ``Keep $95\%$ of the variance'' and ``make the best rank-$r$ approximation with
 $5\%$ squared error'' are literally the same sentence.
 
+\begin{recoverybox}
+\textbf{Pause and think: More features than samples ($d \gg n$).}
+Suppose you sequence genetic markers for $n=50$ patients, measuring $d=20{,}000$
+gene expression levels for each. The covariance matrix $\mat C = \tfrac1n\mat B\T\mat B$
+has size $20{,}000\times 20{,}000$. How many nonzero eigenvalues can $\mat C$
+possibly have?
+\smallskip
+
+\emph{Answer:} At most $n-1 = 49$. Because the $n$ rows of $\mat B$ are centered,
+they sum to zero, so $\rank\mat B \le n-1 = 49$. By the rank properties from
+Chapter~16, $\rank(\mat B\T\mat B) = \rank\mat B \le 49$. The remaining $19{,}951$
+eigenvalues are exactly zero! Computing the SVD of the $50\times 20{,}000$ matrix
+$\mat B$ directly finds those $49$ non-trivial directions in a fraction of a second,
+whereas forming and diagonalizing a $20{,}000\times 20{,}000$ covariance matrix
+would waste gigabytes of memory on thousands of zeros.
+\end{recoverybox}
+
 \section{PCA in the wild}
 
 \subsection{Compressing and denoising images}
@@ -845,9 +918,9 @@ stored neighbor. Recognition in a $50$-dimensional space, not a $4096$-dimension
 one -- that compression is what made it run on early-1990s hardware.
 
 \begin{applicationbox}
-\textbf{PCA inside modern machine learning.} The eigenface idea never went away; it
-just changed clothes. Today a neural network turns each word, image, or user into a
-high-dimensional \textbf{embedding} vector, and those embeddings are routinely
+\textbf{PCA inside modern machine learning.} The eigenface concept applies directly
+across modern representation learning. Today neural networks map words, images, and user features into
+high-dimensional \textbf{embedding} vectors, and those embeddings are routinely
 analyzed and compressed with PCA. Three live uses:
 \begin{itemize}
   \item \textbf{Visualization.} Embeddings live in hundreds or thousands of
@@ -869,11 +942,11 @@ same spectral theorem you can verify on a $2\times2$ matrix by hand.
 \end{applicationbox}
 
 \begin{trapbox}
-\textbf{Scale your features first.} PCA chases variance, and variance has units. If
-one feature is in millimeters and another in kilometers, the millimeter feature
-shows enormous numerical variance for a reason that has nothing to do with
-importance, and PCA will obediently point its first component along the noisy,
-big-numbered axis. When features carry different units or wildly different scales,
+\textbf{Scale your features first.} PCA maximizes numerical variance, and variance
+depends on units. If one feature is measured in millimeters and another in
+kilometers, the millimeter column has a much larger numerical variance simply
+because of the smaller unit, so the first principal component will align almost
+entirely with that axis. When features carry different units or wildly different scales,
 \emph{standardize} each to unit variance before running PCA (this replaces the
 covariance matrix with the \emph{correlation} matrix). Centering removes the
 location; standardizing removes the arbitrary choice of units.
@@ -911,24 +984,76 @@ directions unstable, even as the subspace they span stays perfectly stable.
 \end{focusbox}
 
 \begin{historybox}
-The idea behind principal component analysis was introduced in 1901 by the English mathematician Karl Pearson in a paper titled \emph{On Lines and Planes of Closest Fit to Systems of Points in Space}. Pearson was analyzing biometric data---measurements of human skulls and physical traits---and wanted to summarize dozens of correlated measurements without throwing away the essential variation. Lacking digital computers or matrix algebra, Pearson relied on classical mechanics: he modeled the data points as a cloud of particles of equal mass in physical space and calculated their principal axes of rotational inertia, exactly as Euler had done for spinning solids a century earlier. Three decades later, the American statistician Harold Hotelling (1933) independently developed the algebraic framework of PCA, defining principal components as the uncorrelated linear combinations of variables that maximize projected variance.
+The idea behind principal component analysis was introduced in 1901 by the English
+mathematician Karl Pearson in a paper titled \emph{On Lines and Planes of Closest
+Fit to Systems of Points in Space}. Pearson was analyzing biometric data---measurements
+of living bodies, such as human skull dimensions and limb lengths---and wanted to
+summarize dozens of correlated variables without throwing away the essential variation.
+Lacking digital computers or modern matrix algebra, Pearson turned to classical
+mechanics: he modeled the data points as a cloud of particles of equal mass in physical
+space and calculated their principal axes of rotational inertia---the natural directions
+about which a spinning physical body turns smoothly without wobbling, exactly as
+Euler had analyzed for rigid solids a century earlier. Three decades later, the American
+statistician Harold Hotelling (1933) independently developed the algebraic framework of
+PCA, defining principal components as the uncorrelated linear combinations of variables
+that maximize projected variance.
 
-A major controversy in Pearson's day was the distinction between ordinary least-squares regression and orthogonal regression. Standard linear regression treats one variable as special, minimizing vertical distances along an arbitrary dependent axis $y$. Pearson pointed out that in science and biology, nature does not label one variable as an ``input'' and another as an ``output''; true fitting requires minimizing perpendicular geometric distances, treating every feature symmetrically. Another classic pitfall is the failure to center data: if you forget to subtract the feature means before computing components, PCA points its first axis directly from the origin toward the center of the cloud rather than along the true grain of variance. Furthermore, because variance depends on units of measurement, measuring one feature in millimeters and another in kilometers causes the big-number feature to hijack the first component entirely, requiring features to be standardized to unit variance before analysis.
+A major controversy in Pearson's day was the distinction between ordinary least-squares
+regression and orthogonal regression. Standard linear regression treats one variable as
+special, minimizing vertical distances along an arbitrary dependent axis $y$. Pearson
+argued that in observational science and biology, nature does not label one variable as
+an ``input'' and another as an ``output''; true geometric fitting requires minimizing
+perpendicular distances, treating every feature symmetrically. Another classic pitfall
+is the failure to center data: if you forget to subtract the feature means before
+computing components, PCA points its first axis directly from the origin toward the
+center of the cloud rather than along the true grain of variance. A second classic trap
+is scale: because variance depends on units of measurement, measuring one feature in
+millimeters and another in kilometers causes the big-number feature to hijack the first
+component entirely, requiring features to be standardized to unit variance before
+analysis.
 
-What PCA unlocked is optimal linear dimensionality reduction: projecting high-dimensional data onto a low-dimensional subspace while preserving the maximum possible variance and decorrelating all features. Yet PCA has an honest limitation: it is blind to nonlinear geometry. If data lies on a curved spiral or a rolled sheet (the classic ``Swiss roll''), PCA forces the sheet onto a flat plane, crushing distant points together. It is also unsupervised, meaning its directions of greatest spread might fail to separate distinct classes of data. In Chapter~31, we see how PCA represents an orthonormal change of basis, in Chapter~34, we see how neural autoencoders generalize PCA to discover curved, nonlinear manifolds, and in Chapter~36, we formulate PCA as the optimization of quadratic forms via Rayleigh quotients.
+What PCA unlocked is optimal linear dimensionality reduction: projecting high-dimensional
+data onto a low-dimensional subspace while preserving the maximum possible variance and
+decorrelating all features. Yet PCA has honest limitations. It is blind to nonlinear
+geometry: if data lies on a curved surface---such as the classic ``Swiss roll,'' a
+two-dimensional sheet curled up into a three-dimensional coil---PCA flattens the roll
+onto a flat plane, crushing distant points on adjacent layers together. It is also
+unsupervised, meaning it inspects only the cloud's geometric spread without knowing any
+class labels or categories; as a result, its directions of greatest variance can fail to
+separate distinct classes of data. These boundaries spurred the development of nonlinear
+manifold learning and neural autoencoders (which we explore in Chapter~34), while the
+underlying optimization of variance via the Rayleigh quotient $\vec w\T\mat C\vec w / \norm{\vec w}^2$
+takes center stage in Chapter~36.
 \end{historybox}
 
 \begin{aestheticbox}
-Step back and admire what just happened. We asked a purely statistical question --
-``which way does my data vary most?'' -- and the answer turned out to be an
-eigenvector. We asked an approximation question -- ``what is the closest
-low-dimensional summary?'' -- and the answer was the SVD. Centering, covariance,
-variance explained, denoising, eigenfaces, embeddings: every one is the spectral
-theorem and the singular value decomposition, viewed through the lens of data. One
-small symmetric matrix, $\tfrac1n\mat B\T\mat B$, quietly organizes a thousand
-points in a thousand dimensions into a handful of meaningful axes. That is the
-quiet power of linear algebra, and PCA is its clearest demonstration.
+We asked a statistical question -- which direction maximizes variance -- and the
+answer is an eigenvector of the sample covariance matrix. We asked for the best
+low-rank summary in mean squared error, and the solution is given by the SVD.
+Centering, covariance, variance explained, denoising, eigenfaces, and embedding
+compression are all practical realizations of the spectral theorem and the
+singular value decomposition applied to empirical data matrices.
 \end{aestheticbox}
+
+\subsection*{Looking ahead: from data axes to change of basis}
+
+Throughout this chapter, we worked with data points described in the coordinate
+system of our measuring tools---centimeters, dollars, pixel values. Those
+measurement axes are arbitrary, whereas the cloud has its own principal
+directions. Finding $\vec v_1,\dots,\vec v_d$ gives an orthonormal coordinate
+frame aligned with the spread of the data.
+When we expressed each point $\vec x_i$ by its projected coordinates
+$(z_1,\dots,z_d)$ along those principal axes, all
+off-diagonal covariances vanished. The variables decoupled completely, and the
+covariance matrix in the new basis became purely diagonal.
+
+That is our first live encounter with a foundational theme of linear algebra:
+\emph{a change of basis}. In Chapter~31, we step back from empirical data clouds to
+general linear transformations. A linear transformation is an intrinsic coordinate-free
+mapping between spaces, while a matrix representation depends on the chosen basis.
+Just as PCA finds a basis that diagonalizes the empirical covariance matrix, Chapter~31
+develops how to construct coordinate systems that make the matrix representation of an
+arbitrary linear operator as simple and direct as possible.
 
 \section*{Exercises}
 \addcontentsline{toc}{section}{Exercises}
@@ -1010,4 +1135,21 @@ through the mean, and that this line is the total-least-squares best-fit line
 (minimizing \emph{perpendicular} distances, unlike ordinary regression which
 minimizes vertical distances). Contrast this with the least-squares regression line
 of an earlier chapter.
+\end{exercise}
+
+\begin{exercise}\label{ch30:ex-mental}
+\textbf{Mental checks.} Answer each question in a single sentence or quick calculation:
+\begin{enumerate}[label=(\alph*)]
+  \item If a dataset has $n=200$ samples and $d=4$ features, what are the matrix
+        dimensions of $\mat X$, the centered matrix $\mat B$, and the covariance
+        matrix $\mat C$?
+  \item Can the covariance matrix $\mat C$ ever possess a strictly negative
+        eigenvalue? Why or why not?
+  \item If the first two principal components explain $78\%$ and $14\%$ of the
+        total variance respectively, what percentage of the variance is carried by
+        all remaining components together?
+  \item Suppose one software package computes the first principal component as
+        $\vec v_1$, while a second package outputs $-\vec v_1$ on the same data.
+        Did one of them make a calculation error?
+\end{enumerate}
 \end{exercise}

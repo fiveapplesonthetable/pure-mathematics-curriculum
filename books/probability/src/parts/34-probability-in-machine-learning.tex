@@ -1,25 +1,26 @@
 \chapter{Probability in Machine Learning}
 
-There is a temptation, when you first meet machine learning, to picture it as a
-bag of clever tricks: a decision tree here, a neural network there, a gradient
-descent loop turning the crank. Useful, yes -- but it leaves you with a hundred
-disconnected recipes and no story. The goal of this chapter is to give you the
-story. And the story is short enough to state in one sentence:
+In the previous chapter, we measured uncertainty through entropy, cross-entropy, and
+Kullback--Leibler divergence. We now take that currency into machine learning.
+There is a temptation, when you first
+meet machine learning, to picture it as a bag of clever tricks: a decision tree
+here, a neural network there, a gradient descent loop turning the crank. Useful,
+yes -- but it leaves you with a hundred disconnected recipes and no story. The goal
+of this chapter is to give you the story. And the story is short enough to state in
+one sentence:
 
 \begin{focusbox}
 Almost every supervised and unsupervised learning method you will ever meet is,
 underneath, a \emph{probabilistic model} together with a rule for choosing its
-parameters from data. Learning \emph{is} estimation. Prediction \emph{is}
-computing a conditional distribution.
+parameters from data. Learning \emph{is} estimation. Loss minimization \emph{is}
+cross-entropy reduction. Prediction \emph{is} computing a conditional distribution.
 \end{focusbox}
 
 Once you believe that sentence, machine learning stops being a zoo and becomes a
-single landscape with familiar landmarks. Maximum likelihood (Chapter on
-estimation), Bayes' theorem (the conditioning chapter), the normal distribution,
-the law of large numbers, KL divergence from information theory -- they all
-reappear here wearing work clothes. This is the flagship application chapter: it
-ties the book together. We will move slowly, build each idea from a concrete
-story, and stay clear-eyed about what works, what fails, and why.
+unified map with familiar landmarks. Maximum likelihood (the estimation chapter),
+Bayes' theorem (the conditioning chapter), the normal distribution, the law of
+large numbers, and the KL divergence from information theory all find direct
+practical application here. Here those ideas turn directly into working algorithms.
 
 \section{The likelihood view of learning}
 \label{ch34:likelihood-view}
@@ -98,7 +99,7 @@ Why does the maximizer not change when we take logs? If $\theta^\star$ maximizes
 $L$, then $L(\theta^\star) \ge L(\theta)$ for all $\theta$. Apply the increasing
 function $\log$ to both sides: $\log L(\theta^\star) \ge \log L(\theta)$. So
 $\theta^\star$ also maximizes $\log L$. The logarithm relabels the heights of the
-landscape but never moves a peak. We get numerical stability and additive
+surface but never moves a peak. We get numerical stability and additive
 structure for free.
 \end{whybox}
 
@@ -133,14 +134,14 @@ later, logistic regression) so well-behaved.
   xlabel={$p$ (probability of heads)},
   ylabel={log-likelihood $\ell(p)$},
   domain=0.02:0.98, samples=120,
-  xmin=0, xmax=1,
-  grid=both,
+  xmin=0, xmax=1, ymax=0,
+  ymajorgrids=true, grid style={gray!18},
   title={Log-likelihood for 14 heads in 20 flips},
   title style={font=\small}
 ]
 \addplot[densityred, thick] {14*ln(x) + 6*ln(1-x)};
 \addplot[dashed, gray] coordinates {(0.7,-30) (0.7,-12.2)};
-\node[anchor=south] at (axis cs:0.7,-12.0) {$\hat p = 0.7$};
+\node[anchor=south, font=\small, fill=white, inner sep=1.5pt] at (axis cs:0.7,-9.0) {peak: $p = 0.7$};
 \end{axis}
 \end{tikzpicture}
 \caption{The log-likelihood is a single concave hill peaking exactly at the
@@ -149,15 +150,17 @@ peak.}
 \label{ch34:fig-loglik}
 \end{figure}
 
-\begin{historybox}
-The likelihood as a tool for inference is largely the creation of Ronald A.
+\begin{marginnotebox}
+\textbf{Reading note: Fisher's likelihood.}
+The likelihood as a tool for inference was established by Ronald A.
 Fisher in the 1910s and 1920s. He insisted on a sharp distinction that still
 trips people up: probability runs forward from a fixed parameter to random data;
 \emph{likelihood} runs backward from fixed data to a varying parameter. They use
 the same formula $p(\text{data}\given\theta)$ but read it along different axes.
-Fisher's word ``likelihood'' was deliberate -- he did not want people to think a
-parameter has a probability (that is the Bayesian move, coming later).
-\end{historybox}
+Fisher's choice of the word ``likelihood'' was deliberate: he rejected the idea
+that an unknown physical parameter possessed a probability distribution before data
+arrived (the Bayesian stance).
+\end{marginnotebox}
 
 \section{MLE and MAP as training}
 \label{ch34:mle-map}
@@ -247,15 +250,19 @@ one tail, added to the data. The Beta hyperparameters are ``pseudo-counts'': pri
 evidence measured in the same currency as real evidence.
 \end{example}
 
+\begin{recoverybox}
+\textbf{Pause and think: the pull of the prior.}
+In Example~\ref{ch34:coin-map}, the $\Bet(2,2)$ prior contributed two phantom flips (one head, one tail). What would a $\Bet(100, 100)$ prior represent? If you observed three heads in three flips under that strong prior, what would $\hat p_{\text{MAP}}$ be? Notice how the prior anchors your belief when real data is scarce, but gradually yields as data accumulates.
+\end{recoverybox}
+
 \begin{aestheticbox}
-MAP reveals that \emph{regularization is a prior in disguise}. The famous
+MAP reveals that \emph{regularization corresponds to a prior distribution}. The standard
 $L^2$ penalty (ridge regression, weight decay) $\lambda\norm{\theta}^2$ is
-exactly $-\log p(\theta)$ for a Gaussian prior
+identically $-\log p(\theta)$ for a Gaussian prior
 $\theta\sim\Normal(0,\sigma^2 I)$ with $\lambda = 1/(2\sigma^2)$. The $L^1$
-penalty (lasso) is a Laplace prior. So every time a practitioner ``adds
-regularization to prevent overfitting,'' they are -- whether they know it or
-not -- declaring a prior belief that the parameters are small. Weight decay is
-Bayes.
+penalty (lasso) corresponds to a Laplace prior. Adding regularization to
+prevent overfitting is therefore mathematically equivalent to placing a
+prior distribution that concentrates near zero.
 \end{aestheticbox}
 
 \begin{whybox}
@@ -325,11 +332,11 @@ probability.
   child {node[draw, rounded corners, fill=red!5] {spam}
     child {node {``free''?}}
     child {node {``viagra''?}}
-    edge from parent node[left, pos=0.5] {$p(\texttt{spam})$}}
+    edge from parent node[above left, pos=0.45] {$p(\texttt{spam})$}}
   child {node[draw, rounded corners, fill=green!5] {ham}
     child {node {``free''?}}
     child {node {``viagra''?}}
-    edge from parent node[right, pos=0.5] {$p(\texttt{ham})$}};
+    edge from parent node[above right, pos=0.45] {$p(\texttt{ham})$}};
 \end{tikzpicture}
 \caption{The generative tree behind naive Bayes. First a class is drawn from the
 prior $p(y)$; then, \emph{given} the class, each word is emitted independently
@@ -452,9 +459,9 @@ Bernoulli, so the log-likelihood is
 \[
   \ell(w,b) = \sum_{i=1}^n \big[y_i\log\hat p_i + (1-y_i)\log(1-\hat p_i)\big].
 \]
-Negate it and you have the \emph{binary cross-entropy} loss -- the workhorse loss
-of binary classifiers everywhere. Maximizing this likelihood is training the
-classifier; once more, learning is MLE.
+Negate it and you have the \emph{binary cross-entropy} loss, the standard objective
+function for binary classification. Maximizing this likelihood corresponds to training the
+classifier; once more, parameter estimation is maximum likelihood.
 
 There is no closed form for $\hat w$ this time, but the news is good: $\ell$ is
 \emph{concave} in $(w,b)$, so gradient ascent cannot get stuck in a bad local
@@ -531,7 +538,7 @@ Everything so far was \emph{supervised}: we saw labels $y_i$. Now suppose we see
 only the features -- a cloud of points -- and suspect they come from a few distinct
 groups (customer segments, cell types, signal sources). This is
 \emph{clustering}, and the probabilistic way to think about it is a
-\emph{mixture model}: each point was generated by first secretly choosing a group
+\emph{mixture model}: each point was generated by first choosing an unobserved group
 $z\in\{1,\dots,K\}$, then drawing $x$ from that group's distribution.
 
 For continuous data the natural choice is the \emph{Gaussian mixture}:
@@ -550,7 +557,7 @@ title style={font=\small},
   width=11cm, height=5.6cm,
   xlabel={$x$}, ylabel={density},
   domain=-6:10, samples=180,
-  ymin=0, grid=both, legend pos=north east,
+  ymin=0, ymax=0.20, grid=both, legend pos=north west,
   title={A two-component Gaussian mixture}
 ]
 \addplot[dashed, sourceblue, thick] {0.4*exp(-(x-0)^2/2)/sqrt(2*pi)};
@@ -625,12 +632,11 @@ guessing, then alternating:
 Iterate E, M, E, M until the parameters stop moving.
 
 \begin{intuitionbox}
-EM is a guided dance between belief and evidence. The E-step says ``given what I
-currently believe the clusters are, how should I split the credit for each
-point?'' The M-step says ``given that split of credit, what clusters best explain
-it?'' Each step can only \emph{increase} the likelihood, so the dance always
-climbs -- though, unlike logistic regression, possibly to a local rather than the
-global peak.
+EM alternates between estimating latent variables and optimizing model parameters. The E-step
+computes the posterior probabilities (responsibilities) of each cluster given the current parameter
+estimates. The M-step updates the cluster parameters by maximizing the expected log-likelihood
+weighted by those responsibilities. Each step is guaranteed not to decrease the observed data
+likelihood, ensuring convergence to a local stationary point.
 \end{intuitionbox}
 
 \begin{whybox}
@@ -681,24 +687,24 @@ The true log-likelihood is mathematically guaranteed never to decrease (Figure~\
 \addplot[black, very thick] {1.8 - 0.2*(x-0.8)^2 - 0.4*sin(deg(2*x))};
 \addlegendentry{True log-likelihood $\ell(\theta)$}
 
-\addplot[sourceblue, thick, dashed, domain=-3:1.5] {0.68 - 0.7*(x + 1.2)^2 + 0.35*(x + 1.2)};
+\addplot[sourceblue, thick, dashed, domain=-2.8:0.4] {0.625 + 1.76*(x + 1.6) - 1.10*(x + 1.6)^2};
 \addlegendentry{ELBO bound $\mathcal{L}(q^{(t)}, \theta)$}
 
-\fill[densityred] (axis cs:-1.2, 0.68) circle (2.2pt);
-\node[densityred, font=\scriptsize, anchor=south east] at (axis cs:-1.2, 0.75) {E-step: bound touches $\ell(\theta^{(t)})$};
+\fill[densityred] (axis cs:-1.6, 0.625) circle (2.2pt);
+\node[densityred, font=\scriptsize, anchor=south, fill=white, inner sep=1pt] at (axis cs:-1.6, 0.8) {E-step ($\KL=0$)};
 
-\fill[targetgreen!80!black] (axis cs:-0.95, 0.724) circle (2.2pt);
-\draw[->, thick, targetgreen!80!black] (axis cs:-1.2,0.68) -- (axis cs:-0.95, 0.724);
-\node[targetgreen!80!black, font=\scriptsize, anchor=north] at (axis cs:-0.8, 0.65) {M-step: maximize bound $\to \theta^{(t+1)}$};
+\fill[targetgreen!80!black] (axis cs:-0.8, 1.328) circle (2.2pt);
+\draw[->, thick, targetgreen!80!black] (axis cs:-1.6, 0.625) -- (axis cs:-0.8, 1.328);
+\node[targetgreen!80!black, font=\scriptsize, anchor=north] at (axis cs:-1.2, 0.8) {M-step};
 
-\fill[densityred] (axis cs:-0.95, 1.26) circle (2.2pt);
-\draw[->, thick, densityred, dashed] (axis cs:-0.95, 0.724) -- (axis cs:-0.95, 1.26);
-\node[densityred, font=\scriptsize, anchor=west] at (axis cs:-0.9, 1.0) {Next E-step};
+\fill[densityred] (axis cs:-0.8, 1.688) circle (2.2pt);
+\draw[->, thick, densityred, dashed] (axis cs:-0.8, 1.328) -- (axis cs:-0.8, 1.688);
+\node[densityred, font=\scriptsize, anchor=south, fill=white, inner sep=1pt] at (axis cs:-0.8, 1.8) {Next E-step};
 
-\draw[gray, dotted] (axis cs:-1.2,-3.5) -- (axis cs:-1.2, 0.68);
-\node[below, font=\scriptsize] at (axis cs:-1.2,-3.5) {$\theta^{(t)}$};
-\draw[gray, dotted] (axis cs:-0.95,-3.5) -- (axis cs:-0.95, 1.26);
-\node[below, font=\scriptsize] at (axis cs:-0.95,-3.5) {$\theta^{(t+1)}$};
+\draw[gray, dotted] (axis cs:-1.6,-3.5) -- (axis cs:-1.6, 0.625);
+\node[below, font=\scriptsize] at (axis cs:-1.6,-3.5) {$\theta^{(t)}$};
+\draw[gray, dotted] (axis cs:-0.8,-3.5) -- (axis cs:-0.8, 1.328);
+\node[below, font=\scriptsize] at (axis cs:-0.8,-3.5) {$\theta^{(t+1)}$};
 \end{axis}
 \end{tikzpicture}
 \caption{The geometry of the EM algorithm. The true log-likelihood $\ell(\theta)$ (black) is difficult to optimize directly due to latent variables. The E-step constructs a tractable lower bound (blue dashed) that is guaranteed to touch $\ell(\theta)$ at the current iterate $\theta^{(t)}$ with zero gap ($\KL=0$). The M-step then maximizes this bound to obtain $\theta^{(t+1)}$. Because the bound touches the true curve, climbing the bound guarantees that the true log-likelihood strictly increases.}
@@ -715,10 +721,17 @@ exactly when $k$-means fails: elongated or overlapping clusters, where the hard,
 spherical assumption is plainly wrong.
 \end{connectionbox}
 
+\begin{historybox}
+\textbf{Dempster, Laird, and Rubin, 1977: finding order in missing data.}
+In 1977, Arthur Dempster, Nan Laird, and Donald Rubin published \emph{Maximum Likelihood from Incomplete Data via the EM Algorithm} in the \emph{Journal of the Royal Statistical Society}. Researchers had previously relied on specialized tricks whenever data were unobserved, grouped, or corrupted by missing values. Dempster, Laird, and Rubin unified these problems under a single framework: maximizing the Evidence Lower Bound (ELBO), an alternating scheme of calculating expected latent states given current parameters (the E-step) and optimizing the surrogate bound (the M-step).
+
+The paper sparked debate at the Royal Statistical Society: critics emphasized that the algorithm guarantees convergence only to local stationary points, can slow to a crawl on flat ridges, and can diverge if a Gaussian component collapses onto a single observation. Even with these caveats, the EM algorithm became the standard engine for latent-variable modeling across statistics, speech recognition, and machine learning.
+\end{historybox}
+
 \section{A first look at sampling and MCMC}
 \label{ch34:mcmc}
 
-\subsection{Why sampling is the workhorse of Bayesian ML}
+\subsection{The role of sampling in Bayesian machine learning}
 
 The proper Bayesian answer to any question is an expectation over the posterior:
 the predictive mean is $\E_{\theta\sim p(\theta\given\mathcal{D})}[\,\cdot\,]$, a
@@ -739,9 +752,9 @@ which is valid by the law of large numbers. The whole problem becomes: how do yo
 sample from a distribution you can only evaluate \emph{up to} the unknown constant
 $p(\mathcal{D})$?
 
-\subsection{Metropolis--Hastings: a random walk that obeys}
+\subsection{Metropolis--Hastings: a random walk targeting the posterior}
 
-Markov chain Monte Carlo (MCMC) builds a Markov chain (Chapter on Markov chains)
+Markov chain Monte Carlo (MCMC) builds a Markov chain (Chapters~23--24)
 whose stationary distribution \emph{is} the posterior. Run the chain long enough
 and its states become samples from the target. The Metropolis--Hastings recipe:
 
@@ -791,7 +804,7 @@ title style={font=\small},
   (60,1.8)(61,2.1)(62,2.4)(63,2.9)(64,2.3)(65,1.9)(66,2.2)(67,2.6)(68,2.1)(69,1.7)
   (70,2.0)(71,2.5)(72,2.2)(73,1.8)(74,2.1)(75,2.4)(76,2.0)(77,1.6)(78,2.3)(79,2.1)};
 \addplot[densityred, dashed, thick] coordinates {(15,-1)(15,6)};
-\node[anchor=south, densityred] at (axis cs:15,5.2) {\small end of burn-in};
+\node[anchor=north west, densityred, font=\small] at (axis cs:16, 5.8) {end of burn-in};
 \end{axis}
 \end{tikzpicture}
 \caption{A one-dimensional Metropolis--Hastings trace. The chain starts high
@@ -813,21 +826,21 @@ whether a chain has ``mixed'' -- truly explored the posterior -- is a craft unto
 itself. The Monte Carlo chapter develops these ideas in full.
 \end{trapbox}
 
-\begin{historybox}
+\begin{connectionbox}
+\textbf{The physics roots of MCMC.}
 The Metropolis algorithm was born in 1953 at Los Alamos, on the MANIAC computer,
-in a paper by Metropolis, the Rosenbluths, and the Tellers -- aimed at simulating
-the equilibrium of interacting particles, not statistics at all. W.K.\ Hastings
-generalized it in 1970. For decades it lived in physics; only in the early 1990s,
-when Gelfand, Smith, and others connected it to Bayesian inference, did it
-detonate across statistics and machine learning. It is routinely listed among the
-most influential algorithms of the twentieth century -- a physics trick that
-quietly became the engine of modern Bayesian computation.
-\end{historybox}
+in a paper by Nicholas Metropolis, Arianna Rosenbluth, Marshall Rosenbluth, Augusta Teller,
+and Edward Teller. Its original purpose was simulating the physical equilibrium of interacting
+particles, not statistics at all. W.K.\ Hastings generalized it in 1970 to handle asymmetric proposals.
+For decades it lived within physics; only in the early 1990s, when Alan Gelfand and Adrian Smith
+connected it to Bayesian inference, did it spread across statistics and data science. In the
+next chapter, we explore these simulation methods in full depth.
+\end{connectionbox}
 
 \section{Calibration and uncertainty}
 \label{ch34:calibration}
 
-\subsection{A confident model can be a liar}
+\subsection{Confidence versus calibration}
 
 A model that outputs probabilities makes an implicit promise. When it says ``$70\%$
 chance of rain,'' it is promising that across all the days it makes that call, it
@@ -925,8 +938,19 @@ earlier in this book reappears here, doing the real work of modern machine
 learning. The methods change with the decade; this probabilistic skeleton does
 not.
 
-\section*{Exercises}
-\addcontentsline{toc}{section}{Exercises}
+\section{Exercises}
+\label{ch34:exercises}
+
+\begin{exercise}[Warm-up mental checks]
+\label{ch34:ex-warmup}
+Answer these quick checks before reaching for paper:
+\begin{enumerate}[label=(\alph*)]
+  \item If you observe $0$ heads in $10$ flips of a coin, what does maximum likelihood estimation report for $p$? Why is this estimate dangerous if used directly in a product of future probabilities?
+  \item In logistic regression, what output probability does the model assign when the linear score $w^\top x + b$ is exactly zero?
+  \item What happens to an unregularized naive Bayes model if a single word in a test email never appeared in the training spam corpus?
+  \item If a classifier claims $95\%$ confidence on $100$ independent predictions, but only $70$ are correct, is the model overconfident, underconfident, or well-calibrated?
+\end{enumerate}
+\end{exercise}
 
 \begin{exercise}[Poisson MLE]
 You record the number of customer arrivals per hour over $n$ hours,

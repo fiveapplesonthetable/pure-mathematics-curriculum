@@ -1,14 +1,28 @@
 \chapter{Numerical Integration}
 
-There is a quiet scandal at the heart of integral calculus, and it is time we spoke of it plainly. The Fundamental Theorem of Calculus is glorious: it tells us that to compute the definite integral $\int_a^b f(x)\,\dd x$ we need only find an antiderivative $F$ with $F' = f$, and then subtract: $F(b) - F(a)$. Clean. Exact. Beautiful. But it has a precondition hidden in plain sight, and the precondition fails far more often than the textbooks let on. \emph{You have to be able to find $F$.}
+In the previous chapter, we applied integration across geometry and physics:
+volumes of solids, arc lengths, work, and probability distributions. In each
+case, the application led to a definite integral $\int_a^b f(x)\,\dd x$.
 
-For the polished examples we drill in a course, $F$ is always there, waiting to be remembered. In the wild, it usually is not. The function
+We usually expect to evaluate such integrals using the Fundamental Theorem of
+Calculus by finding an antiderivative $F$ with $F' = f$. But that requires being
+able to express $F$ in closed form.
+
+For many functions, no such antiderivative exists. For example,
 \[
 \int_0^1 e^{-x^2}\,\dd x
 \]
-has no antiderivative expressible in terms of the elementary functions you know -- no finite combination of polynomials, roots, exponentials, logarithms, and trig functions will ever equal an antiderivative of $e^{-x^2}$. This is not a failure of cleverness. It is a theorem (Liouville, 1830s): the antiderivative provably does not live in that world. Yet the integral is a perfectly definite number, roughly $0.7468$, and the entire field of statistics leans on it, because $e^{-x^2}$ is the bell curve.
+has no antiderivative in terms of elementary functions---no finite combination
+of polynomials, roots, exponentials, logarithms, and trigonometric functions.
+Joseph Liouville proved in the 1830s that an elementary antiderivative for
+$e^{-x^2}$ does not exist. Yet the integral represents a well-defined area
+(approximately $0.7468$), and it appears throughout probability and statistics
+as the normal distribution.
 
-So what do you do when the Fundamental Theorem hands you a bill you cannot pay? You go back to what the integral \emph{is}. It is an area. It is a limit of sums. And areas can be \emph{estimated} -- carefully, with controlled error -- even when they cannot be written in closed form. That is numerical integration, and this chapter is about doing it well.
+When an antiderivative cannot be found, we return to the definition of the
+integral as an accumulated sum. By evaluating the integrand at selected sample
+points, we can estimate the area to any desired accuracy with certified error
+bounds. That is the goal of numerical integration.
 
 \begin{focusbox}
 The integral $\int_a^b f\,\dd x$ is a number: the signed area under $f$. The Fundamental Theorem is one road to that number, available only when an antiderivative exists in usable form. Numerical integration is a different road, always open, that returns to the original meaning of the integral as accumulated area and computes that area directly from samples of $f$. Our goal: get an accurate number \emph{and} a reliable bound on how wrong it might be.
@@ -17,7 +31,8 @@ The integral $\int_a^b f\,\dd x$ is a number: the signed area under $f$. The Fun
 \section{When the Antiderivative Will Not Come}
 \label{ch27:noanti}
 
-First feel the size of the problem, so that numerical methods do not look like a fallback for the lazy but the main highway they actually are.
+Numerical methods are necessary for two distinct reasons: functions with no
+elementary antiderivative, and functions known only through discrete data points.
 
 Here are integrals that arise constantly and have no elementary antiderivative:
 \[
@@ -27,11 +42,19 @@ Here are integrals that arise constantly and have no elementary antiderivative:
 \int \sqrt{1 + \tfrac14\cos^2 x}\,\dd x,\qquad
 \int \frac{e^{x}}{x}\,\dd x.
 \]
-The first is the Gaussian, the spine of probability. The second, $\sin x / x$, is the sinc function, the heartbeat of signal processing and optics. The third, $1/\ln x$, integrated, is the logarithmic integral $\mathrm{li}(x)$ that estimates how many primes lie below $x$. The fourth is the arc length of an ellipse -- the orbit of every planet -- and the reason elliptic integrals got their name. None of them yields to substitution, parts, or partial fractions, because no elementary antiderivative exists to be found.
+The first is the Gaussian in probability. The second, $\sin(x)/x$, arises in optics
+and signal processing. The third, $1/\ln x$, relates to the distribution of prime numbers.
+The fourth gives the arc length of an ellipse. None of them yields to substitution,
+parts, or partial fractions, because no elementary antiderivative exists to be found.
 
-\begin{historybox}
-The French mathematician Joseph Liouville, in a series of papers around 1833--1841, did something that must have felt almost philosophical: he proved a \emph{negative}. He showed precisely which functions can have elementary antiderivatives, and built the machinery to certify that $e^{-x^2}$, $\sin(x)/x$, and many others cannot. Before Liouville, a student who failed to integrate $e^{-x^2}$ might reasonably suspect a gap in their own skill. After Liouville, we know the gap is in the universe of elementary functions, not in us. This is why numerical integration is not a confession of defeat. It is often the only road there is.
-\end{historybox}
+\begin{whybox}
+\textbf{Why an impossible antiderivative is not your fault.}
+Joseph Liouville (1833--1841) proved which functions can have elementary
+antiderivatives, establishing that $e^{-x^2}$, $\sin(x)/x$, and many others
+provably cannot. The absence of an elementary antiderivative is an intrinsic
+property of these functions, not a lack of technique. In such cases, numerical
+integration is the standard path to a quantitative answer.
+\end{whybox}
 
 And even when an antiderivative \emph{does} exist, you may not have a formula for $f$ at all. A bridge engineer measuring the deflection of a beam, a physiologist tracking cardiac output, a data scientist with a column of numbers -- they have $f$ only as a \emph{table of values}, sampled at points. There is no symbolic $f$ to integrate. There is only data, and the area under it. Numerical integration is the language for turning samples into accumulated quantities.
 
@@ -58,16 +81,17 @@ The trouble with rectangles is visible to the eye. A rectangle has a flat top, b
   domain=0:4, samples=100,
   axis lines=middle,
   xtick={0,1,2,3,4}, ytick=\empty,
-  xlabel={$x$}, ylabel={$f$},
+  xlabel={$x$}, ylabel={$f(x)$},
   xmin=-0.3, xmax=4.5, ymin=0, ymax=3.2,
   enlargelimits=false,
 ]
-\addplot[curveblue, very thick, domain=0:4] {0.6 + 0.25*x + 0.12*x^2};
 \foreach \i in {0,1,2,3} {
   \edef\temp{\noexpand\addplot[draw=trapred!70, fill=trapred!12]
     coordinates {(\i,0) (\i+1,0) (\i+1,{0.6+0.25*\i+0.12*\i*\i}) (\i,{0.6+0.25*\i+0.12*\i*\i})} --cycle;}
   \temp
 }
+\addplot[curveblue, very thick, domain=0:4] {0.6 + 0.25*x + 0.12*x^2};
+\node[curveblue, font=\small, anchor=south east] at (axis cs:2.9, 2.45) {$f(x)$};
 \end{axis}
 \end{tikzpicture}
 \caption{Left rectangles under a rising curve. Each rectangle's flat top falls short of the sloping curve, leaving a triangular sliver of lost area. The total error shrinks only in proportion to the slice width $h$. We can do much better by letting the tops slope.}
@@ -75,7 +99,7 @@ The trouble with rectangles is visible to the eye. A rectangle has a flat top, b
 \end{figure}
 
 \begin{intuitionbox}
-The driving principle of numerical integration is straightforward: \emph{make the top of each piece look more like the curve}. A rectangle's top is a constant -- a degree-zero polynomial. The error comes from the curve refusing to be flat. If we let the top be a sloping line (degree one), we cancel the slope error. If we let it be a parabola (degree two), we cancel the curvature error too. Each step up in the local approximation kills the leading source of error and earns us a faster-shrinking mistake. The trapezoidal rule is the line; Simpson's rule is the parabola.
+The guiding principle of numerical quadrature is to improve the local approximation of the curve. A rectangle's top is a constant (degree 0). A line segment (degree 1) accounts for the local slope, yielding the trapezoidal rule. A parabola (degree 2) accounts for local curvature as well, yielding Simpson's rule. Each higher-degree polynomial interpolation eliminates a leading error term, increasing the order of convergence.
 \end{intuitionbox}
 
 \section{The Trapezoidal Rule: Let the Tops Slope}
@@ -122,8 +146,14 @@ The pattern of weights is $1,2,2,\dots,2,1$. Ends count once, interiors count tw
 \end{focusbox}
 
 \begin{whybox}
-Why is the weight pattern $1,2,2,\dots,2,1$ and not something fancier? Because each interior sample is shared between two neighboring trapezoids -- it is the right wall of one and the left wall of the next -- so its height contributes to two pieces of area, hence weight $2$. The two boundary samples belong to only one trapezoid each, hence weight $1$. The trapezoidal rule is nothing more than ``replace the curve with the connect-the-dots polygon through your samples, and take the area under the polygon.'' That polygon is the unique piecewise-linear function agreeing with $f$ at every node. Integrating it exactly gives $T_n$. So the trapezoidal rule is exact for any function that already \emph{is} a straight line on each slice -- and approximately right to the extent that $f$ is nearly straight at the scale of $h$.
+Why is the weight pattern $1,2,2,\dots,2,1$ and not something fancier? Because each interior sample is shared between two neighboring trapezoids -- it is the right wall of one and the left wall of the next -- so its height contributes to two pieces of area, hence weight $2$. The two boundary samples belong to only one trapezoid each, hence weight $1$. The trapezoidal rule is nothing more than ``replace the curve with the connect-the-dots polygon through your samples, and take the area under the polygon.'' That polygon is the unique piecewise-linear function agreeing with $f$ at every node (the sample points $x_i$ where we evaluate the function). Integrating it exactly gives $T_n$. So the trapezoidal rule is exact for any function that already \emph{is} a straight line on each slice -- and approximately right to the extent that $f$ is nearly straight at the scale of $h$.
 \end{whybox}
+
+\begin{recoverybox}
+\textbf{Pause and think:} Suppose you use the trapezoidal rule to integrate $f(x) = 5x - 3$ from $x = 0$ to $x = 10$, using just a single slice ($n = 1$). What is the error?
+
+\emph{Mental check:} The function is a straight line, so its second derivative is zero everywhere ($f'' = 0$). The top edge of the trapezoid is not an approximation of the line -- it \emph{is} the line. The error is identically zero, even with just one slice.
+\end{recoverybox}
 
 \begin{labbox}
 Estimate $\int_0^1 e^{-x^2}\,\dd x$ with the trapezoidal rule using $n=4$. Then $h = 0.25$ and the nodes are $0, 0.25, 0.5, 0.75, 1$. Compute the heights $f(x) = e^{-x^2}$:
@@ -149,7 +179,7 @@ The bracket is $1.000000 + 1.878826 + 1.557602 + 1.139566 + 0.367879 = 5.943873$
 
 Look again at Figure~\ref{ch27:fig-trap}. Where the curve bulges \emph{up} (concave down), the chord cuts underneath and the trapezoid undershoots. Where the curve bulges \emph{down} (concave up), the chord rides above and the trapezoid overshoots. Either way, the error is governed by how much the curve bends -- by the second derivative $f''$. A straight line has $f'' = 0$ and the trapezoidal rule nails it exactly. The more $f$ curves, the more the chord misses.
 
-Make this precise on one slice, because the mechanism is the whole story. Take a single interval of width $h$ and ask how far the area under the chord differs from the area under $f$. A careful accounting (a short Taylor expansion, done in the box below) gives, for one slice,
+Make this precise on one slice, because the mechanism is the whole story. Take a single interval of width $h$ and ask how far the area under the chord differs from the area under $f$. A careful accounting (a short Taylor expansion -- approximating $f$ near the midpoint by its local value, slope, and bending -- done in the box below) gives, for one slice,
 \[
 \text{(true area)} - \text{(trapezoid area)} = -\frac{h^3}{12}\, f''(\xi)
 \]
@@ -180,10 +210,12 @@ so the trapezoid area is $h\big(f(0) + \tfrac{f''(0)h^2}{8}\big) = f(0)h + \frac
 \[
 \text{true} - \text{trap} = \frac{f''(0)h^3}{24} - \frac{f''(0)h^3}{8} = f''(0)h^3\Big(\tfrac{1}{24} - \tfrac{3}{24}\Big) = -\frac{f''(0)h^3}{12}.
 \]
-There it is. The midpoint rule (rectangle of height $f(0)$, area $f(0)\,h$) misses the truth by $+\tfrac{1}{24}f''(0)h^3$, while the trapezoid misses by $-\tfrac{1}{12}f''(0)h^3$. Both errors are a term in $f'' h^3$, but the trapezoid's is exactly \emph{twice as large, in the opposite direction}. Hold that fact -- Simpson will exploit it.
+There it is. The midpoint rule (rectangle of height $f(0)$, area $f(0)\,h$) misses the truth by $+\tfrac{1}{24}f''(0)h^3$, while the trapezoid misses by $-\tfrac{1}{12}f''(0)h^3$. Both errors are governed by $f'' h^3$, but the trapezoid's error is exactly
+\emph{twice as large, in the opposite direction}. This relationship is the foundation
+for Simpson's rule.
 \end{whybox}
 
-Summing $-h^3 f''(\xi_i)/12$ over all $n$ slices and replacing the average of the $f''(\xi_i)$ by a single value $f''(\xi)$ (a use of the intermediate value property) gives the standard bound.
+Summing $-h^3 f''(\xi_i)/12$ over all $n$ slices and replacing the average of the $f''(\xi_i)$ by a single value $f''(\xi)$ (using the Intermediate Value Theorem, which guarantees that a continuous function on an interval attains its average value) gives the standard bound.
 
 \begin{focusbox}
 \textbf{Trapezoidal error bound.} If $\abs{f''(x)} \le M_2$ for all $x$ in $[a,b]$, then
@@ -214,7 +246,7 @@ The trapezoidal rule replaced the curve by straight chords and was left with an 
   domain=0:4, samples=100,
   axis lines=middle,
   xtick={0,2,4}, xticklabels={$x_0$,$x_1$,$x_2$}, ytick=\empty,
-  xlabel={$x$}, ylabel={$f$},
+  xlabel={$x$}, ylabel={$f(x)$},
   xmin=-0.3, xmax=4.6, ymin=0, ymax=3.4,
   enlargelimits=false,
 ]
@@ -222,13 +254,15 @@ The trapezoidal rule replaced the curve by straight chords and was left with an 
 \addplot[targetgreen, very thick, dashed, domain=0:4, samples=60]
   {0.7 + (1.862-0.7)*(x/2) + ((2.148 - 2*1.862 + 0.7)/2)*(x/2)*(x/2-1)};
 \addplot[only marks, mark=*, mark size=2pt, trapred] coordinates {(0,0.7) (2,1.862) (4,2.148)};
+\node[curveblue, font=\small, anchor=south west] at (axis cs:0.35, 1.35) {curve $f(x)$};
+\node[targetgreen!80!black, font=\small, anchor=south east] at (axis cs:3.9, 2.5) {parabola $p(x)$};
 \end{axis}
 \end{tikzpicture}
 \caption{Simpson's rule fits a parabola (dashed green) through three consecutive samples and integrates the parabola exactly. A parabola can bend, so it tracks a curving function far better than a straight chord. The fit need not pass under or over the curve everywhere -- it weaves through it, and the over- and under-estimates largely cancel.}
 \label{ch27:fig-simp}
 \end{figure}
 
-The arithmetic of ``integrate the parabola through three points'' produces a startlingly tidy weight pattern. Over a double-slice $[x_0, x_2]$ of total width $2h$, the exact area under the interpolating parabola works out to
+The arithmetic of ``integrate the parabola through three points'' produces a startlingly tidy weight pattern. Over a double-slice $[x_0, x_2]$ of total width $2h$, the exact area under the interpolating parabola (the unique quadratic passing through the three points) works out to
 \[
 \int_{x_0}^{x_2} (\text{parabola})\,\dd x = \frac{h}{3}\Big[\,f(x_0) + 4 f(x_1) + f(x_2)\,\Big].
 \]
@@ -251,7 +285,9 @@ since the odd term $Bx$ integrates to zero. Now express $A$ and $C$ through the 
 \[
 2Ah + \frac{2Ch^3}{3} = 2y_0 h + \frac{h}{3}(y_1 - 2y_0 + y_{-1}) = \frac{h}{3}\big(y_{-1} + 4y_0 + y_1\big).
 \]
-Out drops the famous $1,4,1$. Notice we never needed $B$ at all -- the slope term self-cancels by symmetry. This is the secret of Simpson's surprising power.
+This yields the $1,4,1$ coefficient pattern. Notice that the linear coefficient $B$
+does not appear in the integral -- the odd term integrates to zero by symmetry.
+This symmetry cancellation is the primary reason for the high accuracy of Simpson's rule.
 \end{whybox}
 
 \begin{labbox}
@@ -259,19 +295,28 @@ Estimate $\int_0^1 e^{-x^2}\,\dd x$ with Simpson's rule, $n = 4$, reusing the ex
 \[
 S_4 = \frac{0.25}{3}\Big[1.000000 + 4(0.939413) + 2(0.778801) + 4(0.569783) + 0.367879\Big].
 \]
-The bracket: $1.000000 + 3.757652 + 1.557602 + 2.279132 + 0.367879 = 8.962265$. Multiply by $h/3 = 0.083333$: $S_4 = 0.746855$. The true value is $0.746824$. The error is $0.000031$ -- about $31$ \emph{millionths}. Trapezoid with the very same data missed by $0.0038$. Simpson, using not a single extra function evaluation, is more than a hundred times more accurate. That is the punchline of this chapter, and now we explain why.
+The bracket: $1.000000 + 3.757652 + 1.557602 + 2.279132 + 0.367879 = 8.962265$. Multiply by $h/3 = 0.083333$: $S_4 = 0.746855$. The true value is $0.746824$. The error is $0.000031$ -- about $31$ \emph{millionths}. Trapezoid with the very same data missed by $0.0038$. Simpson, using not a single extra function evaluation, is more than a hundred times more accurate. Let us see why that simple change in weights buys so much accuracy.
 \end{labbox}
 
-\section{Why Simpson Is So Astonishingly Good}
+\section{Cubic Exactness and Fourth-Order Convergence}
 \label{ch27:whysimpson}
 
-Simpson's rule fits parabolas, so you would naturally guess it is exact for parabolas and merely good for everything else. It is exact for parabolas -- but it is also exact for \emph{cubics}, and that one extra degree of free accuracy is the source of its near-magical performance. The rest of this section shows why, geometrically, and what it buys.
+Simpson's rule is derived by fitting parabolas, which guarantees exact integration
+for quadratic polynomials. However, it is also mathematically exact for all \emph{cubic}
+polynomials. That additional degree of polynomial exactness accounts for its fourth-order
+convergence rate.
 
 \begin{intuitionbox}
-\textbf{The cubic that Simpson sees for free.} Consider $f(x) = x^3$ on the symmetric double-slice $[-h, h]$ with midpoint at $0$. Its true integral is zero, because $x^3$ is odd: the positive bump on the right exactly cancels the negative dip on the left. Now ask what Simpson predicts. The weights $1,4,1$ act on the heights $(-h)^3, 0, h^3$, i.e. $-h^3, 0, h^3$. Their weighted sum is $1\cdot(-h^3) + 4\cdot 0 + 1\cdot h^3 = 0$. Simpson also returns zero! The parabola Simpson fits cannot \emph{see} the cubic wiggle -- but it does not need to, because the symmetric weighting cancels the odd part of the function just as the true integral does. So Simpson gets cubics exactly right, by symmetry, even though it only ever fits quadratics. A method built to be exact on degree $2$ turns out, for free, to be exact on degree $3$.
+\textbf{Cubic exactness via symmetry.} Consider $f(x) = x^3$ on the symmetric double-slice $[-h, h]$ with midpoint at $0$. Its true integral is zero, because $x^3$ is an odd function: the positive area on $[0,h]$ exactly cancels the negative area on $[-h,0]$. Now evaluate Simpson's rule on this interval: the weights $1,4,1$ act on the sample values $(-h)^3 = -h^3$, $0^3 = 0$, and $h^3$, giving $1\cdot(-h^3) + 4\cdot 0 + 1\cdot h^3 = 0$. Simpson's rule yields zero with zero error. The symmetric evaluation cancels the cubic contribution just as the true integral does. Consequently, a method constructed to interpolate quadratics integrates all cubics exactly as well.
 \end{intuitionbox}
 
-Before we cash this in, meet the rule's silent partner: the \emph{midpoint rule}. Instead of sampling at the ends of a slice (trapezoid) it samples at the \emph{center} and uses a rectangle of that single height. You might expect a lone rectangle to be no better than the crude left/right rectangles of Section~\ref{ch27:rectangles}, but evaluating at the midpoint transforms the error behavior. Because the rectangle's flat top crosses the curve in the middle of the slice, it overshoots on one side and undershoots on the other, and those two triangular errors very nearly cancel (Figure~\ref{ch27:fig-mid}). That near-cancellation is why the midpoint rule, despite using only \emph{one} sample per slice, already matches the trapezoid's $h^2$ accuracy -- and, as we are about to see, leans its error in the \emph{opposite} direction, which is exactly what Simpson needs.
+\begin{recoverybox}
+\textbf{Pause and think:} Suppose you apply Simpson's rule to $f(x) = 2x^3 - 5x^2 + 4x - 1$ on $[-2, 2]$ using $n = 2$. How far will your numerical estimate be from the exact integral?
+
+\emph{Mental check:} The error is exactly zero. Simpson's rule fits a degree-2 parabola, but because the weighting is symmetric, the cubic and linear terms cancel out completely. Any polynomial up to degree 3 is integrated with zero error by Simpson's rule.
+\end{recoverybox}
+
+To understand this error cancellation, we examine the \emph{midpoint rule}. Instead of sampling at the ends of a slice (trapezoid) it samples at the \emph{center} and uses a rectangle of that single height. Evaluating at the midpoint changes the error behavior significantly: because the rectangle's flat top crosses the curve in the middle of the slice, it overshoots on one side and undershoots on the other, and those two errors largely balance each other (Figure~\ref{ch27:fig-mid}). That cancellation is why the midpoint rule, despite using only \emph{one} sample per slice, achieves $h^2$ accuracy -- and its leading error term has the \emph{opposite sign} of the trapezoidal error, which Simpson's rule exploits directly.
 
 \begin{figure}[H]
 \centering
@@ -280,8 +325,8 @@ Before we cash this in, meet the rule's silent partner: the \emph{midpoint rule}
   width=11.5cm, height=6cm,
   domain=0:4, samples=100,
   axis lines=middle,
-  xtick={0.5,1.5,2.5,3.5}, xticklabels={}, ytick=\empty,
-  xlabel={$x$}, ylabel={$f$},
+  xtick={0,1,2,3,4}, ytick=\empty,
+  xlabel={$x$}, ylabel={$f(x)$},
   xmin=-0.3, xmax=4.5, ymin=0, ymax=3.2,
   enlargelimits=false,
 ]
@@ -291,9 +336,10 @@ Before we cash this in, meet the rule's silent partner: the \emph{midpoint rule}
   \temp
 }
 \addplot[curveblue, very thick, domain=0:4] {0.6 + 0.25*x + 0.12*x^2};
-\addplot[only marks, mark=*, mark size=1.6pt, trapred] coordinates {
+\addplot[only marks, mark=*, mark size=1.8pt, trapred] coordinates {
   (0.5,{0.6+0.25*0.5+0.12*0.25}) (1.5,{0.6+0.25*1.5+0.12*2.25})
   (2.5,{0.6+0.25*2.5+0.12*6.25}) (3.5,{0.6+0.25*3.5+0.12*12.25})};
+\node[curveblue, font=\small, anchor=south east] at (axis cs:2.9, 2.45) {$f(x)$};
 \end{axis}
 \end{tikzpicture}
 \caption{The midpoint rule: each rectangle's height is sampled at the \emph{center} of its slice (red dots). The flat top now slices through the curve, overshooting on the low side and undershooting on the high side, so the two errors largely cancel. One sample per slice, yet accuracy $\sim h^2$ -- and its leftover error tilts opposite to the trapezoid's, the fact Simpson exploits.}
@@ -305,7 +351,9 @@ Before we cash this in, meet the rule's silent partner: the \emph{midpoint rule}
 \[
 \frac{2\,(\text{Midpoint}) + 1\,(\text{Trapezoid})}{3},
 \]
-the leading curvature errors cancel: $2\cdot(+\tfrac{1}{24}) + 1\cdot(-\tfrac{1}{12}) = \tfrac{1}{12} - \tfrac{1}{12} = 0$. And this blend \emph{is} Simpson's rule. On a double-slice the trapezoid uses the two endpoints and the midpoint rule uses the center; combine them in the ratio $2{:}1$ and you reproduce exactly the $1,4,1$ pattern. So Simpson is not an unrelated trick: it is precisely the linear combination of the two simple rules engineered to annihilate their common $f''$ error term. With the $f''$ term gone, the leading error is pushed all the way out to the next term, the fourth derivative $f^{(4)}$.
+the leading curvature errors cancel: $2\cdot(+\tfrac{1}{24}) + 1\cdot(-\tfrac{1}{12}) = \tfrac{1}{12} - \tfrac{1}{12} = 0$. And this blend \emph{is} Simpson's rule. On a double-slice the trapezoid uses the two endpoints and the midpoint rule uses the center; combine them in the ratio $2{:}1$ and you reproduce exactly the $1,4,1$ pattern. So Simpson is not an unrelated trick: it is precisely the linear combination of the two simple rules engineered to annihilate their common $f''$ error term.
+
+With the curvature error annihilated, where does the leading mistake go? Expanding $f$ to fourth order about the center of $[-h, h]$, the true integral is $2f(0)h + \tfrac{1}{3}f''(0)h^3 + \tfrac{1}{60}f^{(4)}(0)h^5 + \cdots$, while Simpson's formula evaluates to $2f(0)h + \tfrac{1}{3}f''(0)h^3 + \tfrac{1}{36}f^{(4)}(0)h^5 + \cdots$. The difference is $(\tfrac{1}{60} - \tfrac{1}{36})f^{(4)}(0)h^5 = -\tfrac{1}{90}f^{(4)}(0)h^5$ per double-slice of width $2h$. Summing over all $n/2$ double-slices yields a global error of $-\tfrac{(b-a)h^4}{180}f^{(4)}(\xi)$. Every lower order of error has completely vanished!
 \end{whybox}
 
 Because the $f''$ error is gone, Simpson's per-slice error is $\sim h^5 f^{(4)}$, and summed over the $n/2$ double-slices the global error is $\sim h^4 f^{(4)}$. Compare:
@@ -323,38 +371,35 @@ Simpson    & cubics (deg 3)    & $\sim h^4$ & $16$\\
 \end{tabular}
 \end{center}
 
-These three growth laws are not abstractions; you can \emph{watch} them. Figure~\ref{ch27:fig-conv} plots the true error of each rule against the number of slices $n$ for our running integral $\int_0^1 e^{-x^2}\,\dd x$, on log--log axes. On such axes a power law $\text{error} \sim n^{-p}$ becomes a straight line of slope $-p$, and the three rules sort themselves into three visibly different slopes.
+These three growth laws are not abstractions; you can \emph{watch} them. Figure~\ref{ch27:fig-conv} plots the true error of each rule against the number of slices $n$ for our running integral $\int_0^1 e^{-x^2}\,\dd x$, on log--log axes (where each major grid line marks a power of ten in slices or error). On such axes a power law $\text{error} \sim n^{-p}$ becomes a straight line of slope $-p$, and the three rules sort themselves into three visibly different slopes.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
 \begin{loglogaxis}[
-  width=12cm, height=7.2cm,
+  width=10.5cm, height=7.2cm,
   xlabel={number of slices $n$}, ylabel={absolute error},
   xmin=1.6, xmax=160, ymin=1e-10, ymax=1,
   grid=both, grid style={gray!18},
-  legend pos=south west,
+  legend pos=outer north east,
   legend cell align=left,
   log basis x=10, log basis y=10,
 ]
-% Rectangle (left) error: ~ slope -1
 \addplot[trapred, very thick, mark=*, mark size=1.6pt] coordinates {
   (2,1.30e-1) (4,6.50e-2) (8,3.25e-2) (16,1.62e-2) (32,8.12e-3) (64,4.06e-3) (128,2.03e-3)
 };
 \addlegendentry{rectangles ($\sim n^{-1}$)}
-% Trapezoid error: ~ slope -2
 \addplot[curveblue, very thick, mark=square*, mark size=1.6pt] coordinates {
   (2,1.55e-2) (4,3.84e-3) (8,9.59e-4) (16,2.40e-4) (32,5.99e-5) (64,1.50e-5) (128,3.74e-6)
 };
 \addlegendentry{trapezoid ($\sim n^{-2}$)}
-% Simpson error: ~ slope -4
 \addplot[targetgreen, very thick, mark=triangle*, mark size=2pt] coordinates {
   (2,3.05e-4) (4,3.10e-5) (8,2.02e-6) (16,1.28e-7) (32,8.04e-9) (64,5.03e-10)
 };
 \addlegendentry{Simpson ($\sim n^{-4}$)}
 \end{loglogaxis}
 \end{tikzpicture}
-\caption{Error of each rule versus the number of slices $n$ for $\int_0^1 e^{-x^2}\,\dd x$, on log--log axes, where a power law appears as a straight line of slope $-p$. Rectangles fall one decade per decade ($p=1$), the trapezoid two ($p=2$), Simpson four ($p=4$). The vertical gap is the whole story of the chapter: at $n=32$, Simpson is already near the limits of single precision while the trapezoid still carries five-digit error and rectangles barely three.}
+\caption{Error of each rule versus the number of slices $n$ for $\int_0^1 e^{-x^2}\,\dd x$, on log--log axes, where a power law appears as a straight line of slope $-p$. Rectangles fall one decade per decade ($p=1$), the trapezoid two ($p=2$), Simpson four ($p=4$). The vertical gap is the whole story of the chapter: at $n=32$, Simpson is already near the limits of single precision (roughly seven decimal digits of precision) while the trapezoid still carries five-digit error and rectangles barely three.}
 \label{ch27:fig-conv}
 \end{figure}
 
@@ -375,7 +420,7 @@ Our actual error was $0.000031$, well inside the certified $0.00026$. Even the c
 \end{labbox}
 
 \begin{aestheticbox}
-Pause on what just happened. By choosing local pieces one degree smarter -- parabolas instead of chords -- and getting one more degree of exactness for free by symmetry, the error exponent jumped from $h^2$ to $h^4$. That is not a small tweak; it is a different growth law. To reach an error of $10^{-8}$, the trapezoidal rule might need $n \approx 10^4$ slices while Simpson needs only $n \approx 10^2$. The same five samples, weighted $1,4,2,4,1$ instead of $1,2,2,2,1$, buy a hundredfold accuracy. This is the recurring lesson of numerical analysis: \emph{where you put your effort matters more than how much you spend}. A cleverer formula, not a bigger computer, is what closes the gap.
+Moving from straight chords to parabolas -- with symmetry cancelling the cubic term -- improves the global error from $h^2$ to $h^4$. In practice, that difference in scaling is dramatic: to achieve an accuracy of $10^{-8}$, the trapezoidal rule requires on the order of $10^4$ subintervals, whereas Simpson's rule requires only on the order of $10^2$. Using identical function evaluations, adjusting the quadrature weights from $1,2,2,\dots,2,1$ to $1,4,2,4,\dots,4,1$ increases accuracy by orders of magnitude. In scientific computing, choosing a higher-order approximation method generally yields greater gains than simply increasing the number of grid points.
 \end{aestheticbox}
 
 \section{A Fuller Worked Example with Both Rules}
@@ -432,8 +477,14 @@ n \ge 19.1.
 Round up to the next even integer: $n = 20$. With just twenty-one function values, Simpson guarantees six correct digits of $\ln 2$. The same calculation for the trapezoidal rule demands $n \ge 409$ -- twenty times the work for the same accuracy. This is how production code actually decides its step size: not by trial and error, but by inverting the error bound.
 \end{labbox}
 
+\begin{recoverybox}
+\textbf{Pause and think:} Suppose your simulation needs to improve an integral's accuracy by a factor of $10{,}000$. How many times more slices must the trapezoidal rule use? How many times more for Simpson?
+
+\emph{Mental check:} The trapezoid error falls like $1/n^2$, so cutting error by $10{,}000$ requires $\sqrt{10{,}000} = 100$ times as many slices. Simpson's error falls like $1/n^4$, so it requires only $(10{,}000)^{1/4} = 10$ times as many slices. A ten-fold increase in evaluation points buys a ten-thousand-fold leap in precision!
+\end{recoverybox}
+
 \begin{trapbox}
-Three classic ways to wreck a numerical integral:
+Three common numerical integration pitfalls:
 \begin{itemize}
 \item \textbf{Odd $n$ in Simpson.} Simpson pairs slices into parabolas, so $n$ must be even. With odd $n$ the weight pattern $1,4,2,\dots$ does not close properly and your answer is silently wrong. Always check $n$ is even before applying $h/3\,[1,4,2,\dots,4,1]$.
 \item \textbf{Forgetting the rules assume smoothness.} The error bounds rely on $f''$ (trapezoid) or $f^{(4)}$ (Simpson) being bounded. If $f$ has a kink, a spike, or a vertical tangent in the interval -- think $\sqrt{x}$ near $0$, whose derivatives blow up -- the bound is infinite and the promised convergence rate evaporates. Subdivide at the bad point or change variables first.
@@ -446,7 +497,55 @@ Three classic ways to wreck a numerical integral:
 
 When you type \texttt{quad(f, a, b)} in a scientific library, what runs underneath is a refined descendant of exactly what we have built. The core ideas survive; engineering wraps them.
 
-\textbf{Adaptive subdivision.} A fixed, uniform $h$ is wasteful. Where $f$ is nearly straight, big slices suffice; where $f$ swings violently, you want tiny slices. So real integrators are \emph{adaptive}: they apply Simpson's rule on a region, then split the region in half and apply Simpson to each half. If the two-half estimate agrees with the whole-region estimate to within tolerance, the region is declared done; otherwise each half is recursively subdivided. Effort flows automatically to wherever the function is hardest, which is the only sensible place to spend it.
+\textbf{Adaptive subdivision.} A fixed, uniform $h$ is wasteful. Where $f$ is nearly straight, big slices suffice; where $f$ swings violently, you want tiny slices. So real integrators are \emph{adaptive}: they apply Simpson's rule on a region, then split the region in half and apply Simpson to each half. If the two-half estimate agrees with the whole-region estimate to within tolerance, the region is declared done; otherwise each half is recursively subdivided. Effort flows automatically to wherever the function is hardest, which is the only sensible place to spend it (Figure~\ref{ch27:fig-adaptive}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6cm,
+  domain=0:4, samples=100,
+  axis lines=middle,
+  xtick={0, 1.5, 4.0},
+  xticklabels={$a$, $x_1$, $b$},
+  ytick=\empty,
+  xlabel={$x$}, ylabel={$f(x)$},
+  xmin=-0.2, xmax=4.5, ymin=0, ymax=2.8,
+  enlargelimits=false,
+]
+\addplot[draw=targetgreen!70, fill=targetgreen!12] coordinates {
+  (0,0) (1.5,0) (1.5,0.48) (0,0.40)
+} --cycle;
+\addplot[draw=targetgreen!70, fill=targetgreen!12] coordinates {
+  (1.5,0) (2.2,0) (2.2,1.14) (1.5,0.48)
+} --cycle;
+\addplot[draw=targetgreen!70, fill=targetgreen!12] coordinates {
+  (2.2,0) (2.5,0) (2.5,1.97) (2.2,1.14)
+} --cycle;
+\addplot[draw=targetgreen!70, fill=targetgreen!12] coordinates {
+  (2.5,0) (2.7,0) (2.7,2.24) (2.5,1.97)
+} --cycle;
+\addplot[draw=targetgreen!70, fill=targetgreen!12] coordinates {
+  (2.7,0) (2.9,0) (2.9,1.99) (2.7,2.24)
+} --cycle;
+\addplot[draw=targetgreen!70, fill=targetgreen!12] coordinates {
+  (2.9,0) (3.2,0) (3.2,1.19) (2.9,1.99)
+} --cycle;
+\addplot[draw=targetgreen!70, fill=targetgreen!12] coordinates {
+  (3.2,0) (4.0,0) (4.0,0.60) (3.2,1.19)
+} --cycle;
+\addplot[curveblue, very thick, domain=0:4, samples=120] {0.4 + 0.05*x + 1.7*exp(-4*(x-2.7)^2)};
+\addplot[only marks, mark=*, mark size=1.8pt, trapred] coordinates {
+  (0,0.40) (1.5,0.48) (2.2,1.14) (2.5,1.97) (2.7,2.24) (2.9,1.99) (3.2,1.19) (4.0,0.60)
+};
+\node[font=\footnotesize, fill=white, inner sep=1pt] at (axis cs:0.75, 1.2) {wide slices ($h$ large)};
+\draw[->, thick, gray] (axis cs:0.75, 1.05) -- (axis cs:0.75, 0.65);
+\node[font=\footnotesize, fill=white, inner sep=1pt] at (axis cs:2.7, 2.55) {dense slices ($h$ tiny)};
+\end{axis}
+\end{tikzpicture}
+\caption{Adaptive quadrature in action. Where the curve is gentle and nearly straight (left), a wide interval suffices. Where the curve surges into a sharp peak (center-right), the algorithm recursively bisects the region into narrow slices to capture the high curvature. Computation is saved in the flats and concentrated at the peak.}
+\label{ch27:fig-adaptive}
+\end{figure}
 
 \begin{whybox}
 \textbf{How the computer estimates its own error without knowing the answer.} This is the cleverest practical idea in the chapter. Run Simpson once on $[a,b]$ with step $h$ to get $S(h)$, then again with step $h/2$ to get $S(h/2)$. We know the error scales like $h^4$, so $S(h)$ is off by about $C h^4$ and $S(h/2)$ by about $C(h/2)^4 = Ch^4/16$. Subtract the two estimates:
@@ -457,31 +556,36 @@ The thing we cannot see directly -- the error $Ch^4/16$ of the better estimate -
 \end{whybox}
 
 \begin{connectionbox}
-That same comparison-of-two-grids trick can be turned into \emph{Richardson extrapolation}: form the combination $\big(16\,S(h/2) - S(h)\big)/15$, which cancels the leading $h^4$ error entirely and leaves an error of order $h^6$. Applied systematically to the trapezoidal rule, this idea generates the \emph{Romberg integration} table -- a triangular scheme that raises the accuracy order at each column. Romberg's first column is trapezoidal estimates on ever-finer grids; its second column is, beautifully, exactly Simpson's rule; later columns are higher-order rules nobody had to derive by hand. It is the same Taylor-cancellation logic we used to build Simpson, run to its logical conclusion. We meet extrapolation again, in disguise, when we study Taylor series.
+That same comparison-of-two-grids trick can be turned into \emph{Richardson extrapolation}: form the combination $\big(16\,S(h/2) - S(h)\big)/15$, which cancels the leading $h^4$ error entirely and leaves an error of order $h^6$. Applied systematically to the trapezoidal rule, this idea generates the \emph{Romberg integration} table -- a triangular scheme that raises the accuracy order at each column. Romberg's first column is trapezoidal estimates on ever-finer grids; its second column is exactly Simpson's rule; later columns are higher-order rules nobody had to derive by hand. It is the same Taylor-cancellation logic used to construct Simpson's rule, carried to higher orders. We meet this extrapolation principle again when studying Taylor series.
 \end{connectionbox}
 
 \textbf{Gaussian quadrature.} We assumed the sample points were \emph{equally spaced}, because that is natural and because it is forced on you when $f$ is a table of measurements. But if you are free to choose \emph{where} to sample $f$, you can do dramatically better. Gauss asked: with a fixed budget of $n$ sample points, placed wherever we like and weighted however we like, what is the most accurate rule possible? The answer -- sampling at special points called the roots of Legendre polynomials, clustered toward the ends of the interval -- yields a rule exact for polynomials up to degree $2n-1$. With the same $n$ evaluations that give Simpson degree-$3$ exactness, Gaussian quadrature reaches degree $2n-1$. For smooth functions this is the gold standard, and it is what high-precision libraries reach for first.
 
 \begin{historybox}
-The trapezoidal rule is ancient in spirit -- it is just ``average the heights,'' a technique
-surveyors used for millennia. The systemic family of techniques based on fitting polynomial curves
-through equally spaced points is known collectively as \textbf{Newton--Cotes quadrature}, developed
-collaboratively by \emph{Isaac Newton} and his Cambridge protégé \emph{Roger Cotes} around 1700.
-Cotes systematically tabulated the integration weights for polynomials of degree 1 through 10.
+Around 250~BCE, Archimedes approximated the area of a circle using inscribed and
+circumscribed polygons, establishing the principle of bounding areas by simpler shapes.
+Surveys in Egypt and Rome similarly estimated irregular land areas using trapezoidal slices.
 
-\emph{Thomas Simpson} published the parabolic rule bearing his name in his 1743 \emph{Mathematical
-Dissertations}, though James Gregory and Bonaventura Cavalieri had used geometric variants decades
-earlier. Simpson recognized the exceptional utility of the parabolic interpolant: by symmetry,
-the odd cubic error vanishes without cost, granting degree-3 accuracy for the price of degree-2.
-In 1814, \emph{Carl Friedrich Gauss} revolutionized quadrature by abandoning equally spaced points
-entirely, showing that choosing $n$ optimal non-uniform evaluation points (the zeros of Legendre
-polynomials) doubles the precision to degree $2n-1$. Today, production scientific software evaluates
-stubborn non-elementary integrals using adaptive Gauss--Kronrod quadrature -- uniting Gauss's 1814
-points with Alexander Kronrod's 1964 embedded error-estimation grid.
+The systematic theory began around 1676--1711, when Isaac Newton and Roger Cotes
+developed what is now called \textbf{Newton--Cotes quadrature}. Working on planetary
+orbits where no algebraic antiderivatives were available, they interpolated functions
+with polynomials over equally spaced points.
+
+Thomas Simpson published the three-point parabolic rule bearing his name in his 1743
+treatise \emph{Mathematical Dissertations}, though the formula had been derived earlier
+by James Gregory in 1668 and used by Newton and Cavalieri.
+
+Newton and Cotes assumed that increasing polynomial degree on equally spaced nodes would
+yield arbitrary accuracy. However, for degree 8 and higher, the interpolation weights
+oscillate in sign and grow large, making the formulas sensitive to rounding errors
+(a manifestation of Runge's phenomenon). In 1814, Carl Friedrich Gauss showed that by
+choosing both the sample locations and their weights optimally, an $n$-point rule could
+integrate polynomials up to degree $2n-1$ exactly, with all weights positive. Modern
+scientific software commonly uses adaptive extensions such as Gauss--Kronrod quadrature.
 \end{historybox}
 
 \begin{happeningbox}
-\textbf{What a computer is really doing} when it ``integrates'' is therefore never symbolic and never magic. It samples $f$ at a handful of cleverly chosen points, multiplies those heights by precomputed weights, and adds. Every definite integral your machine evaluates -- a probability, a Fourier coefficient, the energy of an orbit, the loss in a training run -- comes down to a weighted sum of function values: $\sum_i w_i f(x_i)$. The trapezoidal weights are $1,2,2,\dots,2,1$; Simpson's are $1,4,2,4,\dots,1$; Gauss's are subtler still. But it is always the same shape. Numerical integration is the art of choosing the points $x_i$ and the weights $w_i$ so that this finite sum tracks an infinite, continuous accumulation as closely as the smoothness of $f$ allows.
+\textbf{What a computer evaluates} during numerical quadrature is a concrete weighted sum. It samples $f$ at a set of designated points, multiplies those function values by precomputed quadrature weights, and sums the results. Every definite integral evaluated computationally -- a probability, a Fourier coefficient, the energy of an orbit, or a machine learning loss -- reduces to a weighted sum of function values: $\sum_i w_i f(x_i)$. The trapezoidal weights are $1,2,2,\dots,2,1$; Simpson's are $1,4,2,4,\dots,1$; Gaussian quadrature weights are derived from orthogonal polynomials. In each case, numerical integration selects nodes $x_i$ and weights $w_i$ so that the finite sum approximates continuous accumulation as accurately as the smoothness of $f$ allows.
 \end{happeningbox}
 
 \begin{walkbox}
@@ -503,55 +607,76 @@ We began stranded -- handed integrals like $\int_0^1 e^{-x^2}\,\dd x$ that prova
 
 The throughline is a single idea, applied with increasing refinement: \emph{replace the curve, locally, by something you can integrate exactly, and the better the local fit, the faster the error dies}. Constant, line, parabola -- and the error exponent climbs $h, h^2, h^4$. That is calculus turning its own definition into an algorithm.
 
-\section{The Reach of Quadrature, the Curse of Dimensionality, and the Road Ahead}
+\section{Limitations and the road ahead}
+\label{ch27:reach}
 
 \begin{connectionbox}
-Numerical quadrature completes the transition of integration from symbolic puzzle-solving to
-universal numerical computation, but moving beyond one dimension introduces a fundamental barrier.
+Numerical quadrature evaluates definite integrals directly from samples, bypassing
+the need for elementary antiderivatives. When formulas like Simpson's rule or
+Gauss--Kronrod quadrature are applied to smooth functions in one dimension, accurate
+approximations require only a modest number of function evaluations.
 
-Numerical quadrature liberated mathematics, physics, and modern engineering from the constraints
-of Liouville's theorem. When an elementary antiderivative does not exist---as with the Gaussian
-error function $\operatorname{erf}(x)$, complete elliptic integrals of the pendulum, or diffraction
-Fresnel integrals---Simpson's rule and Gauss--Kronrod quadrature evaluate the integral to machine
-precision with minimal computational cost. Furthermore, it solved the empirical problem:
-in real-world engineering, telemetry from accelerometers, seismographs, and medical sensors yields
-only discrete arrays of numbers rather than algebraic formulas. Numerical quadrature enables instantaneous
-recovery of velocity, position, energy, and total volume directly from sampled data.
-
-Yet in one dimension, Simpson's rule is astonishingly efficient: halving the step size $h$ reduces the
-truncation error by a factor of $16$ ($h^4$), so a few dozen evaluation points achieve an error of $10^{-6}$.
-The catastrophe occurs the moment we enter higher dimensions. In physics and machine
-learning, we routinely need to integrate over $d$-dimensional spaces ($d = 3$ in fluid dynamics,
-$d = 6$ in Hamiltonian phase space, $d = 100$ in statistical thermodynamics, or $d = 10^5$ in
-neural network latent spaces). If we construct a tensor-product grid using $N$ sample points per axis,
-the total number of function evaluations required is:
-\[
-  N_{\text{total}} = N^d.
-\]
-For a modest grid of $N = 100$ points:
+However, standard grid-based quadrature faces a major limitation in higher dimensions.
+When integrating over a $d$-dimensional domain, a grid of $N$ points per axis requires
+$N^d$ total function evaluations:
 \begin{itemize}
-  \item In $1$ dimension: $10^2 = 100$ evaluations (a fraction of a millisecond);
-  \item In $3$ dimensions: $10^6 = 1{,}000{,}000$ evaluations (feasible on a laptop);
-  \item In $10$ dimensions: $10^{20}$ evaluations (thousands of years on the fastest supercomputer).
+  \item In $1$ dimension: $100^1 = 100$ evaluations;
+  \item In $3$ dimensions: $100^3 = 10^6$ evaluations;
+  \item In $10$ dimensions: $100^{10} = 10^{20}$ evaluations.
 \end{itemize}
-This exponential explosion is Richard Bellman's celebrated \emph{curse of dimensionality}.
-Deterministic Newton--Cotes quadrature grids become completely paralyzed when $d > 4$.
+This exponential growth in computation is known as the \emph{curse of dimensionality}.
+Deterministic grids quickly become impractical as dimension grows.
 
-Overcoming this barrier requires two distinct computational philosophies:
+In high-dimensional problems, two alternative approaches are standard:
 \begin{itemize}
-  \item \emph{Multivariable Calculus (Chapter 34):} In Chapter~34 (\emph{Multiple Integrals}), we develop
-  analytic multi-dimensional integration using Fubini's theorem and coordinate transformations
-  (polar, cylindrical, and spherical coordinates), exploiting physical symmetry to collapse
-  multidimensional integrals back into nested one-dimensional problems.
-  \item \emph{Monte Carlo integration:} In high-dimensional physics and modern machine learning,
-  the curse of dimensionality is bypassed by abandoning deterministic grids in favor of random sampling.
-  Monte Carlo quadrature achieves an error rate of $O(1/\sqrt{N})$ \emph{regardless of the dimension $d$},
-  turning an impossible $10^{20}$-point grid into a manageable statistical sample.
+  \item \emph{Analytic reductions:} When symmetry exists, coordinate transformations
+  and Fubini's theorem can reduce multidimensional integrals to simpler nested forms
+  (Chapter~34).
+  \item \emph{Monte Carlo integration:} In high dimensions, random sampling estimates
+  integrals with an error of $O(1/\sqrt{N})$ independent of the dimension $d$.
 \end{itemize}
 \end{connectionbox}
 
+\subsection{From Continuous Integrals to Discrete Lists: The Bridge to Chapter~28}
+\label{ch27:bridge}
+
+Evaluating $\int_0^1 e^{-x^2}\,\dd x$ by repeatedly halving the step size $h = 1/n$
+generated a succession of trapezoidal estimates:
+\[
+  T_1,\; T_2,\; T_4,\; T_8,\; T_{16},\; T_{32},\; \dots,\; T_{2^k},\; \dots
+\]
+Writing out their numerical values reveals an orderly approach toward the true area:
+\[
+  0.683940,\quad 0.731370,\quad 0.742984,\quad 0.745866,\quad 0.746584,\quad 0.746764,\quad \dots
+\]
+This highlights a conceptual transition. The first twenty-seven chapters focused on the
+continuum, where variables vary continuously. Numerical approximations generate an ordered
+list of discrete numbers:
+\[
+  a_1,\; a_2,\; a_3,\; a_4,\; \dots,\; a_k,\; \dots
+\]
+where each entry $a_k = T_{2^k}$ is indexed by a discrete integer $k \in \N$. As the grid
+is refined, this list approaches a definite limit:
+\[
+  \lim_{k \to \infty} a_k = \int_0^1 e^{-x^2}\,\dd x.
+\]
+Such an infinite ordered list is a \emph{sequence}.
+
+Having studied continuous rates of change and continuous accumulation, we now turn to
+discrete lists and infinite sums. In Chapter~28, we begin with \emph{Sequences and Their Limits}.
+
 \section{Exercises}
 \label{ch27:exercises}
+
+\begin{exercise}[Mental checks]
+Answer each of the following without pencil or paper:
+\begin{enumerate}[label=(\alph*)]
+\item If $f(x)$ is strictly concave down ($f'' < 0$) on $[a,b]$, will the trapezoidal estimate $T_n$ be strictly greater than or strictly less than the true integral $\int_a^b f(x)\,\dd x$?
+\item You evaluate an integral using the trapezoidal rule with $n = 10$ and obtain an error of $0.04$. If you increase to $n = 20$, approximately what error do you expect?
+\item You evaluate the same integral with Simpson's rule and find an error of $0.0016$ with $n = 10$. If you increase to $n = 20$, approximately what error do you expect?
+\item For which of the following functions is Simpson's rule with $n = 2$ mathematically exact: $f(x) = 4x^3 - 2x + 7$, $g(x) = x^4$, $h(x) = \sin x$?
+\end{enumerate}
+\end{exercise}
 
 \begin{exercise}
 Estimate $\int_0^2 \sqrt{1 + x^3}\,\dd x$ using the trapezoidal rule with $n = 4$. (Nodes $0, 0.5, 1, 1.5, 2$; compute each $\sqrt{1+x^3}$ to four decimals, then apply weights $1,2,2,2,1$ and multiply by $h/2$.)
@@ -591,4 +716,13 @@ A car's speed (in m/s) is recorded every $2$ seconds: at $t = 0,2,4,6,8,10,12$ t
 
 \begin{exercise}
 (Richardson extrapolation.) Continue the previous exercise: form the combination $S^\star = \tfrac{16 S_4 - S_2}{15}$, which cancels the leading $h^4$ error. Compute $S^\star$ and its error against $\ln 2 = 0.693147$. You should find it dramatically more accurate than either $S_2$ or $S_4$ alone -- this is the first step of Romberg integration.
+\end{exercise}
+
+\begin{exercise}[The sequence of approximations]
+Let $f(x) = e^{-x^2}$ on $[0,1]$. For each positive integer $k \in \N$, let $s_k = S_{2^k}$ denote the Simpson's rule approximation with $n = 2^k$ slices.
+\begin{enumerate}[label=(\alph*)]
+\item Write down the first three terms of this list: $s_1 = S_2$, $s_2 = S_4$, $s_3 = S_8$.
+\item Explain why the collection $(s_k)_{k=1}^\infty$ is a \emph{sequence} of real numbers, and what it means to write $\lim_{k \to \infty} s_k = \int_0^1 e^{-x^2}\,\dd x$.
+\item Using the error bound $\abs{\int_0^1 e^{-x^2}\,\dd x - S_n} \le \frac{M_4}{180 n^4}$ with $M_4 = 12$, find a power $n = 2^k$ that mathematically guarantees $\abs{\int_0^1 e^{-x^2}\,\dd x - s_k} < 10^{-10}$. (This challenge-and-response behavior on discrete indices is the foundation of Chapter~28.)
+\end{enumerate}
 \end{exercise}

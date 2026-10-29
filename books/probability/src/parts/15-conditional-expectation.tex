@@ -1,21 +1,16 @@
 \chapter{Conditional Distributions and Conditional Expectation}
 
-There is a single idea behind almost everything we do once randomness gets complicated, and it is
-deceptively simple: \emph{learn something, then update}. You started a journey with a vague sense of
-how long it would take. Then you saw the first hour of traffic. Now your guess is sharper. You did not
-throw away probability; you sharpened it with information. That act of sharpening --- replacing a
-distribution with a \emph{conditional} distribution, and replacing an expectation with a
-\emph{conditional} expectation --- is the engine of prediction, regression, Bayesian inference,
-Markov chains, and martingales. Everything later in this book leans on it.
+In Chapter~4, conditional probability updated beliefs after an event occurred:
+$\P(A \given B) = \P(A \cap B)/\P(B)$. In Chapter~14, covariance and correlation
+measured how two random variables vary together linearly. Here we unite these
+ideas: how do our beliefs about a random variable $Y$ change when we observe the
+exact numerical value of another random variable $X$?
 
-We already met conditioning on \emph{events} back when we wrote $\P(A \given B)$. This chapter goes
-one step further, and the step is at first slightly disorienting: we condition on a \emph{random
-variable}. The result, $\E[Y \given X]$, is not a number. It is itself a random variable --- a
-function of $X$ --- and learning to think of it that way is most of the battle. Once you see it, the two
-main results of the chapter, the \textbf{tower property} (law of total expectation) and the
-\textbf{law of total variance}, become almost obvious, and you will see clearly why
-$\E[Y \given X]$ is the \emph{best possible prediction} of $Y$ from $X$. That last fact is the
-mathematical seed of all of regression and supervised learning.
+This leads to conditional distributions and the \textbf{conditional expectation}
+$\E[Y \given X]$. Unlike an ordinary expectation, $\E[Y \given X]$ is not a fixed number, but a function
+of $X$ and therefore a random variable itself. We develop its core tools---the tower
+property $\E[\E[Y \given X]] = \E[Y]$ and the law of total variance---and show why
+it provides the best mean-squared prediction of $Y$ given $X$.
 
 \section{From conditioning on events to conditioning on a variable}
 \label{ch15:from-events}
@@ -44,15 +39,91 @@ $p_X(x) = \P(X=x) > 0$, the \emph{conditional pmf of $Y$ given $X = x$} is
 
 For each fixed $x$, the function $y \mapsto p_{Y \given X}(y \given x)$ is a genuine pmf: it is
 nonnegative and sums to one over $y$, because $\sum_y p_{X,Y}(x,y) = p_X(x)$ is exactly the
-normalizing constant. So conditioning on $X=x$ just slices the joint table along the row $X=x$ and
-renormalizes that row.
+normalizing constant. So conditioning on $X=x$ just slices the joint table along the column $X=x$ and
+renormalizes that column.
 
 \begin{intuitionbox}
 Picture the joint pmf as a grid of probabilities, one cell per $(x,y)$ pair. The \emph{marginal}
 $p_X(x)$ is the total weight in column $x$. The \emph{conditional} $p_{Y\given X}(\cdot \given x)$ is
 that single column, blown up so its weights sum to one. Marginalizing collapses the grid; conditioning
-zooms into one strip of it. Same data, two different questions.
+zooms into one strip of it. Same data, two different questions (Figure~\ref{ch15:fig-discrete-slice}).
 \end{intuitionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.92]
+  \node[font=\small\bfseries, sourceblue!90!black] at (1.8, 4.4) {Joint pmf grid: $p_{X,Y}(x,y)$};
+
+  \foreach \i in {0,1,2,3} {
+    \draw[gray!30] (\i*1.2, 0) -- (\i*1.2, 3.6);
+    \draw[gray!30] (0, \i*1.2) -- (3.6, \i*1.2);
+  }
+
+  \fill[sourceblue!15, draw=sourceblue, thick, rounded corners=2pt] (1.2, 0) rectangle (2.4, 3.6);
+
+  \node[font=\footnotesize, gray!60] at (0.6, 3.0) {$0.10$};
+  \node[font=\footnotesize, gray!60] at (0.6, 1.8) {$0.20$};
+  \node[font=\footnotesize, gray!60] at (0.6, 0.6) {$0.10$};
+
+  \node[font=\footnotesize\bfseries, sourceblue!90!black] at (1.8, 3.0) {$0.10$};
+  \node[font=\footnotesize\bfseries, sourceblue!90!black] at (1.8, 1.8) {$0.30$};
+  \node[font=\footnotesize\bfseries, sourceblue!90!black] at (1.8, 0.6) {$0.20$};
+
+  \node[font=\footnotesize, gray!60] at (3.0, 3.0) {$0.05$};
+  \node[font=\footnotesize, gray!60] at (3.0, 1.8) {$0.15$};
+  \node[font=\footnotesize, gray!60] at (3.0, 0.6) {$0.10$};
+
+  \node[below=2pt, font=\small] at (0.6, 0) {$x_1$};
+  \node[below=2pt, font=\small\bfseries, sourceblue] at (1.8, 0) {$x_2$};
+  \node[below=2pt, font=\small] at (3.0, 0) {$x_3$};
+  \node[right=4pt, font=\footnotesize] at (3.6, 0) {$X$};
+
+  \node[left=2pt, font=\small] at (0, 0.6) {$y_1$};
+  \node[left=2pt, font=\small] at (0, 1.8) {$y_2$};
+  \node[left=2pt, font=\small] at (0, 3.0) {$y_3$};
+  \node[rotate=90, font=\footnotesize] at (-0.75, 1.8) {Values of $Y$};
+
+  \draw[->, thick, sourceblue] (1.8, -0.4) -- (1.8, -1.1);
+  \node[draw=sourceblue, fill=blue!6, rounded corners=2pt, font=\scriptsize, align=center, inner sep=2.5pt] at (1.8, -1.6) {
+    Marginal sum:\\
+    $p_X(x_2) = 0.60$
+  };
+
+  \draw[-{Stealth[length=6pt]}, line width=1.5pt, quotientorange] (4.2, 1.8) -- (6.0, 1.8)
+    node[midway, above=2pt, font=\scriptsize\bfseries, quotientorange!90!black, align=center] {Slice \& Rescale\\$\div p_X(x_2)$};
+
+  \begin{scope}[shift={(7.2, 0)}]
+    \node[font=\small\bfseries, targetgreen!90!black] at (1.8, 4.4) {Conditional pmf: $p_{Y\given X}(y \given x_2)$};
+
+    \draw[gray!30] (1.2, 0) -- (1.2, 3.6);
+    \draw[gray!30] (2.4, 0) -- (2.4, 3.6);
+    \draw[gray!30] (1.2, 0) -- (2.4, 0);
+    \draw[gray!30] (1.2, 1.2) -- (2.4, 1.2);
+    \draw[gray!30] (1.2, 2.4) -- (2.4, 2.4);
+    \draw[gray!30] (1.2, 3.6) -- (2.4, 3.6);
+
+    \fill[targetgreen!15, draw=targetgreen, thick, rounded corners=2pt] (1.2, 0) rectangle (2.4, 3.6);
+
+    \node[font=\footnotesize\bfseries, targetgreen!80!black] at (1.8, 3.0) {$\frac{0.10}{0.60} = \frac{1}{6}$};
+    \node[font=\footnotesize\bfseries, targetgreen!80!black] at (1.8, 1.8) {$\frac{0.30}{0.60} = \frac{3}{6}$};
+    \node[font=\footnotesize\bfseries, targetgreen!80!black] at (1.8, 0.6) {$\frac{0.20}{0.60} = \frac{2}{6}$};
+
+    \node[left=2pt, font=\small] at (1.2, 0.6) {$y_1$};
+    \node[left=2pt, font=\small] at (1.2, 1.8) {$y_2$};
+    \node[left=2pt, font=\small] at (1.2, 3.0) {$y_3$};
+
+    \node[below=2pt, font=\small\bfseries, targetgreen!80!black] at (1.8, 0) {$x_2$};
+
+    \draw[->, thick, targetgreen] (1.8, -0.4) -- (1.8, -1.1);
+    \node[draw=targetgreen, fill=green!6, rounded corners=2pt, font=\scriptsize, align=center, inner sep=2.5pt] at (1.8, -1.6) {
+      Sum of slice:\\
+      $1/6 + 3/6 + 2/6 = \mathbf{1.0}$
+    };
+  \end{scope}
+\end{tikzpicture}
+\caption{Conditioning on a discrete variable as slicing and renormalizing. On the left, the joint probability table $p_{X,Y}(x,y)$ contains total probability mass $1$ across all cells; the marginal sum of column $X = x_2$ is $p_X(x_2) = 0.60$. On the right, once we learn $X = x_2$, all other columns are discarded and the slice is blown up by dividing every cell by $p_X(x_2)$. The relative ratios of $Y$ within the slice are preserved, but the weights now sum to $1$, creating a genuine probability distribution along the line $X = x_2$.}
+\label{ch15:fig-discrete-slice}
+\end{figure}
 
 \begin{example}[Two dice, conditioned on the sum]
 \label{ch15:ex-two-dice}
@@ -71,8 +142,10 @@ into a random variable in a moment.
 \end{example}
 
 \subsection{The continuous case: dividing densities}
-When $X$ is continuous, the event $\set{X=x}$ has probability zero, and our event-based definition
-divides by zero. Yet intuitively the question ``what is the distribution of $Y$ given $X = x$'' is
+When $X$ is continuous, the event $\set{X=x}$ has probability zero --- a \emph{measure-zero event},
+meaning an outcome that is theoretically possible on the continuous continuum but carries zero
+probability mass, like an idealized dart hitting an exact point coordinate on a board. Our event-based
+definition divides by zero. Yet intuitively the question ``what is the distribution of $Y$ given $X = x$'' is
 perfectly sensible --- think of the heights of people who weigh exactly $70$ kg. The resolution is to
 do the same division, but with \emph{densities} instead of probabilities.
 
@@ -101,8 +174,9 @@ For small $\eps$,
 The $\eps$'s cancel, and what survives is exactly $\int_{-\infty}^{y} f_{Y\given X}(v \given x)\,\dd v$.
 So the density quotient is the \emph{limit} of ordinary conditional probabilities on shrinking slabs ---
 not a trick, but the only consistent answer. (Choosing a different shape of vanishing neighborhood can
-give a different limit; this is the famous Borel paradox, and it is why measure-theoretic care
-eventually becomes necessary --- see the rigorous treatment later in the book.)
+give a different limit; this is the famous \emph{Borel paradox}, where conditioning on a great circle of a
+sphere yields conflicting probability densities depending on which coordinate system is chosen to approach
+the limit --- a cautionary tale showing why measure-theoretic care becomes necessary in Chapter~38.)
 \end{whybox}
 
 \begin{figure}[H]
@@ -117,8 +191,6 @@ eventually becomes necessary --- see the rigorous treatment later in the book.)
   title style={font=\small},
   ymin=0,
 ]
-% For standard bivariate normal with corr rho, Y|X=x ~ N(rho*x, 1-rho^2).
-% Use rho=0.7 -> mean 0.7x, var 1-0.49=0.51, sd~0.714.
 \addplot[densityred, thick] {1/(0.714*sqrt(2*pi))*exp(-(x-(-1.4))^2/(2*0.51))};
 \addlegendentry{$x=-2$}
 \addplot[distblue, thick] {1/(0.714*sqrt(2*pi))*exp(-(x-(0))^2/(2*0.51))};
@@ -128,10 +200,11 @@ eventually becomes necessary --- see the rigorous treatment later in the book.)
 \end{axis}
 \end{tikzpicture}
 \caption{Each value of $X$ selects a different conditional distribution of $Y$. For a bivariate normal
-with correlation $\rho = 0.7$, the slice $Y \given X = x$ is Normal with mean $\rho x$ and the
-\emph{same} variance $1-\rho^2$ for every $x$. The center slides with $x$; the spread does not. The
-moving center, as a function of $x$, is the regression line --- and it is the conditional expectation
-$\E[Y \given X = x]$ that we build next.}
+(a joint distribution where both variables and all their slices are bell-shaped) with correlation
+$\rho = 0.7$ (the linear correlation coefficient from Chapter~14), the slice $Y \given X = x$ is Normal
+with mean $\rho x$ and the \emph{same} variance $1-\rho^2$ for every $x$. The center slides with $x$; the
+spread does not. The moving center, as a function of $x$, is the regression line --- and it is the conditional
+expectation $\E[Y \given X = x]$ that we build next.}
 \label{ch15:fig-slices}
 \end{figure}
 
@@ -218,15 +291,28 @@ that is allowed to depend on $X$ but on nothing else}. Imagine partitioning the 
 value of $X$: all outcomes with $X = x$ get lumped together. Within each lump, $\E[Y\given X]$ reports
 the average value of $Y$ over that lump. So $\E[Y\given X]$ is a ``coarsened'' or ``smoothed'' version
 of $Y$ --- it forgets every detail of the outcome except what $X$ reveals, and within each level of
-$X$ it replaces $Y$ by its local average. It is $Y$ as seen through the blurry lens of $X$. This is
-literally the measure-theoretic definition (conditioning on the $\sigma$-algebra generated by $X$),
-which we make rigorous in a later chapter.
+$X$ it replaces $Y$ by its local average. It represents $Y$ averaged across each value of $X$. This is
+literally the measure-theoretic definition (conditioning on the $\sigma$-algebra generated by $X$ ---
+the formal collection of all events that can be decided once the value of $X$ is revealed),
+which we make rigorous in Chapter~38.
 \end{happeningbox}
+
+\begin{recoverybox}
+\textbf{Pause and think: two quick checks on $\E[Y \given X]$.}
+\begin{enumerate}
+  \item Suppose $X$ and $Y$ are independent. What random variable is $\E[Y \given X]$?
+  \item Suppose $Y = X^2$. What random variable is $\E[Y \given X]$?
+\end{enumerate}
+\emph{Answers:} In (1), knowing $X$ provides zero information about $Y$, so $\E[Y \given X] = \E[Y]$ ---
+a constant random variable taking the exact same number in every possible world. In (2), knowing $X$
+tells you $Y$ completely with no leftover uncertainty, so $\E[Y \given X] = X^2$ --- a variable that
+moves and fluctuates alongside $X^2$.
+\end{recoverybox}
 
 \begin{example}[Back to the two dice]
 In Example~\ref{ch15:ex-two-dice}, given $S = s$ the first die $X_1$ is uniform on the pairs summing to
-$s$. By symmetry $\E[X_1 \given S = s] = s/2$ (the two dice are exchangeable, so each carries half the
-sum on average). Therefore, as a random variable,
+$s$. By symmetry $\E[X_1 \given S = s] = s/2$ (the two dice are exchangeable --- swapping their roles
+leaves their joint distribution unchanged --- so each carries half the sum on average). Therefore, as a random variable,
 \[
   \E[X_1 \given S] = \frac{S}{2}.
 \]
@@ -300,9 +386,9 @@ unweighted average of group means would be wrong (Figure~\ref{ch15:fig-tower-tre
   child {node[grp] (g1) {$\E[Y\given X{=}x_1]$}}
   child {node[grp] (g2) {$\E[Y\given X{=}x_2]$}}
   child {node[grp] (g3) {$\E[Y\given X{=}x_3]$}};
-\path (r) -- (g1) node[midway, above left=0.2mm and -4mm, sourceblue] {\scriptsize $p_X(x_1)$};
-\path (r) -- (g2) node[midway, left, sourceblue] {\scriptsize $p_X(x_2)$};
-\path (r) -- (g3) node[midway, above right=0.2mm and -4mm, sourceblue] {\scriptsize $p_X(x_3)$};
+\path (r) -- (g1) node[pos=0.45, above left=1pt, sourceblue] {\scriptsize $p_X(x_1)$};
+\path (r) -- (g2) node[pos=0.45, left=2pt, sourceblue] {\scriptsize $p_X(x_2)$};
+\path (r) -- (g3) node[pos=0.45, above right=1pt, sourceblue] {\scriptsize $p_X(x_3)$};
 \end{tikzpicture}
 \caption{The tower property as a two-stage average. Partition the sample space by the value of $X$;
 inside each group $\set{X = x_k}$ the within-group mean is $\E[Y\given X = x_k]$. Reassembling them,
@@ -314,7 +400,8 @@ whole point: an unweighted average of the leaves would not equal $\E[Y]$.}
 \begin{proof}
 Take the discrete case; the continuous case replaces sums by integrals verbatim. By
 Definition~\ref{ch15:def-cond-exp-rv}, $\E[Y\given X] = g(X)$ with $g(x) = \E[Y\given X = x]$. Apply the
-law of the unconscious statistician to the function $g$ of $X$:
+\emph{law of the unconscious statistician} (which computes the expectation of a function $g(X)$ directly
+from $X$'s distribution, without needing to derive the distribution of $g(X)$ first):
 \[
   \E\big[g(X)\big] = \sum_x g(x)\,p_X(x)
   = \sum_x \Big(\sum_y y\, p_{Y\given X}(y\given x)\Big) p_X(x).
@@ -331,21 +418,32 @@ convergent. The continuous proof is identical with $f$'s and integrals.
 \end{proof}
 
 \begin{happeningbox}
-The proof reveals the trick in one line: $\E[Y\given X]\,p_X = $ ``joint, then sum out $X$.'' The
+The proof shows the mechanism directly: $\E[Y\given X]\,p_X$ reconstructs the joint distribution before summing out $X$. The
 conditional expectation \emph{undoes} the conditioning's normalization when you reweight by $p_X$, and
 summing over $x$ marginalizes $X$ away, leaving plain $\E[Y]$. Tower property = ``condition, then
 un-condition by averaging.''
 \end{happeningbox}
 
-\subsection{Why the tower property earns its keep}
+\begin{recoverybox}
+\textbf{Pause and think: a one-line mental check on the tower property.}
+Suppose someone informs you that $\E[Y \given X] = 3X + 1$, and that $X$ has mean $\E[X] = 4$. What is
+$\E[Y]$? You do not need to know whether $X$ is discrete or continuous, nor do you need the full joint
+distribution of $(X, Y)$. The tower property gives the answer in one step:
+\[
+  \E[Y] = \E\big[\E[Y \given X]\big] = \E[3X + 1] = 3\,\E[X] + 1 = 3(4) + 1 = 13.
+\]
+\end{recoverybox}
+
+\subsection{Applications of the tower property}
 The tower property turns hard expectations into easy ones whenever there is a natural variable to
 condition on --- typically a quantity that, once known, makes $Y$ simple.
 
 \begin{example}[Random sum / Wald-style identity]
 \label{ch15:ex-random-sum}
 Let $N$ be a nonnegative-integer random variable (a random count), and let $X_1, X_2, \dots$ be i.i.d.
-with mean $\mu$, independent of $N$. Define the \emph{random sum} $T = \sum_{i=1}^{N} X_i$. What is
-$\E[T]$? Condition on $N$: once $N = n$ is known, $T$ is a sum of exactly $n$ i.i.d. terms, so
+with mean $\mu$, independent of $N$. Define the \emph{random sum} $T = \sum_{i=1}^{N} X_i$
+(often called a Wald-type sum, connecting a random number of terms to the product of their individual means).
+What is $\E[T]$? Condition on $N$: once $N = n$ is known, $T$ is a sum of exactly $n$ i.i.d. terms, so
 \[
   \E[T \given N = n] = n\mu, \qquad\text{hence}\qquad \E[T\given N] = N\mu.
 \]
@@ -371,6 +469,7 @@ property over the first flip $F$,
 \]
 Solve: $m = p + (1-p) + (1-p)m = 1 + (1-p)m$, so $m\,p = 1$ and $\E[N] = 1/p$. Conditioning on one step
 collapses an infinite sum into a single linear equation --- the prototype of ``first-step analysis''
+(breaking a multi-stage process into what occurs on the very first move plus what remains afterward)
 that powers Markov chains.
 \end{example}
 
@@ -384,9 +483,8 @@ For Example~\ref{ch15:ex-poisson-rate}, $\E[N\given \Lambda] = \Lambda$, so by t
 \section{The law of total variance}
 \label{ch15:total-var}
 
-Expectation splits cleanly under conditioning. Variance does too, but with an illuminating twist: it
-splits into \emph{two} pieces, and the two pieces have a beautiful interpretation as ``noise'' and
-``signal.''
+Expectation splits cleanly under conditioning. Variance does too, decomposing into
+within-group and between-group components.
 
 \begin{theorem}[Law of total variance]
 \label{ch15:thm-eve}
@@ -430,7 +528,9 @@ is noise.
 
 \begin{connectionbox}
 This decomposition is the probabilistic skeleton of the ANOVA identity in statistics
-(``total sum of squares $=$ within-group $+$ between-group'') and of the $R^2$ coefficient in
+(Analysis of Variance, which partitions the total variation in a dataset into variation within treatment
+groups and variation between treatment groups, comparing them via
+``total sum of squares $=$ within-group $+$ between-group'') and of the $R^2$ coefficient in
 regression: $R^2 = \Var(\E[Y\given X]) / \Var(Y)$ is exactly the \emph{fraction of variance explained},
 the signal share. Linear algebra fans will recognize the Pythagorean flavor --- and indeed in the next
 section we see $Y = \E[Y\given X] + (\text{residual})$ is an orthogonal decomposition, with the law of
@@ -482,11 +582,11 @@ but never the first.}
 \section{Confounding, Simpson's paradox, and seeing vs.~doing}
 \label{ch15:simpsons-causal}
 
-The law of total expectation, $\E[Y] = \E[\E[Y \given X]]$, looks utterly benign. It says that to calculate the grand average of a quantity across an entire population, you can slice the population by some feature $X$, compute the average within each slice, and reassemble them by weighting each slice by its proportion in the population.
+The law of total expectation, $\E[Y] = \E[\E[Y \given X]]$, looks completely straightforward: to calculate the grand average of a quantity across an entire population, you can slice the population by some feature $X$, compute the average within each slice, and reassemble them by weighting each slice by its proportion in the population.
 
-Yet hidden inside this weighted reassembly lurks one of the most unsettling phenomena in empirical science: \textbf{Simpson's paradox}. It occurs when an apparent relationship observed within every subgroup of a population completely reverses when the subgroups are pooled together. A medical treatment can outperform its rival on men and outperform its rival on women, yet appear worse on the combined population. A university department can admit women at a higher rate than men in every major, yet have a lower overall female admission rate.
+Yet this weighted reassembly produces a striking reversal in empirical data known as \textbf{Simpson's paradox}. It occurs when an apparent relationship observed within every subgroup of a population completely reverses when the subgroups are pooled together. A medical treatment can outperform its rival on men and outperform its rival on women, yet appear worse on the combined population. A university department can admit women at a higher rate than men in every major, yet have a lower overall female admission rate.
 
-The paradox is not a mathematical contradiction. The arithmetic is consistent. Rather, the paradox exposes a fatal blind spot in human intuition: we instinctively confuse \emph{observing} an event with \emph{causing} an outcome. We confuse conditioning on evidence, $\P(Y \given X)$, with intervening in the world, $\P(Y \given \operatorname{do}(X))$.
+The paradox is not a mathematical contradiction --- the arithmetic is completely consistent. Instead, it exposes the gap between passive observation and active intervention: observing an association $\P(Y \given X)$ does not mean that intervening on $X$ will have the same effect. We must distinguish conditioning on evidence, $\P(Y \given X)$, from intervening in the world, $\P(Y \given \operatorname{do}(X))$.
 
 \subsection{The clinical puzzle: Charig et al.~(1986)}
 \label{ch15:kidney-stones}
@@ -647,19 +747,20 @@ Treatment A has a steeper slope than Treatment B on small stones ($0.931 > 0.867
     % Vectors for Treatment A (Blue)
     \draw[-{Stealth[length=4.5pt]}, line width=1.3pt, sourceblue] (A0) -- (A1);
     \draw[-{Stealth[length=4.5pt]}, line width=1.3pt, sourceblue] (A1) -- (A_tot)
-      node[midway, below right=-2pt, font=\tiny\bfseries, sourceblue] {$\mathbf{A}_{\text{Large}}: 73.0\%$};
+      node[pos=0.62, below right=1pt, font=\tiny\bfseries, sourceblue, fill=gray!3, inner sep=0.8pt] {$\mathbf{A}_{\text{Large}}: 73.0\%$};
     \fill[sourceblue] (A1) circle (1.8pt);
     \fill[sourceblue] (A_tot) circle (2pt);
 
-    % Leader callout for A1 to ensure zero overlap
-    \draw[thin, sourceblue!80] (A1) -- ++(-0.25, 0.45)
-      node[above, font=\tiny\bfseries, sourceblue] {$\mathbf{A}_{\text{Small}}: 93.1\%$};
+    % Label for A1 positioned in clear upper-left space with leader
+    \node[anchor=south, font=\tiny\bfseries, sourceblue, align=center, fill=gray!3, inner sep=1pt]
+      (lblA1) at (1.58, 2.55) {$\mathbf{A}_{\text{Small}}: 93.1\%$};
+    \draw[thin, sourceblue!80] (lblA1.south) -- (A1);
 
     % Vectors for Treatment B (Orange)
     \draw[-{Stealth[length=4.5pt]}, line width=1.3pt, quotientorange] (B0) -- (B1)
-      node[pos=0.6, below right=-2pt, font=\tiny\bfseries, quotientorange!90!black] {$\mathbf{B}_{\text{Small}}: 86.7\%$};
+      node[pos=0.36, below right=2pt, font=\tiny\bfseries, quotientorange!90!black, fill=gray!3, inner sep=0.8pt] {$\mathbf{B}_{\text{Small}}: 86.7\%$};
     \draw[-{Stealth[length=4.5pt]}, line width=1.3pt, quotientorange] (B1) -- (B_tot)
-      node[midway, above left=-2pt, font=\tiny\bfseries, quotientorange!90!black] {$\mathbf{B}_{\text{Large}}: 68.8\%$};
+      node[pos=0.55, above left=2pt, font=\tiny\bfseries, quotientorange!90!black, fill=gray!3, inner sep=0.8pt] {$\mathbf{B}_{\text{Large}}: 68.8\%$};
     \fill[quotientorange] (B1) circle (1.8pt);
     \fill[quotientorange] (B_tot) circle (2pt);
 
@@ -695,10 +796,10 @@ Treatment A has a steeper slope than Treatment B on small stones ($0.931 > 0.867
       (nY1) at (Y1) {Cure $Y$};
 
     \draw[-{Stealth[length=4.5pt]}, line width=1.1pt, trapred] (nZ1) -- (nX1)
-      node[midway, above left=-3pt, font=\tiny\bfseries, trapred] {confounds};
+      node[midway, left=2pt, font=\tiny\bfseries, trapred] {confounds};
     \draw[-{Stealth[length=4.5pt]}, line width=1.1pt, structurepurple] (nZ1) -- (nY1);
     \draw[-{Stealth[length=4.5pt]}, line width=1.1pt, sourceblue] (nX1) -- (nY1)
-      node[midway, below=1pt, font=\tiny\bfseries] {causal};
+      node[midway, below=2pt, font=\tiny\bfseries] {causal};
 
     \node[text width=3.1cm, align=center, font=\tiny] at (1.5, 1.1) {
       \textbf{Observational} $\P(Y \given X)$\\[2pt]
@@ -727,15 +828,15 @@ Treatment A has a steeper slope than Treatment B on small stones ($0.931 > 0.867
     \coordinate (cut) at ($(nZ2)!0.5!(nX2)$);
     \draw[trapred, line width=1.4pt] ($(cut)+(-0.13,-0.13)$) -- ($(cut)+(0.13,0.13)$);
     \draw[trapred, line width=1.4pt] ($(cut)+(-0.13,0.13)$) -- ($(cut)+(0.13,-0.13)$);
-    \node[above left=-2pt, font=\tiny\bfseries, trapred] at (cut) {severed};
+    \node[left=3pt, font=\tiny\bfseries, trapred] at (cut) {severed};
 
     \draw[-{Stealth[length=4.5pt]}, line width=1.1pt, structurepurple] (nZ2) -- (nY2);
     \draw[-{Stealth[length=4.5pt]}, line width=1.1pt, sourceblue] (nX2) -- (nY2)
-      node[midway, below=1pt, font=\tiny\bfseries] {causal};
+      node[midway, below=2pt, font=\tiny\bfseries] {causal};
 
     \node[text width=3.1cm, align=center, font=\tiny] at (5.3, 1.1) {
       \textbf{Interventional} $\P(Y \given \operatorname{do}(X))$\\[2pt]
-      Backdoor path cut: $Z \not\to X$\\[2pt]
+      Backdoor path $Z \to X$ severed\\[2pt]
       Intervention sets $X \indep Z$\\[2pt]
       Fixed weights $\P(Z)$ for all
     };
@@ -743,7 +844,7 @@ Treatment A has a steeper slope than Treatment B on small stones ($0.931 > 0.867
     % Sub-annotation
     \node[text width=6.8cm, align=center, font=\tiny, draw=gray!30, fill=white, rounded corners=2pt, inner sep=2pt]
       at (3.4, -0.6) {Backdoor adjustment: evaluate both on identical population weights $\P(Z)$:\\
-      $\P(\text{Cure}\given \operatorname{do}(A)) = \mathbf{83.2\%} > \P(\text{Cure}\given \operatorname{do}(B)) = \mathbf{77.9\%}$ (A is superior).};
+      $\P(\text{Cure}\given \operatorname{do}(A)) = \mathbf{83.3\%} > \P(\text{Cure}\given \operatorname{do}(B)) = \mathbf{77.9\%}$ (A is superior).};
   \end{scope}
 \end{tikzpicture}
 \caption{Simpson's paradox resolved geometrically and causally. \textbf{Panel A}: In the $(\text{Patients}, \text{Cured})$ plane, subgroup cure rates are vector slopes. Treatment A has steeper slopes in both subgroups ($93.1\% > 86.7\%$ and $73.0\% > 68.8\%$). However, because doctors directed $75\%$ of Treatment A patients from the difficult Large-stone group while giving $77\%$ of Treatment B to easy Small-stone cases, vector addition pulls A's pooled vector toward the lower slope and B's toward the higher slope, flipping the overall comparison. \textbf{Panel B}: In observational data $\P(Y \given X)$, the confounding fork $X \leftarrow Z \to Y$ is open because stone size $Z$ influenced doctor choice $X$. In an intervention $\P(Y \given \operatorname{do}(X))$, the arrow $Z \to X$ is severed, leaving $X \indep Z$ and re-weighting both treatments across the true population distribution $\P(Z)$, proving Treatment A is genuinely superior.}
@@ -783,8 +884,8 @@ And the treatment itself affects recovery:
 \[
   X \longrightarrow Y.
 \]
-Together, these three arrows form a \textbf{confounding fork}: $X \longleftarrow Z \longrightarrow Y$ (Figure~\ref{ch15:fig-simpson-causal}, Panel B, left).
-The path $X \leftarrow Z \to Y$ is known as a \textbf{backdoor path}. When we condition on observational data $X = x$, information flows backward through this path. Observing that a patient received open surgery ($X = A$) conveys information about $Z$: it tells us the patient likely had a large, severe stone ($\P(Z = \text{Large} \given X = A) = 263/350 \approx 75.1\%$). That negative prognosis suppresses the observed recovery rate.
+Together, these three arrows form a \textbf{confounding fork}: $X \longleftarrow Z \longrightarrow Y$ in our causal diagram (a \textbf{directed acyclic graph}, or DAG --- a flowchart of cause-and-effect arrows containing no feedback loops; Figure~\ref{ch15:fig-simpson-causal}, Panel B, left).
+The path $X \leftarrow Z \to Y$ is known as a \textbf{backdoor path} --- an open backdoor through a shared common cause that transmits spurious, non-causal correlation between treatment and outcome. When we condition on observational data $X = x$, information flows backward through this path. Observing that a patient received open surgery ($X = A$) conveys information about $Z$: it tells us the patient likely had a large, severe stone ($\P(Z = \text{Large} \given X = A) = 263/350 \approx 75.1\%$). That negative prognosis suppresses the observed recovery rate.
 
 Now contrast this with an \textbf{intervention}. Suppose a clinical trial assigns Treatment A to every patient in the target population by medical protocol or randomization. We write this intervention using Pearl's \textbf{$\operatorname{do}$-operator}:
 \[
@@ -834,7 +935,7 @@ For \textbf{Treatment A} (Open surgery):
   &= \P(\text{Cure} \given A, \text{Small})\,\P(\text{Small}) \;+\; \P(\text{Cure} \given A, \text{Large})\,\P(\text{Large}) \\
   &= \left(\frac{81}{87}\right)(0.510) \;+\; \left(\frac{192}{263}\right)(0.490) \\
   &\approx (0.9310)(0.510) \;+\; (0.7300)(0.490) \\
-  &= 0.4748 \;+\; 0.3577 \;=\; \mathbf{83.2\%}.
+  &= 0.4748 \;+\; 0.3577 \;=\; 0.8325 \;\approx\; \mathbf{83.3\%}.
 \end{aligned}
 \]
 For \textbf{Treatment B} (Keyhole procedure):
@@ -844,17 +945,17 @@ For \textbf{Treatment B} (Keyhole procedure):
   &= \P(\text{Cure} \given B, \text{Small})\,\P(\text{Small}) \;+\; \P(\text{Cure} \given B, \text{Large})\,\P(\text{Large}) \\
   &= \left(\frac{234}{270}\right)(0.510) \;+\; \left(\frac{55}{80}\right)(0.490) \\
   &\approx (0.8667)(0.510) \;+\; (0.6875)(0.490) \\
-  &= 0.4420 \;+\; 0.3369 \;=\; \mathbf{77.9\%}.
+  &= 0.4420 \;+\; 0.3369 \;=\; 0.7789 \;\approx\; \mathbf{77.9\%}.
 \end{aligned}
 \]
 
-The paradox dissolves completely. When both procedures are evaluated fairly across the same patient distribution, Treatment A cures $83.2\%$ of patients, while Treatment B cures $77.9\%$. Treatment A is genuinely the superior treatment, providing an advantage of $+5.3$ percentage points across the population. The apparent pooled superiority of Treatment B in raw observational records was an artifact of confounding: Treatment B looked effective overall only because doctors selected it for patients who were already easy to cure.
+The paradox dissolves completely. When both procedures are evaluated fairly across the same patient distribution, Treatment A cures $83.3\%$ of patients, while Treatment B cures $77.9\%$. Treatment A is genuinely the superior treatment, providing an advantage of $+5.4$ percentage points across the population. The apparent pooled superiority of Treatment B in raw observational records was an artifact of confounding: Treatment B looked effective overall only because doctors selected it for patients who were already easy to cure.
 
 \section{Conditional expectation is the best predictor}
 \label{ch15:best-predictor}
 
 We now reach the result that justifies calling $\E[Y\given X]$ the ``best guess of $Y$ from $X$,'' and
-that secretly underlies all of supervised learning. Suppose you must predict $Y$ using only a function
+that underpins supervised learning. Suppose you must predict $Y$ using only a function
 $h(X)$ of the observed $X$, and you will be scored by mean squared error $\E\big[(Y - h(X))^2\big]$.
 Which function $h$ should you choose?
 
@@ -896,13 +997,14 @@ is the unique minimizer.
 
 \begin{happeningbox}
 The vanishing of the cross term reflects a deeper geometric truth: \emph{orthogonality}. Think of
-random variables (with finite variance) as vectors, with inner product
-$\langle U, V\rangle = \E[UV]$. The proof shows the prediction error $Y - \E[Y\given X]$ is orthogonal
-to \emph{every} function of $X$. So $\E[Y\given X]$ is the \emph{orthogonal projection} of $Y$ onto the
-subspace of all functions of $X$. ``Best predictor'' literally means ``foot of the perpendicular.'' And
-the decomposition $\E[(Y-h)^2] = \E[(Y-m)^2] + \E[(m-h)^2]$ is the Pythagorean theorem in this
-geometry (Figure~\ref{ch15:fig-projection}). The law of total variance is the same Pythagorean theorem with $h$ taken to be the constant
-$\E[Y]$: total $=$ residual $+$ explained.
+random variables (with finite variance) as vectors living in a geometric space (the Hilbert space $L^2$,
+where distances between variables are root-mean-square errors and perpendicularity means zero correlation),
+with inner product $\langle U, V\rangle = \E[UV]$. The proof shows the prediction error $Y - \E[Y\given X]$
+is orthogonal to \emph{every} function of $X$. So $\E[Y\given X]$ is the \emph{orthogonal projection} of $Y$
+onto the subspace of all functions of $X$. ``Best predictor'' literally means ``foot of the perpendicular.''
+And the decomposition $\E[(Y-h)^2] = \E[(Y-m)^2] + \E[(m-h)^2]$ is the Pythagorean theorem in this
+geometry (Figure~\ref{ch15:fig-projection}). The law of total variance is the same Pythagorean theorem with
+$h$ taken to be the constant $\E[Y]$: total $=$ residual $+$ explained.
 \end{happeningbox}
 
 \begin{figure}[H]
@@ -927,27 +1029,28 @@ $\E[Y]$: total $=$ residual $+$ explained.
   \node[structurepurple, font=\footnotesize\bfseries, below=5pt] at (Yhat) {$\hat Y = \E[Y\mid X]$};
 
   % Arbitrary competitor h(X) on the plane
-  \coordinate (H) at (4.0, -0.35);
+  \coordinate (H) at (4.45, -0.35);
   \fill[targetgreen!80!black] (H) circle (2pt) node[below=2pt, font=\footnotesize\bfseries, targetgreen!80!black] {$h(X)$};
 
   % Orthogonal dropped perpendicular Y -> Yhat
-  \draw[very thick, structurepurple, -{Stealth}] (Y) -- (Yhat)
-    node[pos=0.45, right=4pt, font=\scriptsize\bfseries, structurepurple] {Residual: $Y - \hat Y$};
+  \draw[very thick, structurepurple, -{Stealth}] (Y) -- (Yhat);
 
   % Right angle symbol at Yhat for perpendicular
   \draw[gray!70, thick] ($(Yhat)+(-0.2,0)$) -- ($(Yhat)+(-0.2,0.2)$) -- ($(Yhat)+(0,0.2)$);
 
   % Distance to competitor Y -> H
   \draw[thick, dashed, targetgreen!80!black] (Y) -- (H)
-    node[pos=0.18, above right=2pt, font=\scriptsize\bfseries, targetgreen!80!black] {Error: $\|Y - h(X)\|$};
+    node[pos=0.25, above right=2pt, font=\scriptsize\bfseries, targetgreen!80!black] {Error: $\|Y - h(X)\|$};
+
+  \node[right=4pt, font=\scriptsize\bfseries, structurepurple, fill=sourceblue!7, inner sep=1pt, rounded corners=1pt] at ($(Y)!0.72!(Yhat)$) {Residual: $Y - \hat Y$};
 
   % Line on plane from Yhat to H
   \draw[thick, dashed, targetgreen!80!black] (Yhat) -- (H)
-    node[pos=0.62, below=3pt, font=\scriptsize, targetgreen!80!black] {$\|\hat Y - h(X)\|$};
+    node[pos=0.58, below=3pt, font=\scriptsize, targetgreen!80!black] {$\|\hat Y - h(X)\|$};
 
   % Total variance vectors: EY -> Yhat and EY -> Y
   \draw[thick, sourceblue!80!black, -{Stealth}] (EY) -- (Yhat)
-    node[pos=0.42, below=4pt, font=\scriptsize\bfseries, sourceblue!80!black] {Signal: $\Var(\hat Y)$};
+    node[pos=0.45, above=3pt, font=\scriptsize\bfseries, sourceblue!80!black] {Signal: $\Var(\hat Y)$};
   \draw[thick, densityred!80!black, -{Stealth}] (EY) -- (Y)
     node[pos=0.55, above left=3pt, font=\scriptsize\bfseries, densityred!80!black] {Total: $\Var(Y)$};
 
@@ -957,25 +1060,22 @@ $\E[Y]$: total $=$ residual $+$ explained.
     \textbf{Law of Total Variance:} $\Var(Y) = \E[\Var(Y\mid X)] + \Var(\E[Y\mid X])$
   };
 \end{tikzpicture}
-\caption{Conditional expectation as orthogonal projection in Hilbert space $L^2$. The best predictor $\hat Y = \E[Y\mid X]$ is the perpendicular shadow dropped by $Y$ onto the subspace $\mathcal{H}_X$ of all functions of $X$. Any other predictor $h(X)$ adds an orthogonal leg $\|\hat Y - h(X)\|^2$, strictly increasing mean squared error. The same right triangle with vertex at $\E[Y]$ yields the Law of Total Variance.}
+\caption{Conditional expectation as orthogonal projection in the geometric space $L^2$ (the space of finite-variance random variables where distance is root-mean-square error). The best predictor $\hat Y = \E[Y\mid X]$ is the perpendicular shadow dropped by $Y$ onto the subspace $\mathcal{H}_X$ of all functions of $X$. Any other predictor $h(X)$ adds an orthogonal leg $\|\hat Y - h(X)\|^2$, strictly increasing mean squared error. The same right triangle with vertex at $\E[Y]$ yields the Law of Total Variance.}
 \label{ch15:fig-projection}
 \end{figure}
 
 \begin{aestheticbox}
-Step back and admire the unity. Conditional expectation is \emph{simultaneously}: (i) a within-group
-average; (ii) a smoothing/coarsening of $Y$ through the lens of $X$; (iii) the orthogonal projection of
-$Y$ onto functions of $X$; (iv) the minimum-mean-squared-error predictor. Four descriptions, one
-object. When a single definition wears that many hats, you are looking at something fundamental --- and
-indeed $\E[\cdot \given X]$ is the operation that the rest of advanced probability is built around.
+Notice how four seemingly different ideas turn out to be the exact same object: (i) averaging $Y$ within each slice of $X$; (ii) updating the mean of $Y$ using the information in $X$; (iii) dropping a perpendicular from $Y$ onto the subspace of functions of $X$; and (iv) minimizing mean squared prediction error. Whenever you switch between algebra, geometry, and prediction in later chapters, $\E[Y \given X]$ is the dictionary translating among them.
 \end{aestheticbox}
 
 \begin{applicationbox}
-\textbf{Regression is conditional expectation.} This theorem \emph{is} the foundation of regression and supervised machine learning. In regression we
-seek a function that predicts a target $Y$ (price, click, diagnosis) from features $X$; the gold
-standard, if we had unlimited data and unlimited flexibility, is the \emph{regression function}
-$g(x) = \E[Y\given X = x]$ --- the true conditional mean, the curve that threads the center of the data
-cloud (Figure~\ref{ch15:fig-scatter}). Every regression method is an \emph{estimate}
-of this curve under some restriction:
+\textbf{Regression is conditional expectation.} This theorem \emph{is} the foundation of regression and
+supervised machine learning (predicting an unknown target label $Y$ from known input features $X$ using
+training data). In regression we seek a function that predicts a target $Y$ (price, click, diagnosis)
+from features $X$; the gold standard, if we had unlimited data and unlimited flexibility, is the
+\emph{regression function} $g(x) = \E[Y\given X = x]$ --- the true conditional mean, the curve that
+threads the center of the data cloud (Figure~\ref{ch15:fig-scatter}). Every regression method is an
+\emph{estimate} of this curve under some restriction:
 \begin{itemize}
   \item \textbf{Linear regression} restricts $h$ to the form $a + bX$ and finds the best line --- the
         orthogonal projection of $Y$ onto the smaller subspace of \emph{linear} functions of $X$, not
@@ -983,7 +1083,8 @@ of this curve under some restriction:
         linear (e.g., the bivariate normal of Figure~\ref{ch15:fig-slices}, whose regression function is
         exactly $\rho x$).
   \item \textbf{Trees, kernels, splines, neural nets} enlarge the class of allowed $h$ to approximate
-        the full curve $\E[Y\given X = x]$, trading bias for variance.
+        the full curve $\E[Y\given X = x]$, trading bias (systematic approximation error from rigid model
+        assumptions) for variance (instability across finite training samples).
 \end{itemize}
 The squared-error loss that nearly every regressor minimizes is chosen \emph{precisely because}
 Theorem~\ref{ch15:thm-best-predictor} guarantees its population minimizer is the conditional mean. When
@@ -1117,18 +1218,48 @@ Identify which term of the variance decomposition it lands in. (Hint: $\Var(Q) =
 \end{labbox}
 
 \begin{historybox}
-Conditional expectation as we use it --- a \emph{random variable}, the projection picture, conditioning
-on a $\sigma$-algebra rather than a single event --- was forged in the 1930s. Andrey Kolmogorov's 1933
-\emph{Grundbegriffe der Wahrscheinlichkeitsrechnung} put probability on measure-theoretic foundations
-and \emph{defined} conditional expectation abstractly via the Radon--Nikodym theorem, precisely to
-sidestep the division-by-zero that wrecks the naive definition when you condition on a continuous
-variable (recall the Borel paradox from the Why-box). Earlier, the two-stage averaging idea was already
-implicit in Laplace's and Huygens's reasoning about games and expectations, and in the actuarial
-mathematics of random sums. But it was Kolmogorov's leap --- ``define $\E[Y\given X]$ by the property
-that it averages correctly over every event determined by $X$'' --- that turned conditional expectation
-from a computational recipe into the structural backbone of modern probability, martingales and
-stochastic calculus very much included. We give that defining property its own rigorous chapter later;
-everything in this chapter is the concrete, hands-on shadow of it.
+The modern view of conditional expectation --- treated not as a table of numbers, but as a \emph{random
+variable}, an orthogonal projection, and a conditioning on an entire $\sigma$-algebra (a formal collection of
+observable events) --- was established during the formal axiomatization of probability in the 1930s.
+
+Earlier pioneers, from Christiaan Huygens in the 1650s and Pierre-Simon Laplace in the 1810s to nineteenth-century
+actuaries studying random sums of insurance claims, used two-stage averaging routinely as an intuitive calculation.
+Yet as probability expanded into continuous spaces, mathematicians hit a conceptual wall: how do you condition
+on an event that has probability zero? In discrete setups, dividing by $\P(B)$ works because $\P(B) > 0$. But if
+$X$ is continuous, the event $\set{X = x}$ has probability zero, producing the illegal division $0/0$. Worse, naive
+geometric limits produced outright contradictions. In the early 1900s, French mathematician \'Emile Borel
+highlighted what is now called the \emph{Borel--Kolmogorov paradox}: if you condition a uniform point on a sphere
+to lie on a great circle, taking the limit via narrow latitude bands yields a completely different conditional
+density than taking the limit via narrow longitude slices. The naive infinitesimal quotient was ambiguous and
+coordinate-dependent.
+
+The breakthrough arrived in 1933, when Soviet mathematician Andrey Kolmogorov published his foundational
+\emph{Grundbegriffe der Wahrscheinlichkeitsrechnung} (Foundations of the Theory of Probability). Kolmogorov's
+insight was to step away from pointwise division entirely. Equipped with the Lebesgue integral (which measures
+areas under irregular curves) and the \emph{Radon--Nikodym theorem} (proved by Johann Radon in 1913 and
+generalized by Otto Nikodym in 1930, establishing that if one measure is smoothly spread across another, there
+exists an exact generalized derivative relating them), Kolmogorov defined $\E[Y \given X]$ implicitly through an
+integral balance equation: it is the unique random variable determined by $X$ whose average over every observable
+event matches the average of $Y$ (the identity in Section~\ref{ch15:defining-property}).
+
+This abstract formulation was not without controversy. In the 1920s and 1930s, frequentist mathematicians like
+Richard von Mises fiercely argued that probability belonged to empirical physics as the frequency limit of repeated
+trials, criticizing measure-theoretic axioms as sterile mathematics detached from real laboratory experiments.
+Many applied scientists found Kolmogorov's set-theoretic machinery needlessly abstract.
+
+Yet Kolmogorov's formulation laid the structural foundation for modern stochastic processes. In the 1940s and 1950s,
+American mathematician Joseph Doob realized that Kolmogorov's conditional expectation was the defining engine behind
+\emph{martingales} --- mathematical models of fair games where your best forecast of tomorrow's fortune, given the
+entire past, is simply what you hold right now. Martingale theory opened the path to Paul L\'evy's work,
+stochastic integration, Kiyosi It\^o's stochastic calculus, nonlinear filtering (including the Kalman filter used
+to guide the Apollo spacecraft), the Black--Scholes model of financial derivatives, and modern reinforcement
+learning algorithms.
+
+Today, while conditioning on smooth random variables in finite-dimensional Euclidean space is completely settled,
+deep questions remain open. Constructing \emph{regular conditional distributions} on infinite-dimensional
+path spaces (such as the trajectories of quantum fields) encounters delicate topological barriers. In causal
+inference and artificial intelligence, recovering conditional expectations from high-dimensional observational
+data contaminated by hidden confounders remains an active, intensely pursued research frontier.
 \end{historybox}
 
 \section{The defining property, stated cleanly}
@@ -1149,15 +1280,28 @@ exactly the best-predictor theorem. One identity, all the consequences.
 \end{formalbox}
 
 \begin{recoverybox}
-If only one sentence survives this chapter, let it be this: \textbf{$\E[Y\given X]$ is a random
-variable --- the function of $X$ that averages $Y$ within each value of $X$ --- and it is the best
-mean-square prediction of $Y$ from $X$.} The tower property ($\E[\E[Y\given X]] = \E[Y]$) and the law of
-total variance ($\Var(Y) = \E[\Var(Y\given X)] + \Var(\E[Y\given X])$) are the two ways this object lets
-you compute, and orthogonality is why it is best. Everything else is bookkeeping.
+\textbf{Summary of core concepts:} $\E[Y\given X]$ is a random variable---the function of $X$ that averages $Y$ within each value of $X$---and it is the best mean-square prediction of $Y$ from $X$. The tower property ($\E[\E[Y\given X]] = \E[Y]$) and the law of total variance ($\Var(Y) = \E[\Var(Y\given X)] + \Var(\E[Y\given X])$) are the principal calculation tools, and orthogonal projection in $L^2$ guarantees optimality.
 \end{recoverybox}
+
+\subsection*{Looking forward: transformations of random variables}
+In this chapter, the conditional expectation $\E[Y \given X]$ emerged as a function $g(X)$.
+This raises a natural question: when a random variable $X$ is pushed through a function $g$,
+what is the probability distribution of $Z = g(X)$?
+Chapter~16 takes up this question, developing the CDF method, the change-of-variables
+formula with Jacobians, and order statistics.
 
 \section{Exercises}
 \label{ch15:exercises}
+
+\begin{exercise}[Mental warm-up: constants vs.\ variables]
+\label{ch15:exr-mental-warmup}
+Answer each in one sentence without writing an integral or sum:
+\begin{enumerate}[label=(\alph*)]
+  \item If $X$ and $Y$ are independent, what is $\Var(\E[Y\given X])$?
+  \item If $Y = 5X + 2$, what is $\E[\Var(Y\given X)]$?
+  \item If $\E[Y\given X] = 10$ is constant, what is $\Cov(X, Y)$?
+\end{enumerate}
+\end{exercise}
 
 \begin{exercise}[Warm-up with a table]
 \label{ch15:exr-table}

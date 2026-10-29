@@ -1,12 +1,14 @@
 \chapter{Markov Chain Steady States and Mixing}
 
 In the previous chapter you met the Markov chain: a system that hops between
-states, where the only thing that matters for the next step is where you
-\emph{are now}, not the whole story of how you got there. That memorylessness is
-a strong assumption, and it buys us something remarkable. If you let a Markov
-chain run for a long time, it very often \emph{forgets where it started}. The
-fraction of time it spends in each state settles down to a fixed set of numbers,
-and those numbers do not depend on your starting point at all.
+states, where the next step depends only on where you are now. We classified
+states as recurrent or transient and computed multi-step matrix powers $P^n$.
+But what happens as time heads toward infinity?
+
+If you let a Markov chain run for a long time, it very often \emph{forgets where
+it started}. The fraction of time it spends in each state settles down to a
+fixed set of proportions, regardless of the initial state. Individual walkers
+keep hopping, yet the overall distribution becomes motionless.
 
 This chapter is about that settling-down. We ask three questions and answer
 all of them:
@@ -19,11 +21,10 @@ all of them:
   \item \textbf{How long do you have to wait?} (Mixing time.)
 \end{itemize}
 
-Along the way we meet \emph{reversibility} and detailed balance --- a
-shortcut for guessing the steady state --- and we cash everything
-out in the two applications that made this corner of probability famous: Google's
-PageRank, and Markov chain Monte Carlo (MCMC), the engine behind modern Bayesian
-statistics.
+Along the way we meet \emph{reversibility} and detailed balance --- an algebraic condition
+that identifies the steady state directly --- and examine two major applications:
+Google's PageRank, and Markov chain Monte Carlo (MCMC), the computational engine of
+modern Bayesian statistics.
 
 \chapterline
 
@@ -156,10 +157,9 @@ $i$. The distribution is stationary exactly when the total inflow into $j$ equal
 the amount $\pi_j$ that was there to begin with: probability mass sloshes around,
 but the overall proportions never change.
 \begin{intuitionbox}
-``Stationary'' does not mean nothing moves. Individual walkers keep hopping
-forever. What stands still is the \emph{histogram} of where they are. It is like
-a steady waterfall: every droplet is in motion, yet the shape of the falling
-sheet is frozen. Equilibrium is dynamic, not static.
+``Stationary'' does not mean nothing moves. Individual walkers continue to transition
+between states at each step. What remains constant is the aggregate proportion of probability
+mass residing in each state. Equilibrium is dynamic rather than static.
 \end{intuitionbox}
 \subsection{Finding it by hand}
 For the weather chain, $\pi P = \pi$ with $\pi = (\pi_S, \pi_R)$ gives
@@ -186,22 +186,28 @@ distributions. You always need the extra condition $\sum_i \pi_i = 1$ to pin dow
 the actual probability vector. In practice: solve $\pi P = \pi$ for the
 \emph{ratios} between components, then scale so they add to $1$.
 \end{trapbox}
+
+\begin{recoverybox}
+\textbf{Pause and think: doubly stochastic matrices.} What happens if every column of $P$ also sums to $1$ (a \emph{doubly stochastic} matrix, where total inflow capacity equals total outflow capacity everywhere)?
+\emph{Ten-second thought:} Try the uniform distribution $\pi = (1/m, \dots, 1/m)$. Then the $j$-th entry of $\pi P$ is $\sum_i \frac{1}{m} P_{ij} = \frac{1}{m}\sum_i P_{ij} = \frac{1}{m}\cdot 1 = \pi_j$. So for any doubly stochastic chain, the uniform distribution is automatically stationary: every state receives equal long-run weight.
+\end{recoverybox}
+
 \subsection{It really is a left eigenvector}
 \begin{connectionbox}
-The equation $\pi P = \pi$ is the eigenvalue equation $\pi P = 1\cdot\pi$. A row
-vector $\pi$ with $\pi P = \lambda \pi$ is a \textbf{left eigenvector} of $P$ with
-eigenvalue $\lambda$. \emph{A stationary distribution is exactly a left
-eigenvector of $P$ for the eigenvalue $\lambda = 1$, normalized to sum to one.}
+The equation $\pi P = \pi$ is the eigenvalue equation $\pi P = 1\cdot\pi$. A standard (right) eigenvector $v$ satisfies $P v = \lambda v$: the matrix acts on a column vector by stretching it without rotating its direction. A \textbf{left eigenvector} is a row vector $\pi$ satisfying $\pi P = \lambda \pi$: when you mix the rows of $P$ using weights $\pi$, the resulting mixture is just a scaled copy of $\pi$ itself. \emph{A stationary distribution is exactly a left eigenvector of $P$ for the eigenvalue $\lambda = 1$, normalized to sum to one.}
+
 Why is $1$ always an eigenvalue? Because $P$ has constant row sums equal to $1$,
 the all-ones \emph{column} vector $\mathbf{1}$ satisfies $P\mathbf{1} = \mathbf{1}$
 --- it is a \emph{right} eigenvector with eigenvalue $1$. A matrix and its
 transpose have the same eigenvalues, so $1$ is a left eigenvalue too, guaranteeing
 a (possibly complex, but in fact real and nonnegative) left eigenvector $\pi$.
-That existence is half of the Perron--Frobenius theorem from linear algebra; the
-companion linear algebra book treats it in full. The deep fact we borrow: for a
+That existence is half of the Perron--Frobenius theorem --- the foundational result in
+linear algebra guaranteeing that any matrix with nonnegative entries and connected paths
+has a dominant eigenvalue equal to $1$ whose eigenvector can be chosen strictly positive.
+The companion linear algebra book treats it in full. The key fact we borrow: for a
 ``nice'' (irreducible, aperiodic) stochastic matrix, the eigenvalue $1$ is
 \emph{simple} (multiplicity one), every other eigenvalue has modulus strictly
-less than one, and the eigenvector $\pi$ can be taken with all entries positive.
+less than one, and the eigenvector $\pi$ has all entries strictly positive.
 \end{connectionbox}
 The eigenvalue spectrum controls the \emph{rate} of
 convergence, as we will see in Section~\ref{ch24:mixing}. The second-largest
@@ -226,7 +232,7 @@ Consider three web pages $A$, $B$, $C$ with a surfer who clicks links:
     \draw[->,thick,bend left=15] (B) to node[below,pos=0.4]{$\tfrac14$} (A);
     \draw[->,thick,bend left=15] (B) to node[right]{$\tfrac34$} (C);
     \draw[->,thick,bend left=15] (C) to node[left]{$\tfrac12$} (A);
-    \draw[->,thick,bend left=15] (C) to node[right]{$\tfrac12$} (B);
+    \draw[->,thick,bend left=15] (C) to node[pos=0.45,left=2pt]{$\tfrac12$} (B);
   \end{tikzpicture}
   \caption{The three-page surfer chain of Example~\ref{ch24:ex-three-state}.
   Page $A$ sends all its weight to $B$; $B$ splits between $A$ and $C$; $C$ splits
@@ -284,11 +290,12 @@ the same period; the chain is aperiodic if that common period is $1$. A single
 self-loop $P_{ii}>0$ anywhere forces aperiodicity.
 \end{definition}
 \begin{intuitionbox}
-Periodicity is a tyranny of timing. The flip-flop chain has plenty of
-``probability of being at $A$'' on average --- but the parity of the clock decides
-which state holds all the mass at any instant. Aperiodicity breaks the tyranny:
-once there is any slack in the return times (a self-loop, or two cycles of
-coprime length), the phases blur together and the distribution can relax.
+In periodic chains, probability mass is constrained by cyclic timing. In the two-state flip-flop chain,
+the time-average fraction of steps spent at state $A$ is $1/2$, but at any single step $n$,
+all probability mass resides entirely at one of the two states, alternating with the parity of $n$.
+Aperiodicity eliminates this rigid cyclic dependence: when return times can take coprime lengths
+(or include self-loops), probability mass disperses across all states simultaneously,
+enabling the distribution itself to converge.
 \end{intuitionbox}
 \subsection{The theorem}
 A chain that is both irreducible and aperiodic on a finite state space is called
@@ -311,8 +318,8 @@ Then:
     \[
       \frac{1}{n}\sum_{t=1}^{n} \ind\{X_t = i\} \asto \pi_i .
     \]
-    Moreover $\pi_i = 1/\E_i[T_i]$, the reciprocal of the mean return
-    time to $i$.
+    The stationary mass $\pi_i$ also gives the average wait between returns:
+    $\pi_i = 1/\E_i[T_i]$, the reciprocal of the mean return time to state $i$.
 \end{enumerate}
 \end{theorem}
 Parts (2) and (3) are different statements, and the distinction matters. Part (2)
@@ -342,19 +349,26 @@ opposite phase and keep missing) would cause. Rule those out and convergence is
 forced.
 \end{whybox}
 \begin{historybox}
-The man behind the chains was \textbf{Andrei Andreyevich Markov} (1856--1922), a
-combative St.\ Petersburg analyst and student of Chebyshev. In 1906--1913 he
-introduced ``chains'' of dependent variables explicitly to refute a theological
-opponent, P.\ A.\ Nekrasov, who had claimed that the law of large numbers
-\emph{required} independence and therefore (Nekrasov argued) was evidence of free
-will. Markov's reply was a constructive insult: here are variables that are
-strongly \emph{dependent} and yet obey a law of large numbers anyway. To make the
-point vivid he counted the alternation of vowels and consonants across
-$20{,}000$ letters of Pushkin's \emph{Eugene Onegin} --- arguably the first
-statistical analysis of text and a direct ancestor of every language model that
-followed. The general convergence theory, and the Perron--Frobenius machinery
-underneath it, was filled in over the following decades by Kolmogorov, Doeblin,
-and others.
+Following Andrey Markov's 1906--1913 introduction of dependent sequences,
+mathematicians turned to the central question of this chapter: under what
+conditions does a chain forget its past and settle into a unique stationary
+equilibrium?
+
+Over the 1930s, the general convergence theory was placed on rigorous foundations
+by Andrey Kolmogorov and Wolfgang Doeblin. Doeblin, a brilliant French-German
+mathematician who tragically died during World War II, invented the revolutionary
+coupling technique introduced above: proving convergence without cumbersome matrix
+powers simply by racing two copies of a chain until they collide. In parallel, the
+spectral foundations were supplied by the Perron--Frobenius theorem of linear
+algebra, which guaranteed that irreducible, aperiodic transition matrices have a
+simple dominant eigenvalue $\lambda_1 = 1$ with a strictly positive eigenvector $\pi$.
+
+Today, deciding \emph{whether} a finite chain settles is completely understood.
+But determining \emph{how fast} it settles in high-dimensional systems remains an
+active research frontier: characterizing the sharp cutoff phenomenon (where a chain
+hovers unmixed before plunging to equilibrium in just a few steps, as in riffle card
+shuffling) and establishing tight spectral gaps and mixing times for complex physical
+lattices, spin systems, and randomized algorithms.
 \end{historybox}
 \begin{figure}[H]
   \centering
@@ -440,51 +454,60 @@ the equilibrium dynamics. Chains \emph{without} it have a built-in arrow of time
 a preferred direction of circulation, like a whirlpool, that you would notice if
 the film were reversed.
 \end{happeningbox}
+
+\begin{recoverybox}
+\textbf{Pause and think: the arrow of time.} Can a one-way cycle $1 \to 2 \to 3 \to 1$ (where $P_{12}=P_{23}=P_{31}=1$) ever satisfy detailed balance?
+\emph{Ten-second thought:} No. Across the edge connecting states $1$ and $2$, forward traffic is $\pi_1 P_{12} = \tfrac13 \cdot 1 = \tfrac13$. But reverse traffic is $\pi_2 P_{21} = \tfrac13 \cdot 0 = 0$. Detailed balance demands that traffic in both directions balances across every individual edge. A one-way street has an unmistakable arrow of time: played in reverse, the film shows walkers moving backward around the cycle.
+\end{recoverybox}
+
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-  node distance=2.2cm,
   mystate/.style={circle, draw=#1, thick, fill=#1!12, minimum size=0.9cm, font=\small\bfseries},
   netflux/.style={->, >=Stealth, very thick}
 ]
   % Left panel: Global Balance (Non-reversible)
   \begin{scope}[xshift=0cm]
-    \node[font=\small\bfseries, align=center] at (1.5, 3.2) {Global Balance Only\\ \footnotesize (Net clockwise circulation)};
-    \node[mystate=sourceblue] (A) at (1.5, 2.2) {$1$};
-    \node[mystate=sourceblue] (B) at (0.2, 0.2) {$2$};
-    \node[mystate=sourceblue] (C) at (2.8, 0.2) {$3$};
+    \node[font=\small\bfseries, align=center] at (1.8, 3.4) {Global Balance Only\\ \footnotesize (Net clockwise circulation)};
+    \node[mystate=sourceblue] (A) at (1.8, 2.4) {$1$};
+    \node[mystate=sourceblue] (B) at (0.2, 0.3) {$2$};
+    \node[mystate=sourceblue] (C) at (3.4, 0.3) {$3$};
 
     \draw[netflux, sourceblue] (A) edge[bend right=22] node[left=2pt, font=\scriptsize] {$0.7$} (B);
-    \draw[->, gray!70] (B) edge[bend right=10] node[pos=0.32, right=1pt, font=\tiny] {$0.3$} (A);
+    \draw[->, gray!70] (B) edge[bend right=10] node[pos=0.35, right=2pt, font=\tiny] {$0.3$} (A);
 
     \draw[netflux, sourceblue] (B) edge[bend right=22] node[below=1pt, font=\scriptsize] {$0.7$} (C);
     \draw[->, gray!70] (C) edge[bend right=10] node[pos=0.5, above=1pt, font=\tiny] {$0.3$} (B);
 
     \draw[netflux, sourceblue] (C) edge[bend right=22] node[right=2pt, font=\scriptsize] {$0.7$} (A);
-    \draw[->, gray!70] (A) edge[bend right=10] node[pos=0.68, left=1pt, font=\tiny] {$0.3$} (C);
+    \draw[->, gray!70] (A) edge[bend right=10] node[pos=0.65, left=2pt, font=\tiny] {$0.3$} (C);
 
-    \node[font=\scriptsize, align=center, below=0.75cm of $(B)!0.5!(C)$] {
-      $\text{Inflow} = \text{Outflow} = 1/3$\\
-      \textbf{Net edge flux $\ne 0$}\\
+    \node[font=\scriptsize, align=center, anchor=north] at (1.8, -0.55) {
+      $\text{Inflow} = \text{Outflow} = 1/3$
+    };
+    \node[font=\scriptsize, align=center, anchor=north] at (1.8, -0.95) {
+      \textbf{Net edge flux $\ne 0$}
+    };
+    \node[font=\scriptsize, align=center, anchor=north] at (1.8, -1.45) {
       $\pi_1 P_{12} = \tfrac{7}{30} \ne \pi_2 P_{21} = \tfrac{3}{30}$
     };
   \end{scope}
 
   % Divider
-  \draw[dashed, gray!40, thick] (4.6, -1.7) -- (4.6, 3.4);
+  \draw[dashed, gray!40, thick] (4.9, -1.8) -- (4.9, 3.6);
 
   % Right panel: Detailed Balance (Reversible)
-  \begin{scope}[xshift=6.2cm]
-    \node[font=\small\bfseries, align=center] at (1.5, 3.2) {Detailed Balance\\ \footnotesize (Zero net edge current)};
-    \node[mystate=targetgreen] (X) at (1.5, 2.2) {$1$};
-    \node[mystate=targetgreen] (Y) at (0.2, 0.2) {$2$};
-    \node[mystate=targetgreen] (Z) at (2.8, 0.2) {$3$};
+  \begin{scope}[xshift=6.4cm]
+    \node[font=\small\bfseries, align=center] at (1.8, 3.4) {Detailed Balance\\ \footnotesize (Zero net edge current)};
+    \node[mystate=targetgreen] (X) at (1.8, 2.4) {$1$};
+    \node[mystate=targetgreen] (Y) at (0.2, 0.3) {$2$};
+    \node[mystate=targetgreen] (Z) at (3.4, 0.3) {$3$};
 
     \draw[<->, >=Stealth, very thick, targetgreen] (X) -- node[midway, left=2pt, font=\scriptsize, align=right] {$\pi_1 P_{12} = \pi_2 P_{21}$\\ $\tfrac{1}{6} = \tfrac{1}{6}$} (Y);
-    \draw[<->, >=Stealth, very thick, targetgreen] (Y) -- node[midway, below=2pt, font=\scriptsize] {$\pi_2 P_{23} = \pi_3 P_{32} = \tfrac{1}{6}$} (Z);
+    \draw[<->, >=Stealth, very thick, targetgreen] (Y) -- node[midway, below=3pt, font=\scriptsize] {$\pi_2 P_{23} = \pi_3 P_{32} = \tfrac{1}{6}$} (Z);
     \draw[<->, >=Stealth, very thick, targetgreen] (X) -- node[midway, right=2pt, font=\scriptsize, align=left] {$\pi_1 P_{13} = \pi_3 P_{31}$\\ $\tfrac{1}{6} = \tfrac{1}{6}$} (Z);
 
-    \node[font=\scriptsize, align=center, below=0.75cm of $(Y)!0.5!(Z)$] {
+    \node[font=\scriptsize, align=center, anchor=north] at (1.8, -0.6) {
       \textbf{Zero net flux on every pipe}\\
       Forward and backward movies\\
       statistically identical
@@ -520,9 +543,9 @@ distribution $\pi_i \propto e^{-E_i/kT}$ satisfies detailed balance with respect
 to the microscopic dynamics, and that is precisely why thermal systems settle. The
 same equation that tells you the weather will be sunny $2/3$ of the time tells a
 physicist how molecules distribute among energy levels. When you reach
-Section~\ref{ch24:mcmc} you will see we run the logic \emph{backwards}: given a
-target $\pi$ we \emph{design} a $P$ that satisfies detailed balance, so that the
-chain is forced to equilibrate to the distribution we secretly wanted to sample.
+Section~\ref{ch24:mcmc} you will see we run the logic constructively: given a
+target distribution $\pi$, we \emph{design} a transition matrix $P$ that satisfies detailed balance,
+ensuring the chain converges to the intended target distribution.
 \end{aestheticbox}
 
 \section{Mixing Time: How Long Until ``Long Run''?}
@@ -600,13 +623,11 @@ there shrinks by exactly $0.4$ each step: that is $\abs{\lambda_2}^n$ in the fle
         ymode=log, xmin=0, xmax=12, ymin=1e-5, ymax=1,
         title style={font=\small},
         title={Total-variation mixing rate governed by the second eigenvalue $\abs{\lambda_2}$},
-        grid=both, grid style={gray!18},
-        legend pos=north east, legend cell align=left,
+        grid=both, grid style={draw=gray!50, opacity=0.2},
+        legend style={at={(0.05, 0.05)}, anchor=south west, column sep=6pt, font=\small}, legend cell align=left,
       ]
-      % fast-mixing chain: gap 0.6, |lambda2| = 0.4
       \addplot[sourceblue,very thick,mark=*,mark size=1.3pt,domain=0:12,samples=13] {0.5*0.4^x};
       \addlegendentry{fast: $\abs{\lambda_2}=0.4$}
-      % slow-mixing chain: |lambda2| = 0.9
       \addplot[densityred,very thick,mark=square*,mark size=1.3pt,domain=0:12,samples=13] {0.5*0.9^x};
       \addlegendentry{slow: $\abs{\lambda_2}=0.9$}
     \end{axis}
@@ -619,27 +640,63 @@ there shrinks by exactly $0.4$ each step: that is $\abs{\lambda_2}^n$ in the fle
 
 \begin{intuitionbox}
 What makes a chain slow to mix is a \textbf{bottleneck}: a narrow bridge between
-two roomy regions of state space. The walker spends ages on one side, only rarely
-squeezing through. Until it crosses, it cannot ``know'' about the far side, so its
-distribution stays lopsided. Mathematically, a bottleneck of small ``conductance''
-forces $\abs{\lambda_2}$ close to $1$ and the gap close to $0$. This is the
-central headache of MCMC: a multimodal target with widely separated modes is a
-chain with a vicious bottleneck, and a naive sampler can sit in one mode for
-billions of steps, reporting confident nonsense.
+two roomy regions of state space (Figure~\ref{ch24:fig-bottleneck}). The walker
+spends ages on one side, only rarely squeezing through. Until it crosses, it
+cannot ``know'' about the far side, so its distribution stays lopsided.
+Mathematically, a bottleneck of small ``conductance'' (restricted outflow relative
+to room size) forces $\abs{\lambda_2}$ close to $1$ and the gap close to $0$. This
+is a primary challenge in MCMC: a multimodal target with widely separated modes
+creates a severe bottleneck in state space, where a naive sampler can remain trapped in
+one mode for many iterations and fail to visit the others.
 \end{intuitionbox}
 
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[>=Stealth,
+    roomnode/.style={circle, draw=#1, very thick, fill=#1!15, minimum size=0.85cm, font=\small\bfseries},
+    bridgenode/.style={circle, draw=#1, very thick, fill=#1!25, minimum size=0.9cm, font=\small\bfseries}
+  ]
+    \draw[sourceblue!40, dashed, thick, fill=sourceblue!5, rounded corners=10pt]
+      (-0.3, -1.7) rectangle (3.3, 1.7);
+    \node[font=\small\bfseries, sourceblue!85!black] at (1.5, 1.35) {Room 1 (Fast local mixing)};
+
+    \draw[targetgreen!40, dashed, thick, fill=targetgreen!5, rounded corners=10pt]
+      (6.7, -1.7) rectangle (10.3, 1.7);
+    \node[font=\small\bfseries, targetgreen!85!black] at (8.5, 1.35) {Room 2 (Fast local mixing)};
+
+    \node[roomnode=sourceblue] (A1) at (0.8, 0.55) {$1$};
+    \node[roomnode=sourceblue] (A2) at (0.8, -0.75) {$2$};
+    \node[bridgenode=sourceblue] (A3) at (2.4, 0.0) {$3$};
+
+    \draw[<->, thick, sourceblue] (A1) -- node[left=1pt, font=\scriptsize] {$0.4$} (A2);
+    \draw[<->, thick, sourceblue] (A1) -- node[above=1pt, font=\scriptsize] {$0.5$} (A3);
+    \draw[<->, thick, sourceblue] (A2) -- node[below=1pt, font=\scriptsize] {$0.5$} (A3);
+
+    \node[bridgenode=targetgreen] (B1) at (7.6, 0.0) {$4$};
+    \node[roomnode=targetgreen] (B2) at (9.2, 0.55) {$5$};
+    \node[roomnode=targetgreen] (B3) at (9.2, -0.75) {$6$};
+
+    \draw[<->, thick, targetgreen] (B2) -- node[right=1pt, font=\scriptsize] {$0.4$} (B3);
+    \draw[<->, thick, targetgreen] (B1) -- node[above=1pt, font=\scriptsize] {$0.5$} (B2);
+    \draw[<->, thick, targetgreen] (B1) -- node[below=1pt, font=\scriptsize] {$0.5$} (B3);
+
+    \draw[<->, >=Stealth, very thick, densityred] (A3) --
+      node[midway, above=3pt, font=\small\bfseries] {rare bridge: $\eps \ll 1$}
+      node[midway, below=3pt, font=\scriptsize, align=center] {bottleneck flow\\ $\pi_3 P_{34} = \pi_4 P_{43} \approx 0$} (B1);
+  \end{tikzpicture}
+  \caption{The geometry of slow mixing: a bottleneck in state space. Within each cluster of states (Room 1 and Room 2), transitions are frequent and the walker mixes locally in just a few steps. But crossing the bridge between states $3$ and $4$ has a tiny probability $\eps \ll 1$. The chain spends long epochs trapped on one side before rare chance lets it cross, forcing the second eigenvalue $\abs{\lambda_2}$ close to $1$ (a tiny spectral gap $\gamma \approx 2\eps$) and driving the mixing time up to order $1/\eps$.}
+  \label{ch24:fig-bottleneck}
+\end{figure}
+
 \begin{paradoxbox}
-\textbf{The cutoff phenomenon.} You might guess mixing is gradual --- the chain
-oozes toward $\pi$, getting a bit closer each step. For many natural chains the
-truth is startlingly different. Persi Diaconis and collaborators showed that
-shuffling a deck of cards by the standard riffle shuffle exhibits a sharp
-\emph{cutoff}: after about $6$ shuffles the deck is still glaringly nonrandom, and
-after about $8$ it is essentially perfectly mixed. The TV distance stays near $1$,
-then plunges to near $0$ over a window much shorter than the mixing time itself ---
-a probabilistic phase transition. The famous headline ``seven shuffles'' is
-exactly this cutoff for $52$ cards: $\ceil{\tfrac32 \log_2 52} = 9$, with
-the curtain falling around $7$. Convergence, it turns out, can be an event rather
-than a trend.
+\textbf{The cutoff phenomenon.} One might expect mixing to be gradual, with total-variation
+distance decaying steadily at each step. For many natural chains, however, the
+decay exhibits a sharp \emph{cutoff}. Persi Diaconis and collaborators showed that
+riffle-shuffling a $52$-card deck behaves this way: after $5$ or $6$ shuffles the
+total-variation distance to uniform is still close to $1$, around $7$ shuffles it plunges,
+and by $8$ or $9$ shuffles the deck is well mixed. More generally, in chains with cutoff,
+the distance to stationarity stays near $1$ up to a sharp threshold and then drops to near
+$0$ over a narrow window.
 \end{paradoxbox}
 
 \section{Headline Application I: PageRank}
@@ -718,10 +775,16 @@ chain whose stationary distribution is that $\pi$}. Run the chain long enough
 Convergence (Theorem~\ref{ch24:thm-convergence}) guarantees this works; detailed
 balance (Section~\ref{ch24:reversibility}) is how you build it; mixing time
 (Section~\ref{ch24:mixing}) tells you how long to wait.
+
+\textbf{Division of labor with Chapter 35.} In this section, we study MCMC in its
+purest, finite-state discrete form to see detailed balance and the cancellation of $Z$
+with absolute mathematical clarity. In Chapter 35 (Monte Carlo Methods), we expand this
+seed into the full continuous machinery: continuous proposal densities $q(y\given x)$,
+Gibbs sampling, and industrial diagnostics for high-dimensional models.
 \end{applicationbox}
 
-The workhorse is the \textbf{Metropolis--Hastings} algorithm, and it is detailed
-balance run in reverse. We \emph{want} $\pi_i P_{ij} = \pi_j P_{ji}$; we
+The standard method is the \textbf{Metropolis--Hastings} algorithm, which uses detailed
+balance constructively. We \emph{want} $\pi_i P_{ij} = \pi_j P_{ji}$; we
 \emph{design} $P$ to make it so. The recipe: from state $i$, \emph{propose} a move
 to a candidate $j$ using any convenient proposal $Q_{ij}$ (say, perturb the
 current parameters a little). Then \emph{accept} the move with probability
@@ -749,9 +812,8 @@ while
 They are equal, so detailed balance holds and $\pi$ is stationary by
 Theorem~\ref{ch24:thm-db-implies-stationary}. \emph{The unknown normalizer $Z$
 cancels} --- it appears in both sides and divides out, and inside $\alpha$ only the
-ratio $\tilde\pi_j/\tilde\pi_i$ ever appears. That cancellation is the miracle that
-makes MCMC possible: you sample from $\pi$ while being utterly unable to compute
-$Z$.
+ratio $\tilde\pi_j/\tilde\pi_i$ ever appears. This exact cancellation makes MCMC practical:
+it generates samples from $\pi$ without requiring evaluation of the normalizing constant $Z$.
 \end{whybox}
 
 \begin{labbox}
@@ -783,10 +845,8 @@ You will have sampled from $\pi$ using only the \emph{ratios} of $\tilde\pi$.
         legend pos=north west, legend cell align=left,
         grid=both, grid style={gray!18},
       ]
-      % true target pi = (1/6, 1/2, 1/3)
       \addplot[draw=sourceblue,fill=sourceblue!35] coordinates {(1,0.1667)(2,0.5)(3,0.3333)};
       \addlegendentry{target $\pi$}
-      % empirical from 20000 Metropolis steps (seed 7)
       \addplot[draw=densityred,fill=densityred!35] coordinates {(1,0.169)(2,0.500)(3,0.331)};
       \addlegendentry{Metropolis (20000 steps)}
     \end{axis}
@@ -800,19 +860,19 @@ You will have sampled from $\pi$ using only the \emph{ratios} of $\tilde\pi$.
 \end{figure}
 
 \begin{connectionbox}
-MCMC is the bridge from this chapter to Bayesian inference (treated in its own
-chapter). There the target is the posterior
-$\pi(\theta) \propto \text{likelihood}(\theta)\times \text{prior}(\theta)$, whose
-normalizer --- the ``evidence'' --- is the very integral that makes Bayesian
-computation hard. Metropolis--Hastings, Gibbs sampling, and Hamiltonian Monte
-Carlo are all Markov chains engineered to have that posterior as their stationary
-distribution. Everything you have learned here --- existence and uniqueness of
-$\pi$, the convergence theorem licensing ``run it long enough,'' detailed balance
-as the construction principle, and the spectral gap warning you that a badly
-mixing chain (a multimodal posterior with separated modes) can lie convincingly
---- is exactly the theory practitioners lean on every day. The diagnostics they
-run (trace plots, $\hat R$, effective sample size) are empirical probes of the
-mixing time you met in Section~\ref{ch24:mixing}.
+MCMC is the conceptual bridge from this chapter to Bayesian inference (Chapter 31)
+and computational Monte Carlo (Chapter 35). In Bayesian inference, the target is the
+posterior $\pi(\theta) \propto \text{likelihood}(\theta)\times \text{prior}(\theta)$,
+whose normalizing constant --- the marginal likelihood or ``evidence'' --- is an
+intractable high-dimensional integral.
+
+Here you have seen the core discrete engine: detailed balance guarantees that $\pi$
+is stationary, while the unknown normalizer $Z$ cancels out in the acceptance ratio
+$\alpha$. In Chapter 35, we will build out the full computational system: transitioning
+from discrete state spaces to continuous distributions, replacing proposal matrices
+with continuous densities, introducing Gibbs sampling, and using diagnostics
+(trace plots, autocorrelation times, and Gelman--Rubin $\hat{R}$) to test whether
+the mixing time of Section~\ref{ch24:mixing} has genuinely passed.
 \end{connectionbox}
 
 \begin{trapbox}
@@ -882,18 +942,48 @@ acceptance --- always climb, sometimes descend --- is what concentrates the
 samples on the high-probability state $1$.
 \end{example}
 
+\section{Looking Ahead: From Discrete Clicks to Continuous Time}
+\label{ch24:looking-ahead}
+
+Throughout Chapters 23 and 24, time has marched to the beat of an external
+metronome: step $0, 1, 2, \dots$ At each discrete tick of the clock, the system
+observes where it currently sits and chooses where to hop next. That discrete
+cadence let us capture the entire future evolution of the chain in the powers
+$P^n$ of a single transition matrix.
+
+Yet nature rarely waits for clock ticks. Radioactive atoms do not consult a
+stopwatch before decaying; photons strike a telescope detector whenever they
+arrive; server requests and incoming calls land along a continuous, unbroken
+timeline. What happens when transitions can occur at \emph{any} real instant
+$t \ge 0$, while still preserving the memoryless property that made Markov chains
+so tractable?
+
+In Chapter 25, we take that step into continuous time with the \textbf{Poisson
+process} --- the universal baseline model for memoryless random arrivals
+occurring at a constant average rate. Later, in Chapter 27, we will merge
+continuous time with the multi-state graphs of this chapter to construct
+continuous-time Markov chains and queueing networks. But the bridge begins with
+the arrival stream itself.
+
 \section{Exercises}
 \label{ch24:exercises}
 
 \begin{exercise}[Two-state mixing rate]
-For the weather matrix $P=\left(\begin{smallmatrix}0.8 & 0.2\\ 0.4 & 0.6\end{smallmatrix}\right)$,
-verify that the eigenvalues are $1$ and $0.4$. Starting from $(1,0)$, find a
-closed form for $\pi^{(n)}_S$ and confirm it converges to $2/3$ with the error
-shrinking by a factor of $0.4$ each step. (Hint: write $\pi^{(0)}$ as a
-combination of the left eigenvectors.)
+\label{ch24:ex-two-state-mixing}
+For the weather matrix $P=\left(\begin{smallmatrix}0.8 & 0.2\\ 0.4 & 0.6\end{smallmatrix}\right)$:
+\begin{enumerate}[label=(\alph*)]
+  \item \emph{(Mental check.)} Before calculating, explain intuitively why $\pi_S$
+    must exceed $1/2$ by comparing the probability of leaving the sun ($P_{SR}=0.2$)
+    with the probability of leaving the rain ($P_{RS}=0.4$).
+  \item Verify that the eigenvalues of $P$ are $1$ and $0.4$. Starting from $(1,0)$,
+    find a closed form for $\pi^{(n)}_S$ and confirm it converges to $2/3$ with the
+    error shrinking by a factor of $0.4$ each step. (Hint: write $\pi^{(0)}$ as a
+    linear combination of the left eigenvectors.)
+\end{enumerate}
 \end{exercise}
 
 \begin{exercise}[Find the stationary distribution]
+\label{ch24:ex-find-stationary}
 Compute the stationary distribution of
 \[
   P = \begin{pmatrix} 0.2 & 0.6 & 0.2 \\ 0.3 & 0.4 & 0.3 \\ 0.5 & 0.1 & 0.4 \end{pmatrix}.
@@ -902,13 +992,17 @@ Confirm your answer satisfies $\pi P = \pi$ and sums to $1$.
 \end{exercise}
 
 \begin{exercise}[Reducible and periodic]
-(a) Give an example of an irreducible chain with no self-loops that is periodic,
-and state its period. (b) Give an example of a chain that has \emph{two} different
-stationary distributions, and explain which hypothesis of
-Theorem~\ref{ch24:thm-convergence} it violates.
+\label{ch24:ex-reducible-periodic}
+\begin{enumerate}[label=(\alph*)]
+  \item Give an example of an irreducible chain with no self-loops that is periodic,
+    and state its period.
+  \item Give an example of a chain that has \emph{two} different stationary distributions,
+    and explain which hypothesis of Theorem~\ref{ch24:thm-convergence} it violates.
+\end{enumerate}
 \end{exercise}
 
 \begin{exercise}[Random walk on a graph]
+\label{ch24:ex-graph-walk-exercise}
 Consider the random walk on the square graph (a $4$-cycle $1\!-\!2\!-\!3\!-\!4\!-\!1$).
 Use the degree formula from Example~\ref{ch24:ex-graph-walk} to write down $\pi$
 without solving any linear system, then verify $\pi P = \pi$. Is this chain
@@ -916,6 +1010,7 @@ aperiodic? What goes wrong, and how would a single self-loop fix it?
 \end{exercise}
 
 \begin{exercise}[Detailed balance fails]
+\label{ch24:ex-detailed-balance-fails}
 Show that the cyclic chain
 $P=\left(\begin{smallmatrix}0&1&0\\0&0&1\\1&0&0\end{smallmatrix}\right)$ has
 stationary distribution $(1/3,1/3,1/3)$ but does \emph{not} satisfy detailed
@@ -924,37 +1019,54 @@ chain look like played backwards?
 \end{exercise}
 
 \begin{exercise}[Metropolis by hand]
+\label{ch24:ex-metropolis-by-hand}
 You want to sample from $\tilde\pi = (1, 4, 9, 16)$ on states $\{1,2,3,4\}$ using
-the symmetric ``propose a uniform random other state'' proposal. Write down the
-acceptance probability for every ordered pair $(i,j)$, $i\neq j$. Verify detailed
-balance on the pair $\{2,4\}$. Which state will the sampler visit most often?
+the symmetric ``propose a uniform random other state'' proposal.
+\begin{enumerate}[label=(\alph*)]
+  \item \emph{(Mental check.)} Without computing numbers, which state must the
+    chain visit most often, and why does detailed balance force this even if the
+    proposal is completely uniform?
+  \item Write down the acceptance probability for every ordered pair $(i,j)$, $i\neq j$.
+  \item Verify detailed balance on the pair $\{2,4\}$.
+\end{enumerate}
 \end{exercise}
 
 \begin{exercise}[Spectral gap and bottlenecks]
-Consider two ``rooms'' of $k$ states each, densely connected within a room, joined
-by a single low-probability bridge edge. Argue qualitatively why the second
-eigenvalue $\abs{\lambda_2}$ is close to $1$ and the mixing time is large.
-Connect this to why a multimodal target is hard for MCMC.
+\label{ch24:ex-bottlenecks}
+Consider the bottleneck graph illustrated in Figure~\ref{ch24:fig-bottleneck},
+with two dense rooms of $k$ states joined by a single low-probability bridge edge
+with transition probability $\eps \ll 1$. Argue qualitatively why the second
+eigenvalue $\abs{\lambda_2}$ is close to $1$ and the mixing time is of order $O(1/\eps)$.
+Connect this to why a multimodal target distribution is notoriously hard for MCMC samplers.
 \end{exercise}
 
 \begin{exercise}[PageRank with teleportation]
+\label{ch24:ex-pagerank-teleport}
 Take the two-page web $1 \to 2$, $2 \to 1$ (each page links only to the other).
-(a) Write the raw transition matrix $P$ and its stationary distribution.
-(b) Form the Google matrix $G = 0.85\,P + 0.15\cdot\tfrac12 \mathbf{J}$ and find
-its stationary distribution. (c) Now add a dangling page $3$ with no outlinks;
-explain why $P$ alone has no well-defined surfer chain and how teleportation
-repairs it.
+\begin{enumerate}[label=(\alph*)]
+  \item Write the raw transition matrix $P$ and its stationary distribution.
+  \item Form the Google matrix $G = 0.85\,P + 0.15\cdot\tfrac12 \mathbf{J}$ and find
+    its stationary distribution.
+  \item Now add a dangling page $3$ with no outlinks; explain why $P$ alone has no
+    well-defined surfer chain and how teleportation repairs it.
+\end{enumerate}
 \end{exercise}
 
 \begin{exercise}[Proof: detailed balance gives stationarity]
-Prove Theorem~\ref{ch24:thm-db-implies-stationary} from first principles directly from definitions: assuming $\pi_i P_{ij} = \pi_j P_{ji}$ for all $i,j$, show $\pi P = \pi$.
+\label{ch24:ex-proof-db}
+Prove Theorem~\ref{ch24:thm-db-implies-stationary} from first principles directly from
+definitions: assuming $\pi_i P_{ij} = \pi_j P_{ji}$ for all $i,j$, show $\pi P = \pi$.
 Where exactly does the proof use that the rows of $P$ sum to one?
 \end{exercise}
 
 \begin{exercise}[Time average vs.\ distribution]
+\label{ch24:ex-time-avg}
 For the flip-flop chain $P=\left(\begin{smallmatrix}0&1\\1&0\end{smallmatrix}\right)$
-started at state $1$: (a) Does $\pi^{(n)}$ converge? (b) Does the time-average
-fraction of visits to state $1$ converge, and to what? (c) Reconcile your answers
-with parts (2) and (3) of Theorem~\ref{ch24:thm-convergence}, identifying which
-hypothesis fails and which conclusion survives anyway.
+started at state $1$:
+\begin{enumerate}[label=(\alph*)]
+  \item Does the distribution vector $\pi^{(n)}$ converge?
+  \item Does the time-average fraction of visits to state $1$ converge, and to what?
+  \item Reconcile your answers with parts (2) and (3) of Theorem~\ref{ch24:thm-convergence},
+    identifying which hypothesis fails and which conclusion survives anyway.
+\end{enumerate}
 \end{exercise}

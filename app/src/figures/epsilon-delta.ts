@@ -340,8 +340,9 @@ const mount: Mount = (root) => {
 
     epsLbl.textContent = `ε = ${eps.toFixed(2)}`;
     attr(epsLbl, {
-      x: clamp(x1 - 10, pad.l + 30, x1 - 10),
-      y: Math.max(pad.t + 14, pyTop - 14),
+      x: x1 - 28,
+      y: pyTop - 6,
+      'text-anchor': 'end',
     });
 
     deltaLbl.textContent = `δ = ${delta.toFixed(2)}`;

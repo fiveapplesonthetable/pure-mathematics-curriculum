@@ -1,36 +1,38 @@
 \chapter{Optimization and Quadratic Forms}
 
-Almost everything we do with mathematics in the real world is, secretly, a search
-for a \emph{best} thing. The best line through a cloud of data. The cheapest route.
-The setting of a million neural-network weights that makes the fewest mistakes. The
-shape a soap film takes to minimize its area. ``Best'' means we have some number
-attached to every possible choice -- a cost, an error, an energy -- and we want the
-choice that makes that number as small (or as large) as it can be. That is what
-\emph{optimization} is: hunting for the bottom of a landscape.
+In Chapter~35, we saw electrical networks find currents that minimize dissipated power,
+and random walks settle into equilibrium. Both illustrate a universal theme:
+many mathematical problems reduce to a search for an optimal configuration.
+Examples include finding the best-fit line through a data set, the most efficient
+distribution of current through a circuit, the configuration of neural network
+weights that minimizes loss, or the shape a soap film adopts to minimize surface area.
+In each case, an objective function assigns a real number to every choice -- a cost,
+an error, or an energy -- and the goal is to minimize or maximize this value. That is
+the core problem of \emph{optimization}.
 
-This chapter rests on one observation. Most of the landscapes that
-actually matter, at least near their bottoms, look like the same simple shape: a
-\emph{bowl}. And the algebra of a bowl is the algebra of a single object you have
-been quietly meeting all book long -- the symmetric matrix, wrapped up in the
-expression $\vec{x}\T\mat{A}\vec{x}$. That expression is called a \emph{quadratic
-form}, and its geometry -- bowl, dome, saddle, valley -- is controlled entirely by
-the eigenvalues of $\mat{A}$. So the linear algebra you already know turns out to be
-exactly the tool for understanding curvature, minima, and the business of
-finding the best answer.
+This chapter rests on one observation. Most of the smooth cost surfaces that actually
+matter, at least near their lowest points, look like the same simple shape: a \emph{bowl}.
+In Chapter 27 we met the algebraic engine of that bowl: the symmetric matrix $\mat{A}$
+acting in the quadratic form $\vec{x}\T\mat{A}\vec{x}$. There we saw that positive
+eigenvalues make $\vec{x}\T\mat{A}\vec{x}$ strictly positive. Here we turn that insight
+into an algorithm. The geometry of a quadratic form -- bowl, dome, saddle, or trough --
+is governed entirely by the eigenvalues and eigenvectors of $\mat{A}$. So the linear
+algebra you already know turns out to be the exact language of multivariable curvature,
+equilibrium, and constrained optimization.
 
-We will build the picture first. Then we will learn to read off, from a matrix
-alone, whether a surface curves up into a bowl (a minimum), down into a dome (a
-maximum), or twists into a saddle (neither). Along the way we will see that
-``positive definite'' and ``convex'' and ``has a unique minimum'' are three phrasings
-of one idea, that least squares is just the gradient of a bowl set to zero, and that
-constrained optimization -- whether gliding along smooth curves or bumping against
-solid inequality walls -- hands us the eigenvalue problem through Lagrange multipliers
-and reveals the Karush--Kuhn--Tucker conditions that power modern machine learning.
+We will build the picture first, learning to read off from a matrix whether a surface
+curves up into a bowl (a minimum), down into a dome (a maximum), or twists into a
+saddle (neither). Along the way we will see that ``positive definite'', ``convex'', and
+``has a unique global minimum'' are three phrasings of one geometric idea; that least
+squares is simply the gradient of an error bowl set to zero; and that constrained
+optimization -- whether subject to smooth equality constraints or boundary
+inequalities -- connects directly to eigenvalues via Lagrange multipliers and the
+Karush--Kuhn--Tucker conditions.
 
-\section{The landscape and its bottom}
+\section{Curved surfaces and their bottoms}
 \label{ch36:landscape}
 
-Fix the mental picture once and for all. Imagine a function $f$ that eats a
+Fix the mental picture once and for all. Imagine a function $f$ that takes a
 point $\vec{x}$ in the plane and returns a single height $f(\vec{x})$. Plot that
 height as a surface sitting above the plane. Optimization is the question: \emph{over
 all points $\vec{x}$, where is the surface lowest?}
@@ -56,7 +58,7 @@ surface, zoomed in close enough to a flat spot, looks like one of them.
 \begin{axis}[
   hide axis, width=5.0cm, height=5.0cm, view={35}{30},
   domain=-1.4:1.4, y domain=-1.4:1.4, samples=20,
-  title={\small bowl: $x^2+y^2$}]
+  title style={font=\small}, title={bowl: $x^2+y^2$}]
   \addplot3[surf,shader=interp,fill opacity=0.85,colormap/cool] {x^2+y^2};
 \end{axis}
 \end{tikzpicture}
@@ -65,7 +67,7 @@ surface, zoomed in close enough to a flat spot, looks like one of them.
 \begin{axis}[
   hide axis, width=5.0cm, height=5.0cm, view={35}{30},
   domain=-1.4:1.4, y domain=-1.4:1.4, samples=20,
-  title={\small dome: $-(x^2+y^2)$}]
+  title style={font=\small}, title={dome: $-(x^2+y^2)$}]
   \addplot3[surf,shader=interp,fill opacity=0.85,colormap/hot] {-(x^2+y^2)};
 \end{axis}
 \end{tikzpicture}
@@ -74,15 +76,15 @@ surface, zoomed in close enough to a flat spot, looks like one of them.
 \begin{axis}[
   hide axis, width=5.0cm, height=5.0cm, view={35}{30},
   domain=-1.4:1.4, y domain=-1.4:1.4, samples=20,
-  title={\small saddle: $x^2-y^2$}]
+  title style={font=\small}, title={saddle: $x^2-y^2$}]
   \addplot3[surf,shader=interp,fill opacity=0.85,colormap/viridis] {x^2-y^2};
 \end{axis}
 \end{tikzpicture}
-\caption{The three personalities of a quadratic surface. The \emph{bowl} curves up
+\caption{The three basic shapes of a quadratic surface. The \emph{bowl} curves up
 in every direction (a minimum at the center). The \emph{dome} curves down in every
 direction (a maximum). The \emph{saddle} curves up along one axis and down along
-another (neither). The entire job of this chapter is to read which one you have from
-a matrix.}
+another (neither). Reading which one you have from the eigenvalues of its matrix is the
+first key step in multivariable optimization.}
 \label{ch36:fig-three-shapes}
 \end{figure}
 
@@ -95,8 +97,11 @@ symmetric matrix produces.
 \section{Quadratic forms: \texorpdfstring{$\vec{x}\T\mat{A}\vec{x}$}{x'Ax}}
 \label{ch36:quadforms}
 
-Watch how the matrix sneaks in. Take a symmetric $2\times 2$ matrix and sandwich
-it between a column vector on the right and its transpose (a row vector) on the left:
+In Chapter 27, we introduced the quadratic form as an energy test for positive
+definite matrices. Let us briefly revisit how the matrix builds the polynomial,
+keeping our eyes focused now on the geometry of slopes, level curves, and algorithms.
+Take a symmetric $2\times 2$ matrix and sandwich it between a column vector on the
+right and its transpose (a row vector) on the left:
 \[
   \vec{x}\T\mat{A}\vec{x}
   = \begin{bmatrix} x & y \end{bmatrix}
@@ -190,10 +195,13 @@ $z=Q(x,y)$ is a bowl whose cross-sections are exactly these ellipses.
   % ellipses 3x^2 + y^2 = k : semi-axes sqrt(k/3) in x, sqrt(k) in y
   \draw[vecblue,thick]  (0,0) ellipse ({sqrt(1)} and {sqrt(3)});   % k=3
   \draw[vecblue,thick]  (0,0) ellipse ({sqrt(2)} and {sqrt(6)});   % k=6
-  \node[vecblue] at (1.15,0.30) {\small $Q{=}3$};
+  \node[vecblue,font=\small] at (2.1,1.35) {$Q{=}3$};
+  \draw[->,vecblue,thin] (1.6,1.15) -- (0.95,0.8);
   % principal axes
-  \draw[->,vecred,very thick] (0,0)--(1,0) node[below right]{\small steep axis};
-  \draw[->,targetgreen,very thick] (0,0)--(0,1.732) node[above left]{\small gentle axis};
+  \draw[->,vecred,very thick] (0,0)--(1,0);
+  \node[vecred, font=\scriptsize, align=center] at (0.45,-0.38) {steep\\axis};
+  \draw[->,targetgreen,very thick] (0,0)--(0,1.732);
+  \node[targetgreen, left=2pt, font=\small] at (0,0.9) {gentle axis};
 \end{tikzpicture}
 \caption{Level curves of $Q(x,y)=3x^2+y^2$. Each blue curve is a set $Q=\text{const}$,
 an ellipse. The form grows \emph{fastest} along the short $x$-axis (eigenvalue $3$)
@@ -208,6 +216,16 @@ diagonal, with eigenvectors along the axes. The big eigenvalue $3$ goes with the
 there); the small eigenvalue $1$ goes with the \emph{gentle} direction. This is the
 whole secret of quadratic-form geometry, and it survives even when the matrix is not
 diagonal -- we just have to rotate to the eigenvector axes first.
+
+\begin{recoverybox}
+\textbf{Mental check: reading the shape.} If $Q(x,y) = 5x^2 + 2y^2$, what are the
+semi-axes of the ellipse $Q(x,y) = 10$? In the $x$-direction, $5x^2 = 10 \Rightarrow
+x = \pm\sqrt{2}$. In the $y$-direction, $2y^2 = 10 \Rightarrow y = \pm\sqrt{5}$. The
+ellipse is wider in $y$ ($\sqrt{5} \approx 2.24$) and narrower in $x$ ($\sqrt{2}
+\approx 1.41$). Why is it narrower along $x$? Because the coefficient $5$ is larger:
+the bowl rises more steeply in $x$, so the contour height $10$ is reached much closer
+to the origin.
+\end{recoverybox}
 
 \section{Diagonalizing the form: the principal axes}
 \label{ch36:principal-axes}
@@ -284,8 +302,9 @@ $n(n+1)/2$ independent coefficients -- a messy soup of squares and cross terms. 
 principal axes theorem says: \emph{in the right orthonormal frame, all of that is
 just $n$ numbers, the eigenvalues, stretching $n$ perpendicular axes.} Curvature in
 many dimensions, which sounds impossibly complicated, is nothing but a handful of
-independent one-dimensional parabolas glued together at right angles. That is the
-same liberating message as diagonalization, now wearing the clothes of geometry.
+independent one-dimensional parabolas glued together at right angles. This expresses
+the core message of diagonalization in geometric terms: rotating to the eigenbasis
+decouples the coordinate directions.
 \end{aestheticbox}
 
 \section{Reading the shape: definiteness}
@@ -353,15 +372,15 @@ For $\mat{A}=\begin{bmatrix}2&1\\1&2\end{bmatrix}$: $\det=4-1=3>0$ and $\tr=4>0$
 positive definite -- a bowl. Indeed its eigenvalues were $3,1$. For
 $\mat{B}=\begin{bmatrix}1&2\\2&1\end{bmatrix}$: $\det=1-4=-3<0$, so indefinite -- a
 saddle (eigenvalues $3$ and $-1$). Two innocent-looking matrices, just an entry
-swapped, with completely different landscapes.
+swapped, with completely different geometry: one a bowl, the other a saddle.
 \end{example}
 
 For larger matrices the clean generalization is \emph{Sylvester's criterion}: a
 symmetric matrix is positive definite exactly when all its \emph{leading principal
 minors} -- the determinants of the top-left $1\times1$, $2\times2$, \dots, $n\times
-n$ blocks -- are positive. This is really the pivot test in disguise; each positive
-minor guarantees one positive pivot in elimination, and positive pivots are the
-bookkeeping cousins of positive eigenvalues.
+n$ blocks -- are positive. This criterion directly reflects the pivot test: each positive
+minor guarantees one positive pivot in elimination, and positive pivots correspond to
+positive eigenvalues.
 
 \begin{example}[A $3\times 3$ check by minors]
 \label{ch36:ex-minors}
@@ -435,11 +454,19 @@ replaced by the matrix statement ``$\mat{H}$ is positive definite.''
 \end{intuitionbox}
 
 \begin{historybox}
-In 1847, Augustin-Louis Cauchy invented gradient descent while trying to calculate the astronomical orbits of celestial bodies and comets. Cauchy observed that stepping in the direction of the negative gradient $-\nabla f$ guarantees an immediate decrease in function height. But he ran into a notorious geometric trap: in long, narrow ravines where one direction is steep and the perpendicular direction is shallow, steepest descent zigzags back and forth between the ravine walls. Because the gradient is always perpendicular to level curves, the steps waste energy bouncing across the valley rather than marching down its floor.
+In 1847, Augustin-Louis Cauchy introduced gradient descent while calculating the astronomical orbits of celestial bodies and comets. Cauchy realized that stepping in the direction of the negative gradient $-\nabla f$ guarantees an immediate decrease in function height. But he was quickly halted by a severe geometric trap: in long, narrow ravines where one direction is steep and the perpendicular direction is shallow, steepest descent bounces back and forth between the ravine walls instead of marching down the valley floor.
 
-Newton's method fixes the zigzag by using the second-derivative Hessian matrix $\mat{H}$ to leap straight to the bottom: $\Delta\vec{x} = -\mat{H}\inv \nabla f$. But computing and inverting an $n \times n$ Hessian costs $\mathcal{O}(n^3)$ operations and requires storing $n^2$ numbers, which is impossible when $n$ reaches thousands or millions of variables. Worse, if the Hessian has negative eigenvalues (saddle points), Newton's step can launch the search uphill toward a maximum.
+For a century, Newton's method offered the textbook fix by using the second-derivative Hessian matrix $\mat{H}$ to divide out curvature and leap straight to the bottom: $\Delta\vec{x} = -\mat{H}\inv \nabla f$. But storing and inverting an $n \times n$ Hessian costs $\mathcal{O}(n^3)$ operations and consumes $n^2$ memory words, an impossible barrier for early computers when $n$ reached thousands of variables. Worse, near a saddle point where the Hessian has negative eigenvalues, Newton's step can launch the search uphill toward a maximum.
 
-In 1952, Magnus Hestenes and Eduard Stiefel resolved this dilemma by inventing the \textbf{Conjugate Gradient (CG)} method for symmetric positive-definite systems. Instead of stepping along the gradient, CG constructs search directions that are mutually orthogonal with respect to the energy matrix: $\vec{d}_i\T\mat{A}\vec{d}_j = 0$. Each step completely eliminates error along an entire principal axis of the elliptical bowl without spoiling any progress from earlier steps. In exact arithmetic, CG reaches the exact bottom in at most $n$ iterations; in practice, it achieves high precision in only $\mathcal{O}(\sqrt{\kappa} \log(1/\epsilon))$ steps, becoming the gold standard for large-scale optimization.
+In 1952, Magnus Hestenes and Eduard Stiefel resolved this computational bottleneck by inventing the \textbf{Conjugate Gradient (CG)} method for symmetric positive-definite systems. Armed with the spectral geometry of quadratic forms, they constructed search directions that are mutually orthogonal with respect to the energy matrix: $\vec{d}_i\T\mat{A}\vec{d}_j = 0$. Each step completely eliminates error along an entire principal axis of the elliptical bowl without disturbing progress made in earlier steps. CG reaches high precision in only $\mathcal{O}(\sqrt{\kappa} \log(1/\epsilon))$ matrix-vector multiplications without ever storing an inverse matrix, enabling the simulation of large-scale physical structures and fluid flows.
+
+Meanwhile, a second optimization revolution was unfolding around inequality constraints. In 1939, a young graduate student at the University of Chicago named William Karush derived the foundational conditions for inequality-constrained optimization in his master's thesis. But World War II dispersed mathematicians into war research, and Karush's thesis sat unpublished and forgotten in the university library. Twelve years later, in 1951, Harold Kuhn and Albert W. Tucker independently rediscovered and published the identical conditions at Princeton, showing how Lagrange multipliers apply to solid boundary walls. When Kuhn later discovered Karush's 1939 thesis, he and Tucker ensured historical justice by championing Karush's priority, permanently renaming the result the \textbf{Karush--Kuhn--Tucker (KKT)} conditions. The KKT conditions provided the foundation for modern mathematical programming, economic game theory, and machine learning algorithms such as support vector machines.
+
+Today, an active frontier is high-dimensional non-convex optimization. In machine
+learning models with billions of parameters, cost surfaces contain saddle points where
+gradients vanish but Hessians have mixed eigenvalues. Explaining when gradient methods
+avoid saddles, and finding efficient algorithms for non-convex quadratic programming
+(which is NP-hard), remain open questions.
 \end{historybox}
 
 \begin{formalbox}
@@ -554,9 +581,9 @@ single bottom.
 \end{proof}
 
 \begin{aestheticbox}
-This is the quiet reason linear algebra rules optimization. ``Convex'' is the
+This is why linear algebra sits at the center of optimization. ``Convex'' is the
 dividing line between problems we can solve reliably and problems that hide local
-traps. And convex, for the smooth quadratic-ish landscapes that dominate science and
+traps. And convex, for the smooth quadratic-like surfaces that dominate science and
 machine learning, \emph{means positive definite Hessian} -- an eigenvalue condition.
 Three vocabularies -- the analyst's ``convex,'' the optimizer's ``unique global
 minimum,'' the algebraist's ``positive definite'' -- name a single geometric fact:
@@ -677,7 +704,7 @@ preconditioning to round the bowl -- is the content of this chapter.
     \draw[->,vecred,line width=1.4pt] (0.15,0.08) -- (0,0);
 
     \fill[vecred] (1.9,1.5) circle (2pt) node[above right=1pt,font=\scriptsize]{$\vec{x}^{(0)}$};
-    \fill[black] (0,0) circle (2pt) node[below left=1pt,font=\scriptsize]{$\vec{x}^\star$};
+    \fill[black] (0,0) circle (2pt) node[below=4pt,font=\scriptsize]{$\vec{x}^\star$};
 
     \node[draw=quotientorange!70,fill=white,rounded corners=2pt,font=\tiny,align=center] at (0,-1.75) {
       $-\nabla f$ orthogonal to contours:\\
@@ -712,7 +739,7 @@ preconditioning to round the bowl -- is the content of this chapter.
     };
   \end{scope}
 \end{tikzpicture}
-\caption{Gradient descent trajectories on quadratic form level curves. Left: On an ill-conditioned quadratic form with wide eigenvalue spread ($\lambda_{\max} \gg \lambda_{\min}$), level curves are tightly compressed ellipses. The gradient $-\nabla f$ is orthogonal to the local tangent, causing steps to bounce back and forth between steep walls while progressing agonizingly slowly down the gentle valley floor. Right: On a well-conditioned or preconditioned bowl ($\lambda_{\max} \approx \lambda_{\min}$), level curves are circular and the negative gradient points straight toward the global minimum $\vec{x}^\star$.}
+\caption{Gradient descent trajectories on quadratic form level curves. Left: On an ill-conditioned quadratic form with wide eigenvalue spread ($\lambda_{\max} \gg \lambda_{\min}$), level curves are tightly compressed ellipses. The gradient $-\nabla f$ is orthogonal to the local tangent, causing steps to bounce back and forth between steep walls while progressing slowly down the gentle valley floor. Right: On a well-conditioned or preconditioned bowl ($\lambda_{\max} \approx \lambda_{\min}$), level curves are circular and the negative gradient points straight toward the global minimum $\vec{x}^\star$.}
 \label{ch36:fig-condition}
 \end{figure}
 
@@ -748,7 +775,7 @@ curves) is parallel to $\nabla g$ (perpendicular to the fence).
   \foreach \k in {0.5,1.1,1.9} {
     \draw[vecblue!70] (0,0) ellipse ({sqrt(\k)} and {sqrt(2*\k)});
   }
-  \node[vecblue] at (-1.7,1.7) {\small level curves of $f$};
+  \node[vecblue, fill=white, inner sep=1pt] at (-1.75,-1.65) {\small level curves of $f$};
   % constraint: line g = x + y - 1.8 = 0, from (-0.6,2.4) to (2.4,-0.6)
   \draw[targetgreen,very thick] (-0.6,2.4)--(2.4,-0.6);
   \node[targetgreen] at (2.15,-0.95) {\small fence $g{=}0$};
@@ -757,10 +784,10 @@ curves) is parallel to $\nabla g$ (perpendicular to the fence).
   \fill[trapred] (T) circle (2pt);
   \draw[->,trapred,very thick] (T)--($(T)+(0.78,0.78)$) node[right]{\small $\nabla f$};
   \draw[->,structurepurple,very thick] (T)--($(T)+(0.42,0.42)$) node[below right]{\small $\nabla g$};
-  \node[trapred] at (0.05,1.55) {\small optimum};
+  \node[trapred, fill=white, inner sep=1pt, anchor=east] at (0.45,1.2) {\small optimum};
 \end{tikzpicture}
-\caption{Constrained optimum. The marble must stay on the green fence $g=0$. The best
-point is where the fence \emph{kisses} a level curve of $f$ -- a point of tangency.
+\caption{Constrained optimum. The marble must stay on the green fence $g=0$. The
+optimal point is where the fence lies \emph{tangent} to a level curve of $f$.
 There the gradients $\nabla f$ and $\nabla g$ point along the same line:
 $\nabla f = \lambda\,\nabla g$.}
 \label{ch36:fig-lagrange}
@@ -792,9 +819,10 @@ origin is $(1,1)$, at distance $\sqrt2$ -- exactly what an orthogonal projection
 would give, now obtained by tangency.
 \end{example}
 
-\subsection{The crown jewel: optimization gives back eigenvalues}
+\subsection{Optimization recovers eigenvalues}
 
-Here is the result that ties the whole book together. Maximize the quadratic form
+Applying Lagrange multipliers on the unit sphere leads straight back to
+eigenvalues. Maximize the quadratic form
 $\vec{x}\T\mat{A}\vec{x}$ over the \emph{unit sphere} $\norm{\vec{x}}=1$. In words:
 \emph{in which direction does the form grow the most, among all unit vectors?} Set up
 Lagrange with $f=\vec{x}\T\mat{A}\vec{x}$ and constraint $g=\vec{x}\T\vec{x}-1=0$. Using
@@ -861,13 +889,12 @@ Figure~\ref{ch36:fig-tilted} is squashed precisely between these extremes.
 \end{example}
 
 \begin{aestheticbox}
-Step back and admire the loop we just closed. We began the book with eigenvectors as
+Notice how the theory comes full circle. We began the book with eigenvectors as
 ``directions a matrix does not turn.'' Now they return as ``directions in which a
 quadratic form is stationary on the sphere'' -- the steepest and flattest directions
 of the bowl, the principal axes of the ellipse, the answer to a constrained
 optimization. Same vectors, three completely different stories: invariance,
-curvature, and optimality. When a single object answers questions that did not look
-related, you are seeing why the eigenvalue is the deepest idea in linear algebra. It
+curvature, and optimality. It
 is also why this exact computation powers \emph{principal component analysis}: the
 first principal component of a data set is the unit direction maximizing the variance
 $\vec{w}\T\mat{C}\vec{w}$ on the sphere -- the top eigenvector of the covariance
@@ -877,20 +904,28 @@ matrix, found by the Rayleigh quotient.
 \section{Constrained convex optimization, duality, and the KKT conditions}
 \label{ch36:kkt}
 
-In Section~\ref{ch36:lagrange}, our marble was trapped on a tightrope: an equality constraint $g(\vec{x}) = 0$ forced motion along a narrow curve or surface. Stepping to either side was strictly forbidden. But in engineering, economics, and machine learning, real-world constraints rarely confine us to razor-thin curves. Instead, they give us \emph{room to roam}, bounded by one-sided barriers:
+In Section~\ref{ch36:lagrange}, an equality constraint $g(\vec{x}) = 0$ forced motion
+along a specified curve or surface. Stepping to either side was strictly forbidden. But in
+engineering, economics, and machine learning, real-world constraints rarely confine us to
+curves. Instead, they provide feasible regions bounded by one-sided barriers:
 \begin{itemize}
   \item A financial portfolio must keep asset weights non-negative: $w_i \ge 0$.
   \item A factory cannot exceed its raw material budget: $\sum c_i x_i \le B$.
   \item A machine learning classifier must keep data points outside a decision margin: $y_i(\vec{w}\T\vec{x}_i + b) \ge 1$.
 \end{itemize}
-These are \emph{inequality constraints}. They replace tightropes with solid fences, dividing the universe of points into a safe interior, a contact boundary, and a forbidden exterior. To navigate them, we need to understand the shape of the safe region, the physical forces that keep an optimizer from crossing its boundary, and the Karush--Kuhn--Tucker (KKT) conditions that govern equilibrium.
+These are \emph{inequality constraints}. They define feasible regions with an interior and
+a boundary. To handle them, we need to understand the geometry of the feasible region, the
+forces that keep an optimizer from crossing its boundary, and the Karush--Kuhn--Tucker (KKT)
+conditions that govern equilibrium.
 
 \subsection{Why convexity matters geometrically}
 \label{ch36:convex-geometry}
 
-Before erecting fences, we must confront a fundamental question: when can we trust that rolling downhill will lead to the best possible answer?
+Before adding constraints, when can we trust that rolling downhill leads to the global minimum?
 
-On a general, non-convex landscape, optimization is a minefield. The surface may feature dozens of shallow valleys, deceptive plateaus, and treacherous saddle points. An algorithm rolling downhill can easily settle into a mediocre puddle, completely unaware that a much deeper canyon lies just over the next ridge. Unless you inspect every cubic millimeter of the domain, you can never be certain whether a local minimum is the true global minimum.
+On a non-convex surface, optimization is difficult. The surface may have many local
+minima, plateaus, and saddle points. An algorithm stepping downhill can settle into
+a poor local minimum while a much better point exists elsewhere.
 
 Convexity is the geometric property that dismantles this trap. It requires two ingredients: a convex function, and a convex domain.
 
@@ -912,7 +947,7 @@ The eigenvalues of the Hessian are non-negative everywhere in the domain. The su
 
 \begin{formalbox}
 \label{ch36:thm-convex-global}
-\textbf{The fundamental guarantee of convex optimization.} Let $f : C \to \R$ be a convex function defined on a convex set $C$. Then:
+\textbf{Local minima are global in convex optimization.} Let $f : C \to \R$ be a convex function defined on a convex set $C$. Then:
 \begin{enumerate}
   \item Every local minimum of $f$ on $C$ is a global minimum of $f$ on $C$.
   \item The set of all global minimizers is convex.
@@ -928,7 +963,7 @@ Suppose $\vec{x}^\star \in C$ is a local minimum, but there exists some other po
 As $t \to 0$, the point $\vec{x}(t)$ approaches $\vec{x}^\star$ arbitrarily closely, yet $f(\vec{x}(t)) < f(\vec{x}^\star)$. This contradicts the premise that $\vec{x}^\star$ was a local minimum. Hence no such downhill point $\vec{z}$ can exist: $\vec{x}^\star$ must be a global minimum.
 \end{proof}
 
-This proof reveals why both ingredients are required. If the function is not convex, the graph can dip between two points. If the set is not convex, the connecting segment could pass through forbidden territory outside $C$, preventing the straight-line descent. When both $f$ and $C$ are convex, the landscape is guaranteed to have a single floor: downhill always leads home.
+This proof reveals why both ingredients are required. If the function is not convex, the graph can dip between two points. If the set is not convex, the connecting segment could pass through forbidden territory outside $C$, preventing the straight-line descent. When both $f$ and $C$ are convex, every local minimum is guaranteed to be a global minimum.
 
 \subsection{Inequality constraints as physical walls}
 \label{ch36:physical-walls}
@@ -941,7 +976,7 @@ The function $g(\vec{x})$ defines our territory: the region where $g(\vec{x}) < 
 
 Picture rolling a marble on the surface $f(\vec{x})$ inside this fenced yard. Gravity pulls the marble downhill along the direction of steepest descent, which is the negative gradient vector $-\nabla f(\vec{x})$. When the marble comes to rest at an optimal point $\vec{x}^\star$, where does it sit?
 
-Nature offers exactly two possibilities, illustrated in Figure~\ref{ch36:fig-kkt-walls}:
+There are two cases, illustrated in Figure~\ref{ch36:fig-kkt-walls}:
 
 \begin{enumerate}
   \item \textbf{Case 1: Inactive constraint ($g(\vec{x}^\star) < 0$, $\mu = 0$)}.
@@ -993,9 +1028,9 @@ Look closely at what this equation says. If the constraint is inactive ($g < 0$)
       \draw[->,gray!50] (-2.7,0) -- (2.7,0) node[right,font=\scriptsize]{$x_1$};
       \draw[->,gray!50] (0,-1.3) -- (0,2.2) node[above,font=\scriptsize]{$x_2$};
 
-      % Wall line g(x) = x1 + x2 - 1.2 = 0 with sloped label
-      \draw[targetgreen,line width=1.5pt] (-1.2,2.4) -- (2.7,-1.5)
-        node[pos=0.55,above=1pt,sloped,font=\scriptsize,text=targetgreen!90!black] {Wall: $g(\vec{x}) = 0$};
+      % Wall line g(x) = x1 + x2 - 1.2 = 0
+      \draw[targetgreen,line width=1.5pt] (-1.2,2.4) -- (2.7,-1.5);
+      \node[targetgreen!90!black,font=\scriptsize,above right] at (0.3,1.0) {Wall: $g(\vec{x}) = 0$};
 
       % Concentric contour ellipses of f centered at (-0.5, -0.1)
       \draw[quotientorange!50,thick] (-0.5,-0.1) ellipse (0.55 and 0.38);
@@ -1004,11 +1039,11 @@ Look closely at what this equation says. If the constraint is inactive ($g < 0$)
 
       % Unconstrained minimum strictly inside
       \fill[vecblue] (-0.5,-0.1) circle (2.5pt);
-      \node[font=\scriptsize,below=2pt] at (-0.5,-0.1) {$\vec{x}^\star$};
-      \node[font=\scriptsize,text=vecblue] at (-0.5,0.35) {$\nabla f(\vec{x}^\star) = \vec{0}$};
+      \node[font=\scriptsize,below=2pt,fill=codebg,inner sep=0.5pt] at (-0.5,-0.1) {$\vec{x}^\star$};
+      \node[font=\scriptsize,text=vecblue,fill=codebg,inner sep=0.5pt] at (-0.5,0.4) {$\nabla f(\vec{x}^\star) = \vec{0}$};
 
       % Feasible label
-      \node[sourceblue!80!black,font=\scriptsize] at (-1.7,-1.0) {Feasible: $g(\vec{x}) \le 0$};
+      \node[sourceblue!80!black,font=\scriptsize] at (-1.8,1.6) {Feasible: $g(\vec{x}) \le 0$};
     \end{scope}
 
     \node[draw=sourceblue!70,fill=white,rounded corners=2pt,font=\tiny,align=center] at (0,-1.95) {
@@ -1034,7 +1069,7 @@ Look closely at what this equation says. If the constraint is inactive ($g < 0$)
 
       % Wall line g(x) = x1 + x2 - 0.4 = 0
       \draw[targetgreen,line width=1.5pt] (-2.0,2.4) -- (1.9,-1.5);
-      \node[targetgreen!90!black,font=\scriptsize] at (-1.7,1.4) {Wall: $g(\vec{x}) = 0$};
+      \node[targetgreen!90!black,font=\scriptsize,anchor=south west,fill=codebg,inner sep=1pt] at (-1.55,1.92) {Wall: $g(\vec{x}) = 0$};
 
       % Unconstrained minimum outside in forbidden zone at (1.2, 1.2)
       \draw[dashed,gray!60] (1.2,1.2) circle (2.5pt);
@@ -1044,12 +1079,12 @@ Look closely at what this equation says. If the constraint is inactive ($g < 0$)
       % Concentric level circles of f centered at (1.2, 1.2)
       \draw[quotientorange!40,thick,dashed] (1.2,1.2) circle (0.65);
       \draw[quotientorange,very thick] (1.2,1.2) circle (1.414);
-      \draw[quotientorange!60,thick] (1.2,1.2) circle (2.1);
-      \node[quotientorange!90!black,font=\tiny,right] at (1.9,0.3) {$f{=}f(\vec{x}^\star)$};
+      \draw[quotientorange!60,thick] (1.2,1.2) circle (1.85);
+      \node[quotientorange!90!black,font=\tiny,fill=codebg,inner sep=1pt] at (1.75,-0.32) {$f{=}f(\vec{x}^\star)$};
 
       % Contact optimum on wall
       \fill[vecblue] (0.2,0.2) circle (2.5pt);
-      \node[font=\scriptsize,below right=2pt] at (0.2,0.2) {$\vec{x}^\star$};
+      \node[font=\scriptsize,below left=2pt,fill=codebg,inner sep=0.8pt] at (0.2,0.2) {$\vec{x}^\star$};
 
       % Downhill gravity pull -grad f (points outward toward x_unc)
       \draw[->,vecred,line width=1.4pt] (0.2,0.2) -- ++(0.42,0.42) node[above=2pt,font=\scriptsize]{$-\nabla f$};
@@ -1138,15 +1173,15 @@ Now reverse the order of operations. What happens if we maximize first, and mini
 \]
 Because the dual function is the pointwise infimum of a collection of affine functions in $(\vec{\mu}, \vec{\lambda})$, it is \emph{always concave}, regardless of whether the original objective $f$ was convex!
 
-Even more striking, for any valid choice of multipliers $\vec{\mu} \ge \vec{0}$ and any feasible point $\tilde{\vec{x}}$,
+For any valid choice of multipliers $\vec{\mu} \ge \vec{0}$ and any feasible point $\tilde{\vec{x}}$,
 \[
   d(\vec{\mu}, \vec{\lambda}) \;\le\; \mathcal{L}(\tilde{\vec{x}}, \vec{\mu}, \vec{\lambda}) \;=\; f(\tilde{\vec{x}}) + \sum_{i=1}^m \underbrace{\mu_i g_i(\tilde{\vec{x}})}_{\le\, 0} + \sum_{j=1}^p \lambda_j \underbrace{h_j(\tilde{\vec{x}})}_{=\,0} \;\le\; f(\tilde{\vec{x}}).
 \]
-Because this holds for every feasible $\tilde{\vec{x}}$, taking the infimum on the right yields the fundamental inequality of \textbf{weak duality}:
+Because this holds for every feasible $\tilde{\vec{x}}$, taking the infimum on the right yields the inequality of \textbf{weak duality}:
 \[
   d(\vec{\mu}, \vec{\lambda}) \;\le\; p^\star \qquad \text{for all } \vec{\mu} \ge \vec{0}, \; \vec{\lambda}.
 \]
-Every evaluation of the dual function establishes a rigorous lower bound on the best possible value of our original problem!
+Every evaluation of the dual function establishes a lower bound on the optimal value $p^\star$ of our original problem.
 
 The \textbf{dual problem} seeks the tightest possible lower bound:
 \[
@@ -1154,7 +1189,7 @@ The \textbf{dual problem} seeks the tightest possible lower bound:
 \]
 Weak duality ensures that $d^\star \le p^\star$. The gap $p^\star - d^\star \ge 0$ is the \emph{duality gap}.
 
-When does the gap close completely, so that $d^\star = p^\star$? This state of \textbf{strong duality} is the dream of optimization: it means solving the dual problem gives the exact minimum of the primal problem.
+When does the gap close completely, so that $d^\star = p^\star$? Under \textbf{strong duality}, solving the dual problem gives the exact minimum of the primal problem.
 
 \begin{theorem}[Slater's condition for strong duality]
 \label{ch36:thm-slater}
@@ -1162,10 +1197,79 @@ Suppose the objective $f$ and the inequality functions $g_1,\dots,g_m$ are conve
 \[
   g_i(\vec{x}_0) < 0 \quad (i = 1, \dots, m) \qquad \text{and} \qquad h_j(\vec{x}_0) = 0 \quad (j = 1, \dots, p),
 \]
-then strong duality holds ($d^\star = p^\star$), and the dual maximum is attained. Furthermore, under Slater's condition, the KKT conditions are both \textbf{necessary and sufficient} for global optimality.
+then strong duality holds ($d^\star = p^\star$), and the dual maximum is attained. Under Slater's condition, the KKT conditions are both \textbf{necessary and sufficient} for global optimality.
 \end{theorem}
 
 Slater's condition requires only that the feasible region possesses a genuine interior: the fence must enclose some volume, rather than collapsing into an empty set or a flat pancake. When it holds, solving the KKT equations guarantees you have found the unique global optimum.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.92,>=Latex]
+  \begin{scope}[shift={(0,0)}]
+    \node[anchor=south,font=\scriptsize\scshape,text=spacegray!90!black] at (0,2.6) {1. Weak Duality (General Case)};
+    \draw[fill=codebg,draw=spacegray!30,rounded corners=4pt] (-2.8,-2.7) rectangle (2.8,2.4);
+
+    % Axis
+    \draw[->,thick,spacegray] (-1.7,-1.5) -- (-1.7,1.9) node[above,font=\scriptsize]{value};
+
+    % Primal region
+    \fill[sourceblue!15] (-1.3,0.6) rectangle (2.4,1.7);
+    \draw[sourceblue,thick] (-1.3,0.6) -- (2.4,0.6);
+    \node[right,sourceblue!90!black,font=\scriptsize] at (-1.2,1.15) {Primal values $f(\vec{x})$};
+    \fill[sourceblue!80!black] (-1.7,0.6) circle (2pt);
+    \node[left=2pt,sourceblue!80!black,font=\scriptsize] at (-1.7,0.6) {$p^*$};
+    \node[right,font=\tiny,text=sourceblue!80!black] at (-1.2,0.35) {primal minimum};
+
+    % Gap arrow
+    \draw[<->,trapred,line width=1.1pt] (1.0,-0.48) -- (1.0,0.48);
+    \node[right=2pt,trapred,font=\scriptsize] at (1.0,0) {Gap $> 0$};
+
+    % Dual region
+    \fill[targetgreen!15] (-1.3,-1.5) rectangle (2.4,-0.6);
+    \draw[targetgreen,thick] (-1.3,-0.6) -- (2.4,-0.6);
+    \node[right,targetgreen!90!black,font=\scriptsize] at (-1.2,-1.05) {Dual bounds $d(\vec{\mu}, \vec{\lambda})$};
+    \fill[targetgreen!80!black] (-1.7,-0.6) circle (2pt);
+    \node[left=2pt,targetgreen!80!black,font=\scriptsize] at (-1.7,-0.6) {$d^*$};
+    \node[right,font=\tiny,text=targetgreen!80!black] at (-1.2,-0.35) {best dual bound};
+
+    % Bottom card
+    \node[draw=spacegray!40,fill=white,rounded corners=2pt,font=\tiny,align=center,inner sep=3pt] at (0,-2.15) {
+      Weak duality: every dual bound $d \le p^*$\\
+      Non-convex problems may leave an open gap
+    };
+  \end{scope}
+
+  \begin{scope}[shift={(6.8,0)}]
+    \node[anchor=south,font=\scriptsize\scshape,text=spacegray!90!black] at (0,2.6) {2. Strong Duality (Convex + Slater)};
+    \draw[fill=codebg,draw=spacegray!30,rounded corners=4pt] (-2.8,-2.7) rectangle (2.8,2.4);
+
+    % Axis
+    \draw[->,thick,spacegray] (-1.7,-1.5) -- (-1.7,1.9) node[above,font=\scriptsize]{value};
+
+    % Primal region
+    \fill[sourceblue!15] (-1.3,0.0) rectangle (2.4,1.7);
+    \node[right,sourceblue!90!black,font=\scriptsize] at (-1.2,1.0) {Primal values $f(\vec{x})$};
+
+    % Boundary line
+    \draw[quotientorange!90!black,line width=1.5pt] (-1.3,0.0) -- (2.4,0.0);
+    \fill[quotientorange!90!black] (-1.7,0.0) circle (2.2pt);
+    \node[left=2pt,quotientorange!90!black,font=\scriptsize] at (-1.7,0.0) {$p^* = d^*$};
+    \node[right,quotientorange!90!black,font=\scriptsize] at (-1.2,0.3) {Gap closed: $p^* = d^*$};
+
+    % Dual region
+    \fill[targetgreen!15] (-1.3,-1.5) rectangle (2.4,0.0);
+    \node[right,targetgreen!90!black,font=\scriptsize] at (-1.2,-0.9) {Dual bounds $d(\vec{\mu}, \vec{\lambda})$};
+
+    % Bottom card
+    \node[draw=quotientorange!60,fill=white,rounded corners=2pt,font=\tiny,align=center,inner sep=3pt] at (0,-2.15) {
+      Strong duality: bounds meet at $p^* = d^*$\\
+      Solving the dual solves the primal exactly
+    };
+  \end{scope}
+\end{tikzpicture}
+\caption{The geometry of weak and strong duality. Left: For a general optimization problem, every evaluation of the Lagrange dual function $d(\vec{\mu}, \vec{\lambda})$ yields a certified lower bound on the primal optimal value $p^\star$ (weak duality), but an unbridgeable gap $p^\star - d^\star > 0$ may remain. Right: When the objective and constraints are convex and Slater's condition holds, the gap closes completely ($p^\star = d^\star$), allowing us to solve the primal problem by solving its dual.}
+\label{ch36:fig-duality}
+\end{figure}
 
 \subsection{A worked two-dimensional quadratic program}
 \label{ch36:worked-qp}
@@ -1262,7 +1366,7 @@ And examine the stationarity condition with respect to the weight vector $\vec{w
   \nabla_{\vec{w}} \mathcal{L} \;=\; \vec{w} - \sum_{i=1}^N \mu_i y_i \vec{x}_i \;=\; \vec{0}
   \quad\Longrightarrow\quad \vec{w}^\star \;=\; \sum_{i=1}^N \mu_i^\star y_i \vec{x}_i.
 \]
-Look at the profound consequence of these two lines:
+Look at the consequence of these two lines:
 \begin{itemize}
   \item If a training example $\vec{x}_i$ lies safely inside its class territory, away from the margin boundary ($y_i(\vec{w}\T\vec{x}_i + b) > 1$), then $g_i < 0$. Complementary slackness forces its multiplier to be identically zero: $\mu_i^\star = 0$.
   \item Because $\mu_i^\star = 0$, that data point vanishes completely from the sum for $\vec{w}^\star$!
@@ -1345,36 +1449,38 @@ Optimization turned out not to be a new subject at all. It is the geometry of
 symmetric matrices -- curvature, bowls, and principal axes -- with a thin layer of
 calculus (the gradient) on top to locate the flat spots. Positive definiteness, which
 looked like a technical condition back in the matrix chapters, is revealed as the
-single most useful property a problem can have: it is the guarantee that your
-landscape is a bowl, that downhill leads home, and that the best answer exists, is
-unique, and can be found. Carry the bowl with you; it is hiding under almost
-everything that follows.
+single most useful property a problem can have: it guarantees that a unique global
+minimum exists and that descent methods converge to it.
 
-\subsection*{What We Can Now Do (Capabilities Unlocked)}
-\begin{itemize}
-  \item \textbf{Curvature Classification via Eigenvalues:} By diagonalizing the symmetric matrix of a quadratic form $\vec{x}\T\mat{A}\vec{x} = \sum \lambda_i y_i^2$, we immediately classify multidimensional landscapes into convex upward bowls (all $\lambda_i > 0$), downward domes (all $\lambda_i < 0$), or indefinite saddles (mixed signs).
-  \item \textbf{Multivariable Extrema Certification:} By computing the Hessian matrix $\mat{H} = \nabla^2 f(\vec{x}^\star)$ at a stationary point ($\nabla f = \vec{0}$), we provide an airtight second-order condition: $\mat{H} \succ 0$ rigorously certifies a local minimum.
-  \item \textbf{Conjugate Gradient Acceleration:} For large symmetric positive-definite systems $\mat{A}\vec{x} = \vec{b}$, we replace slow $\mathcal{O}(n^3)$ Gaussian elimination and zigzagging gradient descent with Conjugate Gradients, reaching high accuracy in $\mathcal{O}(\sqrt{\kappa} \log(1/\epsilon))$ matrix-vector products without forming $\mat{A}\inv$.
-  \item \textbf{Constrained Optimization via Rayleigh Quotients:} Using Lagrange multipliers, we maximize or minimize quadratic forms on spheres ($\norm{\vec{x}} = 1$), proving that the critical values are precisely the eigenvalues of $\mat{A}$ bounded by $[\lambda_{\min}, \lambda_{\max}]$.
-  \item \textbf{Constrained Convex Programming via KKT:} For problems bounded by inequality constraints, we determine whether constraints are active via complementary slackness $\mu_i g_i(\vec{x}^\star) = 0$ and solve the KKT system, unlocking the sparse dual representations used by support vector machines.
-\end{itemize}
+In large-scale computation, however, three practical obstacles remain. If
+the condition number $\kappa = \lambda_{\max}/\lambda_{\min}$ is large, circular level
+curves stretch into narrow, steep-walled canyons; standard gradient descent bounces
+endlessly between the walls, requiring thousands of iterations where preconditioning
+could have rounded the bowl. On the non-convex surfaces of deep learning, stationary
+points $\nabla f = \vec{0}$ are overwhelmingly high-dimensional saddles rather than true
+minima, where uncorrected second-order steps can launch an optimizer uphill.
+In addition, storing an explicit $n\times n$ Hessian requires $\mathcal{O}(n^2)$ memory:
+for a modern neural network with a billion parameters, writing down the Hessian would
+demand exabytes of storage, forcing practitioners to optimize with matrix-free products
+or limited-memory approximations like L-BFGS.
 
-\subsection*{Honest Downsides and Limitations}
-\begin{itemize}
-  \item \textbf{Anisotropic Ravines and Condition Number Bottlenecks:} If the condition number $\kappa = \lambda_{\max}/\lambda_{\min}$ is large, elliptical level curves become extremely eccentric ravines. Standard first-order gradient descent requires $\mathcal{O}(\kappa)$ iterations, making learning or convergence agonizingly slow without preconditioning.
-  \item \textbf{Saddle Points in High Dimensions:} In non-convex optimization (such as deep learning loss landscapes), stationary points $\nabla f = \vec{0}$ are overwhelmingly saddle points with negative eigenvalues rather than true local minima. Second-order methods can stall or jump toward maxima unless modified with trust regions or cubic regularization.
-  \item \textbf{Hessian Memory Wall:} Storing an $n \times n$ dense Hessian matrix requires $\mathcal{O}(n^2)$ memory. For a network with $n = 10^9$ parameters, an explicit Hessian would require exabytes of memory, forcing practitioners to use Hessian-free products or stochastic quasi-Newton approximations (L-BFGS).
-  \item \textbf{Loss of Direction Conjugacy in Floating Point:} In finite precision, roundoff errors cause computed conjugate directions to lose orthogonality after $\approx 20$ iterations, degrading theoretical $n$-step termination into an iterative approximation process.
-\end{itemize}
-
-\subsection*{Where We Go Next in the Book}
-\begin{itemize}
-  \item \textbf{Chapter 37 (Connections: Groups, Tensors, and Functional Analysis):} We expand beyond finite-dimensional Euclidean optimization into infinite-dimensional spaces. We see how quadratic forms generalize to Hilbert space inner products, how continuous transformation groups (Lie groups) preserve geometric structures, and how tensor products represent multi-linear interactions in quantum physics.
-  \item \textbf{Appendix Chapters 38 and 39:} Provide the rigorous foundations of algebraic fields ($\R, \C, \mathbb{F}_p$) and the multivariable index calculus necessary to differentiate complex tensor expressions.
-\end{itemize}
+Notice, too, the boundary of this chapter: optimization took place in
+finite-dimensional space $\R^n$. In Chapter~37, \emph{Connections: Groups,
+Tensors, and Functional Analysis}, we extend linear algebra in three major directions:
+into infinite-dimensional Hilbert spaces, matrix Lie groups, and multilinear tensors.
 
 \section*{Exercises}
 \addcontentsline{toc}{section}{Exercises}
+
+\begin{exercise}[Mental check: shapes from signs]
+\label{ch36:exr-mental-shapes}
+Without writing down any scratch paper calculations, determine the geometry:
+\begin{enumerate}
+  \item A symmetric $3\times 3$ matrix has eigenvalues $7.2, 1.4, -0.05$. Is the critical point at the origin a minimum, a maximum, or a saddle?
+  \item A $2\times 2$ symmetric matrix has $\det\mat{A} = -4$. Can the surface $z = \vec{x}\T\mat{A}\vec{x}$ ever form an upward bowl? Why or why not?
+  \item If $\mat{A}$ is positive definite and you scale all of its entries by a positive scalar $c > 0$, does the minimizer of $\tfrac12\vec{x}\T\mat{A}\vec{x} - \vec{b}\T\vec{x}$ move? (Hint: what does setting the gradient to zero yield?)
+\end{enumerate}
+\end{exercise}
 
 \begin{exercise}[Forms and matrices]
 \label{ch36:exr-build}

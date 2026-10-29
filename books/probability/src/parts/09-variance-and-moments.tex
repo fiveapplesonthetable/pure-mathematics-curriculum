@@ -2,29 +2,17 @@
 
 In the last chapter you learned to find the \emph{center} of a random
 variable: its expectation, the long-run average value, the balance point of
-its distribution. The expectation answers the question ``where does this
-quantity sit, on average?'' But two random quantities can share the same
-center and still behave in wildly different ways. A casino that wins a dollar
-half the time and loses a dollar the other half is, on average, exactly as profitable as one that wins a million
-dollars half the time and loses a million the other half. The average is the
-same. The \emph{experience} is not.
+its distribution. But two random quantities can share the same center and still
+behave differently. A game that wins or loses a dollar with equal probability
+has the same average payoff as one that wins or loses a million dollars. The
+average is the same; the risk is not.
 
-This chapter is about that difference. It is about \emph{spread}: how far a
-random variable typically wanders from its center. Spread is what separates a
-calm process from a wild one, a reliable estimate from a noisy guess, a safe
-investment from a gamble. Once you have a number for the center and a number
-for the spread, you have captured the two most important facts about almost
-any random quantity you will ever meet. The number for the spread is called
-the \emph{variance}, and its square root, the \emph{standard deviation}, is
-the unit in which uncertainty is measured throughout
-statistics, science, and machine learning.
-
-We will build variance from the ground up: first the intuition of average
-squared distance, then the algebra that makes it computable, then the single
-most useful fact in all of applied probability --- that variances of
-\emph{independent} things add. From there we climb to higher moments
-(skewness and kurtosis), meet an inequality due to Jensen, and end by
-seeing why variance turns up almost everywhere in applied work.
+This chapter is about \emph{spread}: how far a random variable typically
+wanders from its center. That spread is measured by \emph{variance}, and its
+square root, the \emph{standard deviation}. We will see why variances of
+independent variables add, how higher moments capture asymmetry and tail
+weight, and how Jensen's inequality relates functions of averages to averages of
+functions.
 
 \chapterline
 
@@ -47,35 +35,59 @@ Call the payoffs $X$ and $Y$. Both have expectation zero:
   \qquad
   \E[Y] = \tfrac12(100) + \tfrac12(-100) = 0.
 \]
-A summary that only reports the mean would call these games identical. Your
-stomach knows better. Game B is a hundred times more nerve-wracking, and any
-accurate description of it must say so. We need a number that grows when the
-outcomes are flung far from the center and stays small when they huddle
-close.
+A summary that only reports the mean would call these games identical.
+Yet nobody would treat these two games the same: Game B carries far greater risk.
+We need a number that grows when the outcomes are flung far from the center and
+stays small when they huddle close.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=12cm, height=5.4cm,
-  ybar, bar width=10pt,
-  ymin=0, ymax=0.62,
-  xmin=-120, xmax=120,
+  name=plotA,
+  width=6.3cm, height=5.0cm,
+  ybar, bar width=12pt,
+  ymin=0, ymax=0.65,
+  xmin=-3, xmax=3,
   title style={font=\small},
-  title={Same center, different spread},
-  xlabel={payoff}, ylabel={probability},
+  title={Game A (mild): $\mu=0, \sigma=1$},
+  xlabel={payoff (\$)}, ylabel={probability},
+  xtick={-2,-1,0,1,2},
   ytick={0,0.25,0.5},
-  enlarge x limits=0.08,
 ]
 \addplot[draw=sourceblue, fill=sourceblue!55] coordinates {(-1,0.5) (1,0.5)};
+\node[anchor=south, font=\scriptsize] at (axis cs:-1,0.5) {$0.5$};
+\node[anchor=south, font=\scriptsize] at (axis cs:1,0.5) {$0.5$};
+\draw[dashed, sourceblue!80, thick] (axis cs:0,0) -- (axis cs:0,0.58)
+  node[above, font=\scriptsize] {$\mu = 0$};
+\end{axis}
+
+\begin{axis}[
+  at={($(plotA.east)+(1.0cm,0)$)},
+  anchor=west,
+  width=6.3cm, height=5.0cm,
+  ybar, bar width=12pt,
+  ymin=0, ymax=0.65,
+  xmin=-150, xmax=150,
+  title style={font=\small},
+  title={Game B (wild): $\mu=0, \sigma=100$},
+  xlabel={payoff (\$)}, ylabel={},
+  xtick={-100,-50,0,50,100},
+  ytick={0,0.25,0.5},
+  yticklabels={},
+]
 \addplot[draw=densityred, fill=densityred!45] coordinates {(-100,0.5) (100,0.5)};
-\legend{Game A, Game B}
+\node[anchor=south, font=\scriptsize] at (axis cs:-100,0.5) {$0.5$};
+\node[anchor=south, font=\scriptsize] at (axis cs:100,0.5) {$0.5$};
+\draw[dashed, densityred!80, thick] (axis cs:0,0) -- (axis cs:0,0.58)
+  node[above, font=\scriptsize] {$\mu = 0$};
 \end{axis}
 \end{tikzpicture}
-\caption{Two distributions with identical mean (zero) but very different
-spread. Game A (blue) places its mass right next to the center; Game B (red)
-flings the same probability far away. Variance is the number that
-distinguishes them.}
+\caption{Two distributions with identical mean ($\mu = 0$) but vastly different
+spread. Game A (left, blue) hugs the center within $\pm \$1$, carrying standard
+deviation $\sigma = 1$. Game B (right, red) flings the same probability far out
+to $\pm \$100$, producing $\sigma = 100$. A summary reporting only the mean cannot
+distinguish them; variance and standard deviation capture the difference.}
 \label{ch09:fig-twogames}
 \end{figure}
 
@@ -109,6 +121,15 @@ and with the geometry of the normal distribution. The price is that squaring
 exaggerates large deviations and gives answers in squared units. We pay that
 price gladly, and then take a square root at the end to get back to the
 original units.
+
+\begin{recoverybox}
+\textbf{Pause and think:} Suppose a coin flip pays $+\$5$ on heads and $-\$5$ on tails.
+What is its mean absolute deviation? Its center is $\mu = 0$, and every outcome is exactly
+$5$ units away, so $\E[\abs{X-\mu}] = 5$. What is its variance?
+The squared deviation is $(5)^2 = 25$ every time, so $\Var(X) = 25$ dollars-squared,
+giving standard deviation $\SD(X) = \sqrt{25} = 5$ dollars. Notice how the square root
+faithfully restores the original unit and scale of fluctuation.
+\end{recoverybox}
 
 \section{Variance and Standard Deviation}
 \label{ch09:defn}
@@ -166,11 +187,11 @@ For Game B,
   \Var(Y) = \tfrac12(100)^2 + \tfrac12(-100)^2 = 10{,}000,
   \qquad \SD(Y) = 100.
 \]
-The standard deviations are $1$ and $100$: Game B is exactly a hundred times
-wilder, which is precisely what your stomach said. Notice that the
+The standard deviations are $1$ and $100$: Game B has one hundred times
+the spread, matching the hundredfold jump in stakes. Notice that the
 \emph{variances} differ by a factor of $10{,}000$, the square of the scale
-factor. Squaring magnifies; the square root in the standard deviation tames
-it back to a linear, human scale.
+factor. Squaring magnifies; the square root in the standard deviation brings
+it back to a linear scale matching the original units.
 \end{example}
 
 \begin{intuitionbox}
@@ -197,63 +218,63 @@ high-variance variable carries massive rotational inertia.
 \begin{tikzpicture}[font=\small, >=stealth]
   % Subfigure A: Low Variance
   \begin{scope}[shift={(-3.8,0)}]
-    \node[font=\footnotesize\bfseries\color{sourceblue!80!black}] at (0, 2.3)
+    \node[font=\footnotesize\bfseries\color{sourceblue!80!black}] at (0, 2.6)
       {Panel (a): Low Variance $\Var(X) = 1$};
     % Vertical rotation axis
-    \draw[dashed, thick, gray!80] (0,-1.4) -- (0,1.8);
-    \node[above, font=\scriptsize\color{gray!90!black}] at (0,1.8) {Pivot $\mu = 0$};
+    \draw[dashed, thick, gray!70] (0,-0.15) -- (0,1.9);
+    \node[above, font=\scriptsize\color{gray!90!black}] at (0,1.9) {Pivot $\mu = 0$};
     
     % Horizontal rod
-    \draw[fill=gray!15, draw=gray!70, thick, rounded corners=1pt] (-2.2,-0.1) rectangle (2.2,0.1);
+    \draw[fill=gray!15, draw=gray!70, thick, rounded corners=1pt] (-2.2,-0.12) rectangle (2.2,0.12);
     
     % Clustered masses near center
-    \draw[fill=sourceblue!30, draw=sourceblue!80, thick, rounded corners=2pt] (-0.9,-0.35) rectangle (-0.3,0.35);
-    \node[font=\scriptsize\bfseries\color{sourceblue!80!black}] at (-0.6,0) {$m=\frac12$};
-    \draw[fill=sourceblue!30, draw=sourceblue!80, thick, rounded corners=2pt] (0.3,-0.35) rectangle (0.9,0.35);
-    \node[font=\scriptsize\bfseries\color{sourceblue!80!black}] at (0.6,0) {$m=\frac12$};
+    \draw[fill=sourceblue!35, draw=sourceblue!80, thick, rounded corners=2pt] (-0.9,-0.38) rectangle (-0.3,0.38);
+    \node[above=3pt, font=\scriptsize\bfseries\color{sourceblue!90!black}] at (-0.6,0.38) {$m=\frac12$};
+    \draw[fill=sourceblue!35, draw=sourceblue!80, thick, rounded corners=2pt] (0.3,-0.38) rectangle (0.9,0.38);
+    \node[above=3pt, font=\scriptsize\bfseries\color{sourceblue!90!black}] at (0.6,0.38) {$m=\frac12$};
     
     % Lever arm dimension
-    \draw[<->, sourceblue!70, thick] (-0.6,-0.55) -- (0,-0.55) node[midway, below, font=\tiny] {$r=1$};
-    \draw[<->, sourceblue!70, thick] (0,-0.55) -- (0.6,-0.55) node[midway, below, font=\tiny] {$r=1$};
+    \draw[<->, sourceblue!80, semithick] (-0.6,-0.6) -- (0,-0.6);
+    \draw[<->, sourceblue!80, semithick] (0,-0.6) -- (0.6,-0.6) node[midway, below=1pt, font=\scriptsize] {$r=1$};
     
     % Rotation indicator (easy spin)
-    \draw[->, thick, targetgreen!80!black] (0.4, 1.3) arc (20:340:0.45cm and 0.15cm);
-    \node[right, font=\tiny\color{targetgreen!80!black}] at (0.5, 1.3) {Spins easily};
+    \draw[->, thick, targetgreen!80!black] (0.4, 1.25) arc (20:340:0.45cm and 0.15cm);
+    \node[right=2pt, font=\scriptsize\color{targetgreen!80!black}] at (0.5, 1.25) {Spins easily};
     
-    \node[draw=sourceblue!80, fill=sourceblue!10, rounded corners=2pt, font=\scriptsize, align=center] at (0,-1.1)
-      {Moment of Inertia:\\$I = \sum m_i r_i^2 = 1.0$};
+    \node[draw=sourceblue!80, fill=sourceblue!10, rounded corners=2pt, font=\scriptsize, align=center] at (0,-1.45)
+      {Moment of Inertia:\\[2pt]$I = \sum m_i r_i^2 = 1.0$};
   \end{scope}
 
   % Subfigure B: High Variance
   \begin{scope}[shift={(3.8,0)}]
-    \node[font=\footnotesize\bfseries\color{densityred!80!black}] at (0, 2.3)
+    \node[font=\footnotesize\bfseries\color{densityred!80!black}] at (0, 2.6)
       {Panel (b): High Variance $\Var(Y) = 16$};
     % Vertical rotation axis
-    \draw[dashed, thick, gray!80] (0,-1.4) -- (0,1.8);
-    \node[above, font=\scriptsize\color{gray!90!black}] at (0,1.8) {Pivot $\mu = 0$};
+    \draw[dashed, thick, gray!70] (0,-0.15) -- (0,1.9);
+    \node[above, font=\scriptsize\color{gray!90!black}] at (0,1.9) {Pivot $\mu = 0$};
     
     % Horizontal rod
-    \draw[fill=gray!15, draw=gray!70, thick, rounded corners=1pt] (-2.6,-0.1) rectangle (2.6,0.1);
+    \draw[fill=gray!15, draw=gray!70, thick, rounded corners=1pt] (-2.6,-0.12) rectangle (2.6,0.12);
     
     % Distant masses flung to edges
-    \draw[fill=densityred!30, draw=densityred!80, thick, rounded corners=2pt] (-2.5,-0.35) rectangle (-1.9,0.35);
-    \node[font=\scriptsize\bfseries\color{densityred!80!black}] at (-2.2,0) {$m=\frac12$};
-    \draw[fill=densityred!30, draw=densityred!80, thick, rounded corners=2pt] (1.9,-0.35) rectangle (2.5,0.35);
-    \node[font=\scriptsize\bfseries\color{densityred!80!black}] at (2.2,0) {$m=\frac12$};
+    \draw[fill=densityred!35, draw=densityred!80, thick, rounded corners=2pt] (-2.5,-0.38) rectangle (-1.9,0.38);
+    \node[above=3pt, font=\scriptsize\bfseries\color{densityred!90!black}] at (-2.2,0.38) {$m=\frac12$};
+    \draw[fill=densityred!35, draw=densityred!80, thick, rounded corners=2pt] (1.9,-0.38) rectangle (2.5,0.38);
+    \node[above=3pt, font=\scriptsize\bfseries\color{densityred!90!black}] at (2.2,0.38) {$m=\frac12$};
     
     % Lever arm dimension
-    \draw[<->, densityred!70, thick] (-2.2,-0.55) -- (0,-0.55) node[midway, below, font=\tiny] {$r=4$};
-    \draw[<->, densityred!70, thick] (0,-0.55) -- (2.2,-0.55) node[midway, below, font=\tiny] {$r=4$};
+    \draw[<->, densityred!80, semithick] (-2.2,-0.6) -- (-0.05,-0.6) node[midway, below=1pt, font=\scriptsize] {$r=4$};
+    \draw[<->, densityred!80, semithick] (0.05,-0.6) -- (2.2,-0.6) node[midway, below=1pt, font=\scriptsize] {$r=4$};
     
     % Rotation indicator (high resistance)
-    \draw[->, very thick, trapred] (0.5, 1.3) arc (20:160:0.55cm and 0.2cm);
-    \node[right, font=\tiny\color{trapred!90!black}] at (0.6, 1.3) {High resistance};
+    \draw[->, very thick, trapred] (0.5, 1.25) arc (20:160:0.55cm and 0.2cm);
+    \node[right=2pt, font=\scriptsize\color{trapred!90!black}] at (0.6, 1.25) {High resistance};
     
-    \node[draw=densityred!80, fill=densityred!10, rounded corners=2pt, font=\scriptsize, align=center] at (0,-1.1)
-      {Moment of Inertia:\\$I = \sum m_i r_i^2 = 16.0$};
+    \node[draw=densityred!80, fill=densityred!10, rounded corners=2pt, font=\scriptsize, align=center] at (0,-1.45)
+      {Moment of Inertia:\\[2pt]$I = \sum m_i r_i^2 = 16.0$};
   \end{scope}
 \end{tikzpicture}
-\caption{Variance as moment of inertia. Just as expectation $\mu = \E[X]$ is the center of gravity along a balance beam, variance $\Var(X) = \E[(X-\mu)^2]$ is the mechanical moment of inertia resisting rotation about that center. Concentrated mass (left) spins with negligible torque; mass flung out to the periphery (right) violently resists angular acceleration because lever arms enter squared.}
+\caption{Variance as moment of inertia. Just as expectation $\mu = \E[X]$ is the center of gravity along a balance beam, variance $\Var(X) = \E[(X-\mu)^2]$ is the mechanical moment of inertia resisting rotation about that center. Concentrated mass (left) spins with negligible torque; mass flung out to the periphery (right) strongly resists angular acceleration because lever arms enter squared.}
 \label{ch09:fig-moment-of-inertia}
 \end{figure}
 
@@ -313,8 +334,8 @@ the squares; $(\E[X])^2$ is the square of the average. These two are equal
 only when $X$ never varies. The moment $X$ spreads out, the big values get
 \emph{extra} weight under squaring (because squaring is convex --- more on
 this when we meet Jensen's inequality), so $\E[X^2]$ pulls ahead of
-$(\E[X])^2$. The gap between them is exactly the spread. Variance is the toll
-that randomness charges for the privilege of squaring.
+$(\E[X])^2$. The gap between them is exactly the spread: variance measures how
+much squaring magnifies the dispersion of $X$ away from its mean.
 \end{whybox}
 
 \begin{trapbox}
@@ -350,14 +371,14 @@ $p=1/2$, where uncertainty is maximal.
   title style={font=\small},
   title={Variance of a Bernoulli trial is largest at maximum uncertainty},
   xlabel={$p$}, ylabel={$\Var(X)=p(1-p)$},
-  ymin=0, ymax=0.3,
+  ymin=0, ymax=0.35,
   xtick={0,0.25,0.5,0.75,1},
   ytick={0,0.125,0.25},
   grid=both, grid style={gray!18},
 ]
 \addplot[densityred, very thick] {x*(1-x)};
 \addplot[only marks, mark=*, sourceblue] coordinates {(0.5,0.25)};
-\node[anchor=south] at (axis cs:0.5,0.25) {\small $\left(\tfrac12,\tfrac14\right)$};
+\node[anchor=south, fill=white, inner sep=2pt] at (axis cs:0.5,0.25) {\small $\left(\tfrac12,\tfrac14\right)$};
 \end{axis}
 \end{tikzpicture}
 \caption{The Bernoulli variance $p(1-p)$. A fair coin ($p=1/2$) is the most
@@ -365,6 +386,14 @@ unpredictable and carries the most variance; a coin guaranteed to land one
 way ($p=0$ or $1$) carries none.}
 \label{ch09:fig-bern}
 \end{figure}
+
+\begin{recoverybox}
+\textbf{Pause and think:} Look closely at the Bernoulli variance formula $\Var(X) = p(1-p)$.
+Why does it vanish at $p=0$ and $p=1$? If a coin has two heads ($p=1$), every toss is
+guaranteed to show heads with probability $1$. There is no surprise and no variation,
+so the spread is zero. Maximum spread occurs at $p=1/2$, where uncertainty is maximal,
+giving $\Var(X) = 1/4$ and standard deviation $\SD(X) = 1/2$.
+\end{recoverybox}
 
 \section{How Variance Behaves Under Shifts and Scalings}
 \label{ch09:affine}
@@ -465,12 +494,61 @@ spread, so $12$ points above its mean was rarer than $25$ points above the
 final's mean.
 \end{example}
 
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small, >=stealth]
+  % Top axis: raw scale X
+  \draw[->, thick, gray!80] (3.8, 2.2) -- (12.2, 2.2) node[right, font=\footnotesize] {raw score $X$};
+  \foreach \x/\val in {4.6/{$54$}, 5.8/{$62$}, 7.0/{$70$}, 8.2/{$78$}, 9.4/{$86$}, 10.6/{$94$}} {
+    \draw[thick, gray!80] (\x, 2.05) -- (\x, 2.35);
+    \node[below=2pt, font=\scriptsize] at (\x, 2.05) {\val};
+  }
+  \node[above=2pt, font=\scriptsize\bfseries\color{sourceblue!80!black}] at (7.0, 2.35) {$\mu = 70$};
+  \draw[<->, thick, sourceblue!70] (7.0, 2.95) -- (8.2, 2.95);
+  \node[above=2pt, font=\tiny] at (7.6, 2.95) {$\sigma = 8$};
+
+  % Highlight raw point X = 82: 7.0 + 1.5 * 1.2 = 8.8
+  \filldraw[sourceblue] (8.8, 2.2) circle (2.5pt);
+  \node[above=3pt, font=\footnotesize\bfseries\color{sourceblue}] at (8.8, 2.2) {$X = 82$};
+
+  % Transformation arrows in between
+  \draw[->, thick, dashed, quotientorange!90!black] (7.0, 1.7) -- (7.0, 0.95)
+    node[midway, left=2pt, font=\scriptsize] {Shift $-\mu$};
+  \draw[->, thick, dashed, quotientorange!90!black] (8.8, 1.7) -- (8.8, 0.95)
+    node[midway, right=2pt, font=\scriptsize] {Rescale $\div\sigma$};
+
+  % Bottom axis: standardized scale Z
+  \draw[->, thick, gray!80] (3.8, 0.2) -- (12.2, 0.2) node[right, font=\footnotesize] {z-score $Z$};
+  \foreach \x/\val in {4.6/{$-2$}, 5.8/{$-1$}, 7.0/{$0$}, 8.2/{$+1$}, 9.4/{$+2$}, 10.6/{$+3$}} {
+    \draw[thick, gray!80] (\x, 0.05) -- (\x, 0.35);
+    \node[below=2pt, font=\scriptsize] at (\x, 0.05) {\val};
+  }
+  \node[below=10pt, font=\scriptsize\bfseries\color{targetgreen!80!black}] at (7.0, 0.05) {Mean $= 0$};
+  \draw[<->, thick, targetgreen!80!black] (7.0, -0.75) -- (8.2, -0.75);
+  \node[below=2pt, font=\tiny] at (7.6, -0.75) {$\SD = 1$};
+
+  % Highlight standardized point Z = +1.5
+  \filldraw[densityred] (8.8, 0.2) circle (2.5pt);
+  \node[above=3pt, font=\footnotesize\bfseries\color{densityred}] at (8.8, 0.2) {$Z = +1.5$};
+\end{tikzpicture}
+\caption{Standardization transforms any measurement scale into standard units.
+Subtracting the mean $\mu = 70$ slides the distribution so its center lands at $0$.
+Dividing by the standard deviation $\sigma = 8$ rescales the axis so that one unit
+of distance corresponds exactly to one standard deviation. A raw midterm score of $82$
+becomes a z-score of $z = (82-70)/8 = +1.5$, visibly placing it $1.5$ standard
+deviations above average.}
+\label{ch09:fig-zscore}
+\end{figure}
+
+Figure~\ref{ch09:fig-zscore} illustrates this transformation: subtracting
+$70$ slides the center from $70$ to zero, and dividing by $8$ recalibrates
+the tick marks so that every unit of distance represents one full standard deviation.
 Standardization is not a mere convenience; it is the gateway to the normal
 distribution and the central limit theorem in later chapters. There, the
 standardized version of a sum of many independent pieces converges to a fixed
-universal shape --- the standard normal --- regardless of the messy details
-of the originals. Z-scores are the coordinates in which that miracle becomes
-visible.
+universal shape --- the standard normal --- regardless of the specific distributions
+of the summands. Z-scores provide the natural coordinates in which this convergence
+becomes apparent.
 
 \section{Chebyshev's Inequality: Making ``Surprise'' Precise}
 \label{ch09:chebyshev}
@@ -478,8 +556,9 @@ visible.
 We have twice promised to turn the slogan ``the standard deviation is the unit
 of surprise'' into a theorem. Here it is. The remarkable thing is that a single
 inequality, demanding \emph{nothing} about the shape of the distribution ---
-not symmetry, not unimodality, not even a name --- already forces most of the
-probability mass to live within a few standard deviations of the mean.
+not symmetry, not unimodality (having only a single central peak), not even a
+known formula --- already forces most of the probability mass to live within a
+few standard deviations of the mean.
 
 \begin{theorem}[Chebyshev's inequality]
 \label{ch09:thm-cheby}
@@ -493,17 +572,35 @@ the mean is at most $1/k^2$.
 \end{theorem}
 
 \begin{proof}
-Let $D = (X-\mu)^2$, a non-negative random variable with $\E[D] = \sigma^2$.
-The event $\{\abs{X-\mu} \ge k\sigma\}$ is exactly the event
-$\{D \ge k^2\sigma^2\}$. Now use the elementary bound: whenever $D \ge 0$ and
-$t > 0$, the indicator $\ind\{D \ge t\}$ satisfies
-$\ind\{D \ge t\} \le D/t$, because if the indicator is $0$ the inequality is
-$0 \le D/t$ (true), and if it is $1$ then $D \ge t$ makes $D/t \ge 1$. Taking
-expectations of both sides with $t = k^2\sigma^2$,
+Let $D = (X-\mu)^2$. Notice that $D$ is a non-negative random variable ($D \ge 0$)
+whose expectation is the variance: $\E[D] = \sigma^2$. The event that $X$ wanders
+$k$ standard deviations from the mean,
 \[
-  \P\big(D \ge k^2\sigma^2\big) = \E\big[\ind\{D \ge k^2\sigma^2\}\big]
-  \;\le\; \frac{\E[D]}{k^2\sigma^2} = \frac{\sigma^2}{k^2\sigma^2}
-  = \frac{1}{k^2}. \qedhere
+  \{\abs{X-\mu} \ge k\sigma\},
+\]
+is identical to the event that its squared deviation is at least $k^2\sigma^2$:
+\[
+  \{D \ge k^2\sigma^2\}.
+\]
+Now we use the elementary step-function bound known as \emph{Markov's inequality}.
+For any non-negative random variable $W \ge 0$ and any positive threshold $t > 0$,
+the indicator $\ind\{W \ge t\}$ (which is $1$ when $W \ge t$ and $0$ otherwise)
+satisfies
+\[
+  \ind\{W \ge t\} \;\le\; \frac{W}{t}.
+\]
+Check this by cases: when $W < t$, the indicator is $0$ while $W/t \ge 0$; when
+$W \ge t$, the indicator is $1$ while $W/t \ge 1$. Taking expectations of both
+sides yields Markov's inequality: $\P(W \ge t) \le \E[W]/t$.
+
+Applying this with $W = D$ and threshold $t = k^2\sigma^2$, we obtain
+\[
+  \P\big(\abs{X-\mu} \ge k\sigma\big)
+  \;=\; \P\big(D \ge k^2\sigma^2\big)
+  \;=\; \E\big[\ind\{D \ge k^2\sigma^2\}\big]
+  \;\le\; \frac{\E[D]}{k^2\sigma^2}
+  \;=\; \frac{\sigma^2}{k^2\sigma^2}
+  \;=\; \frac{1}{k^2}. \qedhere
 \]
 \end{proof}
 
@@ -578,13 +675,12 @@ distribution you do not know, and it is the inequality that powers the first
 proof of the law of large numbers in a later chapter.
 \end{aestheticbox}
 
-\section{The Variance of a Sum: Where Independence Earns Its Keep}
+\section{The Variance of a Sum and the Role of Independence}
 \label{ch09:sumindep}
 
-Expectation is gloriously simple under addition: $\E[X+Y] = \E[X] + \E[Y]$,
-\emph{always}, with no conditions whatsoever. You might hope variance is just
-as easy. It is not --- and the way it fails is one of the most illuminating
-facts in probability.
+Expectation is remarkably simple under addition: $\E[X+Y] = \E[X] + \E[Y]$,
+holding without any condition on independence. Variance, by contrast, behaves
+differently under sums --- and the extra term that appears reveals how the variables interact.
 
 \begin{theorem}[Variance of a sum of two variables]
 \label{ch09:thm-sum2}
@@ -598,16 +694,24 @@ $\Cov(X,Y) = \E\big[(X-\mu_X)(Y-\mu_Y)\big]
 \end{theorem}
 
 \begin{proof}
-Let $\mu_X = \E[X]$, $\mu_Y = \E[Y]$, so $\E[X+Y] = \mu_X + \mu_Y$. Then,
-abbreviating the centered variables $\tilde X = X-\mu_X$ and
-$\tilde Y = Y-\mu_Y$,
+Let $\mu_X = \E[X]$, $\mu_Y = \E[Y]$, so $\E[X+Y] = \mu_X + \mu_Y$ by linearity.
+Abbreviating the centered variables by $\tilde X = X-\mu_X$ and
+$\tilde Y = Y-\mu_Y$, the variance of the sum is
 \[
   \Var(X+Y) = \E\big[(\tilde X + \tilde Y)^2\big]
   = \E\big[\tilde X^2 + 2\tilde X\tilde Y + \tilde Y^2\big].
 \]
 By linearity this splits into
-$\E[\tilde X^2] + 2\,\E[\tilde X \tilde Y] + \E[\tilde Y^2]
-= \Var(X) + 2\Cov(X,Y) + \Var(Y)$. \qedhere
+\[
+  \E[\tilde X^2] + 2\,\E[\tilde X \tilde Y] + \E[\tilde Y^2]
+  = \Var(X) + 2\Cov(X,Y) + \Var(Y).
+\]
+Expanding the product inside the covariance gives the standard computational formula:
+\[
+  \Cov(X,Y) = \E\big[(X-\mu_X)(Y-\mu_Y)\big]
+  = \E\big[XY - \mu_X Y - \mu_Y X + \mu_X\mu_Y\big]
+  = \E[XY] - \E[X]\E[Y]. \qedhere
+\]
 \end{proof}
 
 The cross term $2\Cov(X,Y)$ is the whole story. Covariance measures how $X$
@@ -619,7 +723,7 @@ correlation; here we need only one consequence.
 
 \begin{corollary}[Variances of independent variables add]
 \label{ch09:cor-indepadd}
-If $X$ and $Y$ are independent, then $\Cov(X,Y) = 0$, and therefore
+If $X$ and $Y$ are independent, then we have $\Cov(X,Y) = 0$, and therefore
 \[
   \Var(X+Y) = \Var(X) + \Var(Y).
 \]
@@ -640,25 +744,92 @@ leaving only the diagonal sum. \qedhere
 
 \begin{focusbox}
 \textbf{Independence is exactly the condition that lets variances add.} The
-mean adds for free, no strings attached. Variance adds \emph{only when the
-parts do not conspire}. This single asymmetry between mean and variance is the
-engine behind an enormous amount of statistics --- error bars, the
-$\sqrt{n}$ law, portfolio diversification, and the central limit theorem all
-run on it.
+mean is always additive. Variances add \emph{only when the variables are
+uncorrelated}. This key distinction between mean and variance is central to
+statistical theory --- error bars, the $\sqrt{n}$ law, portfolio diversification,
+and the central limit theorem all depend on it.
 \end{focusbox}
 
 \begin{connectionbox}
-Theorem~\ref{ch09:thm-sum2} is the Pythagorean theorem in disguise. Picture
+Theorem~\ref{ch09:thm-sum2} is the Pythagorean theorem in the geometry of random variables. Picture
 each centered random variable as a vector, with the ``length-squared'' of a
 vector being its variance and the ``dot product'' of two vectors being their
 covariance. Independent (uncorrelated) variables are then \emph{perpendicular}
 vectors, and for perpendicular vectors the squared length of the sum is the
 sum of squared lengths --- exactly $\Var(X+Y) = \Var(X) + \Var(Y)$. The
 companion linear-algebra reader develops this inner-product picture; here it
-is enough to know that the geometry is real, and that standard deviations
-combine like the legs of a right triangle: $\sigma_{X+Y} =
-\sqrt{\sigma_X^2 + \sigma_Y^2}$.
+is enough to know that the geometry is real: standard deviations
+combine like the legs of a right triangle, $\sigma_{X+Y} =
+\sqrt{\sigma_X^2 + \sigma_Y^2}$, as illustrated in Figure~\ref{ch09:fig-pythagoras}.
 \end{connectionbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small, >=stealth]
+  % Subfigure A: Independent (Orthogonal)
+  \begin{scope}[shift={(-3.8,0)}]
+    \node[font=\footnotesize\bfseries\color{sourceblue!80!black}] at (1.5, 3.1)
+      {Panel (a): Uncorrelated ($\Cov = 0$)};
+
+    \coordinate (O) at (0,0);
+    \coordinate (X) at (3.0,0);
+    \coordinate (Y) at (0,2.0);
+    \coordinate (S) at (3.0,2.0);
+
+    % Right angle marker
+    \draw[thick, gray!70] (0.35,0) -- (0.35,0.35) -- (0,0.35);
+
+    % Vector X
+    \draw[->, very thick, sourceblue] (O) -- (X)
+      node[midway, below=2pt, font=\scriptsize] {$\tilde X$};
+    % Vector Y
+    \draw[->, very thick, sourceblue] (O) -- (Y)
+      node[midway, left=2pt, font=\scriptsize] {$\tilde Y$};
+    % Dashed parallelogram
+    \draw[dashed, gray!60] (X) -- (S);
+    \draw[dashed, gray!60] (Y) -- (S);
+    % Sum vector
+    \draw[->, very thick, densityred] (O) -- (S)
+      node[midway, above left=-1pt, font=\scriptsize] {$\tilde X + \tilde Y$};
+
+    \node[draw=densityred!80, fill=densityred!8, rounded corners=2pt, font=\scriptsize, align=center] at (1.5,-1.15)
+      {Right triangle ($90^\circ$):\\$\Var(X+Y) = \Var(X) + \Var(Y)$};
+  \end{scope}
+
+  % Subfigure B: Correlated
+  \begin{scope}[shift={(3.4,0)}]
+    \node[font=\footnotesize\bfseries\color{quotientorange!80!black}] at (1.6, 3.1)
+      {Panel (b): Correlated ($\Cov > 0$)};
+
+    \coordinate (O2) at (0,0);
+    \coordinate (X2) at (2.8,0);
+    \coordinate (Y2) at (1.2,1.8);
+    \coordinate (S2) at ($(X2)+(Y2)$);
+
+    \draw[->, thick, sourceblue] (O2) -- (X2) node[below=2pt, font=\scriptsize] {$\tilde X$};
+    \draw[->, thick, sourceblue] (O2) -- (Y2) node[above left=-2pt, font=\scriptsize] {$\tilde Y$};
+    \draw[dashed, gray!60] (X2) -- (S2);
+    \draw[dashed, gray!60] (Y2) -- (S2);
+    \draw[->, very thick, quotientorange] (O2) -- (S2)
+      node[midway, above left=-2pt, font=\scriptsize] {$\tilde X+\tilde Y$};
+
+    \node[right, font=\tiny\color{targetgreen!80!black}, align=center] at (2.4, 0.5)
+      {Acute angle: $\Cov > 0$\\Stretched sum};
+
+    \node[draw=quotientorange!80, fill=quotientorange!8, rounded corners=2pt, font=\scriptsize, align=center] at (1.6,-1.15)
+      {Law of Cosines:\\$\Var(X+Y) = \Var(X) + \Var(Y) + 2\Cov(X,Y)$};
+  \end{scope}
+\end{tikzpicture}
+\caption{The geometry of variance addition. When random variables are centered
+($\tilde X = X-\mu_X$), variance acts as squared Euclidean length and covariance
+as the inner product. Panel~(a): If $X$ and $Y$ are independent (uncorrelated),
+their vectors are perpendicular ($90^\circ$); the squared length of the sum is the sum
+of squared lengths, exactly as in the Pythagorean theorem ($\sigma_{X+Y} = \sqrt{\sigma_X^2 + \sigma_Y^2}$).
+Panel~(b): When correlated, the angle tilts: positive covariance forms an acute angle,
+stretching the sum (magnifying risk), while negative covariance forms an obtuse angle,
+shrinking the sum (hedging).}
+\label{ch09:fig-pythagoras}
+\end{figure}
 
 \subsection{The \texorpdfstring{$\sqrt{n}$}{sqrt(n)} law and why averaging works}
 
@@ -893,7 +1064,7 @@ standard deviations out contributes $4^4 = 256$ times as much as a typical
 one-standard-deviation wobble. Kurtosis is therefore a tail-sensitivity meter.
 High kurtosis (``heavy tails'') means the distribution, while perhaps calm
 most of the time, produces occasional violent excursions. Low kurtosis means
-the outcomes stay obediently near a fixed band.
+the outcomes stay tightly within a typical band.
 
 \begin{trapbox}
 Kurtosis is \emph{not} a measure of ``peakedness,'' despite a stubborn old
@@ -907,44 +1078,71 @@ the shape of the hump in the middle.
 \begin{applicationbox}[Heavy tails and the limits of the bell curve]
 The normal distribution has excess kurtosis exactly zero, and for decades
 financial models assumed asset returns were normal. Real markets disagree
-loudly: daily stock returns are sharply \emph{leptokurtic} (positive excess
-kurtosis), meaning crashes and spikes occur far more often than a normal model
-predicts. A ``six-sigma'' daily move should, under normality, happen roughly
+loudly: daily stock returns are sharply \emph{leptokurtic} (having heavy tails
+and positive excess kurtosis, from the Greek \emph{leptos} for slender),
+meaning crashes and extreme spikes occur far more often than a normal bell
+curve predicts. A ``six-sigma'' daily move should, under normality, happen roughly
 once in several million years; in real markets such moves arrive every few
 years. Underestimating kurtosis --- pretending the tails are thin when they
 are fat --- has bankrupted funds and helped fuel financial crises. The fourth
-moment is where the bell curve's optimism goes to die, and why modern risk
-management leans on heavy-tailed models instead.
+moment exposes how badly thin-tailed Gaussian models underestimate extreme
+events, which is why modern risk management relies on heavy-tailed distributions
+instead.
 \end{applicationbox}
 
 \begin{historybox}
-The vocabulary of moments is borrowed wholesale from mechanics. In physics the
-``first moment'' of a mass distribution locates its center of gravity, and the
-``second moment'' --- the moment of inertia --- measures resistance to
-rotation, computed as mass times distance \emph{squared}. Probabilists in the
-nineteenth century, led by figures like Pafnuty Chebyshev and later Karl
-Pearson, saw that a probability distribution is just a unit mass smeared along
-the line, and lifted the terminology intact. Variance \emph{is} the moment of
-inertia of the probability mass about its center of gravity. The word
-``kurtosis'' (Greek for ``bulging'') and the systematic study of skewness
-are due to Pearson around 1900, as he tried to classify the zoo of
-non-normal distributions appearing in biology and economics. When you compute
-a variance, you are, quite literally, computing how hard the distribution
-would be to spin.
+The vocabulary of moments was borrowed directly from classical mechanics. In
+physics, placing weights along a line yields the center of mass (the first
+moment, $\sum m_i x_i$) and the moment of inertia (the second moment, $\sum m_i
+r_i^2$, which measures physical resistance to rotation). In the 1850s and
+1860s, mathematicians realized that a probability distribution could be viewed
+as a physical bar of unit mass smeared across the real line.
+
+Pafnuty Chebyshev (1821--1894) was wrestling with a roadblock:
+earlier proofs of the Law of Large Numbers (by Jacob Bernoulli and Sim\'eon
+Denis Poisson) relied on restrictive assumptions about coin flips or explicit
+formulas. Probabilists lacked a mathematical tool to bound how far an arbitrary,
+unknown distribution could stray from its center. In 1853, the French
+statistician Ir\'en\'ee-Jules Bienaym\'e had noticed that independent variances
+add, but it was Chebyshev in 1867 who turned the second moment into
+his inequality, $\P(\abs{X-\mu} \ge k\sigma) \le 1/k^2$, giving the
+first distribution-free proof of the Weak Law of Large Numbers.
+
+Around 1900, the British statistician Karl Pearson (1857--1936) expanded this
+mechanical framework, coining the word \emph{kurtosis} (Greek for bulging or
+curvature) and developing the ``method of moments'' to classify biological
+data. Yet moments brought controversy. Pearson originally claimed that kurtosis
+measured the ``peakedness'' of a distribution's central hump. That intuition
+misled researchers for half a century until Irving Kaplansky and others
+proved that kurtosis is almost entirely determined by the distant tails, not
+the middle peak. Pearson also clashed in the 1920s with Ronald Fisher,
+who proved that estimating parameters by matching higher moments is noisy and
+statistically inefficient compared to maximum likelihood (finding parameters
+that maximize the probability of observed data).
+
+Chebyshev's work unlocked the modern theory of limit theorems and gave
+science its standard error bars. Yet foundational questions remain open. The classical
+\emph{moment problem} (studied by Thomas Stieltjes and Hans Hamburger) asks
+whether knowing every moment $m_1, m_2, m_3, \dots$ uniquely pins down a single
+distribution. While true for distributions bounded on a finite interval, heavy-tailed
+distributions on the whole line (such as the lognormal distribution) can share
+the exact same infinite sequence of moments while having different probability
+densities. Today, in modern machine learning and network science, many real-world
+processes exhibit power-law tails whose variances or higher moments are infinite,
+demanding new mathematical tools that go beyond classical moments.
 \end{historybox}
 
 \section{A Preview of Jensen's Inequality}
 \label{ch09:jensen}
 
 We have leaned repeatedly on the fact that squaring is \emph{convex} --- that
-it bends upward. The general principle behind that fact deserves a name, because it explains
-in one stroke why $\E[X^2] \ge (\E[X])^2$, and far more besides. We will prove
-it carefully in the chapter on inequalities; here is the idea and the
-consequence.
+it bends upward. The general principle behind this fact explains directly
+why $\E[X^2] \ge (\E[X])^2$. We will prove it in detail in the chapter on
+inequalities; here is the core geometric statement.
 
 A function $g$ is \emph{convex} if its graph lies below every chord and above
 every tangent line --- it curves upward like a bowl, as $g(x) = x^2$ does.
-Convexity has a probabilistic shadow.
+Convexity has an immediate probabilistic consequence.
 
 \begin{theorem}[Jensen's inequality, preview]
 \label{ch09:thm-jensen}
@@ -966,6 +1164,13 @@ curve bows downward away from any chord, the cloud of points sits \emph{above}
 the curve between them. So the averaged height $\E[g(X)]$ is pulled up, above
 the on-curve height $g(\E[X])$. Convexity systematically rewards spreading
 out: the more $X$ varies, the higher $\E[g(X)]$ climbs above $g(\E[X])$.
+
+A second, beautifully simple way to see this uses tangent lines. Because a convex
+curve stays entirely above its tangent line drawn at $\mu = \E[X]$, we have
+$g(x) \ge g(\mu) + g'(\mu)(x-\mu)$ for all $x$. Plug in the random variable $X$
+and take expectations of both sides: by linearity, the linear term
+$g'(\mu)\E[X-\mu]$ vanishes to zero, leaving $\E[g(X)] \ge g(\mu) = g(\E[X])$.
+The curve out-climbs its tangent.
 \end{whybox}
 
 Take $g(x) = x^2$, which is convex. Jensen says
@@ -997,7 +1202,7 @@ non-negative and the fact that bowls bend upward are the same fact.
 \addplot[only marks, mark=*, black] coordinates {(1.5,2.25)};
 \node[anchor=north] at (axis cs:1.5,2.25) {\small $g(\E X)$};
 \addplot[only marks, mark=square*, densityred] coordinates {(1.5,4.5)};
-\node[anchor=south] at (axis cs:1.5,4.5) {\small $\E[g(X)]$};
+\node[anchor=south east, fill=white, inner sep=1pt] at (axis cs:1.42,4.6) {\small $\E[g(X)]$};
 \draw[<->, thick, gray] (axis cs:1.7,2.25) -- (axis cs:1.7,4.5)
   node[midway,right] {\small $\Var(X)$};
 \end{axis}
@@ -1018,20 +1223,20 @@ explain why ``minimize the variance'' is practically a mantra across the data
 sciences.
 
 \begin{itemize}
-  \item \textbf{Least squares.} The workhorse of regression fits a line by
+  \item \textbf{Least squares.} Linear regression fits a model by
         minimizing the sum of \emph{squared} residuals --- that is, by
-        minimizing a variance. The choice of squares (rather than absolute
+        minimizing a sample variance. The choice of squares (rather than absolute
         errors) traces directly back to the same smoothness and additivity
-        that made variance the canonical measure of spread.
+        that make variance the standard measure of spread.
   \item \textbf{The bias--variance tradeoff.} A model's expected prediction
         error decomposes into bias squared plus variance plus irreducible
         noise. Underfitting means high bias; overfitting means high variance.
         Every learning algorithm is, at heart, negotiating this tradeoff, and
         the variance term is the one this chapter taught you to read.
   \item \textbf{Error bars and confidence.} Every reported uncertainty ---
-        the $\pm$ on a measurement, the margin of error in a poll --- is a
-        standard deviation (or a multiple of one) in disguise, almost always
-        shrunk by the $\sigma/\sqrt n$ law of Section~\ref{ch09:sumindep}.
+        the $\pm$ on a measurement, the margin of error in a poll --- represents a
+        standard deviation (or a multiple of one), almost always
+        scaled by the $\sigma/\sqrt n$ law of Section~\ref{ch09:sumindep}.
   \item \textbf{Signal processing.} The ``power'' of a noise source is its
         variance; the signal-to-noise ratio compares the variance of the
         signal to the variance of the noise. Filtering is the art of removing
@@ -1047,10 +1252,8 @@ If expectation answers ``what will happen on average,'' variance answers ``how
 much should I trust that average.'' The first number without the second is a
 forecast with no confidence attached --- a point with no error bar, a model
 that says nothing about its own uncertainty. Mature quantitative reasoning
-always carries both. That is why, having learned to find centers in the last
-chapter, you have just doubled your power by learning to measure spread:
-together they are the irreducible minimum for describing any uncertain
-quantity.
+always carries both. Center and spread together provide the essential
+description of an uncertain quantity.
 \end{aestheticbox}
 
 \section*{Summary}
@@ -1080,6 +1283,31 @@ quantity.
   \item \textbf{Jensen:} $\E[X^2]\ge(\E[X])^2$ is the convexity of squaring,
         and the gap is exactly the variance.
 \end{itemize}
+
+\subsection*{Looking Ahead: Crossing into the Continuum}
+
+Take a breath and look back across the ground we have covered. In the last two
+chapters, you established the two master coordinates of probability:
+expectation (the center of mass) and variance (the moment of inertia). But notice
+the quiet assumption running beneath every computation we performed: our random
+variables lived on tidy, discrete lists of values. We rolled dice, flipped coins,
+and tallied heads. Every expectation was a sum $\mu = \sum x\,\P(X=x)$, and every
+variance was a sum of squared deviations $\sigma^2 = \sum (x-\mu)^2\,\P(X=x)$.
+
+The physical world, however, rarely stands on discrete steps. At what exact
+microsecond will a radioactive particle decay? What is the precise angle of a
+spinning wheel when it halts? What is the exact temperature of a cup of coffee
+as it cools? These quantities do not jump from one integer to the next; they
+vary continuously across an unbroken continuum of real numbers.
+
+In Chapter~10, we move from discrete variables to continuous ones. For a continuous
+variable, the probability of landing on any single exact number is zero ($\P(X=x) = 0$).
+To work with outcomes on an interval, probability mass becomes a continuous density
+function, and sums $\sum$ are replaced by integrals $\int$.
+
+The core ideas carry over: expectation is still the center of mass $\int x\,f(x)\,\dd x$,
+variance is still $\int (x-\mu)^2 f(x)\,\dd x$, and the standard deviation still measures
+distance from the mean.
 
 \section{Exercises}
 \label{ch09:exercises}
@@ -1220,4 +1448,32 @@ realistic scenario --- in measurement, polling, or finance --- where averaging
 many observations fails to reduce the error nearly as fast as $1/\sqrt n$.
 Identify which term in the variance-of-a-sum formula is responsible, and state
 what its sign must be for the failure to occur.
+\end{exercise}
+
+\begin{exercise}[Mental check: impossible moments]
+\label{ch09:exr-impossible}
+A student claims to have analyzed a dataset and found a random variable with
+mean $\E[X] = 10$ and second raw moment $\E[X^2] = 95$.
+Explain in a single sentence why this claim is mathematically impossible,
+without needing to know anything else about the distribution.
+\end{exercise}
+
+\begin{exercise}[Chebyshev's leash is sharp]
+\label{ch09:exr-cheby-sharp}
+Chebyshev's inequality guarantees that $\P(\abs{X-\mu}\ge k\sigma) \le 1/k^2$.
+Show that this bound cannot be made any tighter without additional assumptions,
+by constructing a distribution that hits the bound with exact equality.
+Specifically, for $k=2$, define a discrete variable $X$ that takes values:
+\[
+  X = \begin{cases}
+    -2 & \text{with probability } \tfrac{1}{8}, \\
+    0  & \text{with probability } \tfrac{3}{4}, \\
+    +2 & \text{with probability } \tfrac{1}{8}.
+  \end{cases}
+\]
+\begin{enumerate}
+  \item Compute $\E[X]$ and show that $\sigma = \SD(X) = 1$.
+  \item Calculate the exact probability $\P(\abs{X-\mu} \ge 2\sigma)$, and confirm
+        that it equals $1/k^2 = 1/4$ exactly.
+\end{enumerate}
 \end{exercise}

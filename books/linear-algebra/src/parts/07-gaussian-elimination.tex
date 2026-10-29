@@ -1,46 +1,43 @@
 \chapter{Gaussian Elimination}
 
-There is a moment in everyone's first algebra class where they learn to solve
-two equations in two unknowns. You add a multiple of one equation to the other
-so that one variable disappears, you solve for what is left, and you substitute
-back. It feels like a trick -- a clever bit of bookkeeping that happens to work.
+In the previous chapter, we saw linear systems $\mat{A}\vec{x}=\vec{b}$ through
+two geometric lenses: intersecting hyperplanes in the row picture, and combining
+column arrows in the column picture. Both tell us what a solution means, but neither
+gives a practical way to compute it when a system has ten or a thousand equations.
 
-This chapter takes that maneuver seriously. That simple elimination step is, almost without
-modification, the foundational algorithm in computational linear algebra. It is how your laptop
-solves a system of a thousand equations in a thousand unknowns. It is the engine
-under the hood of curve fitting, circuit analysis, structural engineering, and
-the first half of every linear algebra course ever taught. Carl Friedrich Gauss
-used it to compute the orbit of an asteroid. We call it \emph{Gaussian
-elimination}, and by the end of this chapter you will understand not just how to
-turn the crank, but \emph{why} the crank turns -- geometrically, algebraically,
-and as a statement about matrices multiplying matrices.
-
-Start, as usual, with a picture.
+We need a systematic method: \emph{Gaussian elimination}. The strategy is
+simple: add multiples of one equation to another to eliminate variables until
+the system is triangular, then solve from the bottom up by back-substitution.
+Start, as always, with a picture.
 
 \section{The picture: collapsing planes onto a corner}
 
-In the previous chapter you saw that a system of linear equations is a geometric
-object. Each equation in two unknowns is a line in the plane; a solution is a
-point where the lines cross. Each equation in three unknowns is a plane in
-space; a solution is a point shared by all the planes. Solving the system means
-\emph{finding that shared point}.
+Recall the two geometric faces of a linear system. In the row picture, each
+equation is a constraint that cuts down the space of candidates. In two dimensions,
+two non-parallel lines cross at a single point; in three dimensions, three tilted
+planes meet at a point. Solving the system means \emph{pinning down that shared point}.
 
-Gaussian elimination is a procedure for finding it. Here is the whole idea in
-one sentence: \textbf{we replace the messy, tilted equations with simpler,
-straighter ones that have exactly the same solution, until the answer is so
-obvious we can read it off.}
+Gaussian elimination finds that point through a direct strategy:
+\textbf{we replace the tilted equations with simpler, axis-aligned equations
+that have the exact same solution, until the coordinates can be read off one by one.}
+
+In the row picture, each step gently swings a tilted plane until it becomes parallel
+to a coordinate plane, without ever budging the intersection point. In the column
+picture, that same step introduces zeros into the column vectors, uncoupling the
+variables so that the final column alone accounts for the bottom coordinate of
+$\vec{b}$, letting us solve the weights in reverse order.
 
 \begin{intuitionbox}
 Imagine three tilted planes in space crossing at a single hidden point. You
 cannot see where they meet because the planes are at awkward angles. Gaussian
 elimination gently rotates and tilts the equations -- without ever moving the
-crossing point -- until one plane becomes perfectly horizontal (it fixes $z$),
+crossing point -- until one plane becomes perfectly horizontal (it fixes $z$ outright),
 the next pins down $y$ once $z$ is known, and the last pins down $x$ once $y$ and
 $z$ are known. The crossing point never budges. We have only changed our
 \emph{description} of it, from three vague clues into three sharp ones.
 \end{intuitionbox}
 
-The crucial promise is that the crossing point never moves. Everything we do
+The key guarantee is that the crossing point never moves. Everything we do
 will be a \emph{solution-preserving} operation: it changes the equations but not
 their common solution. That claim is the foundation everything else rests on, so
 let us pin it down.
@@ -60,7 +57,7 @@ stays exactly where it was.
   \draw[thick,vecblue] (-0.2,2.4)--(3.2,0.05);
   \draw[thick,vecred] (0.0,-0.3)--(2.7,2.4);
   \fill[black] (1.5,1.2) circle (2pt);
-  \node[below right] at (1.5,1.2){\small solution};
+  \node[right=4pt] at (1.5,1.2){\small solution $(x^*,y^*)$};
   \node[below] at (1.4,-0.9){\small two tilted lines};
 \end{scope}
 \begin{scope}[xshift=6cm]
@@ -70,8 +67,8 @@ stays exactly where it was.
   % second line now horizontal through y=1.2 (pins y)
   \draw[thick,vecred] (-0.3,1.2)--(3.2,1.2);
   \fill[black] (1.5,1.2) circle (2pt);
-  \node[below right] at (1.5,1.2){\small same solution};
-  \draw[->,vecred!70] (3.0,2.4) to[bend right=20] (2.6,1.35);
+  \node[below left=3pt] at (1.5,1.2){\small same point $(x^*,y^*)$};
+  \draw[->,vecred!70] (2.7,2.3) to[bend right=20] (2.8,1.35);
   \node[below] at (1.4,-0.9){\small after elimination: red pins $y$};
 \end{scope}
 \end{tikzpicture}
@@ -96,7 +93,7 @@ is reversible, and each one leaves the set of solutions completely unchanged.
 Every one of these is reversible, so none of them can lose or invent solutions.
 \end{focusbox}
 
-Why do these preserve the solution set? Take replacement, the workhorse. Suppose
+Why do these preserve the solution set? Consider row replacement. Suppose
 a point $(x,y,z)$ satisfies equation $E_1$ and equation $E_2$. Then it certainly
 satisfies $E_2 + cE_1$ for any number $c$, because both sides of $E_1$ are equal
 at that point, so adding $c$ times a true equation to another true equation
@@ -197,9 +194,15 @@ column $j$, the \textbf{multiplier} is
 and the operation is: \emph{new row $i$} $=$ \emph{old row $i$}
 $-\;\ell_{ij}\times(\text{pivot row } j)$. Choosing $\ell_{ij}$ this way makes
 the target entry become exactly $a_{ij} - \ell_{ij}\,a_{jj} = a_{ij} - a_{ij} =
-0$. Hold onto these multipliers; in the next chapter they become the matrix
-$\mat{L}$.
+0$. Hold onto these multipliers; they encode the entire elimination and will
+reappear in Chapter~\ref{ch09:triangular-picture} as the entries of the matrix $\mat{L}$.
 \end{focusbox}
+
+\begin{recoverybox}
+\textbf{Pause and think:} Suppose you reach the second row and find a zero in its pivot position. Could you fix it by adding a multiple of row 1? What would happen to column 1 if you did?
+\end{recoverybox}
+
+The answer is no: adding row 1 would dump nonzero entries right back into column 1 of row 2, destroying the zero just created. Previously computed zeros must be preserved. That is why the algorithm always looks \emph{below} for pivots, never above.
 
 \subsection{A 3x3 traced fully}
 
@@ -280,22 +283,56 @@ original equations. The first: $2\cdot\frac54 + 1 + \frac32 = \frac52 + 1 +
 \frac32 = 5$. Good. The second: $4\cdot\frac54 + 1 + 0 = 5 + 1 = 6$. Good. The
 third: $-2\cdot\frac54 + 2\cdot 1 + \frac32 = -\frac52 + 2 + \frac32 = 1$. Good.
 
+Figure~\ref{ch07:back-sub} shows this triangular climb in action. Once the zeros
+are locked in place below the diagonal, the bottom equation hands you the last
+variable immediately. Feeding that value upward unlocks the next variable, and so
+on up the staircase until the entire solution vector is assembled.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.95, >=Stealth]
+  \node[draw=sourceblue, rounded corners, fill=blue!4!white, inner sep=6pt, text width=7.4cm] (row3) at (0, 0) {
+    \textbf{Step 1 (Row 3):} $-4z = -6 \implies \mathbf{z = \tfrac{3}{2}}$
+  };
+  \node[draw=sourceblue, rounded corners, fill=blue!4!white, inner sep=6pt, text width=7.4cm] (row2) at (0, 1.8) {
+    \textbf{Step 2 (Row 2):} $-y - 2(\mathbf{\tfrac{3}{2}}) = -4 \implies \mathbf{y = 1}$
+  };
+  \node[draw=sourceblue, rounded corners, fill=blue!4!white, inner sep=6pt, text width=7.4cm] (row1) at (0, 3.6) {
+    \textbf{Step 3 (Row 1):} $2x + \mathbf{1} + \mathbf{\tfrac{3}{2}} = 5 \implies \mathbf{x = \tfrac{5}{4}}$
+  };
+
+  \draw[->, thick, targetgreen] (-4.3, -0.2) -- (-4.3, 3.8) node[midway, left=2pt, targetgreen, align=center] {\small Climb upward\\\small (back-substitute)};
+
+  \draw[->, thick, quotientorange] (row3.north) to[bend right=25] node[right=2pt, text=quotientorange]{\small substitute $z$} (row2.south);
+  \draw[->, thick, quotientorange] (row2.north) to[bend right=25] node[right=2pt, text=quotientorange]{\small substitute $y, z$} (row1.south);
+
+  \node[draw=structurepurple, rounded corners, fill=purple!5!white, inner sep=5pt, right=0.8cm of row2] (sol) {
+    $\vec{x} = \colvec{\tfrac{5}{4} \\[3pt] 1 \\[3pt] \tfrac{3}{2}}$
+  };
+  \draw[->, thick, structurepurple] (row1.east) to[bend left=20] (sol.north);
+\end{tikzpicture}
+\caption{Back-substitution climbs the triangular system from the bottom up.
+Row 3 fixes $z$ immediately. Feeding $z=\frac{3}{2}$ into Row 2 isolates $y=1$.
+Feeding both into Row 1 isolates $x=\frac{5}{4}$, assembling the complete solution vector $\vec{x}$.}
+\label{ch07:back-sub}
+\end{figure}
+
 \begin{focusbox}
-\textbf{The two phases.} \emph{Forward elimination} grinds the matrix down to an
+\textbf{The two phases.} \emph{Forward elimination} reduces the matrix to an
 upper triangle $\mat{U}$, recording multipliers as it goes. \emph{Back-
 substitution} then climbs the triangle from the bottom, solving one variable at
 each step. Together they solve the system. Forward elimination is the expensive
-part; the climb is cheap.
+part; back-substitution requires fewer operations.
 \end{focusbox}
 
 \begin{strangbox}
 Strang opens his course with exactly this: ``the geometry of linear equations''
 followed immediately by ``elimination with matrices.'' If you are reading this
-\emph{before} Strang, you now have the mental movie -- planes pinned down one
-coordinate at a time -- that makes his board work feel inevitable rather than
-magical. If you are reading \emph{after} Strang, notice that we are being
-deliberate about the multipliers $\ell_{ij}$; they are not throwaway arithmetic.
-They are the seed of the $\mat{A}=\mat{LU}$ factorization that the next chapter
+\emph{before} Strang, you now have the geometric view -- planes pinned down one
+coordinate at a time -- that clarifies the reasoning behind each algebraic step.
+If you are reading \emph{after} Strang, notice that we are being deliberate about
+the multipliers $\ell_{ij}$; they are recorded systematically rather than discarded.
+They are the basis of the $\mat{A}=\mat{LU}$ factorization that Chapter~\ref{ch09:triangular-picture}
 makes precise, and they encode the entire elimination as a single matrix.
 \end{strangbox}
 
@@ -318,7 +355,7 @@ Why is this the algorithm everyone actually uses? Cost. For an $n\times n$ syste
 elimination does on the order of $\tfrac13 n^3$ arithmetic operations -- one
 nested loop over rows, columns, and the entries to update. Back-substitution
 does only about $\tfrac12 n^2$. The forward sweep dominates completely, as
-Figure~\ref{ch07:cost} makes vivid.
+Figure~\ref{ch07:cost} illustrates.
 
 \begin{figure}[H]
 \centering
@@ -349,12 +386,10 @@ curve by eight.}
 \begin{aestheticbox}
 That $\tfrac13 n^3$ is one of the most consequential numbers in computing.
 Doubling the size of your system makes elimination eight times slower, not twice
--- which is why huge sparse systems (where most coefficients are zero) get
+-- which is why large sparse systems (where most coefficients are zero) require
 special algorithms that avoid filling in those zeros. But for dense systems,
-nobody has found anything dramatically better in practice for general use.
-The simple schoolroom trick is, asymptotically, close to the best we have. The
-obvious method turns out to be the right method, which is not something you get
-to say very often.
+standard elimination remains, asymptotically, among the most effective algorithms
+for general use.
 \end{aestheticbox}
 
 \begin{connectionbox}
@@ -380,9 +415,9 @@ we wanted a pivot. Consider
 \end{array}\right].
 \]
 The top-left entry is $0$. We cannot use it as a pivot -- the multiplier would
-be ``something divided by zero,'' which is meaningless. But this is no
-catastrophe. The equations are just listed in an unlucky order. We simply
-\emph{swap} two rows to bring a nonzero number into the pivot position. Exchange
+be undefined (division by zero). But this is easily resolved. The equations are
+simply listed in an order that placed a zero on the diagonal. We exchange
+two rows to bring a nonzero number into the pivot position. Exchange
 row 1 and row 2:
 \[
 \left[\begin{array}{ccc|c}
@@ -424,15 +459,18 @@ solution -- you are only reordering the equations.
 
 \begin{applicationbox}
 Computers exchange rows even when they do not strictly have to, and the reason is
-\emph{numerical stability}. Dividing by a pivot that is tiny -- say
-$0.0001$ -- multiplies any rounding error in that row by ten thousand, and the
-error can swamp the answer. So practical solvers use \emph{partial pivoting}:
-before clearing a column, scan it and swap the row with the largest-magnitude
-entry into the pivot seat. This keeps every multiplier $|\ell_{ij}| \le 1$ and
-holds rounding error in check. Every time \texttt{numpy.linalg.solve},
-MATLAB's backslash, or a LAPACK routine solves a system, partial pivoting is
-running underneath. It is the difference between a textbook that gives the right
-answer and a library that gives the right answer \emph{in floating point}.
+\emph{numerical stability} -- keeping tiny, inevitable rounding errors in computer
+arithmetic from blowing up into completely wrong answers. Dividing by a pivot that
+is tiny -- say $0.0001$ -- multiplies any rounding error in that row by ten thousand,
+and that magnified noise can quickly swamp the true answer.
+
+So practical solvers use \emph{partial pivoting}: before clearing a column, scan all
+the available rows on or below the diagonal, and swap the row with the largest
+absolute entry into the pivot position. This guarantees that every multiplier satisfies
+$|\ell_{ij}| \le 1$, ensuring that row subtractions never amplify errors. Every time
+\texttt{numpy.linalg.solve}, MATLAB's backslash, or a LAPACK routine solves a system,
+partial pivoting runs under the hood. It is the bridge between textbook math
+with exact fractions and scientific software working in finite floating-point arithmetic.
 \end{applicationbox}
 
 \section{What goes wrong: zero pivots that will not move}
@@ -440,8 +478,8 @@ answer and a library that gives the right answer \emph{in floating point}.
 Row exchange rescues us when a pivot position holds a zero but the column below
 has something nonzero to swap in. What if the \emph{entire} column below (and
 including) the pivot position is zero? Then no swap can produce a pivot. This is
-not a bookkeeping nuisance -- it is the algorithm \emph{detecting} that something
-deep is true about the system. The geometry has changed.
+not merely a bookkeeping detail; it indicates a structural property of the system.
+The geometry has changed.
 
 \subsection{Case one: no solution (an inconsistent system)}
 
@@ -479,24 +517,27 @@ Figure~\ref{ch07:singular-lines} shows the two parallel lines.
 \begin{scope}
   \draw[->,gray] (-0.4,0)--(3.4,0) node[right]{\small$x$};
   \draw[->,gray] (0,-0.4)--(0,3.4) node[above]{\small$y$};
-  \draw[thick,vecblue] (-0.2,1.6)--(3.2,-0.1) node[right,black]{};
-  \draw[thick,vecred] (-0.2,2.1)--(3.2,0.4);
-  \node[vecblue] at (2.6,1.2){\small$x{+}2y{=}3$};
-  \node[vecred] at (2.6,2.2){\small$2x{+}4y{=}7$};
+  % line 1: x + 2y = 3 -> y = 1.5 - 0.5x
+  \draw[thick,vecblue] (-0.2,1.6)--(3.2,-0.1);
+  % line 2: 2x + 4y = 7 -> y = 1.75 - 0.5x
+  \draw[thick,vecred] (-0.2,1.85)--(3.2,0.15);
+  \node[vecred,above right] at (1.1,1.3){\small$2x{+}4y{=}7$};
+  \node[vecblue,below left] at (1.7,0.55){\small$x{+}2y{=}3$};
   \node[below] at (1.5,-0.7){\small no solution (parallel)};
 \end{scope}
-\begin{scope}[xshift=5.5cm]
+\begin{scope}[xshift=5.8cm]
   \draw[->,gray] (-0.4,0)--(3.4,0) node[right]{\small$x$};
   \draw[->,gray] (0,-0.4)--(0,3.4) node[above]{\small$y$};
   \draw[thick,vecblue] (-0.2,1.6)--(3.2,-0.1);
   \draw[thick,vecred,dashed] (-0.2,1.6)--(3.2,-0.1);
-  \node at (2.7,1.5){\small same line};
+  \draw[->,gray!70] (2.4,1.4) to[bend left=15] (1.7,0.75);
+  \node[above] at (2.4,1.4){\small same line};
   \node[below] at (1.5,-0.7){\small infinitely many};
 \end{scope}
 \end{tikzpicture}
 \caption{Two ways a $2\times 2$ system fails to have one neat solution. Left:
-parallel lines, no solution ($0=1$ appears). Right: the same line twice,
-infinitely many solutions (a free variable appears).}
+parallel lines that never meet, giving no solution (elimination uncovers the contradiction $0=1$). Right:
+both equations represent the exact same line, giving infinitely many solutions (elimination leaves the redundant identity $0=0$, signaling a free variable).}
 \label{ch07:singular-lines}
 \end{figure}
 
@@ -519,8 +560,8 @@ x + 2y &= 3\\
 0 & 0 & 0
 \end{array}\right].
 \]
-This time the last row is $0 = 0$ -- true, but empty. It tells us nothing. The
-two equations were secretly the same line (the second is just twice the first),
+This time the last row is $0 = 0$ -- automatically true, adding no new constraint.
+The two equations defined the same line (the second is just twice the first),
 so every point on $x + 2y = 3$ is a solution (the right panel of
 Figure~\ref{ch07:singular-lines}). There are \textbf{infinitely
 many}. We say $y$ is a \emph{free variable}: it can be anything, and then $x =
@@ -543,10 +584,10 @@ solution is unique.
 
 \begin{trapbox}
 Do not confuse the two failure modes. \emph{Both} produce a row whose left side
-is all zeros. The whole story is in the augmented entry on the right. ``$0=5$''
-screams \emph{no solution}; ``$0=0$'' whispers \emph{free variable}. Students who
-ignore the augmented column report ``no solution'' for systems that actually have
-infinitely many, and vice versa. Always look right of the bar.
+is all zeros. The distinction lies in the augmented entry on the right: a
+contradictory row like ``$0=5$'' indicates \emph{no solution}; a row like
+``$0=0$'' indicates a \emph{free variable}. Make sure to inspect the augmented
+column before classifying the system.
 \end{trapbox}
 
 \begin{walkbox}
@@ -556,7 +597,7 @@ crossing; three planes meeting pairwise in three parallel lines (like the three
 pages near a book's spine); all three sharing a whole line; all three being the
 same plane. Which of these give \emph{no} solution and which give
 \emph{infinitely many}? Elimination will sort every one of these cases into the
-two boxes above. Try to feel which picture each box corresponds to.
+two categories above. Notice which geometric configuration each case corresponds to.
 \end{walkbox}
 
 \section{Reduced row echelon form: the cleanest possible answer}
@@ -627,9 +668,9 @@ column. For a given matrix this form is \textbf{unique} -- you reach the same
 $\mat{R}$ no matter which legal moves you choose along the way.
 \end{formalbox}
 
-That uniqueness is a genuinely useful fact. Two people running elimination on this
-matrix by hand, making different choices of which row to subtract when, will nonetheless
-arrive at exactly the same RREF. It is a fingerprint of the matrix.
+Because $\mat{R}$ depends only on $\mat{A}$ and not on the elimination path, every
+pivot count and free-variable pattern we read off $\mat{R}$ is an intrinsic property
+of $\mat{A}$ itself.
 
 \subsection{From triangle to RREF, traced}
 
@@ -667,24 +708,24 @@ becomes (row 1) $-\tfrac12\cdot$(row 3):
 0 & 0 & 1 & \tfrac32
 \end{array}\right].
 \]
-Now look at what RREF hands us. The left block is the identity matrix, and the
-solution is sitting in plain sight in the augmented column: $x=\tfrac54$,
-$y=1$, $z=\tfrac32$ -- the same point we found by back-substitution, no climbing
-required. \emph{RREF does the back-substitution for you, baked into the row
+In this final form, the left block is the identity matrix, and the
+solution appears directly in the augmented column: $x=\tfrac54$,
+$y=1$, $z=\tfrac32$ -- matching the values found by back-substitution.
+\emph{RREF incorporates the back-substitution step directly into the row
 operations.}
 
 \begin{intuitionbox}
-Think of the difference like this. Upper-triangular form is a tidy staircase you
-still have to walk down. RREF is the elevator: it deposits you at the answer with
-the doors already open. The trade is a little more arithmetic up front (clearing
-upward) for a readout that needs no further thought. For solving one system by
-hand, the staircase is usually less work. For \emph{understanding} the matrix --
-its rank, its free variables, its null space -- RREF is the form you want, and it
-is where the next several chapters live.
+Upper-triangular form produces a system ready for back-substitution. RREF
+completes those substitutions during elimination, leaving the solution directly
+visible in the augmented column. The trade-off is extra arithmetic up front
+(clearing upward) in exchange for an explicit readout. For solving a single
+system by hand, stopping at triangular form is usually faster. For analyzing the
+matrix itself -- its rank, free variables, and null space -- RREF provides the
+standard canonical form used throughout subsequent chapters.
 \end{intuitionbox}
 
 \begin{labbox}
-Drive this matrix all the way to RREF by hand. It has a free variable, so the
+Reduce this matrix all the way to RREF by hand. It has a free variable, so the
 identity will \emph{not} appear -- watch where the staircase breaks.
 \[
 \left[\begin{array}{ccc|c}
@@ -751,6 +792,12 @@ the sign: $\mat{E}\inv$ is the identity with $+\ell$ at $(i,j)$. (Subtracting
 $\ell\cdot$row $j$ and then adding it back is the identity.)
 \end{focusbox}
 
+\begin{recoverybox}
+\textbf{Pause and think:} If an elementary matrix $\mat{E}$ subtracts $3\times(\text{row } 1)$ from row $2$, what does its inverse $\mat{E}\inv$ do? You do not need any algebraic formula -- how do you undo that operation in plain words?
+\end{recoverybox}
+
+Add $3\times(\text{row } 1)$ back to row $2$. Inverting an elementary row replacement changes only the sign of the multiplier: $-3$ becomes $+3$.
+
 \subsection{The other two as matrices}
 
 A \textbf{scaling} of row $i$ by $c$ is the identity with $c$ in place of the
@@ -785,20 +832,20 @@ other side:
 = \mat{L}\,\mat{U}.
 \]
 That product of inverse-elementary matrices is lower triangular, and it is the
-matrix $\mat{L}$ -- whose entries, beautifully, are just the multipliers
-$\ell_{ij}$ themselves, sign restored. We have stumbled onto the
-$\mat{A}=\mat{LU}$ factorization. The next chapter is devoted to it; for now, the
-headline is enough.
+matrix $\mat{L}$ -- whose entries are simply the multipliers
+$\ell_{ij}$ themselves, sign restored. We have arrived at the
+$\mat{A}=\mat{LU}$ factorization. Chapter~\ref{ch09:triangular-picture} is devoted
+to exploring that factorization in full; for now, the headline is enough.
 
 \begin{aestheticbox}
 This is the moment elimination stops being arithmetic and becomes \emph{algebra}.
-A scribbled sequence of ``subtract twice this row from that one'' is revealed to
-be a clean matrix equation $\mat{EA}=\mat{U}$. Procedures become objects;
-objects can be inverted, composed, factored, and reasoned about. The same
-mental move -- ``this process is secretly a matrix'' -- recurs throughout the
-book: rotations are matrices, projections are matrices, derivatives on a space of
-polynomials are matrices. Seeing a \emph{verb} (eliminate!) as a \emph{noun} (the
-matrix $\mat{E}$) is one of the ideas that opens up the whole subject.
+A sequence of row subtractions is expressed as a matrix equation
+$\mat{EA}=\mat{U}$. Procedures become objects; objects can be inverted,
+composed, factored, and analyzed. The viewpoint that an algebraic operation is
+represented by a matrix recurs throughout the book: rotations are matrices,
+projections are matrices, and derivatives on polynomial spaces are matrices.
+Representing an elimination step as an elementary matrix $\mat{E}$ connects
+computational procedures directly to linear algebra theory.
 \end{aestheticbox}
 
 \begin{strangbox}
@@ -819,7 +866,7 @@ them first, one can show every square matrix satisfies $\mat{PA}=\mat{LU}$ for
 some permutation $\mat{P}$, lower-triangular $\mat{L}$, and upper-triangular
 $\mat{U}$. That is the fully general statement of what Gaussian elimination
 produces, and it is exactly what a real solver computes and stores. We will prove
-and exploit it in the chapter on $\mat{LU}$; the point here is that nothing about
+and exploit it in Chapter~\ref{ch09:triangular-picture}; the point here is that nothing about
 row exchanges breaks the ``elimination is matrix multiplication'' story -- swaps
 are just more elementary matrices.
 
@@ -924,64 +971,111 @@ the original grid of numbers hid from view:
 \end{itemize}
 
 Every one of these ideas -- rank, invertibility, free variables, the dimension of
-the solution set -- gets its own full chapter later. Gaussian elimination is the
-computational microscope through which we will see all of them. You do not just
-\emph{solve} systems with it; you \emph{diagnose} them. The pivots reveal its inner health:
-nonzero pivots keep every dimension alive, while a missing pivot signals a collapsed space.
+the solution set -- gets its own full chapter later.
 
 \begin{aestheticbox}
-A matrix arrives as an opaque block of numbers. You run elimination, and out
-comes a diagnosis: how many independent constraints it really imposes, whether it
-can be inverted, how big its family of solutions is, and -- once you keep the
-multipliers -- a factorization that lets you re-solve for a new right-hand side
-almost for free. One humble loop of subtractions, and the matrix has confessed
-nearly everything structural about itself. The rest of this book is, in large
-part, learning to read that confession.
+One forward sweep of row operations does far more than solve a single right-hand
+side: its pivots count the independent equations, test whether $\mat{A}\inv$ exists,
+count the free variables, and assemble the factorization $\mat{A}=\mat{L}\mat{U}$.
 \end{aestheticbox}
 
+Where do we go next? In this chapter, we saw that row operations correspond
+to multiplications on the left by elementary matrices $\mat{E}$, and inverting those
+operations begins to assemble the matrix factorization $\mat{A}=\mat{L}\mat{U}$.
+In the next chapter, we examine matrix multiplication and inverses more broadly.
+What does it mean to multiply one matrix by another as a unified geometric transformation?
+Why does the row-by-column rule work the way it does? And when a square matrix has a
+full set of $n$ pivots, how do we find a single inverse matrix $\mat{A}\inv$ that
+undoes $\mat{A}$ directly, turning $\mat{A}\vec{x}=\vec{b}$ into
+$\vec{x}=\mat{A}\inv\vec{b}$? The next chapter, \emph{Matrix Multiplication and Inverses},
+builds that algebraic foundation.
+
 \begin{historybox}
-Gaussian elimination was born from celestial mechanics. In 1801, the Italian astronomer Giuseppe Piazzi
-spotted a dim, wandering object in the night sky -- the dwarf planet Ceres -- but lost it behind the glare
-of the Sun after tracking it for only 41 days. Astronomers across Europe despaired of ever finding it again.
-The 24-year-old Carl Friedrich Gauss took up the challenge. Developing the method of least squares, Gauss set up
-a system of six coupled linear equations in six orbital parameters. To solve them efficiently by hand, he codified
-systematic forward elimination and backward substitution, successfully predicting Ceres' reappearance in December 1801.
-Gauss later published the detailed algorithm in 1809 in \emph{Theoria Motus Corporum Coelestium} while tracking
-the asteroid Pallas.
+Although named after Carl Friedrich Gauss, systematic elimination began much earlier.
+Around 150~BCE, Chinese scholars compiling \emph{The Nine Chapters on the Mathematical Art}
+solved agricultural tax and grain-yield problems involving several simultaneous conditions.
+Working with bamboo counting rods arranged in rectangular arrays on a grid board (\emph{Fangcheng}),
+they repeatedly subtracted multiples of one column from another to clear entries below the diagonal --
+performing the forward sweep of elimination over eighteen centuries before Europe codified it.
 
-Eighty years later, in 1888, the German geodesist Wilhelm Jordan published the third edition of his
-\emph{Handbuch der Vermessungskunde} (Handbook of Geodesy). Tasked with processing massive networks of regional
-land-surveying triangles, Jordan extended Gauss's procedure by using pivots to eliminate \emph{upward} as well as
-downward, reducing the matrix directly to diagonal or reduced row echelon form (RREF) so that the solutions could
-be read off without a separate back-substitution step. The combined algorithm has been known ever since as
-Gauss--Jordan elimination.
+In 1801, Gaussian elimination took its modern shape through celestial mechanics. On New Year's Day,
+the Italian astronomer Giuseppe Piazzi spotted a dim, wandering body in the night sky -- the dwarf
+planet Ceres. Piazzi tracked it for only 41 days across a tiny nine-degree arc before it was lost
+in the blinding glare of the Sun. Astronomers across Europe despaired of finding it again: they had
+only a handful of noisy, imperfect observations, and Newton's gravitational laws led to non-linear
+orbital equations that were impossible to solve directly.
 
-In pure mathematics with exact fractions, Gaussian elimination never fails as long as pivots are nonzero. But on
-real computers working in finite-precision floating-point arithmetic, naive elimination is a minefield. If a pivot
-is tiny (say $10^{-5}$), dividing by it creates enormous multipliers ($10^5$), which amplify tiny roundoff errors
-until they completely destroy the true solution.
+The 24-year-old Carl Friedrich Gauss took up the challenge. Developing the \emph{method of least
+squares} -- a technique for finding the single best-fitting mathematical curve through a cloud of noisy,
+imperfect observations -- Gauss set up a system of six coupled linear equations in six unknown orbital parameters.
+With only pen, paper, and logarithms as tools, he organized the arithmetic into systematic forward elimination
+and backward substitution, cutting the hand computation down to manageable hours. On New Year's Eve 1801,
+guided by Gauss's calculations, astronomers pointed their telescopes into the night sky and found Ceres
+within half a degree of his predicted position. Gauss later published the systematic algorithm in 1809
+in \emph{Theoria Motus Corporum Coelestium} while calculating the orbit of the asteroid Pallas.
 
-In 1947, computing giants John von Neumann and Herman Goldstine published a famous paper warning that Gaussian
-elimination on digital computers would suffer disastrous, exponential roundoff growth, predicting that errors
-would explode on matrices with more than 15 or 20 variables! Alan Turing (in his landmark 1948 paper
-\emph{Rounding-Off Errors in Matrix Processes}) and later James H. Wilkinson (in 1961) resolved the controversy
-using \emph{backward error analysis}. They proved that with \textbf{partial pivoting} -- swapping rows at each stage
-to choose the largest available pivot in magnitude -- the multipliers are bounded by $|\ell_{ij}| \le 1$, making
-Gaussian elimination exceptionally stable for almost all real-world matrices.
+Eighty years later, in 1888, the German geodesist Wilhelm Jordan was tackling \emph{geodesy} -- the science
+of accurately measuring the Earth's geometric shape and mapping regional networks of surveying triangles. Facing
+hundreds of error-prone equations, Jordan extended Gauss's procedure by using each pivot to eliminate entries
+\emph{upward} as well as downward. This drove the matrix straight to reduced row echelon form (RREF) or the
+identity matrix, allowing surveyors to read off coordinates directly without a separate back-substitution
+climb. The combined algorithm has been known as \emph{Gauss--Jordan elimination} ever since.
 
-Gaussian elimination provided science and engineering with its first universal,
-$O(n^3)$ algorithm: it handles systems of any size, determines whether solutions exist, tracks all solutions
-when free variables arise, and diagnoses the rank and singularity of the coefficient matrix. Yet if you face
-the system $\mat{A}\vec{x} = \vec{b}$ and subsequently change only the right-hand side $\vec{b}$ (such as
-testing different wind loads on the same bridge structure), naive elimination forces you to repeat the entire
-$O(n^3)$ forward elimination sweep from scratch, discarding all the row operations already performed on $\mat{A}$.
-Overcoming this repetitive cost requires packaging elimination into matrix operators: Chapter~\ref{ch08:origin}
-examines matrix multiplication and inverses, paving the way for Chapter~\ref{ch09:triangular-picture} to introduce
-LU factorization ($\mat{A} = \mat{L}\mat{U}$), which bottles up elimination multipliers once and for all so that
-subsequent systems with the same matrix can be solved in swift $O(n^2)$ time.
+In pure mathematics with exact fractions, elimination succeeds whenever pivots are nonzero. But on
+digital computers working in \emph{floating-point arithmetic} -- where numbers are stored with a finite
+number of digits and rounded off after every operation -- naive elimination is dangerous. If a pivot is
+tiny (say $10^{-5}$), dividing by it creates enormous multipliers ($10^5$), and subsequent row subtractions
+can magnify microscopic roundoff errors until they completely swamp the true solution.
+
+In 1947, computing pioneers John von Neumann and Herman Goldstine published a paper warning that
+Gaussian elimination on digital computers would suffer catastrophic, exponential roundoff growth,
+predicting that errors would explode on matrices with more than 15 or 20 variables. That sparked an urgent
+controversy over whether linear algebra could ever run reliably on electronic computers. Alan Turing
+(in his 1948 paper \emph{Rounding-Off Errors in Matrix Processes}) and later James H. Wilkinson (in 1961)
+resolved the crisis using \emph{backward error analysis} -- a clever shift in perspective that evaluates
+stability by asking not ``how wrong is my answer for the original problem?'' but ``what slightly perturbed
+problem did my computed answer solve exactly?'' They proved that with \textbf{partial pivoting} -- swapping
+rows at each step to seat the largest available entry as the pivot -- multipliers are kept within
+$|\ell_{ij}| \le 1$, making Gaussian elimination numerically stable for almost all practical matrices.
+
+Gaussian elimination provided science with its first universal, $O(n^3)$ algorithm: it solves systems
+of any size, checks whether solutions exist, tracks families of solutions when free variables appear,
+and measures the matrix's rank. Yet two major frontiers remain open today:
+\begin{itemize}
+  \item \textbf{The optimal complexity exponent:} Is solving an $n\times n$ system fundamentally an
+  $O(n^3)$ problem, or can it be done essentially in $O(n^2)$ time -- as fast as reading the $n^2$
+  entries of the matrix? In 1969, Volker Strassen showed that matrix multiplication
+  (and thus elimination) can be carried out in $O(n^{2.81})$ operations. Theoretical computer scientists
+  have pushed that theoretical exponent down near $O(n^{2.37155})$, but the true optimal exponent $\omega$ remains
+  one of the most famous open problems in computer science.
+  \item \textbf{Worst-case stability vs.\ speed:} Although partial pivoting runs in cheap $O(n^2)$ extra
+  time and never fails on practical problems, artificial matrices exist (such as Kahan's matrix) where its roundoff
+  theoretically blows up exponentially. \emph{Complete pivoting} (swapping both rows and columns) guarantees
+  provable stability for every matrix, but searching the entire submatrix costs an expensive $O(n^3)$ overhead.
+  Finding a pivoting strategy that combines the speed of partial pivoting with stronger theoretical
+  stability guarantees remains an active research direction in numerical linear algebra.
+\end{itemize}
+
+There is another practical bottleneck: if you solve $\mat{A}\vec{x}=\vec{b}$ and subsequently change only the right-hand side $\vec{b}$ (such
+as testing multiple wind loads on the same bridge structure), running naive elimination from scratch wastes
+$O(n^3)$ work by repeating the exact same row operations on $\mat{A}$. Overcoming this repetitive cost
+requires packaging elimination into matrix operators: Chapter~\ref{ch08:origin} examines matrix
+multiplication and inverses, paving the way for Chapter~\ref{ch09:triangular-picture} to introduce
+LU factorization ($\mat{A} = \mat{L}\mat{U}$), which stores the multipliers so that
+any new right-hand side can be solved in $O(n^2)$ time.
 \end{historybox}
 
 \section{Exercises}
+
+\begin{exercise}[Mental checks: true or false?]
+Decide whether each statement is true or false, and give a one-sentence geometric or algebraic reason:
+\begin{enumerate}[label=(\alph*)]
+  \item Multiplying an entire equation by a nonzero constant changes the line or plane it represents in space.
+  \item In an upper-triangular system $\mat{U}\vec{x} = \vec{c}$, back-substitution solves the system without computing any new multipliers $\ell_{ij}$.
+  \item If an $n \times n$ system produces fewer than $n$ nonzero pivots during elimination, it is guaranteed to have no solution.
+  \item Swapping two rows of an augmented matrix changes the coordinates $(x, y, z)$ of the intersection point.
+\end{enumerate}
+\end{exercise}
 
 \begin{exercise}[Warm-up, fully traced]
 Solve by Gaussian elimination, showing the multiplier at every step and then
@@ -1106,6 +1200,6 @@ y + z &= 1,
 \end{aligned}
 \]
 using exactly the same elimination, but with mod-$2$ arithmetic (so subtracting
-equals adding). Find all solutions. This is a baby version of decoding an
+equals adding). Find all solutions. This provides a simple illustration of decoding an
 error-correcting code.
 \end{exercise}

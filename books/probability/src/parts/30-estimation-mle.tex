@@ -1,29 +1,27 @@
 \chapter{Estimation: Method of Moments and Maximum Likelihood}
 
-So far this book has run in one direction. You knew the coin was fair, the
-machine emitted photons at a rate of three per second, the errors were Gaussian
-with mean zero and standard deviation two -- and from those known truths you
-deduced what the data would look like. Probability flows from model to data.
+In Chapter~29, we watched Brownian motion unfold from a known drift $\mu$
+and diffusion rate $\sigma^2$, predicting how particles disperse over time.
+Throughout this book so far, probability has run in this forward direction:
+from a known model, you deduce what data look like.
 
 Real life runs the other way. You are handed the data first. A new coin lands
 heads $61$ times in $100$ tosses. A call center logs the gaps between incoming
-calls. A drug trial reports recovery in $73$ of $120$ patients. Now you must
-swim upstream: from the data, infer the model. What is the coin's true bias?
-What is the call rate? Does the drug help, and by how much? This upstream
-journey is \emph{statistical estimation}, and it is where probability stops
-being a game about dice and starts being the engine of empirical science.
+calls. A drug trial reports recovery in $73$ of $120$ patients. From the data,
+we infer the model. What is the coin's true bias?
+What is the call rate? Does the drug help, and by how much? This inverse
+problem is \emph{statistical estimation}, connecting observed data to
+underlying probability distributions.
 
-This chapter introduces the two oldest and most important estimation engines:
-the \emph{method of moments}, which matches the averages you see to the
-averages the model predicts, and \emph{maximum likelihood}, which asks a
-disarmingly simple question, ``which parameter value would have made my data
-most plausible?'' We then confront the next questions. An estimate
-is itself random -- it dances around as the data dances. Is it centered on the
-truth (bias)? How wildly does it dance (variance)? Does it home in on the
-truth as data piles up (consistency)? And is there a floor below which no
-estimator's dance can shrink (the Cramer--Rao bound)? By the end you should not
-just know the formulas; you should see estimation as a single coherent story
-about extracting a signal from noise.
+This chapter introduces the two oldest and most important estimation methods:
+the \emph{method of moments}, which matches sample averages to population expectations,
+and \emph{maximum likelihood}, which chooses the parameter value that makes the observed data
+most probable under the model. We then evaluate estimator performance. An estimate
+is itself random, varying from sample to sample. Is it centered on the
+truth (bias)? How widely does it vary (variance)? Does it converge to the
+truth as sample size grows (consistency)? And is there a lower bound on the
+variance of an unbiased estimator (the Cramer--Rao bound)? By the end, we connect
+these ideas into a single coherent framework for parameter estimation.
 
 \chapterline
 
@@ -32,7 +30,44 @@ about extracting a signal from noise.
 
 Before you can estimate anything you must say what you are estimating. That
 requires a \emph{statistical model}: a family of probability distributions, one
-of which we believe (or pretend) generated the data.
+of which we believe (or pretend) generated the data. Figure~\ref{ch30:fig-forward-inverse}
+illustrates the fundamental reversal of perspective between probability and
+statistical estimation.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  >=Stealth,
+  highlight/.style={rectangle, rounded corners=6pt, draw=#1!80!black, very thick, fill=#1!8!white, inner sep=8pt, align=center, font=\small, text width=3.2cm}
+]
+\node[highlight=sourceblue] (model) at (0,0) {
+  \textbf{The Model}\\[2pt]
+  True parameter $\theta_0$\\[2pt]
+  \scriptsize (bias $p$, rate $\lambda$)
+};
+\node[highlight=targetgreen] (data) at (7.6,0) {
+  \textbf{The Data}\\[2pt]
+  Sample $X_1, \dots, X_n$\\[2pt]
+  \scriptsize ($61$ heads in $100$ tosses)
+};
+
+\draw[->, very thick, sourceblue] ([yshift=18pt]model.east) -- ([yshift=18pt]data.west)
+  node[midway, above=4pt, font=\footnotesize, align=center] {
+    \textbf{Probability (Deduction)}\\[1pt]
+    \scriptsize Model is known $\to$ predict data patterns
+  };
+
+\draw[->, very thick, quotientorange] ([yshift=-18pt]data.west) -- ([yshift=-18pt]model.east)
+  node[midway, below=4pt, font=\footnotesize, align=center] {
+    \textbf{Statistics (Induction)}\\[1pt]
+    \scriptsize Data observed $\to$ estimate parameter $\hat\theta$
+  };
+\end{tikzpicture}
+\caption{The two opposing directions of mathematical inquiry. In probability, we
+know the governing rule and deduce the behavior of random samples. In estimation,
+we observe the samples and infer the underlying parameters.}
+\label{ch30:fig-forward-inverse}
+\end{figure}
 
 \begin{definition}[Statistical model and parameter]
 \label{ch30:def-model}
@@ -89,8 +124,8 @@ Why bother with a model at all? Because data alone cannot answer a question
 about the world; only data \emph{plus} an assumption about how the world
 generated it can. The model is the bridge from ``what I saw'' to ``what is
 true.'' Choose the bridge badly and even infinite data leads you to a confident
-wrong answer. Every estimate in this chapter is conditional on its model being
-roughly right -- a humility worth carrying.
+wrong answer. Every estimate in this chapter is only as trustworthy as the model
+behind it.
 \end{aestheticbox}
 
 \section{The Method of Moments}
@@ -172,21 +207,30 @@ Here is a delicious trap. Suppose your sample is
 $0.1,\ 0.4,\ 0.9$. Then $\bar X = 0.467$ and
 $\hat\theta_{\mathrm{MM}} = 0.933$. But you \emph{observed} a value of $0.9$!
 The estimated ceiling is barely above a point you actually saw, and a slightly
-unluckier sample could give $\hat\theta < \max_i X_i$ -- an estimated ceiling
-\emph{below} an observation, which is logically impossible under the model. The
-method of moments does not know that $\theta$ must be at least as large as the
-biggest observation. It only knows about averages. This is our first hint that
-intuition-by-averaging, though seductive, can be improved upon.
-Figure~\ref{ch30:fig-mom-unif} draws the situation.
+different sample could give $\hat\theta < \max_i X_i$ -- an estimated ceiling
+\emph{below} an observation, which is impossible under the model. The
+method of moments does not account for the constraint that $\theta$ must be at least as large as the
+maximum observation; it considers only the sample average.
+Figure~\ref{ch30:fig-mom-unif} illustrates this behavior.
 \end{example}
+
+\begin{recoverybox}
+\textbf{Pause and think:} Suppose your three draws from $\Unif(0,\theta)$ had
+landed at $0.1, 0.2, 0.9$. What would the method-of-moments estimate
+$\hat\theta_{\mathrm{MM}} = 2\bar X$ give?
+\textit{Check:} $\bar X = 0.4$, so $\hat\theta_{\mathrm{MM}} = 0.8$. But you
+already saw an observation of $0.9$! The estimated ceiling is lower than a value
+you actually observed -- an impossible parameter value that matching moments
+alone fails to catch.
+\end{recoverybox}
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=13cm, height=4.2cm,
+  width=12cm, height=4.2cm,
   xlabel={observed value}, ylabel={},
-  xmin=0, xmax=1.05, ymin=0, ymax=1.2,
+  xmin=0, xmax=1.12, ymin=0, ymax=1.2,
   ytick=\empty, ymajorgrids=false,
   xtick={0,0.2,0.4,0.6,0.8,1.0},
   axis y line=none, axis x line=bottom,
@@ -196,17 +240,16 @@ Figure~\ref{ch30:fig-mom-unif} draws the situation.
 % data points
 \addplot[only marks, mark=*, mark size=2.6pt, distblue]
   coordinates {(0.1,0.4)(0.4,0.4)(0.9,0.4)};
-% labels
-\node[anchor=south, distblue, font=\scriptsize] at (axis cs:0.1,0.45) {$0.1$};
-\node[anchor=south, distblue, font=\scriptsize] at (axis cs:0.4,0.45) {$0.4$};
-\node[anchor=south, distblue, font=\scriptsize] at (axis cs:0.9,0.45) {$0.9$};
-% MoM estimate
+\node[anchor=south, distblue, font=\scriptsize] at (axis cs:0.1,0.47) {$x_1=0.1$};
+\node[anchor=south, distblue, font=\scriptsize] at (axis cs:0.4,0.47) {$x_2=0.4$};
+\node[anchor=east, distblue, font=\scriptsize] at (axis cs:0.87,0.4) {$x_3=0.9$};
+% max observation: label on the left
+\draw[trapred, very thick, dashed] (axis cs:0.9,0) -- (axis cs:0.9,0.85);
+\node[anchor=east, trapred, font=\scriptsize] at (axis cs:0.88,0.72) {$\max_i x_i=0.9$};
+% MoM estimate: label on the right
 \draw[targetgreen, very thick] (axis cs:0.9333,0) -- (axis cs:0.9333,0.95);
-\node[anchor=south, targetgreen!60!black, font=\scriptsize, align=center]
-  at (axis cs:0.9333,0.96) {$\hat\theta_{\mathrm{MM}}=2\bar X$\\$=0.933$};
-% max observation
-\draw[trapred, very thick, dashed] (axis cs:0.9,0) -- (axis cs:0.9,0.78);
-\node[anchor=south east, trapred, font=\scriptsize] at (axis cs:0.9,0.62) {$\max_i x_i=0.9$};
+\node[anchor=west, targetgreen!60!black, font=\scriptsize, align=left]
+  at (axis cs:0.95,0.78) {$\hat\theta_{\mathrm{MM}}=2\bar X$\\$=0.933$};
 \end{axis}
 \end{tikzpicture}
 \caption{Three observations (dots) from $\Unif(0,\theta)$. The method-of-moments
@@ -227,16 +270,19 @@ structure of the likelihood. Treat it as a quick sketch, not a final portrait.
 \end{trapbox}
 
 \begin{historybox}
-Karl Pearson built the method of moments around $1894$ while fitting skewed
-biological data -- crab measurements from the Bay of Naples -- that refused to
-look Gaussian. He modeled them as mixtures and matched up to five moments,
-grinding through the algebra by hand. For thirty years it was \emph{the} way to
-fit distributions. Then a young R.\,A.\ Fisher argued, in a series of papers
-from $1912$ to $1922$, that matching moments was wasteful: it threw away
-information the data contained. His alternative, maximum likelihood, eventually
-won the field. The friendly rivalry between Pearson's and Fisher's schools is
-one of the founding dramas of modern statistics -- and personal: the two men
-famously could not stand each other.
+Karl Pearson built the method of moments around $1894$ to solve a puzzle in
+biology: measurements of shore crabs from the Bay of Naples collected by Walter
+Weldon showed a skewed, double-humped distribution that defied a single Gaussian
+bell curve. Pearson modeled them as a mixture of two normal curves and matched
+the first five moments, laboriously solving a ninth-degree polynomial by hand.
+For thirty years, matching moments was the standard way to fit distributions.
+
+In $1912$, a young R.\,A.\ Fisher argued that matching moments was wasteful:
+it threw away information the sample contained. Fisher proposed maximum
+likelihood instead, proving in $1922$ that it achieves optimal efficiency in large
+samples. Pearson rejected Fisher's early papers from \emph{Biometrika}, igniting
+a bitter feud that reshaped statistics -- the two men famously could not stand
+each other.
 \end{historybox}
 
 \section{The Likelihood Function}
@@ -304,18 +350,20 @@ the observed data most probable:
 \]
 \end{definition}
 
-Picture the unknown parameter $\theta$ as a physical tuning knob on a machine that produces random phenomena. You cannot peer inside the machinery, and you cannot tamper with the data points $x_1, \dots, x_n$ already cast in stone on your laboratory table. What you \emph{can} do is rotate the tuning knob $\theta$ back and forth, watching the height of the probability mountain $L(\theta)$ rise and fall over your observed sample. Maximum likelihood simply sets the dial to the exact notch where the probability mountain reaches its highest crest.
+We treat the observed data $x_1, \dots, x_n$ as fixed and vary the parameter $\theta$ across the parameter space $\Theta$. As $\theta$ changes, the likelihood $L(\theta)$ measures how probable the observed sample would be under each candidate distribution. Maximum likelihood selects the parameter value $\hat\theta$ that maximizes this joint density.
 
-The recipe, when $\ell$ is smooth, is the familiar calculus drill: differentiate $\ell$, find where the tangent slope (the \emph{score}) levels off to zero, solve, and verify that the curvature is negative:
+When $\ell$ is differentiable, we find candidates for the maximum by setting the first derivative (the \emph{score}) to zero and checking the second derivative:
 \[
   \text{score: } \quad s(\theta) = \frac{\partial \ell}{\partial \theta} = 0.
 \]
-(In Section~\ref{ch30:fisher} we will use the word \emph{score} for the
-derivative of a \emph{single} observation's log-density,
-$\partial_\theta\log f(X\given\theta)$. The two usages are consistent: because
-$\ell$ is a sum over observations, the full-data score is the sum of the
-per-observation scores. We name both ``score'' as the field does, but the
-distinction matters when we take variances.)
+The \emph{score} is the slope of the log-likelihood: it measures how sensitive
+the log-likelihood is to nudging the parameter $\theta$. Where the score is zero,
+the log-likelihood has reached its peak. (In Section~\ref{ch30:fisher} we
+will use the word \emph{score} for the derivative of a \emph{single}
+observation's log-density, $\partial_\theta\log f(X\given\theta)$. The two
+usages are consistent: because $\ell$ is a sum over observations, the full-data
+score is the sum of the per-observation scores. We name both ``score'' as the
+field does, but the distinction matters when we take variances.)
 
 \begin{example}[The MLE of a coin's bias -- the canonical case]
 \label{ch30:ex-mle-bern}
@@ -360,7 +408,7 @@ Section~\ref{ch30:fisher}.
   domain=0.30:0.92, samples=160,
   legend pos=south west, legend cell align=left,
   grid=both, grid style={gray!18},
-  xmin=0.30, xmax=0.92, ymin=-40, ymax=4,
+  xmin=0.30, xmax=0.92, ymin=-40, ymax=6,
   title style={font=\small},
   title={Log-likelihood for ``$61\%$ heads'' at three sample sizes},
 ]
@@ -370,8 +418,8 @@ Section~\ref{ch30:fisher}.
 \addlegendentry{$n=100$}
 \addplot[targetgreen, very thick, dotted] {305*ln(x) + 195*ln(1-x) - (305*ln(0.61)+195*ln(0.39))};
 \addlegendentry{$n=500$}
-\draw[gray, thick, dashed] (axis cs:0.61,-40) -- (axis cs:0.61,2);
-\node[anchor=south] at (axis cs:0.61,1.2) {\footnotesize peak at $\hat p=0.61$};
+\draw[gray, thick, dashed] (axis cs:0.61,-40) -- (axis cs:0.61,0);
+\node[anchor=south] at (axis cs:0.61,0.5) {\footnotesize peak at $\hat p=0.61$};
 \end{axis}
 \end{tikzpicture}
 \caption{The log-likelihood for a coin showing $61\%$ heads, shifted to peak at
@@ -478,17 +526,19 @@ $\hat\theta=0.9$. No derivative is set to zero -- the optimum is a corner.}
 
 \begin{happeningbox}
 What is maximum likelihood \emph{really} doing? Picture the parameter space as a
-landscape and the log-likelihood as its elevation. Each data point tilts the
-landscape a little, pushing the summit toward parameter values that explain that
-point well. With i.i.d.\ data these little tilts \emph{add up} (because logs
-turn the product into a sum), so the summit settles at the consensus of all the
-data points. As $n$ grows, more votes accumulate and the summit grows sharper
-and more decisively located -- the law of large numbers acting on the score
-function. Deeper still: maximizing the likelihood is the same as minimizing the
-Kullback--Leibler divergence from the true distribution to your model. The MLE
-is the member of your model family that is, in an information-theoretic sense,
-\emph{closest to the truth} given the evidence. We make this precise in the
-information-theory chapter; here, just feel the shape of it.
+topographic map and the log-likelihood as its elevation surface. Each data point
+tilts this surface a little, pushing the summit toward parameter values that
+explain that point well. With i.i.d.\ data these little tilts \emph{add up}
+(because logs turn the product into a sum), so the summit settles at the
+consensus of all the data points. As $n$ grows, more votes accumulate and the
+summit grows sharper and more decisively located -- the law of large numbers
+acting on the score function. Deeper still: maximizing the likelihood is the
+same as minimizing the Kullback--Leibler divergence from the true distribution
+to your model -- a measure of how much information is lost when an approximating
+distribution stands in for reality. The MLE is the member of your model family
+that is, in an information-theoretic sense, \emph{closest to the truth} given
+the evidence. We make this precise in the information-theory chapter; here,
+just feel the shape of it.
 \end{happeningbox}
 
 \begin{connectionbox}
@@ -569,8 +619,8 @@ If $X_i$ have mean $\mu$ then by linearity of expectation,
   \E[\bar X] = \E\!\left[\frac1n\sum_i X_i\right]
              = \frac1n\sum_i \E[X_i] = \frac1n\cdot n\mu = \mu.
 \]
-The sample mean is unbiased for the population mean, full stop -- it needs no
-assumption beyond a finite mean. This is why $\bar X$ is the workhorse of
+The sample mean is unbiased for the population mean without requiring
+assumptions beyond a finite expectation. This property makes $\bar X$ a primary estimator across
 statistics.
 \end{example}
 
@@ -625,24 +675,23 @@ are about to see, a little bias can be a bargain.
 \begin{definition}[Variance and mean squared error]
 \label{ch30:def-mse}
 The \emph{variance} of an estimator is $\Var(\hat\theta)$, the spread of its
-sampling distribution. The \emph{mean squared error} combines both kinds of
+sampling distribution. The \emph{mean squared error} combines both sources of
 error:
 \[
   \mathrm{MSE}(\hat\theta) = \E\big[(\hat\theta-\theta)^2\big]
-  = \underbrace{\Var(\hat\theta)}_{\text{wobble}}
-  + \underbrace{\operatorname{Bias}(\hat\theta)^2}_{\text{lean}}.
+  = \underbrace{\Var(\hat\theta)}_{\text{variance}}
+  + \underbrace{\operatorname{Bias}(\hat\theta)^2}_{\text{squared bias}}.
 \]
 \end{definition}
 
 \begin{whybox}
-The MSE decomposition is just the ``add and subtract the mean'' trick. Write
-$\hat\theta-\theta = (\hat\theta-\E\hat\theta)+(\E\hat\theta-\theta)$. Square it:
-the first piece squared has expectation $\Var(\hat\theta)$, the second piece is
+The MSE decomposition follows by adding and subtracting the expectation:
+write $\hat\theta-\theta = (\hat\theta-\E\hat\theta)+(\E\hat\theta-\theta)$. Squaring both sides,
+the first term has expectation $\Var(\hat\theta)$, the second term is
 the constant $\operatorname{Bias}^2$, and the cross term is
 $2\,\E[\hat\theta-\E\hat\theta]\cdot\operatorname{Bias}=0$ because the first
-factor has mean zero. So total expected squared error cleanly splits into
-\emph{wobble plus lean}. This little identity is the seed of the entire
-bias--variance tradeoff.
+factor has mean zero. Thus total expected squared error decomposes into
+variance plus squared bias, which forms the basis of the bias--variance tradeoff.
 \end{whybox}
 
 \begin{definition}[Consistency]
@@ -682,7 +731,6 @@ variance.
   xlabel={target}, ylabel={frequency},
   ymin=0, ymax=1.14, xmin=-3.2, xmax=3.2, clip=false,
   ytick=\empty,
-  grid=both, grid style={gray!15},
   title style={font=\small},
   title={Four estimators as sampling distributions (truth at $0$)},
   domain=-3.2:3.2, samples=160,
@@ -696,8 +744,8 @@ variance.
 \addlegendentry{biased, low variance}
 \addplot[densityred, very thick, dashdotted] {0.40*exp(-(x-1.1)^2/(2*1.0))};
 \addlegendentry{biased, high variance (worst)}
-\draw[gray, thick] (axis cs:0,0) -- (axis cs:0,1.05);
-\node[anchor=south, gray!50!black] at (axis cs:0,1.0) {\footnotesize truth};
+\draw[gray, thick] (axis cs:0,0) -- (axis cs:0,0.98);
+\node[anchor=south, gray!50!black, fill=white, inner sep=1.5pt] at (axis cs:0,1.03) {\footnotesize truth};
 \end{axis}
 \end{tikzpicture}
 \caption{Bias is where the distribution is \emph{centered} relative to the truth
@@ -710,10 +758,9 @@ squared distance from the truth, capturing both the shift and the width at once.
 \section{The Bias--Variance Tradeoff}
 \label{ch30:bv-tradeoff}
 
-Decompose MSE into wobble plus lean and a strategic possibility leaps out: maybe
-you can \emph{accept} a little lean (bias) in exchange for far less wobble
-(variance), and come out ahead on total error. Unbiasedness is not sacred;
-\emph{small MSE} is the real goal.
+Because MSE decomposes into variance plus squared bias, one can often accept a small
+amount of bias in exchange for a substantial reduction in variance, reducing the total mean squared error.
+Minimizing MSE is frequently preferred over requiring strict unbiasedness.
 
 \begin{example}[Deliberately biasing the coin estimate]
 \label{ch30:ex-shrinkage}
@@ -734,7 +781,7 @@ near the boundaries outweighs the small bias. A pinch of bias bought a calmer,
 more reliable estimator.
 \end{example}
 
-\begin{applicationbox}[The bias--variance tradeoff is the soul of machine learning]
+\begin{applicationbox}[The bias--variance tradeoff in machine learning]
 This single idea -- trade a little bias for a lot less variance -- organizes the
 entire practice of supervised learning. A model's expected prediction error
 decomposes (exactly as our MSE did) into
@@ -794,21 +841,20 @@ success -- are Stein's insight industrialized.
   title={The bias--variance tradeoff: total error is U-shaped},
 ]
 \addplot[distblue, very thick] {9/(x^2)+0.3};
-\addlegendentry{$\text{bias}^2$ (falls with complexity)}
+\addlegendentry{$\text{bias}^2$}
 \addplot[densityred, very thick, dashed] {0.18*x^2};
-\addlegendentry{variance (rises with complexity)}
-\addplot[targetgreen, ultra thick] {9/(x^2)+0.3+0.18*x^2};
-\addlegendentry{total error (U-shaped)}
+\addlegendentry{variance}
+\addplot[targetgreen, very thick] {9/(x^2)+0.3+0.18*x^2};
+\addlegendentry{total error}
 \draw[gray, thick, dotted] (axis cs:2.66,0) -- (axis cs:2.66,2.85);
-\node[anchor=south, gray!55!black] at (axis cs:2.46,2.6) {\footnotesize sweet spot};
-\node[anchor=west, distblue!70!black] at (axis cs:0.55,4.6) {\footnotesize underfit};
-\node[anchor=east, densityred!70!black] at (axis cs:4.9,5.2) {\footnotesize overfit};
+\node[anchor=south, gray!55!black, fill=white, inner sep=1.5pt] at (axis cs:2.66,3.15) {\footnotesize sweet spot};
+\node[anchor=west, distblue!70!black] at (axis cs:0.55,4.8) {\footnotesize underfit};
+\node[anchor=east, densityred!70!black] at (axis cs:4.6,1.3) {\footnotesize overfit};
 \end{axis}
 \end{tikzpicture}
 \caption{As model flexibility rises, squared bias falls but variance climbs.
-Their sum is U-shaped, and the best model lives at the bottom of the U -- not the
-simplest, not the most complex, but the one that balances lean against wobble.
-Choosing that point (via cross-validation) is most of applied modeling.}
+Their sum is U-shaped, and the optimal model minimizes total error -- balancing
+bias against variance. Selecting this tradeoff via cross-validation is central to applied modeling.}
 \label{ch30:fig-bv-curve}
 \end{figure}
 
@@ -865,7 +911,7 @@ fresh data point contributes its own $I(\theta)$ to the pile. That additivity is
 why ``more data'' so reliably means ``more precision.''
 \end{whybox}
 
-Figure~\ref{ch30:fig-score-curvature} visualizes this curvature duality in two linked lanes. At the MLE $\hat\theta$, the log-likelihood reaches a flat peak ($\ell'(\hat\theta) = 0$). Near the peak, the log-likelihood is closely approximated by its osculating parabola, whose downward curvature is given by $-n I(\hat\theta)$. Differentiating down into the lower lane, the score function $S(\theta) = \ell'(\theta)$ passes through zero precisely at $\hat\theta$. The slope of the score function as it crosses the axis is $-n I(\hat\theta)$. A sharply peaked log-likelihood corresponds to a steeply plunging score line: a minute deviation in $\theta$ produces an immediate, aggressive restoring force in the score.
+Figure~\ref{ch30:fig-score-curvature} visualizes this curvature duality in two linked panels. At the MLE $\hat\theta$, the log-likelihood reaches a peak where $\ell'(\hat\theta) = 0$. Near the peak, the log-likelihood is approximated by a parabola with downward curvature $-n I(\hat\theta)$. In the lower panel, the score function $S(\theta) = \ell'(\theta)$ passes through zero at $\hat\theta$ with slope $-n I(\hat\theta)$. A sharply peaked log-likelihood corresponds to a steeply sloped score line: a small change in $\theta$ produces a rapid change in the score.
 
 \begin{figure}[H]
 \centering
@@ -876,7 +922,7 @@ Figure~\ref{ch30:fig-score-curvature} visualizes this curvature duality in two l
   xlabel={parameter $\theta$}, ylabel={log-likelihood $\ell(\theta)$},
   title style={font=\small},
   title={Log-likelihood $\ell(\theta)$: peak crest and osculating curvature},
-  xmin=0.8, xmax=3.2, ymin=-5.5, ymax=1.0,
+  xmin=0.8, xmax=3.2, ymin=-5.5, ymax=1.5,
   domain=0.8:3.0, samples=120,
   grid=both, grid style={gray!15},
   legend pos=south west, legend style={font=\footnotesize}, legend cell align=left,
@@ -886,7 +932,7 @@ Figure~\ref{ch30:fig-score-curvature} visualizes this curvature duality in two l
 \addlegendentry{log-likelihood $\ell(\theta)$}
 % Osculating parabola
 \addplot[densityred, thick, dashed, domain=1.0:3.0] {-2*(x-2)^2};
-\addlegendentry{quadratic approximation $\ell(\hat\theta) - \frac{1}{2} n I(\hat\theta)(\theta-\hat\theta)^2$}
+\addlegendentry{quadratic approx. at $\hat\theta$}
 % Tangent line at peak
 \addplot[black, thick, dotted, domain=1.1:2.9] {0};
 \addlegendentry{flat tangent $\ell'(\hat\theta) = 0$}
@@ -913,13 +959,13 @@ Figure~\ref{ch30:fig-score-curvature} visualizes this curvature duality in two l
 \addlegendentry{score $S(\theta) = \ell'(\theta)$}
 % Tangent line to score (slope = -n I)
 \addplot[quotientorange, thick, dashed, domain=1.0:3.0] {-4*(x-2)};
-\addlegendentry{linear slope $-n I(\hat\theta)(\theta-\hat\theta)$}
+\addlegendentry{linear slope: $-n I(\hat\theta)$}
 % Zero crossing dot
 \addplot[only marks, mark=*, mark size=2.5pt, black] coordinates {(2.0,0)};
 \node[anchor=south west] at (axis cs:2.0,0.15) {\small $S(\hat\theta) = 0$};
 \end{axis}
 \end{tikzpicture}
-\caption{The intimate geometric duality between log-likelihood curvature and the score function.
+\caption{Curvature of the log-likelihood and slope of the score function.
 Top: the log-likelihood peaks at $\hat\theta_{\mathrm{MLE}}$ where the tangent slope is zero ($\ell'=0$).
 The sharpness of the peak is captured by the osculating parabola with curvature $-n I(\hat\theta)$.
 Bottom: the score function cuts down through zero precisely at $\hat\theta$. Its downward slope at the
@@ -1051,18 +1097,17 @@ large $n$, \emph{asymptotically} the best estimator possible:
   \quad\text{for large } n.
 \]
 In words: it is asymptotically unbiased, asymptotically normal, and its variance
-asymptotically attains the Cramer--Rao floor (asymptotic efficiency). That is
-three things at once -- it lands on the truth, its errors are bell-shaped (so you
-can build confidence intervals, two chapters from now), and it wrings every drop
-of information from the model. This is why maximum likelihood is the default
+asymptotically attains the Cramer--Rao floor (asymptotic efficiency). It is centered on
+the truth, its errors are normally distributed (allowing for confidence intervals,
+two chapters from now), and it achieves the minimum possible asymptotic variance.
+This is why maximum likelihood is the default
 estimation method across statistics, econometrics, and machine learning: in the
-large-sample regime it is, provably, hard to beat. Fisher's thirty-year argument
-with Pearson ended here.
+large-sample regime under regularity conditions, it is optimal.
 \end{aestheticbox}
 
 \begin{paradoxbox}[When maximum likelihood goes wrong]
-Maximum likelihood is the hero of this chapter, so it is only fair to show its
-scars; ``asymptotically optimal'' hides real failures.
+Despite its asymptotic optimality under regularity conditions, maximum likelihood can fail
+when the underlying regularity assumptions are violated.
 \begin{itemize}
 \item \textbf{The unbounded-likelihood catastrophe.} Fit a mixture of two
   Normals by maximum likelihood. Center one component exactly on a single data
@@ -1096,13 +1141,14 @@ worth understanding at its pathological edges as well as its standard setting.
   xlabel={$p$}, ylabel={Fisher information $I(p)=1/[p(1-p)]$},
   domain=0.06:0.94, samples=160,
   xmin=0, xmax=1, ymin=0, ymax=20,
-  grid=both, grid style={gray!18},
+  ymajorgrids=true, grid style={gray!18},
   title style={font=\small},
   title={Information per coin toss is lowest at $p=1/2$},
 ]
 \addplot[distblue, very thick] {1/(x*(1-x))};
 \draw[gray, dashed] (axis cs:0.5,0) -- (axis cs:0.5,4);
-\node[anchor=south] at (axis cs:0.5,4) {\footnotesize min $I=4$ at $p=1/2$};
+\fill[black] (axis cs:0.5,4) circle (2pt);
+\node[anchor=south, font=\footnotesize, fill=white, inner sep=2pt] at (axis cs:0.5, 4.8) {$\min I=4$ at $p=1/2$};
 \end{axis}
 \end{tikzpicture}
 \caption{Fisher information for a single Bernoulli toss. It is \emph{smallest} at
@@ -1165,8 +1211,8 @@ about $24$ observations: the $\sqrt n$ law again.
 for small $n$ (by Jensen's inequality, $\E[1/\bar X] > 1/\E[\bar X]=\lambda$); a
 common correction is $\hat\lambda_{\text{corrected}}=\frac{n-1}{n}\cdot
 \frac{1}{\bar x}$. With $n=6$ the correction multiplies by $5/6$, giving
-$\approx 0.77$. As $n\to\infty$ the correction vanishes -- the same moral one
-last time: \emph{bias fades, variance is forever}.
+$\approx 0.77$. As $n\to\infty$ the $O(1/n)$ bias vanishes faster than the
+$O(1/\sqrt{n})$ standard error, so in large samples variance dominates.
 \end{example}
 
 Figure~\ref{ch30:fig-sampling-narrow} previews what the lab below will let you
@@ -1180,9 +1226,8 @@ the truth and tightens as $n$ grows.
   width=13cm, height=6cm,
   xlabel={estimate $\hat\lambda=\bar X$}, ylabel={sampling density},
   domain=2.0:4.0, samples=160,
-  xmin=2.0, xmax=4.0, ymin=0, ymax=3.9, clip=false,
+  xmin=2.0, xmax=4.0, ymin=0, ymax=4.3, clip=false,
   ytick=\empty,
-  grid=both, grid style={gray!15},
   legend pos=north west, legend style={font=\footnotesize}, legend cell align=left,
   title style={font=\small},
   title={Sampling distribution of $\hat\lambda$ for $\Pois(\lambda=3)$ narrows with $n$},
@@ -1194,8 +1239,8 @@ the truth and tightens as $n$ grows.
 \addplot[targetgreen, very thick, dashed]
   {1/(sqrt(2*pi*3/200))*exp(-(x-3)^2/(2*3/200))};
 \addlegendentry{$n=200$ (SE $\approx 0.122$)}
-\draw[gray, thick, dashed] (axis cs:3,0) -- (axis cs:3,3.5);
-\node[anchor=south, gray!55!black] at (axis cs:3,3.5) {\footnotesize truth $\lambda=3$};
+\draw[gray, thick, dashed] (axis cs:3,0) -- (axis cs:3,3.45);
+\node[anchor=south, gray!55!black, fill=white, inner sep=1.5pt] at (axis cs:3,3.5) {\footnotesize truth $\lambda=3$};
 \end{axis}
 \end{tikzpicture}
 \caption{Two sampling distributions of the Poisson MLE $\hat\lambda=\bar X$, by
@@ -1207,26 +1252,29 @@ $50$ to $200$ halves the standard error from $\approx 0.245$ to $\approx 0.122$
 \end{figure}
 
 \begin{labbox}
-Before the exercises, simulate the whole story yourself. Draw $1000$ datasets of
+Before the exercises, simulate this behavior directly. Draw $1000$ datasets of
 size $n=50$ from $\Pois(\lambda=3)$. For each, compute $\hat\lambda=\bar X$.
-Histogram the $1000$ estimates: it should look bell-shaped (asymptotic
-normality), centered near $3$ (consistency), with spread close to
-$\sqrt{\lambda/n}=\sqrt{3/50}\approx 0.245$ (the Cramer--Rao floor). Then redo it
-with $n=200$ and watch the histogram narrow by a factor of $2$ as $n$ quadruples.
-You will have \emph{seen}, in one afternoon, every theorem in this chapter
-breathe.
+Plot a histogram of the $1000$ estimates: it is approximately normal (asymptotic
+normality), centered near $3$ (consistency), with empirical standard deviation close to
+$\sqrt{\lambda/n}=\sqrt{3/50}\approx 0.245$ (the Cramer--Rao floor). Then repeat
+with $n=200$ to observe the spread halve as $n$ quadruples, confirming the
+theoretical properties empirically.
 \end{labbox}
 
 \section{What to Carry Away: Capabilities, Pitfalls, and the Road Ahead}
 \label{ch30:summary}
 
 \begin{focusbox}
-Maximum likelihood turns parameter estimation into geometry: it converts questions of learning from data into finding the peak of a landscape $\ell(\theta)$, where the score function crosses zero and the curvature $-\ell''(\theta)$ measures the precision of our knowledge. Under smooth regularity, the Cramer--Rao bound sets an unyielding floor on variance, and the maximum likelihood estimator asymptotically achieves that floor, extracting every drop of precision available in large samples.
+Maximum likelihood turns parameter estimation into geometry: it converts questions of learning from data into finding the peak of a log-likelihood surface $\ell(\theta)$, where the score function crosses zero and the curvature $-\ell''(\theta)$ measures the precision of our knowledge. Under smooth regularity conditions, the Cramer--Rao bound sets a lower bound on variance, and the maximum likelihood estimator achieves that bound asymptotically in large samples.
 \end{focusbox}
 
-Despite its elegance, maximum likelihood leaves several practical questions open. First, the estimator outputs a single frozen point estimate $\hat\theta$. It offers no language for incorporating prior scientific knowledge, and it produces no direct probability distribution representing our uncertainty over parameter values. Second, when the support of a distribution moves with the parameter (as in $\Unif(0,\theta)$), derivatives vanish and classical asymptotics fail. Third, in high-dimensional models or mixture densities, likelihood landscapes can develop unbounded spikes and singularities where a single data point causes $L(\theta) \to \infty$.
+Despite its elegance, maximum likelihood leaves several practical questions open. First, the estimator outputs a single frozen point estimate $\hat\theta$. It offers no language for incorporating prior scientific knowledge, and it produces no direct probability distribution representing our uncertainty over parameter values. Second, when the support of a distribution moves with the parameter (as in $\Unif(0,\theta)$), derivatives vanish and classical asymptotics fail. Third, in high-dimensional models or mixture densities, likelihood surfaces can develop unbounded spikes and singularities where a single data point causes $L(\theta) \to \infty$.
 
-These limitations set the stage for the rest of our journey into statistics. To represent uncertainty not as an isolated point but as a complete probability distribution conditioned on data, Chapter~31 turns to Bayesian inference, weighting the likelihood against a prior belief. To quantify our confidence in an estimate without subjective priors, Chapter~32 builds confidence intervals with guaranteed coverage and establishes the Neyman--Pearson framework for decisive statistical tests.
+These limitations motivate the chapters ahead. To represent parameter
+uncertainty as a full probability distribution rather than a single point
+estimate, Chapter~31 turns to Bayesian inference, combining the likelihood with
+prior knowledge. To quantify confidence without specifying priors, Chapter~32
+builds confidence intervals and establishes hypothesis testing.
 
 \section{Exercises}
 \label{ch30:exercises}
@@ -1250,7 +1298,7 @@ MLE and propose a multiplicative correction making it unbiased.
 you would trust and why.
 \end{exercise}
 
-\begin{exercise}[The $n-1$ in your bones]
+\begin{exercise}[Degrees of freedom and the $n-1$ factor]
 \label{ch30:exc-n-minus-1}
 Using $\E[(\bar X-\mu)^2]=\sigma^2/n$, re-derive
 $\E\big[\frac1n\sum_i(X_i-\bar X)^2\big]=\frac{n-1}{n}\sigma^2$ from scratch, and

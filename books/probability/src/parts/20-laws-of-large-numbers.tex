@@ -1,17 +1,19 @@
 \chapter{The Laws of Large Numbers}
 
-There is a sentence almost everyone has heard, usually said with great confidence and almost always slightly wrong: ``it all averages out in the end.'' Flip a fair coin enough times and you will get about half heads. Roll a die forever and each face shows up about a sixth of the time. Play a casino game long enough and the house edge is guaranteed to grind you down. Each of these claims is an appeal to the same deep fact about chance, the fact this chapter is about: \emph{averages of many independent trials settle down to a single, predictable number.}
+In the previous chapter, we developed inequalities to bound tail probabilities without knowing the full distribution. Markov's inequality, Chebyshev's inequality, and Chernoff bounds gave us quantitative guarantees: if you know the mean and variance of a random variable, you can limit how often it strays far from its expectation. But all those inequalities dealt with a static snapshot at a fixed sample size $n$. Now we ask the question that turned probability from a parlor game into a foundational science: what happens when you never stop? What happens when you roll dice, flip coins, or record lab measurements not ten times, but a thousand, a million, or indefinitely?
 
-That fact is the Law of Large Numbers. It is the bridge between the abstract object we call ``probability'' and the concrete thing you can actually measure, namely the long-run frequency of an event. It is the reason a casino can publish its house edge and sleep soundly, the reason an insurance company can price a policy on a person whose future it cannot predict, and the reason a Monte Carlo simulation gives you an answer at all. It is, in a sense we will make precise, the theorem that justifies the entire frequentist picture of what probability \emph{means}.
+There is a sentence almost everyone has heard, usually said with great confidence and almost always slightly wrong: ``it all averages out in the end.'' Flip a fair coin enough times and you will get about half heads. Roll a die forever and each face shows up about a sixth of the time. Play a casino game long enough and the house edge is guaranteed to grind you down. Each of these claims appeals to the same deep fact about chance: \emph{averages of many independent trials settle down to a single, predictable number.}
 
-But the slogan ``it all averages out'' hides two very different theorems and at least one famous fallacy. There is a \emph{weak} law and a \emph{strong} law, and they claim genuinely different things. And the slogan, taken literally, tempts you into the gambler's fallacy --- the belief that a coin which has come up heads ten times in a row is somehow ``due'' for tails. By the end of this chapter you will see exactly what averages out, what does not, and why the difference matters.
+That fact is the Law of Large Numbers. It is the bridge between the abstract mathematical object we call ``probability'' and the physical reality you can actually measure: the long-run frequency of an event. It is the reason a casino can publish its house edge and sleep soundly, the reason an insurance company can price a policy on a person whose individual lifespan it cannot foresee, and the reason a Monte Carlo simulation yields trustworthy answers. It is, in a sense we will make mathematically rigorous, the theorem that justifies the entire frequentist view of what probability means.
+
+Yet the slogan ``it all averages out'' conceals two very different theorems and at least one famous, expensive fallacy. There is a \emph{weak} law and a \emph{strong} law, and they make genuinely different mathematical claims. And taken literally, the slogan tempts you into the gambler's fallacy: the mistaken belief that a fair coin that has landed on heads ten times in a row is somehow ``due'' for tails. By the end of this chapter you will understand what averages out, what does not, and why the distinction governs the real world.
 
 \chapterline
 
 \section{The Question: Does the Average Settle Down?}
 \label{ch20:question}
 
-Let us be concrete before we are general. Imagine flipping a fair coin and recording $1$ for heads, $0$ for tails. After $n$ flips you have a sequence $X_1, X_2, \dots, X_n$ of zeros and ones, and you compute the \emph{sample mean} --- the running fraction of heads:
+Let us be concrete before we are general. Imagine flipping a fair coin and recording $1$ for heads, $0$ for tails. After $n$ flips you have a sequence $X_1, X_2, \dots, X_n$ of zeros and ones, and you compute the \emph{sample mean} --- the arithmetic average of your observations, summing the outcomes and dividing by $n$:
 \[
   \bar{X}_n \;=\; \frac{X_1 + X_2 + \cdots + X_n}{n}.
 \]
@@ -32,11 +34,10 @@ Figure~\ref{ch20:fig-running-mean} shows what this looks like in practice. Three
   xmin=1, xmax=1000, ymin=0, ymax=1,
   ytick={0,0.25,0.5,0.75,1},
   grid=both, grid style={gray!18},
-  legend pos=north east, legend style={font=\footnotesize},
+  legend pos=north east, legend style={font=\small},
   title={Three runs of a fair-coin sample mean converging to $1/2$},
   title style={font=\small},
 ]
-% Three pseudo-random-looking but deterministic running means that settle to 0.5.
 \addplot[sourceblue, thick, smooth] coordinates {
 (1,1)(3,0.667)(6,0.5)(10,0.6)(20,0.55)(35,0.486)(60,0.533)(100,0.52)(160,0.494)(250,0.508)(400,0.5025)(600,0.4983)(800,0.50125)(1000,0.5)
 };
@@ -59,33 +60,71 @@ Figure~\ref{ch20:fig-running-mean} shows what this looks like in practice. Three
 
 Notice two features you should hold onto. First, the convergence is \emph{not} monotone: a curve can be above $1/2$, then below, then above again. Nothing forbids a long streak. Second, the spread of the curves narrows as $n$ grows, and it narrows at a particular rate. We will see that the typical distance of $\bar X_n$ from $1/2$ shrinks like $1/\sqrt n$ --- a fact that is the doorway to the next chapter, the Central Limit Theorem.
 
+\begin{recoverybox}
+\textbf{Pause and think.} If you flip a fair coin a hundred times, is it mathematically possible to get 100 heads in a row? Yes: $(1/2)^{100}$ is microscopic, but strictly positive. The Law of Large Numbers does not outlaw freak streaks or declare them impossible. Instead, it tells you that the probability of seeing an average that remains far from $1/2$ is driven relentlessly to zero as the trial count climbs.
+\end{recoverybox}
+
 \section{The Engine Room: Mean and Variance of the Sample Mean}
 \label{ch20:engine}
 
-Before any law, we need two computations that do all the real work. Let $X_1, \dots, X_n$ be independent and identically distributed (i.i.d.) with common mean $\mu = \E[X_i]$ and common variance $\sigma^2 = \Var(X_i) < \infty$. What are the mean and variance of $\bar X_n$?
+Before any law, we need two computations that do all the real work. Let $X_1, \dots, X_n$ be independent and identically distributed (i.i.d.) with common mean $\mu = \E[X_i]$ and common variance $\sigma^2 = \Var(X_i) < \infty$. That standard shorthand names a clean, familiar setup: every observation is produced by the exact same physical mechanism, and no trial carries any memory of or influence over any other. What are the mean and variance of $\bar X_n$?
 
 The mean is immediate from linearity of expectation, which never requires independence:
 \[
   \E[\bar X_n] \;=\; \E\!\left[\frac1n \sum_{i=1}^n X_i\right] \;=\; \frac1n \sum_{i=1}^n \E[X_i] \;=\; \frac1n \cdot n\mu \;=\; \mu.
 \]
-So the sample mean is \emph{unbiased}: on average it equals exactly the thing we are trying to estimate. Good --- but ``on average correct'' is not the same as ``reliably close.'' For that we need the variance.
+So the sample mean is \emph{unbiased}: on average it equals exactly the quantity we are trying to estimate. Good --- but ``on average correct'' is not the same as ``reliably close.'' For that we need the variance.
 
-Here independence earns its keep. Because the $X_i$ are independent, the variance of their sum is the sum of their variances (no covariance terms survive):
+Here independence is essential. Because the $X_i$ are independent, the variance of their sum is the sum of their variances (all covariance terms between distinct trials vanish):
 \[
   \Var\!\left(\sum_{i=1}^n X_i\right) \;=\; \sum_{i=1}^n \Var(X_i) \;=\; n\sigma^2.
 \]
-And variance scales by the square of a constant, $\Var(cY) = c^2 \Var(Y)$, so with $c = 1/n$:
+Variance is measured in squared units --- square meters, square dollars --- so scaling a random variable by a constant $c$ scales its variance by $c^2$. With $c = 1/n$:
 \[
   \boxed{\;\Var(\bar X_n) \;=\; \frac{1}{n^2}\cdot n\sigma^2 \;=\; \frac{\sigma^2}{n}.\;}
 \]
 
 \begin{happeningbox}
-This single line, $\Var(\bar X_n) = \sigma^2/n$, is the whole Law of Large Numbers in embryo. The mean of $\bar X_n$ stays fixed at $\mu$, but its variance is being deflated by a factor of $n$. Variance measures spread; if the spread around $\mu$ shrinks to zero, the random variable is being crushed onto the single point $\mu$. The standard deviation, the typical distance from $\mu$, is $\sigma/\sqrt n$ --- which is exactly the $1/\sqrt n$ narrowing you saw in Figure~\ref{ch20:fig-running-mean}. Averaging does not make individual outcomes less random; it makes the \emph{average} less variable, by piling more and more independent draws into a quantity that gets divided by $n$.
+This single line, $\Var(\bar X_n) = \sigma^2/n$, is the whole Law of Large Numbers in embryo. The mean of $\bar X_n$ stays fixed at $\mu$, but its variance is being deflated by a factor of $n$. Variance measures spread; if the spread around $\mu$ shrinks to zero, the random variable is being crushed onto the single point $\mu$ (Figure~\ref{ch20:fig-densities}). The standard deviation, the typical distance from $\mu$, is $\sigma/\sqrt n$ --- which is exactly the $1/\sqrt n$ narrowing you saw in Figure~\ref{ch20:fig-running-mean}. Averaging does not make individual outcomes less random; it makes the \emph{average} less variable, by piling more and more independent draws into a quantity that gets divided by $n$.
 \end{happeningbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.92\textwidth, height=5.6cm,
+  xlabel={$x$}, ylabel={probability density $f_{\bar X_n}(x)$},
+  xmin=-2.8, xmax=2.8, ymin=0, ymax=1.85,
+  xtick={-2, 0, 2},
+  ytick={0,0.5,1.0,1.5},
+  extra x ticks={-0.6, 0.6},
+  extra x tick labels={$\mu-\eps$, $\mu+\eps$},
+  legend pos=north east, legend style={font=\footnotesize},
+  title={Variance deflation in distribution: probability mass squeezed onto $\mu$},
+  title style={font=\small},
+  domain=-2.8:2.8, samples=120,
+]
+\addplot[sourceblue!80!black, thick] {0.3989*exp(-x^2 / 2)};
+\addlegendentry{$n=1$ ($\sigma=1.0$)}
+\addplot[targetgreen!80!black, thick] {0.7979*exp(-2*x^2)};
+\addlegendentry{$n=4$ ($\sigma/\sqrt{4}=0.5$)}
+\addplot[densityred, very thick] {1.5958*exp(-8*x^2)};
+\addlegendentry{$n=16$ ($\sigma/\sqrt{16}=0.25$)}
+\draw[dashed, gray!80, thick] (axis cs:-0.6,0) -- (axis cs:-0.6,1.25);
+\draw[dashed, gray!80, thick] (axis cs:0.6,0) -- (axis cs:0.6,1.25);
+\end{axis}
+\end{tikzpicture}
+\caption{Variance deflation visualized across distributions. As the sample size grows from $n=1$ to $n=4$ and $n=16$, the variance $\sigma^2/n$ collapses, compressing the probability density of $\bar X_n$ into an ever-taller, ever-narrower spire centered at $\mu$. The tail probability outside any fixed tolerance band $(\mu-\eps, \mu+\eps)$ (marked by the dashed gray boundaries) visibly drains to zero.}
+\label{ch20:fig-densities}
+\end{figure}
 
 \begin{walkbox}
 Suppose you want to halve the typical error of your estimate of $\mu$. Since the error scales like $\sigma/\sqrt n$, halving it means multiplying $\sqrt n$ by $2$, i.e.\ multiplying $n$ by $4$. \emph{To get one more digit of accuracy you pay a hundredfold in sample size.} This brutal $\sqrt n$ economics is why polling, simulation, and lab measurement are all expensive --- and why the LLN, though it guarantees convergence, never promises it will be fast.
 \end{walkbox}
+
+\begin{recoverybox}
+\textbf{Pause and think.} A laboratory measures a physical constant using $n = 100$ independent trials, achieving an uncertainty of $\pm 0.4$. If the journal demands an uncertainty of $\pm 0.1$, how many total trials must the team gather? To shrink the error by a factor of $4$, the sample size must multiply by $4^2 = 16$. The lab needs $100 \times 16 = 1{,}600$ trials.
+\end{recoverybox}
 
 The deflation $\Var(\bar X_n) = \sigma^2/n$ deserves a picture in its own right, because it explains the exact shape of the funnel in Figure~\ref{ch20:fig-running-mean}. The shaded envelope $\mu \pm \sigma/\sqrt n$ is a tube around $\mu$ whose half-width is the typical error; almost all sample paths live inside a small multiple of it. Figure~\ref{ch20:fig-funnel} plots that envelope for the fair coin ($\mu=\tfrac12,\ \sigma=\tfrac12$). Two facts jump out. The tube genuinely closes onto the line $y=\mu$ --- that is convergence --- but it closes \emph{slowly}: to halve the half-width you must quadruple $n$, the geometry of the $\sqrt n$ law made visible.
 
@@ -95,10 +134,10 @@ The deflation $\Var(\bar X_n) = \sigma^2/n$ deserves a picture in its own right,
 \begin{axis}[
   width=0.92\textwidth, height=5.6cm,
   xlabel={number of flips $n$}, ylabel={$\bar X_n$},
-  xmin=1, xmax=1000, ymin=0.2, ymax=0.8,
-  ytick={0.3,0.4,0.5,0.6,0.7},
+  xmin=1, xmax=1000, ymin=0, ymax=1,
+  ytick={0,0.25,0.5,0.75,1},
   grid=both, grid style={gray!18},
-  legend pos=north east, legend style={font=\footnotesize},
+  legend pos=north east, legend style={font=\small},
   title={The $\mu \pm \sigma/\sqrt n$ envelope closing onto $\mu=1/2$},
   title style={font=\small},
   domain=1:1000, samples=200,
@@ -107,7 +146,7 @@ The deflation $\Var(\bar X_n) = \sigma^2/n$ deserves a picture in its own right,
 \addlegendentry{$\mu + \sigma/\sqrt n$}
 \addplot[densityred, thick, name path=lower] {0.5 - 0.5/sqrt(x)};
 \addlegendentry{$\mu - \sigma/\sqrt n$}
-\addplot[gray!25] fill between[of=upper and lower];
+\addplot[gray!25, forget plot] fill between[of=upper and lower];
 \addplot[black, dashed, thick] coordinates {(1,0.5)(1000,0.5)};
 \addlegendentry{$\mu=1/2$}
 \end{axis}
@@ -127,7 +166,7 @@ Let $X_1, X_2, \dots$ be i.i.d.\ with mean $\mu$ and finite variance $\sigma^2$.
 \[
   \P\bigl(\,\abs{\bar X_n - \mu} \ge \eps\,\bigr) \;\longrightarrow\; 0 \qquad \text{as } n \to \infty.
 \]
-Equivalently, $\bar X_n \pto \mu$: the sample mean converges to $\mu$ \emph{in probability}.
+Equivalently, $\bar X_n \pto \mu$: the sample mean converges to $\mu$ \emph{in probability}. In plain words: fix any margin of error $\eps > 0$, however microscopic; as $n$ grows, the probability that the sample mean lands outside the corridor $(\mu-\eps, \mu+\eps)$ vanishes toward zero.
 \end{theorem}
 
 The proof is one of the most satisfying short arguments in all of probability. It rests on a single tool, Chebyshev's inequality, which we met in the chapter on inequalities and concentration. Recall what it says: for any random variable $Y$ with finite variance and any $t > 0$,
@@ -144,7 +183,7 @@ Chebyshev is a blunt instrument --- it gives only a crude bound --- but bluntnes
 Now hold $\eps$ fixed and let $n \to \infty$. The bound $\sigma^2/(n\eps^2)$ is a constant over $n$, so it goes to $0$. Since a probability cannot be negative, the probability on the left is squeezed to $0$ as well. That is exactly the claim. $\qed$
 \end{whybox}
 
-Look at how little we used. We needed linearity of expectation (always true), additivity of variance under independence (this is where ``independent'' entered), the scaling $\Var(cY)=c^2\Var(Y)$, and one inequality. The entire theorem is three lines once the variance is in hand. This efficiency is no coincidence: the Weak Law reflects the fundamental principle that a quantity whose variance shrinks to zero must concentrate on its mean.
+Look at how little we used. We needed linearity of expectation (always true), additivity of variance under independence (this is where ``independent'' entered), the scaling $\Var(cY)=c^2\Var(Y)$, and one inequality. The entire theorem is three lines once the variance is in hand.
 
 \begin{remark}
 The finite-variance hypothesis is convenient but not strictly necessary. Khinchin proved the Weak Law assuming only that the mean $\mu$ exists (is finite); no variance assumption at all. That proof uses characteristic functions or a truncation argument and is more delicate. We keep the variance version because its proof \emph{shows you the mechanism} --- variance deflation --- rather than hiding it inside an analytic black box.
@@ -163,7 +202,7 @@ We need $\P(\abs{\bar X_n - \tfrac12} \ge 0.05) \le 0.05$. Chebyshev guarantees 
   \;=\; \frac{0.25}{0.05 \cdot 0.0025}
   \;=\; 2000.
 \]
-So $n = 2000$ flips suffice. (The true number, found later via the Central Limit Theorem, is about $n=385$ --- Chebyshev overshoots by roughly fivefold because it is a worst-case bound. But it is reliable: it never fails, it just asks for more data than necessary.)
+So $n = 2000$ flips suffice. (The true number, found later via the Central Limit Theorem, is about $n=385$ --- Chebyshev overshoots by roughly fivefold because it is a worst-case bound that knows only the variance, guarding against adversarial distributions that push mass to the extreme edges. But it is completely reliable: it never fails, it just asks for more data than necessary.)
 
 \begin{trapbox}
 A student computes $n \ge 2000$ and concludes ``after 2000 flips, $\bar X_n$ \emph{is} within $0.05$ of $1/2$.'' Not so. The guarantee is probabilistic: at least a $95\%$ chance of being within $0.05$. There remains up to a $5\%$ chance of a larger miss, and for some unlucky sequence the average really will be off. The Weak Law trades certainty for high probability; it never promises certainty for any fixed $n$.
@@ -171,7 +210,7 @@ A student computes $n \ge 2000$ and concludes ``after 2000 flips, $\bar X_n$ \em
 
 \subsection{A worked example: polling an unknown proportion}
 
-The previous example knew $p=\tfrac12$ and asked how many flips pin down a known mean. Bernoulli's deeper question runs the other way: the proportion $p$ is \emph{unknown} --- the fraction of voters favouring a candidate, say --- and we want to estimate it from a sample. Let $X_i = \ind\{\text{voter } i \text{ favours the candidate}\}$, so the $X_i$ are i.i.d.\ Bernoulli$(p)$ with $\E[X_i]=p$ and $\Var(X_i)=p(1-p)$. The sample mean $\bar X_n$ is the poll's headline number.
+The previous example knew $p=\tfrac12$ and asked how many flips pin down a known mean. Bernoulli's deeper question runs the other way: the proportion $p$ is \emph{unknown} --- the fraction of voters favouring a candidate, say --- and we wish to estimate it from a sample. Let $X_i = \ind\{\text{voter } i \text{ favours the candidate}\}$, so the $X_i$ are i.i.d.\ Bernoulli$(p)$ with $\E[X_i]=p$ and $\Var(X_i)=p(1-p)$. The sample mean $\bar X_n$ is the poll's headline number.
 
 The wrinkle is that the variance $p(1-p)$ depends on the very $p$ we do not know. We escape with a clean worst-case bound: $p(1-p) \le \tfrac14$ for all $p\in[0,1]$, with equality at $p=\tfrac12$. (A coin-flip electorate is the hardest to poll.) So whatever $p$ may be, Chebyshev gives
 \[
@@ -182,6 +221,11 @@ To guarantee, with $95\%$ confidence, a margin of error $\eps = 0.03$ regardless
   n \;\ge\; \frac{1}{4\cdot 0.05 \cdot (0.03)^2} \;=\; \frac{1}{4\cdot 0.05\cdot 0.0009} \;=\; \frac{1}{0.00018} \;\approx\; 5556.
 \]
 So roughly $5\,600$ respondents suffice for a Chebyshev-certified three-point margin --- and note that, just as before, the exact CLT-based requirement is far smaller (near $n=1\,068$ for the same margin, about a fivefold overshoot), because Chebyshev refuses to use the bell shape. The structural lesson is the one Bernoulli prized: a quantity you cannot compute in advance, the unknown $p$, becomes knowable to any desired precision purely by collecting enough independent observations.
+
+\begin{recoverybox}
+\textbf{Pause and think.} If you poll $n = 5{,}556$ randomly selected voters, does Chebyshev guarantee that the candidate's true support is within $3$ percentage points of your sample average?
+No. It guarantees that with probability at least $0.95$, the sample average lands within $3$ percentage points of the truth. Up to $5\%$ of the time, the random draw produces a sample that misses the mark by more than that.
+\end{recoverybox}
 
 \section{The Strong Law of Large Numbers}
 \label{ch20:slln}
@@ -194,13 +238,13 @@ Let $X_1, X_2, \dots$ be i.i.d.\ with finite mean $\mu = \E[X_i]$ (no variance a
 \[
   \P\Bigl(\lim_{n\to\infty} \bar X_n = \mu\Bigr) \;=\; 1.
 \]
-Equivalently, $\bar X_n \asto \mu$: the sample mean converges to $\mu$ \emph{almost surely}.
+Equivalently, $\bar X_n \asto \mu$: the sample mean converges to $\mu$ \emph{almost surely}. In plain words: if you track one unending sequence of trials as it unrolls forever, that specific sequence of running averages will converge to $\mu$ as an ordinary mathematical limit, and the set of exceptional futures where it fails to do so carries a total probability of exactly zero.
 \end{theorem}
 
-To feel the difference between the two laws, you have to be careful about \emph{what is random}. In the Weak Law we fix $n$, look at the single random number $\bar X_n$, and ask how it is distributed. In the Strong Law we fix an entire infinite coin-flipping destiny $\omega = (X_1, X_2, X_3, \dots)$ --- one complete future --- and ask whether the sequence of averages produced by \emph{that} destiny converges to $\mu$ as a numerical limit. The Strong Law says: the set of destinies for which the limit fails to be $\mu$ has probability zero. Almost every possible future you could live produces a convergent average.
+To feel the difference between the two laws, you have to be careful about \emph{what is random}. In the Weak Law we fix $n$, look at the single random number $\bar X_n$, and ask how it is distributed. In the Strong Law we fix an entire infinite outcome sequence $\omega = (X_1, X_2, X_3, \dots)$ --- one complete trajectory of flips --- and ask whether the running averages along \emph{that} trajectory converge to $\mu$ as an ordinary numerical limit. The Strong Law says: the set of trajectories for which the limit fails to equal $\mu$ has probability zero. Almost every possible future you could live produces a convergent average.
 
 \begin{focusbox}
-\textbf{Weak vs.\ Strong, in one breath.}
+\textbf{Summary: Weak vs.\ Strong Law.}
 \begin{itemize}
   \item \textbf{Weak (in probability):} for each large $n$, $\bar X_n$ is \emph{probably} near $\mu$. Says nothing about whether a single trajectory settles down; in principle $\bar X_n$ could wander out past $\eps$ infinitely often, just increasingly rarely.
   \item \textbf{Strong (almost surely):} a single trajectory \emph{does} settle down. With probability one, $\bar X_n$ eventually enters every band $(\mu-\eps, \mu+\eps)$ and stays inside forever after.
@@ -215,65 +259,60 @@ Here is the operational difference in words you can picture. Draw the tolerance 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[scale=0.95]
-  % Panel 1: Weak Law snapshot at fixed n
   \begin{scope}[shift={(0,0)}]
-    \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-3.4,-1.2) rectangle (3.4,3.8);
-    \node[anchor=north, font=\small\bfseries, sourceblue!90!black] at (0,3.65) {1. Weak Law: Fixed-Time Snapshot};
+    \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-3.3,-1.35) rectangle (3.3,3.8);
+    \node[anchor=north, font=\small\bfseries, sourceblue!90!black] at (0,3.6) {1. Weak Law: Fixed-Time Snapshot};
 
-    \draw[->, thick, gray!70] (-2.8,0) -- (2.8,0) node[right, font=\scriptsize] {$x$};
-    \draw[->, thick, gray!70] (0,-0.2) -- (0,2.6) node[above, font=\scriptsize] {$f_{\bar X_n}$};
+    \draw[->, thick, gray!70] (-2.7,0) -- (2.7,0) node[right, font=\scriptsize] {$x$};
+    \draw[->, thick, gray!70] (0,-0.2) -- (0,2.7) node[above, font=\scriptsize] {$f_{\bar X_n}(x)$};
 
-    % Bell density peaked at mu = 0
     \draw[sourceblue!90!black, very thick, domain=-2.5:2.5, samples=60]
       plot (\x, {2.2*exp(-(\x)^2 / (2*0.65^2))});
 
-    % eps band [-1.1, 1.1]
     \fill[sourceblue!20]
       (-1.1,0) -- plot[domain=-1.1:1.1, samples=40] (\x, {2.2*exp(-(\x)^2 / (2*0.65^2))}) -- (1.1,0) -- cycle;
 
     \draw[dashed, gray!80] (-1.1,0) -- (-1.1, 2.0);
     \draw[dashed, gray!80] (1.1,0) -- (1.1, 2.0);
-    \node[below, font=\scriptsize] at (-1.1,0) {$\mu-\eps$};
-    \node[below, font=\scriptsize] at (1.1,0) {$\mu+\eps$};
-    \node[below, font=\scriptsize] at (0,0) {$\mu$};
+    \node[below=2pt, font=\scriptsize] at (-1.1,0) {$\mu-\eps$};
+    \node[below=2pt, font=\scriptsize] at (1.1,0) {$\mu+\eps$};
+    \node[below=2pt, font=\scriptsize] at (0,0) {$\mu$};
 
     \node[font=\tiny\bfseries, sourceblue!90!black] at (0, 0.8) {Mass $\to 1$};
 
-    \node[align=center, font=\scriptsize, draw=sourceblue!70, fill=white, rounded corners=2pt, inner sep=2pt]
-      at (0, -0.6) {At time $n$, $\P(|\bar X_n - \mu| \ge \eps) \le \frac{\sigma^2}{n\eps^2} \to 0$};
+    \node[align=center, font=\scriptsize, draw=sourceblue!70, fill=white, rounded corners=2pt, inner sep=3pt]
+      at (0, -0.9) {At fixed $n$, $\P(|\bar X_n - \mu| \ge \eps) \le \frac{\sigma^2}{n\eps^2} \to 0$};
   \end{scope}
 
-  % Comparison separator
-  \draw[<->, >=stealth, very thick, gray!60] (3.8, 1.1) -- (4.8, 1.1)
-    node[midway, above=2pt, font=\tiny\bfseries, align=center] {Snapshot\\$\longleftrightarrow$\\Trajectory};
+  \draw[<->, >=stealth, very thick, gray!60] (3.5, 1.25) -- (4.5, 1.25)
+    node[midway, above=3pt, font=\tiny\bfseries, align=center] {Snapshot\\vs.\\Trajectory};
 
-  % Panel 2: Strong Law infinite trajectory
-  \begin{scope}[shift={(8.6,0)}]
-    \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-3.4,-1.2) rectangle (3.4,3.8);
-    \node[anchor=north, font=\small\bfseries, densityred!90!black] at (0,3.65) {2. Strong Law: Whole Trajectory $\bar X_n(\omega)$};
+  \begin{scope}[shift={(8.0,0)}]
+    \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-3.3,-1.35) rectangle (3.3,3.8);
+    \node[anchor=north, font=\small\bfseries, densityred!90!black] at (0,3.6) {2. Strong Law: Whole Trajectory};
 
-    \draw[->, thick, gray!70] (-3.0,1.1) -- (3.0,1.1) node[right, font=\scriptsize] {$n$};
-    \draw[->, thick, gray!70] (-2.8,0) -- (-2.8,2.8) node[above, font=\scriptsize] {$\bar X_n$};
+    \draw[->, thick, gray!70] (-2.7,0) -- (2.7,0) node[right, font=\scriptsize] {$n$};
+    \draw[->, thick, gray!70] (-2.7,0) -- (-2.7,2.7) node[above, font=\scriptsize] {$\bar X_n$};
 
-    % Tolerance band
-    \fill[densityred!10] (-2.8, 0.5) rectangle (2.8, 1.7);
-    \draw[dashed, densityred!70] (-2.8, 1.7) -- (2.8, 1.7) node[right, font=\tiny] {$\mu+\eps$};
-    \draw[dashed, densityred!70] (-2.8, 0.5) -- (2.8, 0.5) node[right, font=\tiny] {$\mu-\eps$};
-    \draw[gray!60] (-2.8, 1.1) -- (2.8, 1.1);
+    \draw[gray!50] (-2.7, 1.3) -- (2.6, 1.3);
+    \node[left, font=\scriptsize, gray!80!black] at (-2.7, 1.3) {$\mu$};
 
-    % Sample path oscillating early then permanently trapped after N
+    \fill[densityred!10] (-2.7, 0.7) rectangle (2.6, 1.9);
+    \draw[dashed, densityred!70] (-2.7, 1.9) -- (2.2, 1.9) node[right, font=\tiny] {$\mu+\eps$};
+    \draw[dashed, densityred!70] (-2.7, 0.7) -- (2.2, 0.7) node[right, font=\tiny] {$\mu-\eps$};
+
     \draw[densityred, very thick]
-      (-2.6, 2.2) -- (-2.2, 0.3) -- (-1.8, 2.0) -- (-1.4, 0.4) -- (-1.0, 1.5)
-      -- (-0.6, 1.65) -- (-0.2, 1.3) -- (0.2, 0.9) -- (0.6, 1.25) -- (1.0, 1.15)
-      -- (1.5, 1.05) -- (2.0, 1.12) -- (2.6, 1.1);
+      (-2.5, 2.4) -- (-2.1, 0.4) -- (-1.7, 2.2) -- (-1.3, 0.5) -- (-0.9, 1.7)
+      -- (-0.5, 1.1) -- (-0.1, 1.5) -- (0.3, 1.1) -- (0.7, 1.4) -- (1.2, 1.25)
+      -- (1.7, 1.32) -- (2.2, 1.29) -- (2.5, 1.3);
 
-    \draw[dashed, structurepurple, thick] (-0.6, -0.1) -- (-0.6, 2.5);
-    \fill[structurepurple] (-0.6, 1.1) circle (2pt) node[below left=-1pt, font=\scriptsize\bfseries] {$N(\omega)$};
+    \draw[dashed, structurepurple, thick] (-0.5, 0) -- (-0.5, 2.3);
+    \fill[structurepurple] (-0.5, 0) circle (2pt) node[below=2pt, font=\scriptsize\bfseries] {$N(\omega)$};
 
-    \node[font=\tiny\bfseries, densityred!90!black] at (1.2, 0.75) {Trapped forever};
+    \node[font=\tiny\bfseries, densityred!90!black] at (1.0, 0.95) {Trapped inside forever};
 
-    \node[align=center, font=\scriptsize, draw=densityred!70, fill=white, rounded corners=2pt, inner sep=2pt]
-      at (0, -0.6) {$\exists N(\omega)$ such that $\forall n \ge N(\omega)$,\; $|\bar X_n(\omega) - \mu| < \eps$};
+    \node[align=center, font=\scriptsize, draw=densityred!70, fill=white, rounded corners=2pt, inner sep=3pt]
+      at (0, -0.9) {$\exists N(\omega)$ such that $\forall n \ge N(\omega)$,\; $|\bar X_n(\omega) - \mu| < \eps$};
   \end{scope}
 \end{tikzpicture}
 \caption{Weak Law versus Strong Law. (Left) The Weak Law is a static snapshot: for each large time $n$, the probability distribution of $\bar X_n$ concentrates inside the $\eps$-band with high probability. (Right) The Strong Law is a dynamic guarantee about entire infinite paths: almost every trajectory $\bar X_n(\omega)$ eventually passes a finite threshold $N(\omega)$ and is permanently trapped inside the tolerance corridor forever after.}
@@ -282,18 +321,28 @@ Here is the operational difference in words you can picture. Draw the tolerance 
 
 \subsection{Why the strong law is harder}
 
-Proving the Strong Law in full generality is genuinely harder than the Weak Law, and we will not reproduce the complete argument --- the cleanest modern proofs use either a clever fourth-moment truncation (Etemadi's proof needs only pairwise independence) or the machinery of martingales, both of which belong to later chapters. But we can show you the \emph{idea}, and even prove a clean special case, so the result does not feel like a miracle handed down from above.
+Proving the Strong Law in full generality is genuinely harder than the Weak Law, and we will not reproduce the complete argument --- the cleanest modern proofs use either a clever fourth-moment truncation (Etemadi's proof needs only pairwise independence) or the machinery of martingales, both of which belong to later chapters. But we can show you the \emph{idea}, and even prove a clean special case, to understand the underlying mechanism.
 
-The key analytic tool is the first Borel--Cantelli lemma: if $\sum_n \P(A_n) < \infty$, then with probability one only finitely many of the events $A_n$ occur. The Weak Law gives us $\P(\abs{\bar X_n - \mu} \ge \eps) \le \sigma^2/(n\eps^2)$ for each $n$ --- but $\sum_n 1/n$ \emph{diverges}, so Borel--Cantelli does not apply directly. The bound decays too slowly. To get a summable bound, we need to control higher moments, which makes the tail probability shrink faster than $1/n$.
+The key analytic tool is the first Borel--Cantelli lemma: a zero-one rule for
+infinite sequences of events. It states that if you sum the probabilities of an
+infinite sequence of events and that sum is finite ($\sum_n \P(A_n) < \infty$),
+the probability that infinitely many of those events occur is zero. The Weak Law gives us $\P(\abs{\bar X_n - \mu} \ge \eps) \le \sigma^2/(n\eps^2)$ for each $n$ --- but the harmonic series $\sum_n 1/n$ \emph{diverges}, so Borel--Cantelli cannot be applied directly. The bound decays too slowly. To get a summable series, we need to control higher moments, making the tail probability shrink faster than $1/n$.
 
 \begin{whybox}
-\textbf{The strong law under a fourth-moment assumption (sketch of the real idea).} Assume the stronger condition $\E[(X_i-\mu)^4] = K < \infty$, and write $Y_i = X_i - \mu$ so that $\E[Y_i]=0$. Consider $\E\bigl[(\sum_{i=1}^n Y_i)^4\bigr]$. When you expand the fourth power, every term is a product $Y_a Y_b Y_c Y_d$. By independence and $\E[Y_i]=0$, any term in which some index appears exactly once has expectation zero (that lone factor pulls out as $\E[Y_i]=0$). The only survivors are terms where indices pair up: the $n$ terms of the form $Y_i^4$, and the $3n(n-1)$ terms of the form $Y_i^2 Y_j^2$ with $i\ne j$. Hence
+\textbf{The strong law under a fourth-moment assumption (sketch of the real idea).} Assume the stronger condition $\E[(X_i-\mu)^4] = K < \infty$, where the fourth moment measures the weight of extreme tail events relative to the center. Write $Y_i = X_i - \mu$ so that $\E[Y_i]=0$. Consider $\E\bigl[(\sum_{i=1}^n Y_i)^4\bigr]$.
+
+When you expand the fourth power, every term is a product of the form $Y_a Y_b Y_c Y_d$. By independence, the expectation of a product of independent centered variables factors into the product of their expectations. If any index appears with an odd power (such as $Y_i^1$ or $Y_i^3$), its lone expectation $\E[Y_i]=0$ multiplies the whole term to zero! The only non-zero terms are those where every index appears an even number of times. There are only two such configurations:
+\begin{enumerate}
+  \item All four indices identical ($Y_i^4$): there are $n$ such terms, each with expectation $\E[Y_i^4] = K$.
+  \item Two distinct indices each squared ($Y_i^2 Y_j^2$ with $i \ne j$): there are $\binom{n}{2} = n(n-1)/2$ choices of distinct pairs $\{i,j\}$, and $\binom{4}{2} = 6$ ways to assign two slots to $i$ and two slots to $j$. That gives $6 \times \frac{n(n-1)}{2} = 3n(n-1)$ terms, each with expectation $\E[Y_i^2]\E[Y_j^2] = \sigma^2 \cdot \sigma^2 = \sigma^4$.
+\end{enumerate}
+Hence
 \[
   \E\Bigl[\bigl(\textstyle\sum_i Y_i\bigr)^4\Bigr] \;=\; nK + 3n(n-1)\sigma^4 \;\le\; Cn^2
 \]
 for a constant $C$. Dividing by $n^4$,
 \[
-  \E\bigl[(\bar X_n - \mu)^4\bigr] \;=\; \frac{1}{n^4}\,\E\Bigl[\bigl(\textstyle\sum_i Y_i\bigr)^4\Bigr] \;\le\; \frac{C}{n^2}.
+  \E\bigl[(\bar X_n - \mu)^4\bigr] \;=\; \frac{1}{n^4}\,\E\Bigl[\bigl(\textstyle\sum_i Y_i\bigr)^4\Bigr] \;\le\; \frac{Cn^2}{n^4} \;=\; \frac{C}{n^2}.
 \]
 Now Markov's inequality applied to the nonnegative variable $(\bar X_n-\mu)^4$ gives, for any $\eps>0$,
 \[
@@ -312,11 +361,21 @@ The split between the two laws is one instance of a general hierarchy of \emph{m
 \label{ch20:history}
 
 \begin{historybox}
-The Law of Large Numbers is the oldest deep theorem in probability, and its author knew it was deep. Jacob Bernoulli proved the first version --- for coin-flip-like (Bernoulli) trials --- and called it his \emph{theorema aureum}, his ``golden theorem.'' It was published in 1713 in \emph{Ars Conjectandi} (``The Art of Conjecturing''), eight years after his death; he had reportedly held the manuscript back, polishing it, because he felt the result was too important to release imperfect.
+The Law of Large Numbers is the oldest deep theorem in probability, and its creator knew it would transform human inquiry. Jacob Bernoulli proved the first mathematical version --- for repeated trials with two outcomes, success or failure --- and called it his \emph{theorema aureum}, his ``golden theorem.'' It appeared in 1713 in \emph{Ars Conjectandi} (``The Art of Conjecturing''), published eight years after his death; he had spent more than twenty years polishing the argument, unwilling to publish an incomplete vision.
 
-Bernoulli's achievement was conceptual as much as technical. Before him, people computed probabilities for games of chance where the symmetry was given --- six faces, two coin sides. Bernoulli asked the inverse, statistical question: if you do \emph{not} know the underlying probability $p$ of an event, can you discover it by observing the frequency of the event over many trials? His golden theorem answered yes: the observed frequency can be made as likely as you please to be as close as you please to the true $p$, by taking enough trials. This is precisely the Weak Law for Bernoulli variables, and it is the logical foundation of all of statistics --- the license to estimate an unknown probability from data.
+Bernoulli was wrestling with what we now call the inverse problem of probability. In games of chance, physical symmetry hands you the odds: a fair die has six equal faces, so each face has probability $1/6$. But in medicine, weather, insurance, or law, the true odds are hidden. If you do not know the underlying probability $p$ of surviving an illness or winning a lawsuit, can you discover it purely by observing how often the event occurs in sample data? Bernoulli set out to prove that empirical frequencies must converge to the unseen truth.
 
-A century later Poisson coined the phrase \emph{la loi des grands nombres}, ``the law of large numbers,'' giving the theorem its enduring name. The general i.i.d.\ Weak Law (mean only) is due to Khinchin (1929), and the Strong Law in full generality to Kolmogorov (1930s), as part of the same measure-theoretic refounding of probability that gave us the modern axioms.
+His tools were primitive by modern standards. Bernoulli had no calculus of probability, no central limit theorem (Abraham de Moivre would not approximate binomial probabilities with a bell curve until 1733), and no variance inequality. To control the binomial sums --- the combinations counting ways to get $k$ successes out of $n$ trials --- he had to bound factorial ratios by hand with tedious algebra.
+
+The theorem was forged in controversy. Gottfried Wilhelm Leibniz, the co-inventor of calculus, corresponded with
+Bernoulli between 1703 and 1705 and expressed skepticism about the entire
+project. Leibniz argued that natural and social phenomena depend on an infinity
+of hidden circumstances that never repeat under identical conditions; therefore,
+he claimed, mathematics could never capture empirical reality from sample counts. Bernoulli took Leibniz's doubt as a challenge, determined to prove that collecting enough observations could overpower any degree of ignorance.
+
+In 1837, Sim\text{\'e}on Denis Poisson coined the phrase \emph{la loi des grands nombres}, ``the law of large numbers,'' giving the result its enduring name. Poisson claimed the law applied even when the probabilities fluctuated from trial to trial, provoking decades of debate over what conditions were mathematically necessary. The proof was simplified dramatically when Ir\text{\'e}n\text{\'e}e-Jules Bienaym\text{\'e} (1853) and Pafnuty Chebyshev (1867) developed the variance-based inequality we used above, collapsing Bernoulli's multi-page algebra into three lines. Aleksandr Khinchin (1929) proved the general Weak Law assuming only that the mean exists, and Andrey Kolmogorov (1933) established the Strong Law in full generality within his measure-theoretic framework --- treating probabilities as lengths, areas, and volumes on sets of possible outcomes.
+
+The theorem provided the mathematical license for modern empirical science: opinion polling, clinical trials, insurance life tables, statistical physics, and Monte Carlo algorithms. On the modern research frontier, mathematicians study uniform laws of large numbers: instead of tracking a single average, machine learning algorithms need the sample performance of thousands or millions of candidate models to converge simultaneously to their true performance, governed by geometric measures of complexity like the Vapnik--Chervonenkis (VC) dimension. Understanding how averages behave when trials are dependent (as in financial markets or network traffic) or when distributions have heavy tails remains an active mathematical pursuit.
 \end{historybox}
 
 \section{The Gambler's Fallacy: What Does \emph{Not} Average Out}
@@ -344,25 +403,45 @@ The early excess $e$ is fixed; it never gets paid back. What saves the average i
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=0.92\textwidth, height=5.4cm,
-  xlabel={number of flips $n$ (log scale)}, ylabel={value},
-  xmode=log, xmin=10, xmax=100000, log basis x=10,
-  ymin=-1, ymax=11,
-  grid=both, grid style={gray!18},
-  legend pos=north east, legend style={font=\footnotesize},
-  title={A 10-head streak: the excess persists, but the average is diluted},
+  name=plot1,
+  width=0.44\textwidth, height=5.2cm,
+  xlabel={flips $n$ (log scale)}, ylabel={absolute surplus ($S_n - n/2$)},
+  xmode=log, xmin=10, xmax=10000, log basis x=10,
+  ymin=0, ymax=10,
+  ytick={0,2,4,6,8,10},
+  title={Absolute surplus: never paid back},
   title style={font=\small},
 ]
-% absolute excess stays at ~5 (never paid back); average excess e/n -> 0
-\addplot[densityred, thick] coordinates {(10,5)(100,5)(1000,5)(10000,5)(100000,5)};
-\addlegendentry{absolute head excess $e$}
-\addplot[sourceblue, thick] coordinates {(10,0.5)(100,0.05)(1000,0.005)(10000,0.0005)(100000,0.00005)};
-\addlegendentry{excess in the average $e/n$}
+\addplot[densityred, very thick] coordinates {(10,5)(100,5)(1000,5)(10000,5)};
+\node[above=2pt, font=\scriptsize\bfseries, densityred] at (axis cs:100, 5.0) {surplus stays $+5$};
+\end{axis}
+
+\begin{axis}[
+  name=plot2,
+  at={($(plot1.east)+(1.8cm,0)$)}, anchor=west,
+  width=0.44\textwidth, height=5.2cm,
+  xlabel={flips $n$ (log scale)}, ylabel={running average $\bar X_n$},
+  xmode=log, xmin=10, xmax=10000, log basis x=10,
+  ymin=0.45, ymax=1.05,
+  ytick={0.5,0.6,0.7,0.8,0.9,1.0},
+  title={Running average: diluted by $n$},
+  title style={font=\small},
+]
+\addplot[sourceblue, very thick] coordinates {
+  (10, 1.0)(20, 0.75)(50, 0.60)(100, 0.55)(200, 0.525)(500, 0.51)(1000, 0.505)(5000, 0.501)(10000, 0.5005)
+};
+\addplot[black, dashed, thick] coordinates {(10, 0.5)(10000, 0.5)};
+\node[above, font=\scriptsize, gray!80!black] at (axis cs:2000, 0.52) {$\E[X] = 0.5$};
 \end{axis}
 \end{tikzpicture}
-\caption{After an early run of ten heads (excess $e=5$), the absolute surplus of heads stays put forever (red). What vanishes is its share of the average, $e/n$ (blue), which collapses toward $0$. Convergence is by dilution, not by compensation.}
+\caption{The anatomy of dilution versus compensation. After an initial run of ten heads, future fair flips do not undershoot to ``compensate'' for the streak. (Left) The absolute surplus of heads ($S_n - n/2 = +5$) persists indefinitely. (Right) The running average $\bar X_n = 0.5 + 5/n$ collapses toward $0.5$ purely because the constant surplus in the numerator is overwhelmed by the growing denominator $n$. The past is not erased; it is diluted.}
 \label{ch20:fig-dilution}
 \end{figure}
+
+\begin{recoverybox}
+\textbf{Pause and think.} A fair coin is flipped 20 times and lands heads every single time. What is the expected number of heads after 100 total flips?
+The first 20 flips gave 20 heads. The next 80 independent flips expect $80 \times \tfrac12 = 40$ heads. The expected total is $20 + 40 = 60$ heads out of 100 flips (an average of $0.60$). The coin did not favor tails to pay back the surplus; the excess of 10 heads simply got diluted across a larger denominator.
+\end{recoverybox}
 
 There is a mirror-image error worth naming too. The \emph{hot-hand fallacy} (in its naive form) is the belief that a streak will \emph{continue} --- that a coin on a heads run is somehow ``hot'' and likely to flip heads again. For genuinely independent fair flips this is equally wrong: past flips tell you nothing about the next. (For human performance the story is subtler and the original ``hot hand is a myth'' studies have themselves been challenged --- but for memoryless mechanical randomness, both the gambler's fallacy and the hot-hand fallacy are simply errors about independence.)
 
@@ -382,10 +461,10 @@ In words: \emph{with probability one, the long-run frequency of $A$ equals the p
 \end{whybox}
 
 \begin{aestheticbox}
-This is the quiet grandeur of the Law of Large Numbers. Probability begins as an abstraction: a number between $0$ and $1$ attached to an event, obeying Kolmogorov's axioms. By itself that number means nothing you can touch. The LLN is the theorem that reaches down from the abstraction and connects it to the world: it says the abstract number will, with certainty, reveal itself as a measurable frequency. Without the LLN, ``probability $1/2$'' would be a symbol with no operational content. With it, the symbol becomes a prediction about the world --- a prediction you can check by counting.
+Probability begins as an abstraction: a number between $0$ and $1$ attached to an event, obeying Kolmogorov's axioms. By itself, that number says nothing about physical measurements. The Law of Large Numbers connects the axiom to the experiment: it guarantees that, with probability one, the abstract number appears in repeated trials as the long-run observed frequency. Without the LLN, ``probability $1/2$'' would be a symbol with no operational content. With it, the symbol becomes a prediction about the world --- a prediction you can check by counting.
 \end{aestheticbox}
 
-\section{Applications: Where the Law Earns Its Living}
+\section{Applications of the Law of Large Numbers}
 \label{ch20:applications}
 
 \begin{applicationbox}
@@ -425,12 +504,22 @@ Reproduce Figure~\ref{ch20:fig-running-mean} yourself. In your language of choic
 \section{When the Law Fails: The Cauchy Distribution}
 \label{ch20:cauchy}
 
-Every hypothesis in a theorem is there for a reason, and the cheapest way to respect a hypothesis is to watch what happens when it is violated. The crucial hypothesis of the Law of Large Numbers --- present even in Khinchin's minimal version --- is that the mean $\mu$ \emph{exists} (is finite). When it does not, all bets are off.
+Every hypothesis in a theorem is there for a reason, and the cheapest way to respect a hypothesis is to watch what happens when it is violated. The essential hypothesis of the Law of Large Numbers --- present even in Khinchin's minimal version --- is that the mean $\mu$ \emph{exists} (is finite). When it does not, all bets are off.
 
 The standard cautionary tale is the \emph{standard Cauchy distribution}, with density $f(x) = \tfrac1\pi \cdot \tfrac{1}{1+x^2}$ on all of $\R$. It is a perfectly respectable, bell-ish, symmetric density. But its tails are so heavy that $\int_{-\infty}^{\infty} \abs{x} f(x)\,\dd x = \infty$: the mean does not exist. (The symmetric ``center'' is $0$, but the defining integral diverges, so there is no expectation to converge to.)
 
 \begin{paradoxbox}
 \textbf{The average that never settles.} For i.i.d.\ Cauchy samples, a remarkable thing happens: the sample mean $\bar X_n$ has \emph{exactly the same} standard Cauchy distribution as a single $X_1$, for every $n$. Averaging a thousand Cauchy draws is statistically no better than looking at one of them. The running-average plot does not funnel toward anything; it keeps making wild, full-scale jumps forever, because every so often a single gigantic draw from the heavy tail single-handedly hijacks the average. There is no $\mu$ for it to converge to, and no $\sigma^2/n$ deflation to crush it, because $\sigma^2$ is infinite too.
+
+The underlying algebra reveals why. In the chapter on generating functions, we saw that the characteristic function (the Fourier transform of the probability density) of a standard Cauchy variable $X$ is $\varphi_X(t) = \E[e^{itX}] = e^{-\abs{t}}$. For a sum of $n$ independent copies, the characteristic functions multiply:
+\[
+  \varphi_{\sum_{i=1}^n X_i}(t) \;=\; \bigl(\varphi_X(t)\bigr)^n \;=\; \bigl(e^{-\abs{t}}\bigr)^n \;=\; e^{-n\,\abs{t}}.
+\]
+When we compute the sample mean $\bar X_n = \frac1n \sum_{i=1}^n X_i$, dividing by $n$ scales the argument by $1/n$:
+\[
+  \varphi_{\bar X_n}(t) \;=\; \varphi_{\sum X_i}\!\left(\frac{t}{n}\right) \;=\; e^{-n\,\abs{t/n}} \;=\; e^{-\abs{t}}.
+\]
+The factor of $n$ from the sum and the factor of $1/n$ from the average cancel out completely. The distribution of the sample mean of a thousand or a billion Cauchy trials is identical to the distribution of a single draw. Averaging achieves nothing because the spread never shrinks.
 \end{paradoxbox}
 
 \begin{figure}[H]
@@ -458,7 +547,17 @@ The standard cautionary tale is the \emph{standard Cauchy distribution}, with de
 \end{figure}
 
 \begin{happeningbox}
-The Cauchy example tells you precisely where the LLN's power comes from. The law is not magic about averaging; it is leverage about \emph{tails}. When tails are light enough that the mean exists, no single draw can dominate the sum, so the law of dilution operates and the average concentrates. When tails are heavy enough that the mean diverges, individual draws are so unboundedly large that one of them, every so often, overwhelms all the others combined --- and the average is forever at the mercy of the next monster. ``Heavy tails break the averages'' is one of the most important practical lessons in all of probability, from finance (where return distributions are heavier-tailed than the normal model assumes) to network traffic to insurance against catastrophes.
+The Cauchy example tells you precisely where the LLN's power comes from. The law
+is not an intrinsic property of averaging alone; it depends fundamentally on the
+behavior of the \emph{tails}. When tails are light enough that the mean exists,
+no single draw can dominate the sum, so the law of dilution operates and the
+average concentrates. When tails are heavy enough that the mean diverges,
+individual draws are so unboundedly large that one of them, every so often,
+overwhelms all the others combined --- so the running average is continually reset
+by extreme draws from heavy-tailed distributions. ``Heavy tails break the averages'' is one of the most
+important practical lessons in all of probability, from finance (where return
+distributions are heavier-tailed than the normal model assumes) to network
+traffic to insurance against catastrophes.
 \end{happeningbox}
 
 \section{Summary}
@@ -476,13 +575,16 @@ The Cauchy example tells you precisely where the LLN's power comes from. The law
 \end{itemize}
 \end{focusbox}
 
-The Law of Large Numbers tells you \emph{that} the average converges and \emph{what} it converges to. It does not tell you how the leftover randomness is shaped around $\mu$ --- the precise nature of the $\sigma/\sqrt n$ funnel. That question, the shape of the fluctuations, is the subject of the single most celebrated theorem in probability, and it is where we turn next: the Central Limit Theorem.
+The Law of Large Numbers tells you \emph{that} the average converges and \emph{what} it converges to: $\bar X_n - \mu \to 0$. But if you scale the fluctuation up by $\sqrt n$ --- examining $\sqrt n (\bar X_n - \mu) / \sigma$ --- what does the residual uncertainty look like?
+
+It settles into a standard bell curve, regardless of the distribution you started with. That is the Central Limit Theorem, and it is where we turn next.
 
 \section{Exercises}
 \label{ch20:exercises}
 
-\begin{exercise}[Sample-size by Chebyshev]
-You measure a quantity whose single-measurement variance is $\sigma^2 = 9$. Using Chebyshev's inequality, how many independent measurements $n$ do you need so that the sample mean is within $\eps = 0.5$ of the true mean with probability at least $0.99$? (Find the smallest integer $n$.)
+\begin{exercise}[Mental check and Chebyshev sample size]
+(a) \emph{Mental check:} If you flip a fair coin $100$ times, the standard deviation of the sample mean is $\sigma/\sqrt{100} = 0.5/10 = 0.05$. If you want to reduce this typical deviation to $0.01$ (a fivefold reduction), how many total flips do you need?
+(b) You measure a physical quantity whose single-measurement variance is $\sigma^2 = 9$. Using Chebyshev's inequality, how many independent measurements $n$ do you need so that the sample mean is within $\eps = 0.5$ of the true mean with probability at least $0.99$? (Find the smallest integer $n$.)
 \end{exercise}
 
 \begin{exercise}[Mean and variance of the sample mean]
@@ -514,7 +616,7 @@ Reread the fourth-moment proof sketch in Section~\ref{ch20:slln}. (a) Explain wh
 \end{exercise}
 
 \begin{exercise}[When the law fails]
-The standard Cauchy density is $f(x)=\frac{1}{\pi(1+x^2)}$. (a) Show that $\int_{-\infty}^{\infty}\abs{x}f(x)\,\dd x=\infty$, so the mean does not exist. (b) Explain, in terms of tail behavior, why no amount of averaging crushes the variability of Cauchy samples. (c) Contrast with the $\Expo(1)$ distribution, for which the Strong Law does apply: state what $\bar X_n$ converges to and why the difference is entirely about the tails.
+The standard Cauchy density is $f(x)=\frac{1}{\pi(1+x^2)}$. (a) Show that $\int_{-\infty}^{\infty}\abs{x}f(x)\,\dd x=\infty$, so the mean does not exist. (b) Explain, in terms of tail behavior, why no amount of averaging crushes the variability of Cauchy samples. (c) Contrast with the $\Expo(1)$ distribution, for which the Strong Law does apply: state what $\bar X_n$ converges to and why the difference is entirely about the tails. (d) Using the characteristic function result $\varphi_{\bar X_n}(t) = e^{-\abs{t}}$, explain why the probability that $\bar X_n$ lands in $[-1, 1]$ is identical for $n=1$ and for $n=1{,}000{,}000$.
 \end{exercise}
 
 \begin{exercise}[Conceptual: two laws, one picture]

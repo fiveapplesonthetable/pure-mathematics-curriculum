@@ -273,7 +273,6 @@ const mount: Mount = (root) => {
     const pxP = toX(A);
     const pyP = toY(FA);
     attr(dotP, { cx: pxP, cy: pyP });
-    attr(lblP, { x: pxP - 12, y: pyP - 12 });
 
     // Moving Point Q
     const xQ = A + h;
@@ -282,11 +281,15 @@ const mount: Mount = (root) => {
     const pyQ = toY(yQ);
 
     hd.move(pxQ, pyQ);
-    attr(lblQ, {
-      x: pxQ - 14,
-      y: pyQ - 8,
-      'text-anchor': 'end',
-    });
+
+    // Stagger labels on opposite sides of their respective points so they never collide as h -> 0
+    if (h >= 0) {
+      attr(lblP, { x: pxP - 12, y: pyP - 12, 'text-anchor': 'end' });
+      attr(lblQ, { x: pxQ + 14, y: pyQ - 8, 'text-anchor': 'start' });
+    } else {
+      attr(lblP, { x: pxP + 12, y: pyP - 12, 'text-anchor': 'start' });
+      attr(lblQ, { x: pxQ - 14, y: pyQ - 8, 'text-anchor': 'end' });
+    }
 
     // Drop lines from P and Q to x-axis
     attr(dropP, { x1: pxP, x2: pxP, y1: pyP, y2: y0 });
