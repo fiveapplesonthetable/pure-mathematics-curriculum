@@ -1,59 +1,71 @@
 \chapter{Gram-Schmidt and QR}
 
 There is a recurring theme in this book: \emph{perpendicular is easier}. Whenever
-two directions are at right angles, the bookkeeping collapses. Lengths add by
+two directions are at right angles, the bookkeeping simplifies. Lengths add by
 Pythagoras instead of by the law of cosines. Projections decouple, one coordinate
 at a time, instead of tangling together in a linear system. Coordinates can be read
 off by a single dot product instead of solved for.
 
-So here is a natural wish. Suppose you are handed a few vectors that span a subspace
--- the columns of a matrix, say -- but they point in awkward, oblique directions,
-leaning on one another. Could you \emph{straighten them out}? Could you replace your
-crooked, redundant frame with a clean orthonormal one that spans exactly the same
-space, built directly from the vectors you started with?
+Suppose you are given a set of vectors that span a subspace---the columns of a matrix,
+for example---but they point in oblique directions.
+Could you replace this basis with an \textbf{orthonormal basis}---a set of vectors
+that are mutually orthogonal ($90^\circ$) and each of unit length---spanning
+the same subspace and constructed directly from the original vectors?
 
 You can. The procedure is \textbf{Gram--Schmidt}, and it is nothing more than
 ``project away what you already have, keep what is new.'' When you record the
 arithmetic Gram--Schmidt performs, that record \emph{is} a factorization of your
-original matrix: $\mat{A} = \mat{Q}\mat{R}$, with $\mat{Q}$ orthonormal and $\mat{R}$
-upper triangular. This is the \textbf{QR factorization}, one of the workhorses of
+original matrix: $\mat{A} = \mat{Q}\mat{R}$, with $\mat{Q}$ having orthonormal
+columns and $\mat{R}$ \textbf{upper triangular} (every entry below the main
+diagonal is zero). This is the \textbf{QR factorization}, a cornerstone of
 numerical linear algebra and the engine inside every stable least-squares solver.
 
 Everything below grows out of a single picture.
 
 \section{The wish: straighten a crooked basis}
 
-Picture two vectors in the plane, $\vec{a}_1$ and $\vec{a}_2$, that are independent
-but \emph{not} perpendicular -- they lean toward each other at maybe forty degrees
-(Figure~\ref{ch20:crooked}). They span the whole plane $\R^2$, so as a basis they
-are perfectly fine. But they are an \emph{annoying} basis. To find the coordinates of
-some vector $\vec{b}$ in this basis, you must solve a $2\times 2$ system, because the
-two directions interfere: pushing along $\vec{a}_1$ also moves you partly along
-$\vec{a}_2$.
+Consider two vectors in the plane, $\vec{a}_1$ and $\vec{a}_2$, that are linearly independent
+but not orthogonal (Figure~\ref{ch20:crooked}). They span $\R^2$, so they form a valid
+basis. However, finding the coordinates of a vector $\vec{b}$ with respect to this basis
+requires solving a $2\times 2$ linear system, because the directions are coupled: a
+vector along $\vec{a}_1$ has a nonzero component along $\vec{a}_2$.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[scale=1.3,>=Stealth]
-  \draw[->,gray!50] (-0.4,0)--(3,0);
-  \draw[->,gray!50] (0,-0.4)--(0,2.6);
+  \draw[->,gray!50] (-0.4,0)--(3.2,0) node[right,font=\small]{$x$};
+  \draw[->,gray!50] (0,-0.4)--(0,2.6) node[above,font=\small]{$y$};
   \draw[->,very thick,vecblue] (0,0)--(2.6,0.6) node[right]{$\vec{a}_1$};
-  \draw[->,very thick,vecred]  (0,0)--(1.6,2.0) node[above]{$\vec{a}_2$};
-  \draw[->,thick,structurepurple,dashed] (0,0)--(0.78,0.18);
-  \node[structurepurple] at (1.15,-0.18){\small leaning};
-  \draw (0.45,0.10) arc (12:51:0.45);
-  \node at (0.75,0.42){\small $\theta$};
+  \draw[->,very thick,vecred]  (0,0)--(1.5,2.0) node[above]{$\vec{a}_2$};
+  % Angle arc between a1 and a2
+  \draw (13:0.65) arc (13:53:0.65);
+  \node at (33:0.85){\small $\theta$};
+  % Shadow of a2 on line of a1
+  \draw[dashed,spacegray] (1.5,2.0)--(1.95,0.45);
+  \draw[->,thick,structurepurple] (0,0)--(1.95,0.45)
+    node[midway,below=2pt,font=\footnotesize]{\small shadow of $\vec{a}_2$ on $\vec{a}_1$};
 \end{tikzpicture}
-\caption{A crooked basis. The vectors $\vec{a}_1,\vec{a}_2$ span the plane but lean on
-each other at angle $\theta$. We want a perpendicular frame spanning the same plane.}
+\caption{A non-orthogonal basis. The vectors $\vec{a}_1,\vec{a}_2$ span the plane but meet
+at an angle $\theta \neq 90^\circ$. Projecting $\vec{a}_2$ onto $\vec{a}_1$
+yields a nonzero component: the directions are coupled, so finding coordinates requires
+solving a system. An orthonormal basis avoids this coupling.}
 \label{ch20:crooked}
 \end{figure}
 
+\begin{recoverybox}
+\textbf{Pause and think.} If two unit vectors $\vec{q}_1$ and $\vec{q}_2$ are
+perpendicular, what is the length of their sum $\vec{q}_1+\vec{q}_2$? By Pythagoras,
+$\norm{\vec{q}_1+\vec{q}_2}^2 = \norm{\vec{q}_1}^2 + \norm{\vec{q}_2}^2 = 1+1=2$, so
+the length is exactly $\sqrt{2}$. With crooked vectors, cross-terms appear and spoil
+this simplicity. Perpendicularity removes cross-terms from every calculation.
+\end{recoverybox}
+
 \begin{intuitionbox}
-An orthonormal basis is a basis where every vector has length $1$ and every pair is
-perpendicular. With one, geometry becomes effortless: the coordinate of $\vec{b}$
-along direction $\vec{q}_i$ is just the dot product $\inner{\vec{q}_i}{\vec{b}}$, no
-system to solve. Gram--Schmidt is the machine that turns \emph{any} basis into an
-orthonormal one, building each new direction out of the old ones.
+In an orthonormal basis, every vector has unit length and distinct vectors are mutually
+orthogonal. Coordinates are then computed directly by dot products: the component of $\vec{b}$
+along $\vec{q}_i$ is simply $\inner{\vec{q}_i}{\vec{b}}$, without solving a linear
+system. Gram--Schmidt is the algorithm that converts any basis into an orthonormal
+basis spanning the same space.
 \end{intuitionbox}
 
 Recall from the chapter on projections that the projection of a vector $\vec{a}$ onto
@@ -69,8 +81,8 @@ $\inner{\vec{q}}{\vec{a}}\,\vec{q}$. That single formula is the only tool we nee
 Start with independent vectors $\vec{a}_1$ and $\vec{a}_2$. We want an orthonormal
 pair $\vec{q}_1,\vec{q}_2$ spanning the same space.
 
-\textbf{Step 1: the first direction is free.} There is nothing yet to be
-perpendicular to, so just keep $\vec{a}_1$'s direction and scale it to length one:
+\textbf{Step 1: normalize the first vector.} There are no preceding directions to satisfy
+orthogonality against, so normalize $\vec{a}_1$ to unit length:
 \[
   \vec{q}_1 \;=\; \frac{\vec{a}_1}{\norm{\vec{a}_1}}.
 \]
@@ -92,25 +104,31 @@ Then normalize:
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[scale=1.5,>=Stealth]
-  \draw[->,gray!40] (-0.3,0)--(3,0);
-  \draw[->,gray!40] (0,-0.3)--(0,2.3);
-  % q1 along x-ish
-  \draw[->,very thick,vecblue] (0,0)--(2.4,0) node[below right]{$\vec{q}_1$};
+  \draw[->,gray!40] (-0.3,0)--(3.0,0) node[right,font=\small]{$x$};
+  \draw[->,gray!40] (0,-0.3)--(0,2.3) node[above,font=\small]{$y$};
+  % a1 along x-axis
+  \draw[->,line width=1.4pt,vecblue!50] (0,0)--(2.5,0) node[below right,font=\small]{$\vec{a}_1$};
+  % unit vector q1
+  \draw[->,very thick,vecblue] (0,0)--(1.0,0) node[above=2pt,font=\small]{$\vec{q}_1$};
   % a2 leaning
-  \draw[->,very thick,vecred]  (0,0)--(1.5,1.7) node[above]{$\vec{a}_2$};
+  \draw[->,very thick,vecred] (0,0)--(1.5,1.7) node[above]{$\vec{a}_2$};
   % projection (shadow)
-  \draw[->,thick,structurepurple] (0,0)--(1.5,0)
-       node[midway,below]{\small $\proj_{\vec{q}_1}(\vec{a}_2)$};
-  % the perpendicular leftover v2
-  \draw[->,very thick,targetgreen] (1.5,0)--(1.5,1.7);
-  \node[targetgreen] at (1.92,0.85){$\vec{v}_2$};
-  % the drop
-  \draw[gray,dashed] (1.5,1.7)--(1.5,0);
+  \draw[->,thick,structurepurple] (0,0)--(1.5,0);
+  \node[structurepurple,below=2pt,font=\footnotesize] at (0.75,0){$\proj_{\vec{q}_1}(\vec{a}_2)$};
+  % perpendicular leftover v2
+  \draw[->,very thick,targetgreen] (1.5,0)--(1.5,1.7)
+    node[midway,right=3pt,font=\small]{$\vec{v}_2 \perp \vec{q}_1$};
+  % right-angle marker
   \draw (1.35,0)--(1.35,0.15)--(1.5,0.15);
+  % unit vector q2 on y-axis
+  \draw[->,very thick,targetgreen!80!black] (0,0)--(0,1.0)
+    node[left=2pt,font=\small]{$\vec{q}_2$};
+  \fill (0,0) circle (1.2pt) node[below left,font=\tiny]{$\vec{0}$};
 \end{tikzpicture}
-\caption{Gram--Schmidt on two vectors. Subtract the shadow of $\vec{a}_2$ on
-$\vec{q}_1$; the leftover $\vec{v}_2$ is automatically perpendicular to $\vec{q}_1$.
-Normalize each to get $\vec{q}_1,\vec{q}_2$.}
+\caption{Gram--Schmidt on two vectors. The first direction $\vec{a}_1$ normalizes to $\vec{q}_1$.
+The second vector $\vec{a}_2$ casts a shadow $\proj_{\vec{q}_1}(\vec{a}_2) = \inner{\vec{q}_1}{\vec{a}_2}\vec{q}_1$.
+Subtracting that shadow leaves $\vec{v}_2$, which is perpendicular to $\vec{q}_1$. Normalizing
+$\vec{v}_2$ gives $\vec{q}_2$, yielding the clean orthonormal pair $(\vec{q}_1,\vec{q}_2)$.}
 \label{ch20:gs2}
 \end{figure}
 
@@ -124,6 +142,14 @@ watch it cancel. Using $\inner{\vec{q}_1}{\vec{q}_1}=1$,
 \]
 That cancellation is the whole idea: we subtracted off \emph{exactly} the amount that
 overlapped $\vec{q}_1$, so nothing of $\vec{q}_1$ is left in $\vec{v}_2$.
+
+\begin{recoverybox}
+\textbf{Pause and think.} What if $\vec{a}_1$ and $\vec{a}_2$ were already perpendicular
+at the start? Then $\inner{\vec{q}_1}{\vec{a}_2}=0$, so the shadow is $\vec{0}$. The
+subtraction leaves $\vec{v}_2 = \vec{a}_2$ unchanged, and normalizing produces
+$\vec{q}_2 = \vec{a}_2/\norm{\vec{a}_2}$. Gram--Schmidt leaves already-perpendicular
+vectors completely undisturbed, adjusting only their lengths.
+\end{recoverybox}
 
 \begin{labbox}
 Let $\vec{a}_1=\colvec{3\\0}$ and $\vec{a}_2=\colvec{2\\2}$.
@@ -157,19 +183,17 @@ Then $\vec{q}_1,\dots,\vec{q}_n$ is an orthonormal set with
 $\spn\{\vec{q}_1,\dots,\vec{q}_k\}=\spn\{\vec{a}_1,\dots,\vec{a}_k\}$ for every $k$.
 \end{formalbox}
 
-Everything lives in that summation: \emph{look at how much of $\vec{a}_k$ each finished
-direction already explains, and subtract every one of those pieces.} The remainder
-$\vec{v}_k$ is the part of $\vec{a}_k$ that none of the earlier directions could reach.
+The summation subtracts the projection of $\vec{a}_k$ onto each previously constructed
+direction $\vec{q}_i$. The remainder $\vec{v}_k$ is the component of $\vec{a}_k$ that is
+orthogonal to $\spn\{\vec{q}_1,\dots,\vec{q}_{k-1}\}$.
 
 \begin{focusbox}
-Hold onto three words: \textbf{project, subtract, normalize}. Project $\vec{a}_k$ onto
-the space you have already built, subtract that projection to expose the new
-direction, normalize to unit length. Every line of Gram--Schmidt is one of those three
-moves.
+\textbf{Project, subtract, normalize.} At step $k$, project $\vec{a}_k$ onto the
+subspace spanned by the earlier directions, subtract that projection to isolate the
+orthogonal component $\vec{v}_k$, and normalize $\vec{v}_k$ to unit length.
 \end{focusbox}
 
-Both claims -- orthogonality and equal spans -- deserve a proof, not just an assertion.
-Each follows in a few short lines, and the lines show \emph{why} the recipe works.
+Let us verify both claims -- orthogonality and equal spans -- directly from the definition.
 
 \begin{proposition}[Orthogonality]
 \label{ch20:orth-prop}
@@ -212,11 +236,13 @@ $\vec{a}_k$ are independent, so no projection ever lands exactly on $\vec{a}_k$.
 \end{proof}
 
 \begin{trapbox}
-\textbf{Subtract from the original, not from the running remainder} -- and use the
-\emph{normalized} $\vec{q}_i$. The clean formula $\inner{\vec{q}_i}{\vec{a}_k}$ assumes
-$\vec{q}_i$ has unit length. If you skip normalizing and keep raw $\vec{v}_i$ instead,
-you must restore the denominator $\inner{\vec{v}_i}{\vec{v}_i}$ in every projection.
-Both versions are correct; mixing them is the classic bug.
+\textbf{Normalize as you go, or keep the denominator.} The clean projection formula
+$\inner{\vec{q}_i}{\vec{a}_k}\,\vec{q}_i$ assumes each finished vector $\vec{q}_i$ has
+unit length. If you prefer to delay normalizing and work with the unnormalized vectors
+$\vec{v}_i$ instead, you must keep the denominator
+$\frac{\inner{\vec{v}_i}{\vec{a}_k}}{\inner{\vec{v}_i}{\vec{v}_i}}\,\vec{v}_i$ in every
+projection term. Both formulations produce identical orthogonal directions; forgetting
+to divide by $\norm{\vec{v}_i}^2$ when skipping normalization is the classic student bug.
 \end{trapbox}
 
 \begin{walkbox}
@@ -251,8 +277,7 @@ sticks out of the old subspace.
   % the perpendicular leftover v_k
   \draw[->,very thick,targetgreen] (1.3,1.1,0)--(1.3,1.1,1.5);
   \node[targetgreen] at (1.75,1.1,0.8){$\vec{v}_k$};
-  % drop line + right-angle hint
-  \draw[gray,dashed] (1.3,1.1,1.5)--(1.3,1.1,0);
+  % right-angle hint
   \draw (1.15,0.95,0)--(1.15,0.95,0.18)--(1.3,1.1,0.18);
 \end{tikzpicture}
 \caption{Gram--Schmidt in general is projection onto a \emph{plane} (or higher
@@ -264,7 +289,7 @@ $\spn\{\vec{q}_1,\dots,\vec{q}_{k-1}\}$, then gets normalized to $\vec{q}_k$.}
 
 \section{A fully worked three-vector example}
 
-Run the whole machine once, slowly, on three vectors in $\R^3$. Take
+We trace the procedure on three vectors in $\R^3$. Take
 \[
   \vec{a}_1=\colvec{1\\1\\0},\qquad
   \vec{a}_2=\colvec{1\\0\\1},\qquad
@@ -330,7 +355,7 @@ Final sanity check on the third vector against the first two:
   \qquad
   \inner{\vec{q}_2}{\vec{q}_3}=\tfrac{1}{\sqrt{18}}(-1-1+2)=0.
 \]
-Three mutually perpendicular unit vectors, built entirely from the crooked originals.
+Three mutually orthogonal unit vectors, constructed from the original basis.
 
 \begin{figure}[H]
 \centering
@@ -341,8 +366,8 @@ Three mutually perpendicular unit vectors, built entirely from the crooked origi
     \node[draw=sourceblue!70, fill=sourceblue!12, rounded corners=2pt, font=\footnotesize\scshape, text=sourceblue!90!black]
       at (0,2.5) {Step 1: Normalize $\vec{a}_1$};
 
-    \draw[->,spacegray] (-1.8,0)--(2.0,0) node[right,font=\tiny]{$x$};
-    \draw[->,spacegray] (0,-1.8)--(0,1.9) node[above,font=\tiny]{$y$};
+    \draw[->,spacegray] (-1.8,0)--(1.8,0) node[right,font=\tiny]{$x$};
+    \draw[->,spacegray] (0,-1.8)--(0,1.8) node[above,font=\tiny]{$y$};
 
     % a1 and q1
     \draw[->,line width=1.6pt,vecblue!50] (0,0)--(1.6,1.6) node[above,font=\scriptsize]{$\vec{a}_1$};
@@ -361,15 +386,15 @@ Three mutually perpendicular unit vectors, built entirely from the crooked origi
     \node[draw=targetgreen!70, fill=targetgreen!12, rounded corners=2pt, font=\footnotesize\scshape, text=targetgreen!90!black]
       at (0,2.5) {Step 2: Strip Shadow};
 
-    \draw[->,spacegray] (-1.8,0)--(2.0,0) node[right,font=\tiny]{$x$};
-    \draw[->,spacegray] (0,-1.8)--(0,1.9) node[above,font=\tiny]{$y$};
+    \draw[->,spacegray] (-1.8,0)--(1.8,0) node[right,font=\tiny]{$x$};
+    \draw[->,spacegray] (0,-1.8)--(0,1.8) node[above,font=\tiny]{$y$};
 
     % q1 along diagonal
     \draw[->,thick,vecblue] (0,0)--(1.0,1.0) node[above left,font=\tiny]{$\vec{q}_1$};
     % a2
     \draw[->,line width=1.4pt,vecred!70] (0,0)--(1.5,0) node[below,font=\scriptsize]{$\vec{a}_2$};
     % shadow of a2 on q1
-    \draw[->,thick,structurepurple] (0,0)--(0.75,0.75) node[midway,above left,font=\tiny]{$\proj$};
+    \draw[->,thick,structurepurple] (0,0)--(0.75,0.75) node[midway,above left=2pt,font=\tiny,fill=white,inner sep=1pt]{$\proj$};
     % drop dashed line
     \draw[dashed,gray] (1.5,0)--(0.75,0.75);
     % v2 perpendicular
@@ -387,29 +412,30 @@ Three mutually perpendicular unit vectors, built entirely from the crooked origi
 
   % ===== PANEL 3: STEP 3 =====
   \begin{scope}[shift={(5.0,0)}]
-    \draw[fill=gray!2, draw=gray!25, rounded corners=3pt] (-2.2,-2.3) rectangle (2.2,2.7);
+    \draw[fill=gray!2, draw=gray!25, rounded corners=3pt] (-2.2,-2.3) rectangle (2.2,2.85);
     \node[draw=quotientorange!70, fill=quotientorange!12, rounded corners=2pt, font=\footnotesize\scshape, text=quotientorange!90!black]
-      at (0,2.3) {Step 3: Plane Remnant};
+      at (0,2.5) {Step 3: Plane Remnant};
 
     % 3D floor plane spanned by q1, q2
-    \fill[sourceblue!10] (-1.5,-0.9) -- (1.5,-0.9) -- (0.8,0.5) -- (-1.8,0.5) -- cycle;
-    \draw[sourceblue!50,thin] (-1.5,-0.9) -- (1.5,-0.9) -- (0.8,0.5) -- (-1.8,0.5) -- cycle;
-    \node[sourceblue!70!black,font=\tiny] at (-0.8,0.3) {$\spn\{\vec{q}_1,\vec{q}_2\}$};
+    \fill[sourceblue!10] (-1.6,-0.9) -- (1.5,-0.9) -- (0.8,0.4) -- (-1.9,0.4) -- cycle;
+    \draw[sourceblue!50,thin] (-1.6,-0.9) -- (1.5,-0.9) -- (0.8,0.4) -- (-1.9,0.4) -- cycle;
+    \node[sourceblue!70!black,font=\tiny] at (-1.1,0.2) {$\spn\{\vec{q}_1,\vec{q}_2\}$};
 
     \draw[->,thick,vecblue] (0,-0.4)--(0.8,-0.4) node[below,font=\tiny]{$\vec{q}_1$};
-    \draw[->,thick,targetgreen] (0,-0.4)--(-0.5,0.1) node[left,font=\tiny]{$\vec{q}_2$};
+    \draw[->,thick,targetgreen] (0,-0.4)--(-0.6,-0.1) node[left,font=\tiny]{$\vec{q}_2$};
 
     % a3 rising up
-    \draw[->,line width=1.4pt,vecred] (0,-0.4)--(0.2,1.5) node[above,font=\scriptsize]{$\vec{a}_3$};
+    \draw[->,line width=1.4pt,vecred] (0,-0.4)--(0.7,1.4) node[above,font=\scriptsize]{$\vec{a}_3$};
     % projection in floor
-    \fill[structurepurple] (0.2,-0.2) circle (1.4pt);
-    \draw[dashed,gray] (0.2,1.5)--(0.2,-0.2);
+    \fill[structurepurple] (0.7,-0.2) circle (1.4pt);
+    \draw[dashed,gray] (0.7,1.4)--(0.7,-0.2);
+    \draw[dashed,structurepurple] (0,-0.4)--(0.7,-0.2);
     % v3 vertical
-    \draw[->,line width=1.5pt,quotientorange!95!black] (0.2,-0.2)--(0.2,1.5)
-      node[midway,right,font=\tiny]{$\vec{v}_3$};
+    \draw[->,line width=1.5pt,quotientorange!95!black] (0.7,-0.2)--(0.7,1.4)
+      node[midway,right=1pt,font=\tiny]{$\vec{v}_3$};
     % normalized q3 at origin
-    \draw[->,very thick,quotientorange!90!black] (0,-0.4)--(0,1.0)
-      node[left,font=\scriptsize]{$\vec{q}_3$};
+    \draw[->,very thick,quotientorange!90!black] (0,-0.4)--(0,0.8)
+      node[left=1pt,font=\scriptsize]{$\vec{q}_3$};
     \fill (0,-0.4) circle (1.6pt);
 
     \node[font=\tiny, spacegray, align=center] at (0,-1.6) {
@@ -429,8 +455,8 @@ leaving the vertical remnant $\vec{v}_3$ that stands perpendicular to the entire
 
 \section{The QR factorization}
 
-We never threw away the arithmetic, and that is where the payoff hides. Look again at
-the rearranged formula from Proposition~\ref{ch20:span-prop}:
+The steps of the Gram--Schmidt process directly yield a matrix factorization.
+Rearranging the formula from Proposition~\ref{ch20:span-prop}:
 \[
   \vec{a}_k = \inner{\vec{q}_1}{\vec{a}_k}\,\vec{q}_1
             + \dots
@@ -460,17 +486,60 @@ entries
 \]
 
 \begin{intuitionbox}
-$\mat{A}=\mat{Q}\mat{R}$ separates two jobs that the columns of $\mat{A}$ were doing at
-once. $\mat{Q}$ holds the clean \emph{directions} (an orthonormal frame); $\mat{R}$
-holds the \emph{recipe} -- how much of each direction each original column needed, and
-how long each one was. Reading column $k$ of $\mat{A}=\mat{Q}\mat{R}$ is reading
-``$\vec{a}_k$ = (these amounts) of (these clean directions).''
+The factorization $\mat{A}=\mat{Q}\mat{R}$ separates geometry from coordinates. The matrix
+$\mat{Q}$ contains the orthonormal basis vectors, while the upper-triangular matrix
+$\mat{R}$ contains the coordinates that express each original column in this basis.
+Reading column $k$ of $\mat{A}=\mat{Q}\mat{R}$ expresses $\vec{a}_k$ as a linear
+combination of $\vec{q}_1,\dots,\vec{q}_k$.
 \end{intuitionbox}
 
-The triangularity of $\mat{R}$ is the direct fingerprint of the
-\emph{order} in which Gram--Schmidt works. The diagonal
-entries $R_{kk}=\norm{\vec{v}_k}$ are positive, which is what records that each new
-$\vec{a}_k$ genuinely added a new dimension.
+The triangular structure of $\mat{R}$ reflects the order in which Gram--Schmidt proceeds:
+each $\vec{a}_k$ depends only on $\vec{q}_1,\dots,\vec{q}_k$. The diagonal entries
+$R_{kk}=\norm{\vec{v}_k}$ are strictly positive whenever the columns $\vec{a}_k$ are
+linearly independent.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.15,>=Stealth]
+  \draw[->,spacegray] (-0.3,0)--(4.2,0) node[right,font=\small]{$\vec{q}_1$};
+  \draw[->,spacegray] (0,-0.3)--(0,2.3) node[above,font=\small]{$\vec{q}_2$};
+  \fill[sourceblue!12] (0,0)--(2.8,0)--(3.8,2.0)--(1.0,2.0)--cycle;
+  \draw[sourceblue!60,thick] (0,0)--(2.8,0)--(3.8,2.0)--(1.0,2.0)--cycle;
+  \draw[->,line width=1.6pt,vecblue] (0,0)--(2.8,0) node[above right,font=\small]{$\vec{a}_1$};
+  \draw[->,line width=1.6pt,vecred] (0,0)--(1.0,2.0) node[above left,font=\small]{$\vec{a}_2$};
+  \draw[dashed,spacegray] (1.0,0)--(1.0,2.0);
+  \draw (0.85,0)--(0.85,0.15)--(1.0,0.15);
+  \draw[->,very thick,black] (0,0)--(1.0,0) node[midway,above=1pt,font=\footnotesize]{$\vec{q}_1$};
+  \draw[->,very thick,black] (0,0)--(0,1.0) node[midway,left=1pt,font=\footnotesize]{$\vec{q}_2$};
+  \draw[|<->|,vecblue] (0,-0.45)--(2.8,-0.45)
+    node[midway,below,font=\footnotesize]{$R_{11} = \norm{\vec{a}_1}$ (base)};
+  \draw[|<->|,structurepurple] (0,2.5)--(1.0,2.5)
+    node[midway,above,font=\footnotesize]{$R_{12} = \inner{\vec{q}_1}{\vec{a}_2}$ (slant)};
+  \draw[dashed,spacegray] (2.8,0)--(3.9,0);
+  \draw[dashed,spacegray] (3.8,2.0)--(3.9,2.0);
+  \draw[|<->|,targetgreen!80!black] (3.9,0)--(3.9,2.0)
+    node[midway,right,font=\footnotesize]{$R_{22} = \norm{\vec{v}_2}$ (altitude)};
+  \node[sourceblue!80!black,align=center,font=\small] at (1.9,1.0)
+    {Parallelogram Area\\$= R_{11}R_{22} = \det\mat{R}$};
+  \fill (0,0) circle (1.2pt) node[below left,font=\tiny]{$\vec{0}$};
+\end{tikzpicture}
+\caption{The geometric meaning of $\mat{A}=\mat{Q}\mat{R}$. In the orthonormal coordinates
+given by $(\vec{q}_1,\vec{q}_2)$, the first column $\vec{a}_1$ lies along $\vec{q}_1$ with
+base length $R_{11}=\norm{\vec{a}_1}$. The second column $\vec{a}_2$ slants along $\vec{q}_1$
+by $R_{12}=\inner{\vec{q}_1}{\vec{a}_2}$ and reaches perpendicular altitude $R_{22}=\norm{\vec{v}_2}$
+along $\vec{q}_2$. The area of the spanned parallelogram is $\text{base}\times\text{height} = R_{11}R_{22}$,
+which is precisely the determinant $\det\mat{R}$.}
+\label{ch20:qr-geom}
+\end{figure}
+
+\begin{recoverybox}
+\textbf{Pause and think.} Why must every diagonal entry $R_{kk}=\norm{\vec{v}_k}$ be
+strictly positive whenever the columns of $\mat{A}$ are linearly independent? If
+$\norm{\vec{v}_k}=0$, then $\vec{v}_k=\vec{0}$, which would mean $\vec{a}_k = \sum_{i<k}
+\inner{\vec{q}_i}{\vec{a}_k}\vec{q}_i$. In words: $\vec{a}_k$ would be a linear
+combination of the earlier vectors, contradicting independence! Linear independence
+guarantees $R_{kk}>0$, ensuring $\mat{R}$ is invertible.
+\end{recoverybox}
 
 \subsection{QR for our three-vector example}
 
@@ -497,7 +566,7 @@ $\mat{R}$. With
     0 & 0 & \tfrac{2}{\sqrt3}
   \end{bmatrix}.
 \]
-Verify the first column of $\mat{Q}\mat{R}$ to make sure nothing slipped. Column
+We check the columns of $\mat{Q}\mat{R}$ directly. Column
 $1$ of $\mat{R}$ is $(\sqrt2,0,0)\T$, so
 \[
   \mat{Q}\,\colvec{\sqrt2\\0\\0}
@@ -529,7 +598,7 @@ Then $\mat{R}=\begin{bmatrix}\sqrt2 & \sqrt2\\ 0 & \sqrt3\end{bmatrix}$. Multipl
 $\mat{Q}\mat{R}$ back out and confirm you recover $\mat{A}$.
 \end{labbox}
 
-\subsection{Why \texorpdfstring{$\mat{Q}$}{Q} is so pleasant}
+\subsection{Properties of orthogonal matrices}
 
 A matrix whose columns are orthonormal satisfies the single most useful identity in
 this corner of the subject:
@@ -537,21 +606,19 @@ this corner of the subject:
   \mat{Q}\T\mat{Q} = \mat{I}.
 \]
 Entry $(i,j)$ of $\mat{Q}\T\mat{Q}$ is $\inner{\vec{q}_i}{\vec{q}_j}$, which is $1$ when
-$i=j$ and $0$ otherwise -- that is the identity matrix exactly. When $\mat{Q}$ is
-square it is called \textbf{orthogonal}, and then $\mat{Q}\T=\mat{Q}\inv$: the inverse
-is free, just the transpose. Orthogonal matrices preserve lengths and angles
-($\norm{\mat{Q}\vec{x}}=\norm{\vec{x}}$), so multiplying by $\mat{Q}$ is a rigid motion
--- a rotation or reflection. This is the deep reason QR is numerically gentle: it never
-stretches errors.
+$i=j$ and $0$ otherwise. When $\mat{Q}$ is square it is called \textbf{orthogonal},
+and its inverse is simply its transpose: $\mat{Q}\inv=\mat{Q}\T$.
+Orthogonal matrices preserve lengths and angles: $\norm{\mat{Q}\vec{x}}=\norm{\vec{x}}$
+and $\inner{\mat{Q}\vec{x}}{\mat{Q}\vec{y}}=\inner{\vec{x}}{\vec{y}}$. Geometrically,
+multiplication by a square orthogonal matrix represents a rigid motion (a rotation or
+reflection). Computationally, preserving lengths prevents the amplification of numerical errors.
 
 \begin{strangbox}
-Strang introduces orthonormal bases and Gram--Schmidt right alongside projections and
-least squares, and he writes $\mat{A}=\mat{Q}\mat{R}$ in essentially the form above. If
-you are reading this \emph{before} Strang, the thing to carry in is the picture of
-Figure~\ref{ch20:gs2}: project, subtract, normalize. If you are reading \emph{after}
-Strang, the payoff is the next two sections -- why $\mat{Q}\T\mat{Q}=\mat{I}$ turns the
-normal equations into a triangular solve, and why the modified version is what
-software actually runs.
+Strang introduces orthonormal bases and Gram--Schmidt alongside projections and
+least squares, expressing $\mat{A}=\mat{Q}\mat{R}$ in this form. The foundational
+geometric idea is that of Figure~\ref{ch20:gs2}: project, subtract, normalize. The next
+sections show how $\mat{Q}\T\mat{Q}=\mat{I}$ simplifies the normal equations into a
+triangular solve, and why the modified algorithm is used in numerical software.
 \end{strangbox}
 
 \section{Why orthonormal columns make least squares easy}
@@ -563,13 +630,18 @@ is the \textbf{normal equations}
 \[
   \mat{A}\T\mat{A}\,\hat{\vec{x}} = \mat{A}\T\vec{b}.
 \]
-This is correct, but $\mat{A}\T\mat{A}$ can be a numerically nasty matrix -- it
-\emph{squares} the conditioning of $\mat{A}$, amplifying roundoff. (If $\mat{A}$ has
-columns that are nearly parallel, $\mat{A}\T\mat{A}$ is nearly singular, and small
-errors in the data blow up.) QR sidesteps the squaring entirely.
+This system is mathematically exact, but explicitly forming $\mat{A}\T\mat{A}$ can
+amplify roundoff errors by squaring the \textbf{condition number} of $\mat{A}$.
+The condition number $\kappa(\mat{A})$ measures sensitivity to perturbations: a
+relative error of size $\eps$ in the data can produce a relative error of order
+$\kappa(\mat{A})\eps$ in the computed solution. Forming $\mat{A}\T\mat{A}$ squares this
+quantity: $\kappa(\mat{A}\T\mat{A}) = \kappa(\mat{A})^2$. For example, if $\kappa(\mat{A}) = 10^4$
+(costing about 4 decimal digits of precision), $\mat{A}\T\mat{A}$ has condition
+number $10^8$, losing 8 digits of precision before solving begins. The QR factorization
+avoids forming $\mat{A}\T\mat{A}$ directly.
 
-Substitute $\mat{A}=\mat{Q}\mat{R}$ into the normal equations and watch the
-simplifications cascade. First,
+Substituting $\mat{A}=\mat{Q}\mat{R}$ into the normal equations simplifies the system.
+First,
 \[
   \mat{A}\T\mat{A} = (\mat{Q}\mat{R})\T(\mat{Q}\mat{R})
                    = \mat{R}\T\mat{Q}\T\mat{Q}\mat{R}
@@ -585,10 +657,10 @@ nonzero) to land at the strikingly simple
 \]
 
 \begin{focusbox}
-Least squares via QR is two cheap steps. Compute the vector $\mat{Q}\T\vec{b}$ (just
-dot products), then solve $\mat{R}\hat{\vec{x}}=\mat{Q}\T\vec{b}$ by
-\emph{back-substitution} -- trivial, because $\mat{R}$ is upper triangular. No
-$\mat{A}\T\mat{A}$ to form, no squaring of errors.
+Least squares via QR proceeds in two steps: compute the vector $\mat{Q}\T\vec{b}$,
+then solve the upper-triangular system $\mat{R}\hat{\vec{x}}=\mat{Q}\T\vec{b}$ by
+back-substitution. This avoids forming $\mat{A}\T\mat{A}$ and preserves the condition
+number $\kappa(\mat{A})$.
 \end{focusbox}
 
 There is a clean geometric reading too. The projection of $\vec{b}$ onto the column
@@ -596,9 +668,8 @@ space of $\mat{A}$ -- the best approximation $\hat{\vec{b}}$ -- is simply
 $\hat{\vec{b}}=\mat{Q}\mat{Q}\T\vec{b}$, where $\mat{Q}\mat{Q}\T$ is the projection
 matrix onto $\col(\mat{A})$. The orthonormal columns let you read off the projection as
 a sum of independent one-dimensional projections,
-$\hat{\vec{b}}=\sum_i \inner{\vec{q}_i}{\vec{b}}\,\vec{q}_i$, each $\vec{q}_i$
-contributing its own coordinate with no cross-talk. That decoupling is the entire
-advantage of working perpendicular (Figure~\ref{ch20:lsproj}).
+$\hat{\vec{b}}=\sum_i \inner{\vec{q}_i}{\vec{b}}\,\vec{q}_i$, where each coordinate is
+computed independently without coupling across directions (Figure~\ref{ch20:lsproj}).
 
 \begin{figure}[H]
 \centering
@@ -617,15 +688,22 @@ advantage of working perpendicular (Figure~\ref{ch20:lsproj}).
   % the residual (error) perpendicular to the plane
   \draw[->,very thick,targetgreen] (1.2,1.0,0)--(1.2,1.0,1.4);
   \node[targetgreen] at (1.7,1.0,0.75){\small $\vec{b}-\hat{\vec{b}}$};
-  \draw[gray,dashed] (1.2,1.0,1.4)--(1.2,1.0,0);
   \draw (1.05,0.85,0)--(1.05,0.85,0.18)--(1.2,1.0,0.18);
 \end{tikzpicture}
 \caption{Least squares is one projection. The best approximation $\hat{\vec{b}}$ is the
 shadow of $\vec{b}$ on the column space, $\hat{\vec{b}}=\mat{Q}\mat{Q}\T\vec{b}$, and the
 residual $\vec{b}-\hat{\vec{b}}$ stands perpendicular to that space. Orthonormal columns
-let you read $\hat{\vec{b}}$ off coordinate by coordinate, with no cross-talk.}
+allow computing each coordinate of $\hat{\vec{b}}$ independently.}
 \label{ch20:lsproj}
 \end{figure}
+
+\begin{recoverybox}
+\textbf{Pause and think.} When $\mat{Q}$ is rectangular ($m \times n$ with $m>n$),
+$\mat{Q}\T\mat{Q} = \mat{I}_n$ is the $n\times n$ identity, but $\mat{Q}\mat{Q}\T$ is
+an $m\times m$ matrix that is \emph{not} the identity. What does $\mat{Q}\mat{Q}\T$ do?
+It is the orthogonal projector onto $\col(\mat{A})$: it leaves any vector already in the
+column space alone, and zeroes out any vector perpendicular to it.
+\end{recoverybox}
 
 \begin{example}[Least squares by QR]
 \label{ch20:ls-example}
@@ -667,8 +745,8 @@ orthogonalization steps: ``QR-based whitening,'' re-orthogonalizing the basis ve
 in Krylov methods like \textsc{gmres} and Lanczos (the iterative solvers behind huge
 sparse systems), and orthogonal weight initialization, where a network's weight matrix
 is set to the $\mat{Q}$ of a random matrix so that signals neither explode nor vanish
-as they pass through layers. Whenever ``keep the directions independent and the lengths
-exact'' matters, QR is the tool.
+as they pass through layers. Whenever preserving orthogonality and vector lengths is
+essential, QR factorization is standard.
 \end{applicationbox}
 
 \begin{connectionbox}
@@ -679,23 +757,21 @@ famous case: on the space of polynomials with the inner product
 $\inner{f}{g}=\int_{-1}^{1} f(x)g(x)\,dx$, applying Gram--Schmidt to the plain powers
 $1,x,x^2,x^3,\dots$ produces the \textbf{Legendre polynomials}, the orthogonal basis at
 the heart of Gaussian quadrature and spherical harmonics. Other weightings give
-Chebyshev, Hermite, and Laguerre families. So this chapter quietly contains the
-construction of every classical orthogonal-polynomial system in analysis -- same three
-words: project, subtract, normalize.
+Chebyshev, Hermite, and Laguerre families. In this way, Gram--Schmidt provides a
+unified procedure for constructing classical orthogonal polynomial systems in analysis.
 \end{connectionbox}
 
 \section{Classical versus modified Gram-Schmidt}
 
 The version we derived is \textbf{classical} Gram--Schmidt: to build $\vec{v}_k$,
 project the \emph{original} $\vec{a}_k$ onto each finished $\vec{q}_i$ and subtract all
-the shadows from $\vec{a}_k$ at once. Mathematically flawless. Numerically, it has a
-weakness: each projection coefficient $\inner{\vec{q}_i}{\vec{a}_k}$ is computed from
-the same starting $\vec{a}_k$, and when the vectors are nearly dependent, tiny
-roundoff errors in the early $\vec{q}_i$ are not corrected, so the computed $\vec{q}_k$
-can drift away from being truly orthogonal to the earlier ones.
+the shadows from $\vec{a}_k$ at once. In exact arithmetic, this method is exact. In floating-point arithmetic, however,
+computing each projection coefficient $\inner{\vec{q}_i}{\vec{a}_k}$ from the original
+vector $\vec{a}_k$ allows roundoff errors to accumulate; when columns are nearly
+dependent, the computed vectors can lose orthogonality.
 
-The fix is small and clever. \textbf{Modified Gram--Schmidt} subtracts the shadows
-\emph{one at a time}, each from the running remainder rather than from the original:
+\textbf{Modified Gram--Schmidt} addresses this instability by subtracting each projection
+from the running remainder rather than from the original vector:
 
 \begin{formalbox}
 \textbf{Modified Gram--Schmidt.} Set $\vec{v}\leftarrow\vec{a}_k$. Then for
@@ -706,58 +782,125 @@ $i=1,2,\dots,k-1$ in order, update
 and finally $\vec{q}_k=\vec{v}/\norm{\vec{v}}$.
 \end{formalbox}
 
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.95,>=Stealth]
+  \begin{scope}[shift={(-3.8,0)}]
+    \draw[fill=gray!2, draw=gray!25, rounded corners=3pt] (-3.2,-2.2) rectangle (3.2,2.0);
+    \node[draw=sourceblue!70, fill=sourceblue!12, rounded corners=2pt, font=\footnotesize\bfseries, text=sourceblue!90!black]
+      at (0,1.65) {Classical Gram--Schmidt (CGS)};
+    \node[draw, thick, rounded corners, inner sep=4pt] (ak) at (-2.0, 0.2) {$\vec{a}_k$};
+    \node[inner sep=2pt, font=\small] (p1) at (0.2, 0.8) {$\inner{\vec{q}_1}{\vec{a}_k}\vec{q}_1$};
+    \node[inner sep=2pt, font=\small] (p2) at (0.2, -0.4) {$\inner{\vec{q}_2}{\vec{a}_k}\vec{q}_2$};
+    \node[draw, thick, targetgreen!80!black, rounded corners, inner sep=4pt] (vk) at (2.2, 0.2) {$\vec{v}_k$};
+    \draw[->, thick, spacegray] (ak) -- node[above, font=\tiny]{$\inner{\vec{q}_1}{\vec{a}_k}$} (p1);
+    \draw[->, thick, spacegray] (ak) -- node[below, font=\tiny]{$\inner{\vec{q}_2}{\vec{a}_k}$} (p2);
+    \draw[->, very thick, targetgreen] (p1) -- node[above right, font=\tiny]{subtract} (vk);
+    \draw[->, very thick, targetgreen] (p2) -- node[below right, font=\tiny]{subtract} (vk);
+    \node[font=\scriptsize, spacegray, align=center] at (0,-1.5) {
+      All shadows projected from raw $\vec{a}_k$;\\
+      early rounding errors do not get corrected.
+    };
+  \end{scope}
+
+  \begin{scope}[shift={(3.8,0)}]
+    \draw[fill=gray!2, draw=gray!25, rounded corners=3pt] (-3.2,-2.2) rectangle (3.2,2.0);
+    \node[draw=targetgreen!70, fill=targetgreen!12, rounded corners=2pt, font=\footnotesize\bfseries, text=targetgreen!90!black]
+      at (0,1.65) {Modified Gram--Schmidt (MGS)};
+    \node[draw, thick, rounded corners, inner sep=4pt] (m0) at (-2.2, 0.2) {$\vec{a}_k$};
+    \node[draw, thick, rounded corners, inner sep=4pt] (m1) at (0.0, 0.2) {$\vec{v}^{(1)}$};
+    \node[draw, thick, targetgreen!80!black, rounded corners, inner sep=4pt] (m2) at (2.2, 0.2) {$\vec{v}_k$};
+    \draw[->, very thick, structurepurple] (m0) -- node[above, font=\tiny]{$-\proj_{\vec{q}_1}$} (m1);
+    \draw[->, very thick, targetgreen] (m1) -- node[above, font=\tiny]{$-\proj_{\vec{q}_2}$} (m2);
+    \node[font=\scriptsize, spacegray, align=center] at (0,-1.5) {
+      Next shadow dots against updated remainder;\\
+      orthogonalization errors do not accumulate.
+    };
+  \end{scope}
+\end{tikzpicture}
+\caption{Classical versus Modified Gram--Schmidt. \emph{Classical:} all projections are
+computed simultaneously from the original vector $\vec{a}_k$, so early errors are baked
+into every term. \emph{Modified:} each shadow is subtracted sequentially, measuring overlap against the
+updated remainder $\vec{v}^{(1)}$ to prevent error accumulation in floating-point arithmetic.}
+\label{ch20:cgs-vs-mgs}
+\end{figure}
+
 In exact arithmetic this gives \emph{exactly} the same answer as the classical
 version: subtracting components one at a time, each from the partially-cleaned vector,
-removes the same total. The difference appears only in floating point. After we
-subtract the $\vec{q}_1$-shadow, the remainder $\vec{v}$ already has its
-$\vec{q}_1$-component removed (up to roundoff), so when we next compute
-$\inner{\vec{q}_2}{\vec{v}}$ we are dotting against a vector that no longer secretly
-carries a $\vec{q}_1$ error. Each step measures the overlap against the freshest,
-most-orthogonalized remainder, and the errors stop compounding.
+removes the same total component. The difference appears in floating-point arithmetic.
+After subtracting the $\vec{q}_1$-component, the remainder $\vec{v}$ is orthogonal to
+$\vec{q}_1$ to within machine precision. Computing $\inner{\vec{q}_2}{\vec{v}}$
+evaluates overlap against this updated remainder, preventing errors from previous
+projections from compounding into subsequent steps.
 
 \begin{trapbox}
 The classical and modified algorithms differ by \emph{which vector you dot against}:
 classical always uses the original $\vec{a}_k$; modified uses the running remainder
-$\vec{v}$. On a chalkboard with exact fractions you will get identical numbers and may
-wonder why anyone bothers. The bother is real and it is purely numerical -- on a
-computer with finite precision, modified Gram--Schmidt keeps $\mat{Q}\T\mat{Q}$ far
-closer to $\mat{I}$. If you ever code Gram--Schmidt, code the modified form.
+$\vec{v}$. In exact arithmetic, both algorithms yield identical vectors. In finite-precision
+arithmetic, however, modified Gram--Schmidt maintains $\mat{Q}\T\mat{Q}$ much closer
+to $\mat{I}$, making it the standard formulation in numerical code.
 \end{trapbox}
 
 \begin{remark}
 Even modified Gram--Schmidt is not the gold standard for the worst-conditioned
 problems. Production QR routines (\textsc{lapack}'s \texttt{dgeqrf}) instead build
-$\mat{Q}$ from a sequence of \textbf{Householder reflections} -- each one a single
-orthogonal matrix that zeros out a whole column below the diagonal at once. Householder
-QR is backward stable in the strongest sense and is what truly runs underneath
-\texttt{numpy} and \textsc{matlab}. Gram--Schmidt remains the version to \emph{learn},
-because it makes the geometry transparent: it is literally projection, repeated. We
-meet Householder reflections again in the numerical chapter.
+$\mat{Q}$ from a sequence of \textbf{Householder reflections}---orthogonal transformations that reflect a vector
+across a hyperplane to introduce zeros below the diagonal of an entire column at once.
+Householder QR is backward stable and is the standard implementation in libraries such
+as \texttt{numpy} and \textsc{matlab}. Gram--Schmidt remains conceptually fundamental
+because it makes the underlying geometry explicit: repeated projection onto orthogonal
+subspaces. We meet Householder reflections again in the numerical linear algebra chapters.
 \end{remark}
 
 \begin{historybox}
-The algorithm we call Gram--Schmidt has a rich, overlapping history. The Danish actuary and mathematician Jørgen Pedersen Gram formulated it in 1883 in his paper \emph{Ueber die Entwickelung reeller Functionen in Reihen mittelst der Methode der kleinsten Quadrate}, where he sought orthogonal polynomials to stabilize least-squares approximations in actuarial tables. Twenty-four years later, in 1907, Erhard Schmidt independently reinvented the method in Göttingen to construct orthonormal function bases for Fredholm integral equations. But even Gram was not the first: Pierre-Simon Laplace had already written down an equivalent orthogonalization procedure in 1816 while solving celestial mechanics problems.
+The algorithm we call Gram--Schmidt has a rich history driven by applied problems
+across two centuries.
 
-In twentieth-century computing, classical Gram--Schmidt exposed a catastrophic numerical flaw. On paper with infinite precision, subtracting projections orthogonalizes vectors perfectly. But on a computer with finite floating-point precision, subtracting nearly equal quantities produces catastrophic roundoff cancellation. In classical Gram--Schmidt, roundoff errors accumulate so rapidly that the computed vectors can completely lose orthogonality, producing dot products as large as $0.5$ or even $1.0$ between supposed unit orthogonal vectors!
+The earliest formulation came from Pierre-Simon Laplace in 1816. Working on celestial
+mechanics -- calculating the gravitational orbits of Jupiter and Saturn so that minor
+measurement errors would not compound over centuries -- Laplace wrote down an orthogonal
+projection recipe to separate orbital parameters. In 1883, the Danish actuary and
+mathematician J\o rgen Pedersen Gram independently derived the method to fit polynomial
+curves to actuarial tables (life expectancy and pension records) by least squares; with
+raw powers $1, x, x^2, \dots$, the normal equations were nearly singular and impossible
+to solve reliably by hand. Twenty-four years later, in 1907, Erhard Schmidt reinvented
+the procedure in G\"ottingen to construct orthonormal function bases for Fredholm
+integral equations, where the unknown function appears inside an integral.
 
-Applied mathematicians resolved this crisis in two stages. First came Modified Gram--Schmidt, which updates the running remainder against the freshest computed direction, dramatically curbing error accumulation. Then in 1958, Alston Householder introduced elementary orthogonal reflections. Instead of projecting vectors one by one, Householder reflections use full orthogonal matrices that reflect entire columns into coordinate axes at once, guaranteeing orthogonality to the full limit of machine precision.
+All three mathematicians worked with quill, paper, and printed logarithm tables. In
+exact arithmetic, Gram--Schmidt is exact. When implemented on digital computers with
+floating-point arithmetic, however, classical Gram--Schmidt suffers from numerical
+instability: rounding errors during subtractions can compound rapidly, causing computed
+columns to lose orthogonality.
+
+The resolution came in two waves. First, numerical analysts introduced Modified
+Gram--Schmidt, which projects against the running remainder rather than the raw original,
+dramatically curbing error growth. Then in 1958, Alston Householder introduced elementary
+orthogonal reflections -- reflecting entire columns onto coordinate axes at once using
+full orthogonal matrices, which preserves orthogonality to the full precision of machine
+hardware.
+
+The naming reflects historical rediscovery: Gram's 1883 paper arose in actuarial mathematics,
+while Schmidt's 1907 work applied to infinite-dimensional function spaces. Laplace's 1816
+formulation was overlooked for more than a century before being recognized. Together, these
+ideas unlocked the QR algorithm for eigenvalues (developed by John Francis and Vera
+Kublanovskaya in 1961), modern least-squares solvers, and orthogonal polynomials throughout
+quantum mechanics.
 \end{historybox}
 
 \begin{aestheticbox}
-Step back and notice the unity. \emph{One} idea -- subtract the projection -- gives you
-an orthonormal basis (Gram--Schmidt), a matrix factorization ($\mat{A}=\mat{Q}\mat{R}$),
-a stable least-squares solver ($\mat{R}\hat{\vec{x}}=\mat{Q}\T\vec{b}$), and, by
-changing the inner product, every classical family of orthogonal polynomials. The same
-geometric move that straightened two leaning arrows in the plane underwrites the
-regression in a spreadsheet, the orthogonal initialization of a neural network, and
-Gaussian quadrature in a physics code. ``Perpendicular is easier'' is not a slogan; it
-is a construction, and Gram--Schmidt is how you build it.
+A single operation---subtracting orthogonal projections---yields an orthonormal basis
+(Gram--Schmidt), a matrix factorization ($\mat{A}=\mat{Q}\mat{R}$), a stable method for
+least squares ($\mat{R}\hat{\vec{x}}=\mat{Q}\T\vec{b}$), and families of orthogonal
+polynomials under different inner products. The geometric principle of decomposing a
+vector into orthogonal components provides both theoretical clarity and computational
+stability throughout linear algebra.
 \end{aestheticbox}
 
 \section{Cost and intuition recap}
 
-One move, repeated: \textbf{project, subtract, normalize}. Here is the whole chapter on
-one page.
+The procedure is summarized by three operations: \textbf{project, subtract, normalize}.
+Key concepts:
 
 \begin{itemize}
   \item \textbf{The wish.} A crooked basis tangles every coordinate computation into a
@@ -786,9 +929,11 @@ $\mat{I}$ than classical; Householder QR (the production default) is better stil
 geometry, though, is identical across all three: subtract the projection.
 
 \begin{connectionbox}
-The $\mat{A} = \mat{Q}\mat{R}$ factorization untangles the central difficulty of linear algebra. By decomposing a matrix into an orthonormal frame $\mat{Q}$ and an upper-triangular recipe $\mat{R}$, the hazardous normal equations $\mat{A}\T\mat{A}\hat{\vec{x}} = \mat{A}\T\vec{b}$ collapse into the pristine triangular system $\mat{R}\hat{\vec{x}} = \mat{Q}\T\vec{b}$, solved instantly by back-substitution with condition number $\kappa(\mat{A})$ instead of $\kappa(\mat{A})^2$.
-
-Yet QR is an orthogonalization of columns, not a diagonalization of the matrix itself. It does not reveal the invariant directions of $\mat{A}$---the axes that the matrix scales without rotating. In Part~V (Chapters 21--22), we measure multi-dimensional volume scaling through determinants. Then, in Part~VI (Chapters 23--28), we unlock the theory of eigenvalues and eigenvectors, discovering how matrices act as pure directional stretches. Finally, in Chapter~29, eigenvalues and QR meet in the Singular Value Decomposition (SVD), the crown jewel of modern linear algebra.
+Geometrically, the $\mat{A} = \mat{Q}\mat{R}$ factorization also measures the volume of the parallelotope spanned by the columns of $\mat{A}$: the orthogonal matrix $\mat{Q}$ acts as a rigid transformation preserving volumes and angles, while the upper-triangular matrix $\mat{R}$ records lengths and perpendicular altitudes. The volume of the parallelotope is given by the product of these altitudes:
+\[
+  \text{Volume} \;=\; R_{11} R_{22} \cdots R_{nn} \;=\; \det\mat{R}.
+\]
+In Chapter~21 (``Determinants: Volume and Sign''), we examine how square matrices scale multi-dimensional volumes and how the sign of the determinant indicates spatial orientation. In Part~VI, we study eigenvalues and eigenvectors to understand how transformations behave along invariant directions. Later, in Chapter~29, orthogonal bases and spectral theory combine in the Singular Value Decomposition (SVD), a foundational tool of applied linear algebra.
 \end{connectionbox}
 
 \section{Exercises}

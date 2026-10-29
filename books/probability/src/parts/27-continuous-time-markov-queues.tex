@@ -1,25 +1,19 @@
 \chapter{Continuous-Time Markov Chains and Queues}
 
-So far our Markov chains have ticked like a clock. At each integer time $n = 0, 1, 2, \dots$ the
-system looks around, rolls some dice, and jumps to a new state. That discrete metronome is a fiction
-of convenience. Real systems do not wait for a bell. A customer walks into a coffee shop at
-$10\!:\!04\!:\!17$, not at ``step $7$.'' A radioactive nucleus decays at some real-valued instant. A
-router receives a packet, a phone call connects, a machine breaks down --- all at messy, continuous
-times that no integer clock can pin down.
+In Chapter~26, our random walker hopped along an integer line at discrete clock ticks
+$n = 0, 1, 2, \dots$. But real systems do not wait for a synchronized bell. A customer
+arrives at a bakery at $10\!:\!04\!:\!17$, not at ``step $7$''; a packet hits a router or a
+machine breaks down at an unpredictable continuous instant.
 
-This chapter rebuilds the Markov idea in \emph{continuous time}. A single object called the
-\emph{generator matrix} captures all the dynamics, and from it we will derive the steady-state
-behavior of \emph{queues} --- waiting lines --- which sit at the heart of every service system,
-computer network, hospital, and call center. We will meet the M/M/1 queue, watch a line of waiting
-customers settle into a geometric equilibrium, and prove Little's law, a relationship so simple and
-so general that it feels like a magic trick until you see why it cannot be otherwise.
+This chapter rebuilds the Markov idea in \emph{continuous time}. Instead of step-by-step jump
+probabilities, a single table of instantaneous flow rates called the \textbf{generator matrix}
+captures all the dynamics. From it, we derive the steady-state behavior of \textbf{queues} ---
+waiting lines that govern computer networks, hospitals, and server pools. We will meet the
+fundamental single-server M/M/1 queue, watch waiting customers settle into a geometric equilibrium,
+and prove \textbf{Little's law} ($L = \lambda W$).
 
-We lean on two earlier ideas. From the chapters on Markov chains, keep the picture of states and
-transition probabilities, and the notion of a stationary distribution $\pi$ that the chain settles
-into. From the chapter on Poisson processes, keep the \emph{exponential distribution} and its
-defining magic: \emph{memorylessness}. Continuous-time Markov chains are, in a precise sense, what
-you get when you glue an ordinary Markov chain together with exponential waiting times. That gluing
-is the whole story, and we build it up from scratch.
+The recipe is simple: take an ordinary Markov chain and glue exponential, memoryless waiting
+times onto each state. That gluing is the whole story, and we build it up from scratch.
 
 \chapterline
 
@@ -67,6 +61,14 @@ So ``continuous-time Markov'' forces ``exponential holding times.'' The two are 
 spoken in two languages.
 \end{whybox}
 
+\begin{recoverybox}
+\textbf{Pause and think:} Suppose a lightbulb has an exponential lifetime with failure rate
+$\lambda = 0.001$ per hour (mean lifetime $1000$ hours). You enter a room and find the bulb already
+on. How long has it been glowing? You have no way of knowing. But how much longer do you expect it
+to last from this very second? By memorylessness, still exactly $1/\lambda = 1000$ hours. Its elapsed
+history gives you zero information about its remaining life.
+\end{recoverybox}
+
 \subsection{The two-part recipe}
 
 Here is the cleanest way to picture a continuous-time Markov chain (CTMC), and we will return to it
@@ -86,11 +88,10 @@ ignoring how long it stayed --- is just an ordinary discrete-time Markov chain, 
 exponential waiting times glued onto each visit.
 
 \begin{happeningbox}
-A CTMC is a discrete Markov chain wearing exponential clothing. Strip away the random sojourn times
+A CTMC combines a discrete jump chain with exponential holding times. Strip away the random sojourn times
 and you have a familiar jump chain on the same states. Add them back and you have a process that
-lives in real time. Everything subtle about CTMCs --- the generator, the forward equations, the
-balance conditions --- is bookkeeping that keeps these two layers (where it jumps, how long it
-stays) consistent with one another.
+lives in real time. The generator, forward equations, and balance conditions keep these two
+layers (where it jumps and how long it stays) consistent with one another.
 \end{happeningbox}
 
 \section{Rates and the Generator Matrix}
@@ -157,20 +158,34 @@ all the clock rates.
 
 \subsection{From the generator to transition probabilities}
 
-Let $P_{ij}(t) = \P(X_{t+s} = j \given X_s = i)$ be the probability of being in $j$ a time $t$ later,
-and gather these into a matrix $P(t)$. For small $h$, the generator definition says
+Let $P_{ij}(t) = \P(X_{t+s} = j \given X_s = i)$ be the probability that the chain is in state $j$
+after an elapsed time $t$, given it began in $i$. Gather these into a transition matrix $P(t)$.
+At time zero the chain has had no time to move, so $P(0) = I$ (the identity matrix). For a tiny time
+increment $h > 0$, our definition of the generator $Q$ in Definition~\ref{ch27:def-generator} says
 \[
   P(h) \;\approx\; I + Q h,
 \]
-since the diagonal loses probability at rate $q_i$ and each off-diagonal gains it at rate $q_{ij}$.
-Chaining two short intervals, $P(t+h) = P(t)P(h) \approx P(t)(I + Qh)$, gives
-\[
-  \frac{P(t+h) - P(t)}{h} \approx P(t)Q
-  \quad\Longrightarrow\quad
-  P'(t) = P(t)\,Q.
-\]
-This is the \emph{Kolmogorov forward equation} (the mirror image $P'(t) = QP(t)$ is the
-\emph{backward equation}). Its solution is the matrix exponential
+since each off-diagonal transition probability is $\approx q_{ij}h$ and the probability of staying in
+state $i$ is $\approx 1 - q_i h = 1 + q_{ii}h$.
+
+Now compose an elapsed time $t$ with an extra tiny interval $h$ in two different orders:
+\begin{itemize}
+  \item \textbf{Looking at the end (Forward):} Run the chain for time $t$, then watch the final
+  sliver $h$. By the Markov property, $P(t+h) = P(t)P(h) \approx P(t)(I + Qh) = P(t) + P(t)Qh$.
+  Subtracting $P(t)$ and dividing by $h$ yields the \textbf{Kolmogorov forward equation}:
+  \[
+    P'(t) \;=\; P(t)\,Q.
+  \]
+  \item \textbf{Looking at the start (Backward):} Watch the first sliver $h$, then let the chain
+  evolve for the remaining time $t$. Here $P(h+t) = P(h)P(t) \approx (I + Qh)P(t) = P(t) + QP(t)h$.
+  This yields the \textbf{Kolmogorov backward equation}:
+  \[
+    P'(t) \;=\; Q\,P(t).
+  \]
+\end{itemize}
+Both equations describe the exact same rate of change. Forward watches the finish line; backward
+watches the starting gate. Because $Q$ and $P(t)$ commute ($Qe^{Qt} = e^{Qt}Q$), both yield the
+same matrix-exponential solution:
 \[
   \boxed{\,P(t) = e^{Qt} = \sum_{k=0}^{\infty} \frac{(Qt)^k}{k!}\,.}
 \]
@@ -181,7 +196,7 @@ solution $p(t) = p(0)e^{-\lambda t}$ --- exponential decay, the survival curve f
 Section~\ref{ch27:intro}. The CTMC obeys exactly the same law, only now $\lambda$ is replaced by the
 matrix $-Q$ and the scalar exponential becomes the \emph{matrix exponential}. If you have met
 matrix exponentials in a linear algebra course (eigenvalues, diagonalization, $e^{Qt}$ acting
-through eigenvectors), this is precisely where they earn their keep in probability. The generator's
+through eigenvectors), this is their direct role in probability: the generator's
 eigenvalues control how fast the chain forgets its start and relaxes to equilibrium.
 \end{connectionbox}
 
@@ -227,7 +242,7 @@ of reliability models.}
 A vast and useful family of CTMCs lives on the states $\{0, 1, 2, \dots\}$ --- think of them as a
 \emph{population size}, a \emph{number of customers}, or a \emph{queue length} --- and can only move
 to a neighbor: up by one (a \emph{birth}, or an arrival) or down by one (a \emph{death}, or a
-departure). These are \emph{birth-death processes}, and they are the workhorses of queueing theory.
+departure). These are \emph{birth-death processes}, and they are foundational models in queueing theory.
 
 \begin{definition}[Birth-death process]
 \label{ch27:def-bd}
@@ -251,12 +266,12 @@ the population cannot go negative). All other rates are zero. The generator is t
   \node[right=1.8cm of 3, font=\small] (4) {$\cdots$};
 
   \draw[sourceblue,thick,bend left=32] (0) to node[above, font=\footnotesize] {$\lambda_0$} (1);
-  \draw[sourceblue,thick,bend left=32] (1) to node[above, font=\footnotesize] {$\lambda_1$} (2);
+  \draw[sourceblue,thick,bend left=32] (1) to node[above, font=\footnotesize, pos=0.25] {$\lambda_1$} (2);
   \draw[sourceblue,thick,bend left=32] (2) to node[above, font=\footnotesize] {$\lambda_2$} (3);
   \draw[sourceblue,thick,bend left=32] (3) to node[above, font=\footnotesize] {$\lambda_3$} (4);
 
   \draw[densityred,thick,bend left=32] (1) to node[below, font=\footnotesize] {$\mu_1$} (0);
-  \draw[densityred,thick,bend left=32] (2) to node[below, font=\footnotesize] {$\mu_2$} (1);
+  \draw[densityred,thick,bend left=32] (2) to node[below, font=\footnotesize, pos=0.25] {$\mu_2$} (1);
   \draw[densityred,thick,bend left=32] (3) to node[below, font=\footnotesize] {$\mu_3$} (2);
   \draw[densityred,thick,bend left=32] (4) to node[below, font=\footnotesize] {$\mu_4$} (3);
 
@@ -291,8 +306,22 @@ birth-death chains this cut argument gives the equilibrium directly, no matrix a
 same trick works for any chain whose graph is a tree, because every edge is a cut.)
 \end{whybox}
 
-Solving the recursion $\pi_{n+1} = \pi_n \cdot (\lambda_n / \mu_{n+1})$ telescopes into a clean
-product:
+\begin{recoverybox}
+\textbf{Pause and think:} What would happen physically if cut flow were unbalanced, say
+$\pi_0 \lambda_0 > \pi_1 \mu_1$? In every second, more probability mass would cross into states
+$\{1, 2, \dots\}$ than returned down to state $0$. Probability would steadily drain out of state $0$
+and pool in higher states. But in a \emph{stationary} distribution, by definition, the probability
+$\pi_0$ cannot change over time! The puddle can neither grow nor drain. So upward flow must exactly
+match downward flow across every cut boundary.
+\end{recoverybox}
+
+Solving the recursion $\pi_{n+1} = \pi_n \cdot \frac{\lambda_n}{\mu_{n+1}}$ step by step reveals the pattern:
+\[
+  \pi_1 = \pi_0 \frac{\lambda_0}{\mu_1}, \qquad
+  \pi_2 = \pi_1 \frac{\lambda_1}{\mu_2} = \pi_0 \frac{\lambda_0 \lambda_1}{\mu_1 \mu_2}, \qquad
+  \pi_3 = \pi_2 \frac{\lambda_2}{\mu_3} = \pi_0 \frac{\lambda_0 \lambda_1 \lambda_2}{\mu_1 \mu_2 \mu_3},
+\]
+and by induction, this telescopes into the general \textbf{product formula}:
 \[
   \boxed{\,\pi_n = \pi_0 \prod_{k=0}^{n-1} \frac{\lambda_k}{\mu_{k+1}}\,,}
   \qquad
@@ -331,15 +360,26 @@ Figure~\ref{ch27:fig-samplepath} shows a typical realization of $X_t$: a stairca
 arrivals and down at service completions.
 
 \begin{historybox}
-This model is the founding object of queueing theory, born of a very practical worry: how many
-telephone lines does a town need? Around 1909 the Danish engineer \textbf{Agner Krarup Erlang},
-working for the Copenhagen Telephone Company, modeled incoming calls as a Poisson process and
-call durations as random, and computed how often callers would find every line busy. His formulas
-are still called \emph{Erlang B} and \emph{Erlang C}, and the unit of telephone traffic, the
-\emph{erlang}, bears his name. Queueing theory thus began not in a mathematics department but in a
-phone exchange, trying to keep the citizens of Copenhagen from hearing a busy signal. The whole
-modern apparatus of network and server provisioning descends from Erlang's wish to size a switchboard
-correctly.
+The mathematics of queues was born of a concrete engineering problem: how many telephone lines
+does a city need? In 1909, the Danish mathematician and engineer \textbf{Agner Krarup Erlang}
+(1878--1929), working for the Copenhagen Telephone Company, set out to size switchboards and
+underground copper cables connecting Copenhagen's exchanges. If the company installed too few lines,
+callers received busy signals; if it laid too many, copper sat idle. Erlang sought an exact formula
+for the probability that a caller finds every line occupied.
+
+Decades before Andrei Kolmogorov formalized probability (1931), Erlang balanced the rate of probability
+flowing into each state against the rate flowing out. His insight yielded two foundational formulas:
+\emph{Erlang B} (for loss systems, where a caller finding all lines busy is blocked) and \emph{Erlang C}
+(for delay systems, where callers wait in line for the next available operator). In 1946, the
+dimensionless unit of telecommunications traffic, the \emph{erlang}, was named in his honor.
+Queueing theory was soon extended to non-exponential service times by Felix Pollaczek (1930) and
+Aleksandr Khinchin (1932) in the celebrated M/G/1 queue.
+
+Yet major questions remain open. In the 1990s, Walter Leland and colleagues showed that real internet
+packet arrivals are \emph{self-similar} --- clustering into heavy-tailed bursts across time scales,
+violating Poisson assumptions. Today, predicting delay in multi-server queues with general service
+distributions ($G/G/c$) and designing optimal load-balancing policies for large-scale cloud clusters
+remain active areas of research.
 \end{historybox}
 
 \subsection{The traffic intensity and steady state}
@@ -446,6 +486,7 @@ server gets busy:
 ]
 \addplot[densityred,very thick] {x/(1-x)};
 \draw[gray,dashed] (axis cs:0.9,0) -- (axis cs:0.9,9) -- (axis cs:0,9);
+\node[above left,font=\scriptsize,gray!80!black] at (axis cs:0.9,9) {$(0.9,\,9)$};
 \node[anchor=west,font=\small] at (axis cs:0.55,28) {$L = \dfrac{\rho}{1-\rho}$};
 \end{axis}
 \end{tikzpicture}
@@ -481,14 +522,38 @@ them together. Real capacity planning is choosing where on this curve to sit ---
 is almost never near the top.
 \end{paradoxbox}
 
-The other quantities follow once we have one of them, via Little's law, which we develop next; but
-let us name them now. Let $W$ be the mean time a customer spends in the system (waiting plus being
-served), and $L_q, W_q$ the corresponding queue-only versions (excluding the one in service). For
-M/M/1:
+From the backlog $L$, we can immediately deduce the customer's average waiting experience.
+Let $W$ be the mean total time a customer spends in the system (waiting in line plus being
+served). How long does an arriving customer expect to stay?
+Imagine stepping into the shop: by the memoryless property of Poisson arrivals (PASTA, discussed
+below), an arrival catches the queue in its typical equilibrium, seeing on average $L$ customers
+ahead.
+
+Because service times are memoryless $\Expo(\mu)$, the customer currently at the counter requires an
+average of $1/\mu$ time units to finish, regardless of how long they have already been there. Each of
+the remaining $L-1$ customers ahead takes an independent mean time $1/\mu$, and the new arrival's
+own service takes $1/\mu$. That is a total of $L + 1$ service completions, each of average duration
+$1/\mu$. Therefore:
 \[
-  W = \frac{1}{\mu - \lambda}, \qquad
-  L_q = \frac{\rho^2}{1-\rho}, \qquad
-  W_q = \frac{\rho}{\mu - \lambda}.
+  W \;=\; \frac{L + 1}{\mu}
+     \;=\; \frac{\frac{\rho}{1-\rho} + 1}{\mu}
+     \;=\; \frac{\frac{1}{1-\rho}}{\mu}
+     \;=\; \frac{1}{\mu(1 - \lambda/\mu)}
+     \;=\; \frac{1}{\mu - \lambda}.
+\]
+Subtracting the customer's own mean service time $1/\mu$ yields the average time spent purely waiting
+in line,
+\[
+  W_q \;=\; W - \frac{1}{\mu}
+      \;=\; \frac{1}{\mu - \lambda} - \frac{1}{\mu}
+      \;=\; \frac{\mu - (\mu - \lambda)}{\mu(\mu - \lambda)}
+      \;=\; \frac{\lambda}{\mu(\mu - \lambda)}
+      \;=\; \frac{\rho}{\mu - \lambda}.
+\]
+And the average number of customers waiting in the line itself (excluding the one being served) is
+the total backlog minus the fraction of time the server is occupied:
+\[
+  L_q \;=\; L - \rho \;=\; \frac{\rho}{1-\rho} - \rho \;=\; \frac{\rho^2}{1-\rho}.
 \]
 
 \begin{example}[Sizing a help desk]
@@ -506,12 +571,16 @@ loaded.
 
 \begin{labbox}
 Before reading on, predict the shape of the answer to this: in the M/M/1 system, what fraction of
-\emph{arriving customers} find the server idle (and so are served immediately)? Then check: by a
-property of Poisson arrivals (``PASTA'' --- Poisson Arrivals See Time Averages), an arriving customer
-sees the system in its steady-state distribution, so the answer is $\pi_0 = 1 - \rho$. With
-$\rho = 0.9$, only $10\%$ of customers walk straight up to a free agent; the other $90\%$ wait. This
-is why a system that ``feels slow'' can still be only modestly utilized in the mean --- most
-customers experience the crowded states, not the empty ones.
+\emph{arriving customers} find the server idle (and so are served immediately)?
+
+\textbf{Answer:} By the celebrated PASTA principle (``Poisson Arrivals See Time Averages''), an
+arrival arriving purely at random does not anticipate busy or idle periods --- it takes an unbiased
+statistical snapshot of the system in steady state. So the fraction of arrivals finding an idle
+server is simply the stationary probability of state zero: $\pi_0 = 1 - \rho$.
+
+With $\rho = 0.9$, only $10\%$ of customers walk straight up to an idle agent; the other $90\%$ must
+wait. This is why a service that ``feels horribly congested'' can still have a modest average
+utilization --- customers experience the system when it is full, not when it is empty.
 \end{labbox}
 
 \section{Little's Law}
@@ -563,14 +632,65 @@ the number of half-finished features in a software team's pipeline.
 \end{whybox}
 
 \begin{happeningbox}
-Little's law is really a theorem about \emph{areas}. Draw the occupancy $X_t$ as a staircase over
-time. Its area can be sliced \emph{vertically} (height $X_t$ at each instant, giving
-$\int X_t\,\dd t = L \cdot T$) or \emph{horizontally} (each customer is a bar of length $W_i$, giving
-$\sum W_i = \lambda T \cdot W$). Two ways to compute one area --- that is the entire content. This is
-the same Fubini-style ``count the same thing two ways'' move that powers so much of combinatorics and
-the tail-sum formula for expectation. Once you see it as an area, the law's universality stops being
-mysterious.
+Little's law is really a theorem about \emph{areas}. Draw each customer's visit as a horizontal bar
+of length $W_i$. The total area accumulated over a long window $[0, T]$ represents the total
+``customer-minutes'' experienced.
+
+That identical area can be sliced two ways (Figure~\ref{ch27:fig-little-area}):
+\begin{itemize}
+  \item \textbf{Vertically (by time):} At each instant $t$, the vertical height is the number of
+  customers present, $X_t$. Integrating over time yields $\int_0^T X_t\,\dd t \approx L \cdot T$.
+  \item \textbf{Horizontally (by customer):} Each customer contributes a bar of length $W_i$.
+  Summing across all $A(T) \approx \lambda T$ arrivals gives $\sum W_i \approx \lambda T \cdot W$.
+\end{itemize}
+Two ways to compute one area --- that is the entire content. Equating $L \cdot T = \lambda T \cdot W$
+and dividing by $T$ leaves $L = \lambda W$. This is the continuous analogue of the classic Fubini
+double-counting trick from discrete combinatorics. Once you see it as an area, the law's universality
+stops being mysterious.
 \end{happeningbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth,scale=0.92]
+  \draw[->, thick] (0,0) -- (11.5,0) node[right, font=\small] {time $t$};
+  \draw[->, thick] (0,0) -- (0,4.2) node[above, font=\small] {occupancy / customers};
+
+  \draw[dashed, gray!70] (10,0) -- (10,3.8);
+  \node[below, font=\small] at (10,0) {$T$};
+
+  \draw[sourceblue, very thick] (0.6, 0.7) -- (3.6, 0.7) node[midway, above, font=\scriptsize, sourceblue] {Customer 1 ($W_1$)};
+  \fill[sourceblue] (0.6,0.7) circle (2pt);
+  \fill[sourceblue] (3.6,0.7) circle (2pt);
+
+  \draw[targetgreen, very thick] (1.8, 1.5) -- (6.2, 1.5) node[pos=0.25, above, font=\scriptsize, targetgreen] {Customer 2 ($W_2$)};
+  \fill[targetgreen] (1.8,1.5) circle (2pt);
+  \fill[targetgreen] (6.2,1.5) circle (2pt);
+
+  \draw[quotientorange, very thick] (2.7, 2.3) -- (5.1, 2.3) node[pos=0.22, above, font=\scriptsize, quotientorange] {Customer 3 ($W_3$)};
+  \fill[quotientorange] (2.7,2.3) circle (2pt);
+  \fill[quotientorange] (5.1,2.3) circle (2pt);
+
+  \draw[structurepurple, very thick] (4.3, 3.1) -- (8.3, 3.1) node[pos=0.72, above, font=\scriptsize, structurepurple] {Customer 4 ($W_4$)};
+  \fill[structurepurple] (4.3,3.1) circle (2pt);
+  \fill[structurepurple] (8.3,3.1) circle (2pt);
+
+  \draw[densityred, very thick] (6.8, 1.0) -- (9.7, 1.0) node[midway, above, font=\scriptsize, densityred] {Customer 5 ($W_5$)};
+  \fill[densityred] (6.8,1.0) circle (2pt);
+  \fill[densityred] (9.7,1.0) circle (2pt);
+
+  \draw[dashed, trapred, line width=1.1pt] (4.7, 0) -- (4.7, 3.8);
+  \node[above, trapred, font=\footnotesize, align=center] at (4.7, 3.8) {At time $t$: $X_t = 3$ present};
+  \fill[trapred] (4.7, 1.5) circle (2.5pt);
+  \fill[trapred] (4.7, 2.3) circle (2.5pt);
+  \fill[trapred] (4.7, 3.1) circle (2.5pt);
+
+  \node[anchor=north, font=\footnotesize, draw=gray!40, fill=codebg, rounded corners, inner sep=5pt] at (5.2, -0.55) {
+    $\text{Total Area} = L \cdot T = (\lambda T) \cdot W \implies L = \lambda W$
+  };
+\end{tikzpicture}
+\caption{The area geometry behind Little's law $L = \lambda W$. Each customer who visits the system occupies a horizontal interval of length $W_i$ (their sojourn time). Slicing the area accumulated under the occupancy curve vertically at each instant $t$ tallies the queue length $X_t$, integrating over $[0,T]$ to $L \cdot T$. Slicing the identical area horizontally sums the stay durations $W_i$ across all $A(T) \approx \lambda T$ arrivals, totaling $\lambda T \cdot W$. Equating the two views of the same area gives $L \cdot T = \lambda T \cdot W$, which cancels $T$ to yield $L = \lambda W$.}
+\label{ch27:fig-little-area}
+\end{figure}
 
 \begin{example}[Little's law as a sanity check on M/M/1]
 \label{ch27:ex-little-check}
@@ -607,8 +727,8 @@ Because it needs so few assumptions, Little's law is a Swiss army knife far beyo
 \section{Beyond One Server: Networks and Variations}
 \label{ch27:networks}
 
-The single server is only a starting point. The same machinery scales up, and the generalizations
-are where queueing theory earns its keep in practice.
+The single server is only a starting point. The same framework scales up, and its generalizations
+form the core of applied queueing analysis.
 
 \subsection{The M/M/$c$ queue: many servers}
 
@@ -760,8 +880,43 @@ occupancy to delay by pure accounting, needing essentially no assumptions. Every
 queueing --- many servers, networks, priorities --- is built on these five beams.
 \end{recoverybox}
 
+\subsection{Looking ahead: zero drift and martingales}
+\label{ch27:looking-ahead}
+
+Throughout this chapter, our systems settled into equilibrium because departures outpaced arrivals:
+in the M/M/1 queue, having $\rho = \lambda/\mu < 1$ meant the downward pull of service exceeded the
+upward push of arrivals, gently tugging the queue backlog back toward zero whenever a burst formed.
+In the language of random walks from the previous chapter, the queue length was a biased random walk
+with negative drift.
+
+What happens at the critical knife-edge boundary where arrivals and departures match exactly,
+$\lambda = \mu$? At that point, the system has \textbf{zero drift}. Given the current number of
+customers in the queue, its expected position a moment later is neither higher nor lower --- it is
+perfectly flat. In Chapter~\ref{ch26:srw}, we met this same balance in the symmetric simple random
+walk: a gambler playing a completely fair coin-toss game neither wins nor loses on average from one
+round to the next.
+
+Processes with this fair, zero-drift property are called \textbf{martingales} (named after an old
+French doubling-bet system). In the next chapter, we will leave waiting lines behind and study the
+pure mathematics of fair games. Martingales will give us a strikingly powerful engine: the optional
+stopping theorem, which solves gambler's ruin, hitting times, and exit probabilities across complex
+random processes in a single line of algebra.
+
 \section{Exercises}
 \label{ch27:exercises}
+
+\begin{exercise}[Mental check: scaling load and service]
+\label{ch27:exr-mental-scale}
+An M/M/1 queue has arrival rate $\lambda$ and service rate $\mu$ with $\rho = \lambda/\mu < 1$.
+Suppose customer arrivals double to $2\lambda$, and to keep up, the server's processing speed is
+doubled to $2\mu$.
+\begin{enumerate}[label=(\alph*)]
+  \item What happens to the utilization $\rho$?
+  \item What happens to the average number of customers in the system $L$?
+  \item What happens to the average time a customer spends in the system $W$? Explain in one sentence
+  why the customer's wait changes even though the line length distribution is identical.
+\end{enumerate}
+\end{exercise}
 
 \begin{exercise}[Reading a generator]
 \label{ch27:exr-readgen}

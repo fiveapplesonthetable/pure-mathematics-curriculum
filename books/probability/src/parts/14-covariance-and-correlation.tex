@@ -1,23 +1,13 @@
 \chapter{Covariance and Correlation}
 
-So far, when we have studied two random variables together, we have mostly been
-content to know their \emph{joint distribution} -- the full table or surface that
-tells us $\P(X = x, Y = y)$ for every pair. That object contains everything there
-is to know. But "everything" is often too much. If I tell you the joint
-distribution of the height and weight of a random adult, I have handed you a
-two-dimensional cloud of probability; what you actually \emph{wanted} was a single
-number that answers the question: \emph{when one goes up, does the other tend to
-go up too?}
+A joint distribution contains everything there is to know about two random
+variables, but often we want a single summary number: when one variable goes up,
+does the other tend to go up as well?
 
-That single number is what this chapter is about. We start from a story and a
-picture, then sharpen it into the two standard summaries of how two random
-quantities move together: \textbf{covariance} and its rescaled cousin, the
-\textbf{correlation coefficient}. Along the way we will see why correlation is
-trapped forever inside the interval $[-1, 1]$ (a fact that turns out to be the
-Cauchy--Schwarz inequality wearing a disguise), why a correlation of zero does
-\emph{not} mean independence, why correlation is not causation, and how stacking
-these numbers into a matrix opens the door to principal component analysis and the
-geometry of multivariate data.
+This chapter develops the two standard measures of linear association:
+\textbf{covariance} and the scaled \textbf{correlation coefficient}. We examine
+why correlation lies in $[-1,1]$, why zero correlation does not imply
+independence, and how covariance matrices describe higher-dimensional data.
 
 \section{The Question Covariance Answers}
 \label{ch14:question}
@@ -75,17 +65,19 @@ $X$ and $Y$ is
 \begin{tikzpicture}
 \begin{axis}[
   width=10cm, height=7cm,
-  xlabel={$X$ (deviation from mean $\mu_X$)},
-  ylabel={$Y$ (deviation from mean $\mu_Y$)},
+  xlabel={$X - \mu_X$},
+  xlabel style={at={(axis cs:3.1,-0.2)}, anchor=north east, font=\small},
   xmin=-3.2, xmax=3.2, ymin=-3.2, ymax=3.2,
   axis lines=middle, xtick=\empty, ytick=\empty,
-  enlargelimits=false, clip=true,
+  enlargelimits=false, clip=false,
 ]
+% axis label for Y
+\node[anchor=south east, font=\small] at (axis cs:-0.15,3.1) {$Y - \mu_Y$};
 % quadrant shading labels
-\node at (axis cs:1.7,1.7) {\small $(+)(+) = +$};
-\node at (axis cs:-1.7,-1.7) {\small $(-)(-) = +$};
-\node[red!60!black] at (axis cs:-1.7,1.7) {\small $(-)(+) = -$};
-\node[red!60!black] at (axis cs:1.7,-1.7) {\small $(+)(-) = -$};
+\node[targetgreen!80!black, anchor=west] at (axis cs:0.4,2.5) {\small $(+)(+) = +$};
+\node[targetgreen!80!black, anchor=east] at (axis cs:-0.3,-2.6) {\small $(-)(-) = +$};
+\node[trapred] at (axis cs:-2.0,2.2) {\small $(-)(+) = -$};
+\node[trapred] at (axis cs:2.0,-2.2) {\small $(+)(-) = -$};
 % scatter leaning upward (positive covariance)
 \addplot[only marks, mark=*, mark size=1.2pt, draw=sourceblue, fill=sourceblue]
   table {
@@ -120,13 +112,14 @@ leans upward, so the positive quadrants win and the covariance is positive.}
 \end{figure}
 
 \begin{happeningbox}
-Covariance is a \emph{tug of war between quadrants}. Each data point casts a vote:
-"agree" (positive product) or "disagree" (negative product), weighted by how far
-from the means it sits. Far-out points in the corners shout loudly; points near the
-center barely whisper. The covariance is the net result of all those votes. A point
-exactly on either mean line ($X = \mu_X$ or $Y = \mu_Y$) contributes nothing,
-because one of its deviations is zero. This is why a perfectly symmetric blob
-averages out to zero covariance: the four quadrants cancel.
+Covariance measures the balance of deviation products between quadrants. Each point
+contributes $(X - \mu_X)(Y - \mu_Y)$: positive if both coordinates deviate from their
+means in the same direction, and negative if they deviate in opposite directions,
+scaled by the distance from the mean axes. Points far from the means have a large
+effect on the average, while points close to the means contribute little. A point
+exactly on either mean line ($X = \mu_X$ or $Y = \mu_Y$) contributes zero,
+because one of its deviations is zero. When a distribution is symmetric across
+the mean axes, the positive and negative quadrant contributions cancel to zero.
 \end{happeningbox}
 
 \subsection{A computational shortcut}
@@ -169,6 +162,16 @@ Variance is just a variable's covariance with itself. Everything we know about
 variance is a special case of what we are about to learn about covariance.
 \end{focusbox}
 
+\begin{recoverybox}
+\textbf{Pause and think:} If you flip a fair coin, let $X = 1$ for heads ($0$ for tails), and set $Y = 1 - X$ (the tails indicator). What is $\Cov(X, Y)$ without writing out any sums?
+
+Because $X + Y = 1$ is constant, whenever $X$ rises above its mean, $Y$ drops below its mean by the exact same amount. The two deviations always have opposite signs, so the product is always negative (or zero). Using self-covariance:
+\[
+\Cov(X, Y) = \Cov(X, 1 - X) = \Cov(X, -X) = -\Cov(X, X) = -\Var(X) = -\tfrac{1}{4}.
+\]
+They move in perfect lockstep opposition.
+\end{recoverybox}
+
 \subsection{First worked example: two dice}
 
 \begin{example}[Sum and first die]
@@ -177,7 +180,7 @@ Roll two fair, independent dice. Let $D_1$ be the first die's value and let
 $S = D_1 + D_2$ be the sum. Intuitively, when the first die is large the sum tends
 to be large, so we expect a positive covariance. Let us compute $\Cov(D_1, S)$.
 
-Bilinearity (proved formally in Section~\ref{ch14:properties}) is the fast route,
+Bilinearity (which just means that covariance is linear in each input separately, proved formally in Section~\ref{ch14:properties}) is the fast route,
 but doing it by hand first builds trust. We have $\E[D_1] = 3.5$ and $\E[S] = 7$.
 For the cross term,
 \[
@@ -248,9 +251,10 @@ unit problem, and that problem is exactly what correlation will fix.
 
 \subsection{The payoff: variance of a sum}
 
-Here is where bilinearity earns its keep. Back in the variance chapter we claimed
-that variances add for independent variables but warned that the general story
-needed covariance. Now we can tell the whole story.
+Bilinearity immediately simplifies the computation of the variance of a sum.
+Back in the variance chapter we showed that variances add for independent
+variables, but noted that the general case requires covariance. With bilinearity
+in hand, the general formula follows directly.
 
 \begin{theorem}[Variance of a sum]
 \label{ch14:var-sum}
@@ -279,7 +283,7 @@ variances, and the off-diagonal terms come in symmetric pairs.
 \end{whybox}
 
 \begin{aestheticbox}
-This single identity is one of the workhorses of all of probability and statistics.
+This identity is central throughout probability and statistics.
 It says: \emph{the variance of a total is the sum of the variances plus a
 correction for how the parts move together}. If the parts are uncorrelated, the
 correction vanishes and variances simply add -- which is why, in the chapters
@@ -346,9 +350,9 @@ so they are about as far from independent as two variables can be. Yet
 \]
 so $\Cov(X, Y) = \E[XY] - \E[X]\E[Y] = 0 - 0 = 0$. The covariance is exactly zero.
 What happened? The relationship is a symmetric U (a parabola): as $X$ goes from
-negative to positive, $Y$ first falls then rises. The "rising on the right" part
-exactly cancels the "falling on the left" part, and covariance, which only listens
-for a consistent linear tilt, hears nothing.
+negative to positive, $Y$ first falls then rises. The rising right half exactly
+cancels the falling left half, so covariance -- which measures only overall
+linear tilt -- registers zero.
 \end{example}
 
 \begin{figure}[H]
@@ -384,6 +388,12 @@ $X$ and $Y$ are locked together. The lesson generalizes: \emph{the absence of a
 linear signal is not the absence of a relationship.} Always plot your data; a
 scatterplot sees the U-shape that the covariance number erases.
 \end{happeningbox}
+
+\begin{recoverybox}
+\textbf{Pause and think:} Let $X \sim \Unif(-1, 1)$ and set $Y = |X|$. Are $X$ and $Y$ independent? What is $\Cov(X, Y)$?
+
+Knowing $X$ completely determines $Y$, so they are strictly dependent. Yet $\E[X] = 0$, and by symmetry $\E[XY] = \E[X|X|] = \int_{-1}^1 x|x|\,\tfrac{1}{2}\,\dd x = 0$ because the integrand is an odd function (it flips sign across zero). Hence $\Cov(X, Y) = 0 - 0 = 0$. Just like the parabola $Y = X^2$, the V-shaped curve folds symmetric positive and negative deviations directly onto each other, creating zero linear covariance despite an absolute deterministic relationship.
+\end{recoverybox}
 
 There is exactly one important setting where uncorrelated \emph{does} upgrade to
 independent: when the pair $(X, Y)$ is jointly Gaussian (bivariate normal). For
@@ -426,9 +436,9 @@ numbers stripped of their original scale. Then
 \Corr(X, Y) = \Cov(\tilde X, \tilde Y) = \E[\tilde X \tilde Y].
 \]
 Correlation is just the covariance of the \emph{standardized} variables. It asks
-the same quadrant tug-of-war question as covariance, but now both axes are measured
-in the universal currency of standard deviations, so the answer is comparable across
-any pair of variables in the world.
+whether deviations align, just as covariance does, but with both variables normalized
+by their standard deviations so that the result is dimensionless and directly comparable
+across different pairs of variables.
 \end{intuitionbox}
 
 Because $\Corr$ divides covariance by exactly the scale factors that covariance was
@@ -441,6 +451,12 @@ constants $a, c$ and any $b, d$,
 reverses the direction of co-movement.) Switching from meters to centimeters, or
 from Celsius to Fahrenheit, leaves correlation untouched. That invariance is
 precisely why correlation -- not covariance -- is the number people actually report.
+
+\begin{recoverybox}
+\textbf{Pause and think:} If $\Corr(X, Y) = 0.8$, what is $\Corr(3X + 5, -2Y + 4)$?
+
+The additive shifts $+5$ and $+4$ do not affect deviations from the mean. Scaling $X$ by $+3$ changes its unit spread without changing its orientation. But multiplying $Y$ by $-2$ flips every deviation across its mean: what was above average becomes below average. The positive co-movement turns into negative co-movement, giving exactly $-0.8$.
+\end{recoverybox}
 
 \section{Why Correlation Lives in $[-1, 1]$}
 \label{ch14:bounds}
@@ -459,9 +475,9 @@ of $1.4$? There are two ways to see it.
 \begin{theorem}[Correlation bound]
 \label{ch14:corr-bound}
 For any $X, Y$ with positive, finite standard deviations,
-$\,-1 \le \Corr(X, Y) \le 1$. Moreover $\Corr(X, Y) = \pm 1$ if and only if $Y$ is
-an exact linear function of $X$, i.e. $Y = aX + b$ for some constants $a \ne 0$ and
-$b$ (with $a > 0$ for $+1$ and $a < 0$ for $-1$).
+$\,-1 \le \Corr(X, Y) \le 1$. The boundary values $\Corr(X, Y) = \pm 1$ occur if
+and only if $Y$ is an exact linear function of $X$, that is, $Y = aX + b$ for
+constants $a \ne 0$ and $b$ (with $a > 0$ for $+1$ and $a < 0$ for $-1$).
 \end{theorem}
 
 \begin{whybox}
@@ -503,8 +519,7 @@ geometry.
 
 \begin{connectionbox}
 \textbf{Covariance is an inner product; correlation is the cosine of an angle.}
-Recall from linear algebra that for vectors $\mathbf{u}, \mathbf{v}$, the dot
-product satisfies the \emph{Cauchy--Schwarz inequality}
+An inner product is the algebraic machinery for measuring lengths and angles. In ordinary Euclidean geometry, the dot product $\mathbf{u} \cdot \mathbf{v}$ tells you how much two arrows align. Recall from linear algebra that for vectors $\mathbf{u}, \mathbf{v}$, the dot product satisfies the \emph{Cauchy--Schwarz inequality}
 \[
 \abs{\langle \mathbf{u}, \mathbf{v}\rangle}
 \le \norm{\mathbf{u}}\,\norm{\mathbf{v}},
@@ -515,7 +530,7 @@ variables as "vectors" and define their inner product to be
 \langle U, V \rangle \;=\; \E[UV].
 \]
 This genuinely \emph{is} an inner product: it is symmetric, linear in each slot, and
-$\langle U, U\rangle = \E[U^2] \ge 0$, vanishing only when $U = 0$. Under this
+$\langle U, U\rangle = \E[U^2] \ge 0$, vanishing only when $U = 0$ (almost surely). Under this
 dictionary,
 \[
 \langle U, V\rangle = \Cov(U, V), \qquad
@@ -536,7 +551,7 @@ Uncorrelated variables ($\rho = 0$) are \emph{orthogonal} -- they meet at a righ
 angle. Perfectly correlated variables ($\rho = \pm 1$) are \emph{parallel} (or
 anti-parallel). This is the same geometry as the angle between arrows in space; the
 companion linear-algebra book develops the inner-product and Cauchy--Schwarz story
-in full, and it is the exact engine running underneath correlation.
+in full, and it provides the geometric foundation for correlation.
 \end{connectionbox}
 
 \begin{theorem}[Cauchy--Schwarz Inequality for Random Variables]
@@ -572,10 +587,12 @@ Simplifying the inequality:
 \[
 4\big(\Cov(X,Y)\big)^2 \;\le\; 4\,\Var(X)\,\Var(Y) \;\implies\; \big(\Cov(X,Y)\big)^2 \;\le\; \Var(X)\,\Var(Y).
 \]
-Taking the square root on both sides gives $|\Cov(X,Y)| \le \SD(X)\,\SD(Y)$, and dividing by $\SD(X)\SD(Y)$ establishes $-1 \le \Corr(X,Y) \le 1$.
+Taking square roots gives $|\Cov(X,Y)| \le \SD(X)\,\SD(Y)$, and dividing by $\SD(X)\,\SD(Y)$ establishes $-1 \le \Corr(X,Y) \le 1$.
 
 Equality $\Delta = 0$ occurs if and only if the minimum of the parabola touches the axis at its vertex $t^\star = -B/(2A) = \Cov(X,Y)/\Var(Y)$. At that point, $\E[(U - t^\star V)^2] = 0$, which forces $U - t^\star V = 0$ almost surely, proving the exact linear relationship.
 \end{proof}
+
+Figure~\ref{ch14:fig-cosine} illustrates this geometry side by side. In the space of finite-variance random variables, centered random variables act as vectors, standard deviations give vector lengths, and the inner product is expectation.
 
 \begin{figure}[H]
 \centering
@@ -583,7 +600,7 @@ Equality $\Delta = 0$ occurs if and only if the minimum of the parabola touches 
   % Panel 1: Hilbert space vector geometry
   \begin{scope}[shift={(0,0)}]
     \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-0.8,-1.8) rectangle (5.6,4.0);
-    \node[anchor=north, font=\small\bfseries, structurepurple!80!black] at (2.4,3.8) {1. Random Variables in $L^2$ Space};
+    \node[anchor=north, font=\small\bfseries, structurepurple!80!black] at (2.4,3.8) {1. Random Variables as Vectors ($L^2$ Space)};
 
     \coordinate (O) at (0,0);
     \coordinate (X) at (4.0,0);
@@ -594,7 +611,8 @@ Equality $\Delta = 0$ occurs if and only if the minimum of the parabola touches 
     \draw[->, thick, gray!60] (-0.4,0) -- (4.8,0);
 
     % Vectors
-    \draw[->, very thick, sourceblue] (O) -- (X) node[right, font=\footnotesize\bfseries] {$\tilde X$ \scriptsize ($\|\tilde X\|=1$)};
+    \draw[->, very thick, sourceblue] (O) -- (X);
+    \node[anchor=south west, font=\footnotesize\bfseries, sourceblue] at ($(X)+(0.05, 0.05)$) {$\tilde X$ \scriptsize ($\|\tilde X\|=1$)};
     \draw[->, very thick, densityred] (O) -- (Y) node[above right=-2pt, font=\footnotesize\bfseries] {$\tilde Y$ \scriptsize ($\|\tilde Y\|=1$)};
 
     % Angle arc
@@ -649,33 +667,27 @@ Equality $\Delta = 0$ occurs if and only if the minimum of the parabola touches 
       at (2.6,-1.1) {Scatter Tilt: $\rho = \cos 42^\circ \approx 0.74$\\[1pt]\scriptsize Tighter ellipse $\implies$ smaller $\theta$ $\implies |\rho| \to 1$};
   \end{scope}
 \end{tikzpicture}
-\caption{The dual geometric reality of correlation. (Left) In the $L^2$ Hilbert space of mean-zero random variables, correlation is the cosine of the angle $\theta$ between unit vectors $\tilde X$ and $\tilde Y$, with orthogonal vectors corresponding to zero correlation. (Right) In data space, that same cosine $\rho = \cos\theta$ manifests as the slope of the standardized regression line and the eccentricity of the scatter ellipse.}
+\caption{Two geometric views of correlation. (Left) In the vector space of centered random variables (known formally as $L^2$ space), correlation is the cosine of the angle $\theta$ between unit vectors $\tilde X$ and $\tilde Y$, with orthogonal vectors corresponding to zero correlation. (Right) In data space, that same cosine $\rho = \cos\theta$ manifests as the slope of the standardized regression line and the eccentricity of the scatter ellipse.}
 \label{ch14:fig-cosine}
 \end{figure}
 
 \begin{historybox}
-The correlation coefficient was forged not by a mathematician but by a Victorian
-polymath obsessed with measuring heredity. \emph{Sir Francis Galton}, in the 1880s,
-studied how the heights of children related to the heights of their parents. He
-plotted the data, drew an ellipse around the cloud, and noticed that tall parents
-tended to have tall -- but on average slightly \emph{less} tall -- children, a
-phenomenon he named "regression toward mediocrity" (the origin of the word
-\emph{regression}). Galton sensed a number was hiding in the slope of that cloud.
-His prot\'eg\'e \emph{Karl Pearson} made it precise around 1895, giving the formula
-$\rho = \Cov / (\SD\cdot\SD)$ that still bears the name "Pearson correlation." What
-began as an attempt to quantify family resemblance became one of the central tools
-of all quantitative science. The deep geometric reading -- correlation as the cosine
-of an angle -- came later, once statisticians absorbed the language of inner-product
-spaces.
+The correlation coefficient was developed in the late nineteenth century through studies of biological inheritance. In the 1880s, \emph{Sir Francis Galton} set out to quantify how physical traits, like height and forearm length, pass from parents to children. He was stuck on a stubborn puzzle: how could one compare inheritance across different traits without the measurement units (inches versus centimeters) or differing population spreads distorting the comparison? 
+
+Galton had few modern mathematical tools. He relied on hand-tallied cross-classification tables (counting how many parents of height $x$ had children of height $y$) and smoothed contour ellipses (ovals circling regions of equal data density on graph paper). He noticed that tall parents tended to have tall children who were, on average, slightly less extreme than themselves---a phenomenon he christened "regression toward mediocrity" (the birth of the word \emph{regression}). Galton recognized that a single scale-free number was hiding in the tilt of those ellipses, and he adapted the bivariate normal error equations derived in 1846 by French astronomer \emph{Auguste Bravais} (who had studied telescope sighting errors without realizing the equations measured co-variation). 
+
+In 1895, Galton's prot\'eg\'e \emph{Karl Pearson} gave the concept mathematical precision, publishing the formula $\rho = \Cov / (\SD\cdot\SD)$ that we use today. Yet the breakthrough sparked fierce controversy. Galton's work was explicitly motivated by founding eugenics---a deeply troubling ideological doctrine that sought to control human reproduction and cast a long shadow over early British statistics. Conceptually, Pearson was an aggressive philosophical positivist (believing science should only report observed associations, never unseen causes); he dogmatically asserted that correlation replaced causation entirely in modern science. That dogmatism triggered bitter feuds with contemporaries like \emph{G. Udny Yule} and later \emph{Ronald A. Fisher}, who insisted that passive correlation can never substitute for causal mechanisms.
+
+Pearson's formula unlocked modern linear regression, multivariate data analysis, psychometrics, and econometrics. Today, the frontier is finding what Pearson's number misses: because $\rho$ captures only straight-line relationships, modern statistics actively develops tools like \emph{distance correlation} (which detects arbitrary nonlinear dependencies), copulas, and causal directed acyclic graphs to map relationships that curve or hide behind confounders.
 \end{historybox}
 
 \subsection{What different correlations look like}
 
 Numbers like $\rho = 0.3$ or $\rho = 0.8$ only become meaningful once you have seen
 the scatterplots they produce. Figure~\ref{ch14:fig-clouds} shows clouds at several
-correlation levels. Train your eye: a correlation near $0$ is a round blob; as
-$\abs{\rho}$ climbs toward $1$ the blob stretches into an ever-thinner cigar tilted
-along a line; the sign of $\rho$ is the direction of the tilt.
+correlation levels: a correlation near $0$ forms a round cloud; as
+$\abs{\rho}$ approaches $1$ the cloud contracts toward a line;
+the sign of $\rho$ gives the direction of the tilt.
 
 \begin{figure}[H]
 \centering
@@ -833,8 +845,8 @@ along a line; the sign of $\rho$ is the direction of the tilt.
  };
 \end{axis}
 \end{tikzpicture}
-\caption{Scatter clouds at four correlation levels. Near $\rho = 0$ the cloud is a
-round blob; as $\abs{\rho}\to 1$ it tightens into a tilted cigar. Positive $\rho$
+\caption{Scatter clouds at four correlation levels. Near $\rho = 0$ the cloud is
+diffuse; as $\abs{\rho}\to 1$ it concentrates tightly along a line. Positive $\rho$
 tilts up to the right; negative $\rho$ tilts down. Note that $\rho$ measures
 \emph{tightness around a line}, not the line's steepness.}
 \label{ch14:fig-clouds}
@@ -874,8 +886,8 @@ crowd of other dice grows.)
 \section{Correlation Versus Causation}
 \label{ch14:causation}
 
-This is the most consequential warning in the chapter -- one that escapes the
-mathematics entirely and reaches into how we reason about the world.
+Few distinctions in statistics matter more in everyday reasoning than the gap
+between correlation and causation.
 
 \begin{trapbox}
 \textbf{Correlation is not causation.} A nonzero correlation between $X$ and $Y$
@@ -897,11 +909,9 @@ confounder, the season, drives both. This is the canonical illustration of a
 e.g. look at the correlation \emph{within} a fixed month, where it largely
 disappears.
 
-Statisticians collect these: the number of films Nicolas Cage appears in correlates
-with swimming-pool drownings; per-capita cheese consumption correlates with deaths
-by bedsheet entanglement. With enough variables to dredge, spurious high
-correlations are guaranteed to appear by chance alone. The mathematics is innocent;
-the interpretation is where people fall.
+Search across enough unrelated time series and you will inevitably find pairs
+that track each other by pure chance; the sample correlation is real as
+arithmetic, even when nothing connects the two quantities.
 \end{paradoxbox}
 
 \begin{happeningbox}
@@ -914,10 +924,62 @@ reverse causation, which is precisely what we cannot verify from the data column
 alone. This is why the gold standard for establishing causation is the
 \emph{randomized controlled experiment}: by assigning $X$ at random, the
 experimenter severs any link between $X$ and lurking confounders, so that an
-observed correlation can finally be read as causation. The modern field of causal
+observed correlation can finally be read as causation (Figure~\ref{ch14:fig-causation}). The modern field of causal
 inference (Rubin, Pearl) is built to recover causal claims from observational data
 by modeling exactly the confounding structure that raw correlation ignores.
 \end{happeningbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  >=Stealth,
+  node distance=1.8cm,
+  box/.style={draw=gray!50, fill=gray!5, rounded corners=4pt, font=\small\bfseries, align=center, inner sep=4pt},
+  action/.style={draw=sourceblue, fill=sourceblue!10, rounded corners=4pt, font=\small\bfseries, align=center, inner sep=4pt},
+  confound/.style={draw=trapred, fill=trapred!10, rounded corners=4pt, font=\small\bfseries, align=center, inner sep=4pt},
+  outcome/.style={draw=targetgreen, fill=targetgreen!10, rounded corners=4pt, font=\small\bfseries, align=center, inner sep=4pt},
+]
+  % Panel 1: Confounded Observation
+  \begin{scope}[shift={(0,0)}]
+    \draw[draw=gray!30, fill=gray!3, rounded corners=6pt] (-3.1,-2.3) rectangle (3.1,1.9);
+    \node[anchor=north, font=\footnotesize\bfseries, trapred!80!black] at (0,1.75) {1. Passive Observation (Confounded)};
+
+    \node[confound] (Z1) at (0,0.5) {Confounder $Z$\\ \footnotesize(Summer Heat)};
+    \node[box] (X1) at (-1.9,-1.2) {$X$\\ \footnotesize(Ice Cream)};
+    \node[outcome] (Y1) at (1.9,-1.2) {$Y$\\ \footnotesize(Drownings)};
+
+    \draw[->, very thick, trapred] (Z1) -- (X1);
+    \draw[->, very thick, trapred] (Z1) -- (Y1);
+    \draw[<->, dashed, very thick, red!70!black] (X1) -- (Y1)
+      node[midway, above=2pt, font=\tiny\bfseries, align=center, text=red!70!black] {Spurious\\[-1pt]$\rho > 0$};
+  \end{scope}
+
+  % Panel 2: Randomized Intervention
+  \begin{scope}[shift={(6.7,0)}]
+    \draw[draw=gray!30, fill=gray!3, rounded corners=6pt] (-3.1,-2.3) rectangle (3.1,1.9);
+    \node[anchor=north, font=\footnotesize\bfseries, targetgreen!80!black] at (0,1.75) {2. Randomized Trial (Intervention)};
+
+    \node[confound] (Z2) at (0,0.5) {Confounder $Z$\\ \footnotesize(User Type)};
+    \node[action] (X2) at (-1.9,-1.2) {Treatment $X$\\ \footnotesize(New Feature)};
+    \node[outcome] (Y2) at (1.9,-1.2) {Outcome $Y$\\ \footnotesize(Retention)};
+
+    % Randomizer node
+    \node[draw=sourceblue, circle, fill=white, inner sep=2pt, font=\scriptsize\bfseries] (R) at (-2.0,0.4) {Flip};
+    \draw[->, very thick, sourceblue] (R) -- (X2.north -| R) node[midway, left=2pt, font=\tiny\bfseries] {Random};
+
+    % Severed arrow from Z to X
+    \draw[->, dashed, thick, gray!60] (Z2) -- (X2);
+    \node[font=\bfseries\large, trapred] at (-0.95,-0.4) {$\times$};
+    \node[font=\tiny\bfseries, trapred, fill=gray!3, inner sep=1pt] at (-0.95,0.0) {severed};
+
+    \draw[->, very thick, gray!60] (Z2) -- (Y2);
+    \draw[->, very thick, targetgreen!80!black] (X2) -- (Y2)
+      node[midway, above=2pt, font=\tiny\bfseries, align=center, text=targetgreen!80!black] {Causal\\[-1pt]Effect};
+  \end{scope}
+\end{tikzpicture}
+\caption{Observation versus intervention. (Left) When a lurking confounder $Z$ drives both $X$ and $Y$, the variables move together and produce a positive correlation even with zero direct causal connection. (Right) Random assignment $R$ severs the link between confounder $Z$ and treatment $X$, ensuring that any remaining association between $X$ and $Y$ reflects a genuine causal effect.}
+\label{ch14:fig-causation}
+\end{figure}
 
 \begin{applicationbox}
 \textbf{A/B testing and why we randomize.} Suppose a company notices that users who
@@ -982,11 +1044,11 @@ Hence $\Sigma$ is symmetric positive semidefinite.
 \end{proposition}
 
 \begin{whybox}
-The quadratic form $\mathbf{a}^\top \Sigma \mathbf{a}$ expands into
+A matrix $\Sigma$ is called \textbf{positive semidefinite} if it never produces a negative value when sandwiched between any vector: $\mathbf{a}^\top \Sigma \mathbf{a} \ge 0$. The quadratic form $\mathbf{a}^\top \Sigma \mathbf{a}$ expands into
 $\sum_{i,j} a_i a_j \Cov(X_i, X_j)$, which by bilinearity
 (Theorem~\ref{ch14:var-sum}) is exactly $\Cov\big(\sum_i a_i X_i, \sum_j a_j
 X_j\big) = \Var\big(\sum_i a_i X_i\big)$. A variance is never negative, so the form
-is never negative. That is the definition of positive semidefinite.
+is never negative. That is the entire proof.
 \end{whybox}
 
 \begin{connectionbox}
@@ -1055,7 +1117,7 @@ quadratic forms; here we see why they sit at the center of multivariate statisti
 % principal axis (top eigenvector direction)
 \addplot[densityred, very thick, -{Stealth}, domain=0:2.7] ({x*0.86},{x*0.50});
 \addplot[densityred, very thick, -{Stealth}, domain=0:2.7] ({-x*0.86},{-x*0.50});
-\node[densityred] at (axis cs:2.7,1.0) {\small PC1};
+\node[above right, densityred] at (axis cs:2.35,1.35) {\small PC1};
 % second axis
 \addplot[targetgreen, very thick, -{Stealth}, domain=0:1.1] ({-x*0.50},{x*0.86});
 \node[targetgreen] at (axis cs:-0.9,1.5) {\small PC2};
@@ -1113,10 +1175,7 @@ where $s_x, s_y$ are the sample standard deviations.
 \end{definition}
 
 The divisor $n - 1$ rather than $n$ is the same \emph{Bessel correction} you met for
-the sample variance: dividing by $n-1$ makes the estimator unbiased, compensating
-for the fact that we used the data to estimate the means $\bar x, \bar y$ before
-measuring deviations from them. (Conveniently, the correction cancels in $r$ -- you
-get the same $r$ whether you divide by $n$ or $n - 1$ top and bottom.)
+the sample variance. Because the sample means $\bar x$ and $\bar y$ are calculated from the sample itself, the observations sit slightly closer to $(\bar x, \bar y)$ than to the true, unknown population means $(\mu_X, \mu_Y)$. Measuring deviations from sample means systematically underestimates the true spread on average; dividing by $n - 1$ rather than $n$ exactly offsets this downward bias, making $s_{xy}$ an unbiased estimator of $\Cov(X, Y)$. (Conveniently, the $n - 1$ factor cancels completely in $r$ -- you get the exact same correlation whether you divide by $n$ or $n - 1$ top and bottom.)
 
 \begin{example}[Sample correlation by hand]
 \label{ch14:ex-sample}
@@ -1163,7 +1222,7 @@ $(3,4),(4,3)$ each cross), exactly the look of an $r = 0.8$ cloud.
 \addplot[densityred, thick, domain=0.4:5.6] {0.8*x + 0.6};
 \addplot[only marks, mark=*, mark size=2.6pt, draw=sourceblue, fill=sourceblue]
   coordinates {(1,2)(2,1)(3,4)(4,3)(5,5)};
-\node[densityred] at (axis cs:5.0,5.4) {\small $\hat y = 0.8x + 0.6$};
+\node[densityred] at (axis cs:4.6,1.5) {\small $y = 0.8x + 0.6$};
 \end{axis}
 \end{tikzpicture}
 \caption{The five paired observations of Example~\ref{ch14:ex-sample} and their
@@ -1187,29 +1246,24 @@ big lessons of this chapter.
 \section{Chapter Summary}
 \label{ch14:summary}
 
+\begin{recoverybox}
+\textbf{Chapter summary:}
 \begin{itemize}
-\item \textbf{Covariance} $\Cov(X,Y) = \E[(X-\mu_X)(Y-\mu_Y)] = \E[XY] -
-\E[X]\E[Y]$ measures the average product of deviations: a quadrant tug-of-war that
-is positive when the variables tend to move together, negative when they move
-oppositely.
-\item It is \textbf{bilinear and symmetric}, with $\Cov(X,X) = \Var(X)$, which gives
-the master identity $\Var(X+Y) = \Var(X) + \Var(Y) + 2\Cov(X,Y)$.
-\item \textbf{Independence} $\Rightarrow$ zero covariance, but \textbf{not}
-conversely: covariance sees only \emph{linear} co-movement and is blind to symmetric
-nonlinear relations like $Y = X^2$.
-\item \textbf{Correlation} $\Corr(X,Y) = \Cov(X,Y)/(\SD(X)\SD(Y))$ standardizes
-covariance into a unit-free number in $[-1,1]$ -- the covariance of the
-$z$-scored variables.
-\item The bound $\abs{\rho}\le 1$ is \textbf{Cauchy--Schwarz}: covariance is an
-inner product and correlation is the \emph{cosine of the angle} between mean-zero
-variables. Hitting $\pm 1$ means the cloud collapses onto a line.
-\item \textbf{Correlation is not causation}: confounders, reverse causation, and
-coincidence all produce correlation. Randomized experiments are how we recover
-causal claims.
-\item The \textbf{covariance matrix} $\Sigma$ collects all pairwise covariances; it
-is symmetric positive semidefinite, and its eigen-decomposition is the foundation of
-PCA and of portfolio risk.
+\item \textbf{Covariance} $\Cov(X,Y) = \E[(X-\mu_X)(Y-\mu_Y)] = \E[XY] - \E[X]\E[Y]$ measures the average product of deviations: it is positive when deviations tend to have the same sign, and negative when they have opposite signs.
+\item It is \textbf{bilinear and symmetric}, with $\Cov(X,X) = \Var(X)$, which yields the master identity $\Var(X+Y) = \Var(X) + \Var(Y) + 2\Cov(X,Y)$.
+\item \textbf{Independence} implies zero covariance, but the converse fails: covariance sees only straight-line co-movement and is blind to curved, symmetric dependencies like $Y = X^2$.
+\item \textbf{Correlation} $\Corr(X,Y) = \Cov(X,Y)/(\SD(X)\SD(Y))$ standardizes covariance into a scale-free number in $[-1,1]$---the covariance of the $z$-scored variables.
+\item The bound $\abs{\rho}\le 1$ is \textbf{Cauchy--Schwarz}: covariance is an inner product and correlation is the \emph{cosine of the angle} between centered variables. Hitting $\pm 1$ forces the scatter to collapse onto an exact line.
+\item \textbf{Correlation is not causation}: confounders, reverse causation, and random noise produce spurious correlation. Controlled randomization breaks confounding to isolate causal mechanisms.
+\item The \textbf{covariance matrix} $\Sigma$ gathers all pairwise covariances; it is symmetric positive semidefinite, and its eigenvectors form the principal axes of data variance (PCA).
 \end{itemize}
+\end{recoverybox}
+
+Covariance and correlation summarize linear association with a single number.
+When relationships are nonlinear, however, a single linear summary misses the structure.
+The natural next step is to ask: given $X = x$, what is the expected value of $Y$?
+Conditioning on $X$ leads to \textbf{conditional expectation} $\E[Y \given X]$,
+which provides the best prediction of $Y$ given $X$ and forms the subject of Chapter~15.
 
 \section{Exercises}
 \label{ch14:exercises}
@@ -1268,13 +1322,17 @@ that $Y = aX + b$ for some constants with $a > 0$, and express $a$ in terms of t
 standard deviations. Interpret $a$ geometrically.
 \end{exercise}
 
-\begin{exercise}[Cauchy--Schwarz directly]
+\begin{exercise}[Cauchy--Schwarz and the triangle inequality]
 \label{ch14:ex-cs}
-Let $U, V$ be mean-zero random variables. Consider the function
-$f(t) = \E[(U - tV)^2] \ge 0$ as a quadratic in the real variable $t$. By requiring
-that this upward parabola never dips below zero (its discriminant is
-$\le 0$), derive $\big(\E[UV]\big)^2 \le \E[U^2]\,\E[V^2]$, and conclude
-$\abs{\Corr(X,Y)} \le 1$. This is the slick one-line proof of Cauchy--Schwarz.
+Theorem~\ref{ch14:thm-cauchy-schwarz} proved Cauchy--Schwarz by analyzing the quadratic $\E[(U - tV)^2] \ge 0$.
+\begin{enumerate}[label=(\alph*)]
+\item Use Cauchy--Schwarz to prove the \emph{triangle inequality for standard deviations}:
+\[
+\SD(X + Y) \;\le\; \SD(X) + \SD(Y).
+\]
+(Hint: expand $\Var(X+Y) = \Var(X) + \Var(Y) + 2\Cov(X,Y)$ and apply $\Cov(X,Y) \le \SD(X)\SD(Y)$.)
+\item When does equality $\SD(X + Y) = \SD(X) + \SD(Y)$ hold? Interpret this condition geometrically in terms of the angle $\theta$ between the centered variables in Figure~\ref{ch14:fig-cosine}.
+\end{enumerate}
 \end{exercise}
 
 \begin{exercise}[Confounding in numbers]

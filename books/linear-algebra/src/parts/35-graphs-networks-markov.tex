@@ -1,5 +1,9 @@
 \chapter{Graphs, Networks, and Markov Chains}
 
+In Chapter~34, we treated data as isolated vectors in high-dimensional feature spaces.
+But what happens when data points are defined not by their isolated coordinates, but by
+how they connect to one another?
+
 So far in this book the vectors and matrices have mostly described \emph{geometry}:
 arrows in the plane, stretches of the unit square, rotations of space. In this chapter
 we point the very same machinery at something that does not, at first, look geometric at
@@ -10,13 +14,13 @@ The remarkable thing is that the structure of a network is captured \emph{exactl
 matrix, and the deep questions you might ask about the network (Is it connected? Where are
 its natural communities? Which page is the most important? Where does a random walker end
 up in the long run?) turn into questions about the \emph{eigenvalues and eigenvectors} of
-that matrix. The graph is the picture; the matrix is the algebra; the spectrum is the
-hidden geometry. Linear algebra is the bridge.
+that matrix. The graph provides the combinatorial structure, while the matrix and its
+spectrum provide the algebraic and geometric tools to analyze it.
 
 By the end of this chapter you will be able to look at a graph and write down three
 matrices for it (incidence, adjacency, Laplacian); you will know what each row, column,
-and eigenvalue is telling you; and you will understand PageRank -- the algorithm that
-launched a trillion-dollar company -- as nothing more than finding an eigenvector.
+and eigenvalue is telling you; and you will understand PageRank as computing the
+stationary eigenvector of a transition matrix.
 
 \section{From pictures to matrices}
 \label{ch35:pictures-to-matrices}
@@ -60,7 +64,7 @@ $1,2,3,4$ and five edges. Figure~\ref{ch35:fig-graph4} shows it.
 
 The \emph{degree} of a node is the number of edges touching it. In our graph the degrees
 are: node $1$ has degree $2$, node $2$ has degree $3$, node $3$ has degree $2$, node $4$
-has degree $3$. A useful sanity check you should burn into memory: the degrees sum to
+has degree $3$. A useful sanity check: the degrees sum to
 twice the number of edges, because every edge contributes $1$ to the degree of each of its
 two endpoints. Here $2+3+2+3 = 10 = 2 \times 5$. Good.
 
@@ -143,11 +147,20 @@ $(\mat{A}^2)_{13} = 2$ says there are two length-$2$ paths from $1$ to $3$: thro
 $2$, and through node $4$. Trace your finger over Figure~\ref{ch35:fig-graph4} to confirm
 it.
 
+\begin{recoverybox}
+\textbf{Pause and think: what does $\mat{A}^3$ say about triangles?}
+Every closed walk of length $3$ starting and ending at the same node must trace three edges
+forming a triangle. Since each triangle has $3$ corners and can be traversed in $2$ directions
+(clockwise or counter-clockwise), the sum of the diagonal entries $\tr(\mat{A}^3) = \sum_i (\mat{A}^3)_{ii}$
+counts each triangle exactly $3 \times 2 = 6$ times. So the number of triangles in an undirected
+graph is precisely $\tfrac{1}{6}\tr(\mat{A}^3)$. Matrix multiplication counts geometric shapes
+without ever drawing them.
+\end{recoverybox}
+
 \begin{labbox}
 Compute $\mat{A}^3$ for the graph above and read off $(\mat{A}^3)_{12}$. It should equal
 the number of length-$3$ walks from node $1$ to node $2$. Then find them by hand on the
-picture (start at $1$, take three edges, end at $2$). Do the two answers agree? This little
-exercise is the whole reason adjacency matrices earn their keep.
+picture (start at $1$, take three edges, end at $2$). Do the two answers agree?
 \end{labbox}
 
 \subsection{Directed graphs and the adjacency matrix that is not symmetric}
@@ -185,19 +198,21 @@ e_4\; & 0 & -1 & 0 & +1 \cr
 e_5\; & 0 & 0 & -1 & +1 \cr}.
 \]
 
-Each row has exactly one $-1$ and one $+1$: an edge touches exactly two nodes. This little
-matrix is a difference operator in disguise.
+Each row has exactly one $-1$ and one $+1$: an edge touches exactly two nodes. This
+matrix acts directly as a discrete difference operator.
 
 \begin{intuitionbox}
 Think of a column vector $\vec{x} = (x_1,x_2,x_3,x_4)\T$ as assigning a number to each
-node -- a \emph{potential}, a temperature, an elevation. Then $\mat{B}\vec{x}$ assigns to
-each \emph{edge} the difference of the potentials at its two ends. Row $e_1$ of
-$\mat{B}\vec{x}$ is $x_2 - x_1$. So $\mat{B}$ is the discrete ``gradient'': it turns
-node-values into edge-differences. This is the graph version of $\frac{d}{dx}$.
+node -- a \emph{potential} (a physical quantity such as elevation, temperature, or electrical
+voltage at that site). Then $\mat{B}\vec{x}$ assigns to each \emph{edge} the difference of
+the potentials at its two ends. Row $e_1$ of $\mat{B}\vec{x}$ is $x_2 - x_1$. In this
+way, $\mat{B}$ acts as a discrete ``gradient'' (a difference operator measuring how steeply
+a quantity rises or falls along each wire): it turns node-values into edge-differences.
+This is the graph version of the derivative $\frac{d}{dx}$.
 \end{intuitionbox}
 
-Let us make that concrete. Take $\vec{x} = \colvec{5\\8\\6\\2}$ (an elevation at each node).
-Then
+Let us make that concrete. Take $\vec{x} = \colvec{5\\8\\6\\2}$ (an elevation at each node),
+shown in Figure~\ref{ch35:fig-gradient}. Then
 
 \[
 \mat{B}\vec{x} =
@@ -210,6 +225,31 @@ Then
 =
 \colvec{3\\-3\\-2\\-6\\-4}.
 \]
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.5,
+  pnode/.style={circle,draw=sourceblue,very thick,fill=blue!8,minimum size=10mm,inner sep=0pt,font=\footnotesize,align=center},
+  every edge/.style={draw=spacegray,thick,-{Stealth[length=2.5mm]}}]
+  \node[pnode] (n1) at (0,1.8) {$1$\\[-2pt]\tiny $x_1=5$};
+  \node[pnode] (n2) at (2.4,1.8) {$2$\\[-2pt]\tiny $x_2=8$};
+  \node[pnode] (n3) at (2.4,0) {$3$\\[-2pt]\tiny $x_3=6$};
+  \node[pnode] (n4) at (0,0) {$4$\\[-2pt]\tiny $x_4=2$};
+
+  \draw (n1) edge node[midway,above=2pt,font=\scriptsize,text=sourceblue]{$e_1:\,+3$} (n2);
+  \draw (n1) edge node[midway,left=2pt,font=\scriptsize,text=trapred]{$e_2:\,-3$} (n4);
+  \draw (n2) edge node[midway,right=2pt,font=\scriptsize,text=trapred]{$e_3:\,-2$} (n3);
+  \draw (n2) edge node[midway,above left=3pt,font=\scriptsize,text=trapred]{$e_4:\,-6$} (n4);
+  \draw (n3) edge node[midway,below=2pt,font=\scriptsize,text=trapred]{$e_5:\,-4$} (n4);
+\end{tikzpicture}
+\caption{The incidence matrix $\mat{B}$ as a discrete gradient. Given a vector of node
+potentials $\vec{x}=(5,8,6,2)\T$, each row of $\mat{B}\vec{x}$ computes the difference
+$(\text{head}) - (\text{tail})$ along that directed edge. Along edge $e_1: 1 \to 2$, the
+potential increases by $x_2 - x_1 = 8 - 5 = +3$. Along edge $e_4: 2 \to 4$, it drops by
+$x_4 - x_2 = 2 - 8 = -6$. If $\vec{x}$ were voltages, $\mat{B}\vec{x}$ would be the voltage
+drops across each component.}
+\label{ch35:fig-gradient}
+\end{figure}
 
 Each entry is the rise (or fall) along that edge. If $\vec{x}$ were a voltage, these would
 be the voltage \emph{drops} across each wire -- which, divided by resistance, give the
@@ -230,8 +270,8 @@ What lives in the nullspace of $\mat{B}$? We need $\mat{B}\vec{x} = \vec{0}$, i.
 edge has zero difference, i.e. $x_i = x_j$ for every edge $i\!-\!j$. If the graph is
 connected, that forces \emph{all} the $x_i$ to be equal: the nullspace is exactly the
 multiples of $\vec{1} = (1,1,1,1)\T$, a one-dimensional space. This is the discrete version
-of ``a function with zero gradient is constant.'' Keep this in your pocket -- it returns in
-two pages with deep meaning.
+of ``a function with zero gradient is constant.'' This observation returns shortly
+when we analyze connected components.
 
 \section{The graph Laplacian}
 \label{ch35:laplacian}
@@ -319,19 +359,20 @@ endpoint carries $+1$ and the other $-1$, so the product is $-1$. Hence the off-
 $-1$ for adjacent nodes and $0$ otherwise. That is exactly $\mat{L} = \mat{D}-\mat{A}$.
 \end{proof}
 
-Let us double-check on the running example by computing one entry. Column $2$ of $\mat{B}$
+Let us verify one entry on the running example. Column $2$ of $\mat{B}$
 is $(+1,0,-1,-1,0)\T$ (edges $e_1,e_3,e_4$ touch node $2$). Its own dot product is
 $1+1+1 = 3 = d_2$. Its dot product with column $1$, which is $(-1,-1,0,0,0)\T$, is
 $(1)(-1) + 0 + 0 + 0 + 0 = -1$, matching $L_{12} = -1$. The factorization works.
 
 \begin{aestheticbox}
-The identity $\mat{L} = \mat{B}\T\mat{B}$ is small but it pays enormous dividends. Any
+The identity $\mat{L} = \mat{B}\T\mat{B}$ has immediate structural consequences. Any
 matrix of the form $\mat{M}\T\mat{M}$ is automatically \emph{symmetric} (so it has a full
-set of orthogonal real eigenvectors) and \emph{positive semidefinite} (so its eigenvalues
-are all $\ge 0$). Without computing a single eigenvalue we now know that the Laplacian's
-spectrum is real, nonnegative, and orthogonally diagonalizable. The graph hands us a
-perfectly behaved symmetric matrix for free. A great deal of applied mathematics works out
-this way -- a messy object turns out to be $\mat{M}\T\mat{M}$ in disguise.
+set of orthogonal real eigenvectors) and \emph{positive semidefinite} (meaning its quadratic
+energy $\vec{x}\T\mat{L}\vec{x} \ge 0$ is never negative, curving upward like a bowl, which
+forces every eigenvalue to be $\ge 0$). Without computing a single eigenvalue we now know
+that the Laplacian's spectrum is real, nonnegative, and orthogonally diagonalizable.
+Factoring $\mat{L}$ as $\mat{B}\T\mat{B}$ establishes both symmetry and positive
+semidefiniteness in a single step.
 \end{aestheticbox}
 
 \subsection{The energy form: what $\vec{x}\T \mat{L}\vec{x}$ measures}
@@ -404,8 +445,8 @@ Because $\mat{L}$ is symmetric positive semidefinite, we can order its eigenvalu
 \[
 0 = \lambda_1 \le \lambda_2 \le \cdots \le \lambda_n.
 \]
-We always have $\lambda_1 = 0$ (the constant eigenvector). The next theorem is the jewel of
-the subject: the \emph{number of zero eigenvalues counts the connected components}.
+We always have $\lambda_1 = 0$ (the constant eigenvector). The next theorem is a central
+result of the subject: the \emph{number of zero eigenvalues counts the connected components}.
 
 \begin{theorem}[Multiplicity of zero $=$ number of components]
 \label{ch35:thm-components}
@@ -433,7 +474,7 @@ counting the islands.
 
 This already tells us something operational: to test whether a network is connected, you do
 not trace paths -- you compute the second-smallest eigenvalue $\lambda_2$. If
-$\lambda_2 > 0$, the graph is connected. If $\lambda_2 = 0$, it has fallen apart.
+$\lambda_2 > 0$, the graph is connected. If $\lambda_2 = 0$, it is disconnected.
 
 \subsection{The Fiedler value: connectivity by degree}
 
@@ -499,8 +540,7 @@ $\vec{v}_2 = \frac{1}{\sqrt{2}}(\cos\tfrac{\pi}{8},\,\cos\tfrac{3\pi}{8},\,-\cos
 from one end to the other, and its sign change happens in the middle, telling you to cut the
 path in half. Its eigenvalue is $\lambda_2 = 2 - 2\cos\tfrac{\pi}{4} = 2 - \sqrt2 \approx
 0.586$. (The exact eigenvalues of the $n$-node path are $2 - 2\cos(\pi k/n)$ for
-$k = 0,1,\dots,n-1$, a fact worth memorizing: it is the discrete cosine transform hiding in
-a graph.)
+$k = 0,1,\dots,n-1$; these correspond to the discrete cosine transform basis on a graph.)
 \end{labbox}
 
 \begin{applicationbox}
@@ -533,10 +573,30 @@ weights; we will not belabor it, but it is what makes the machinery useful on re
 \section{Random walks and Markov chains}
 \label{ch35:markov}
 
-We now change the question. Instead of a fixed labeling of nodes, imagine a \emph{walker}
-hopping around the graph at random, and ask: where is the walker likely to be? This is the
-setting of \textbf{Markov chains}, where transition matrices and the dominant eigenvector
-take center stage.
+Up to this point, our view of a network has been physical and static: node potentials,
+edge voltage drops, Dirichlet energy, and macroscopic heat diffusion $\partial_t \vec{u} = -\mat{L}\vec{u}$.
+
+What is heat diffusion when you zoom in to the particle level? It is a crowd of random
+walkers. If you place a drop of dye into water, each individual dye molecule simply bounces
+around at random. At the molecular scale, no single molecule knows calculus or gradients; it
+just takes jittery, random steps. Yet collectively, the cloud of particles spreads smoothly
+from high concentration to low concentration, governed by the Laplacian operator $-\mat{L}$.
+
+Now we make that microscopic picture the main subject. Instead of tracking a continuous
+temperature or fluid, imagine a single walker---a web surfer clicking links, a molecule
+jostling in a gas, a packet routed through servers, or a coin-tossing gambler---hopping from
+node to node across our graph at random. Where will the walker spend its time after thousands
+of steps? Does where it started still matter in the long run?
+
+This is the domain of \textbf{Markov chains}: sequences of random transitions where the
+probability of the next step depends solely on the current state, completely oblivious to the
+past. The mathematical beauty is that this random walk is the exact discrete-time sibling of
+our Laplacian physics. The transition matrix that advances the walker is
+$\mat{P} = \mat{D}\inv\mat{A} = \mat{I} - \mat{D}\inv\mat{L}$. The one-step change in the
+probability vector is $-\vec{\pi}\mat{D}\inv\mat{L}$---the Laplacian operating directly on
+probability. The stationary equilibrium where the walker settles down is the state where
+probability currents into each node balance the currents out: Kirchhoff's current law,
+rewritten for probability.
 
 \begin{intuitionbox}
 A Markov chain is a memoryless random walk. The walker sits at some node, looks at the
@@ -547,11 +607,59 @@ encoded in one matrix of one-step probabilities.
 \end{intuitionbox}
 
 \begin{historybox}
-In the early 1900s in Imperial Russia, an intense dispute erupted between two mathematicians. Pavel Nekrasov published papers claiming that statistical independence was an absolute necessity for the Law of Large Numbers to hold, arguing that independent probabilities reflected moral free will. Andrey Markov was appalled by what he saw as theological doctrine masquerading as mathematics. To refute Nekrasov, Markov set out in 1906 to prove that even strongly dependent sequences of events converge to predictable long-term averages. To prove it empirically, Markov spent months counting vowel-consonant transitions across the first 20,000 letters of Pushkin's poem \emph{Eugene Onegin}. He showed that a vowel followed a consonant with probability $0.872$ and another vowel with probability $0.128$, yet the overall vowel frequency stabilized rigorously at $43.2\%$---the birth of \textbf{Markov chains}.
+The story of matrices on networks unfolds through electrical circuits, a fierce clash
+between theology and mathematics in Tsarist Russia, and a web search revolution.
 
-Around the same time, Oskar Perron (1907) and Georg Frobenius (1912) proved the Perron--Frobenius theorem: any strictly positive matrix has a unique, positive leading eigenvalue with a strictly positive eigenvector. For row-stochastic transition matrices, this eigenvalue is always $\lambda_1 = 1$, guaranteeing a unique stationary probability distribution.
+In 1847, twenty-three-year-old German physicist Gustav Kirchhoff needed a systematic way
+to calculate currents and voltages across complex wire circuits. Working with pencil, paper,
+and physical conservation laws, he realized that the topology of the circuit could be
+encoded into an incidence matrix and what we now call the graph Laplacian. His matrix
+methods proved that currents around closed loops sum to zero and total currents entering
+any node balance to zero.
 
-In 1998, Stanford graduate students Larry Page and Sergey Brin modeled the World Wide Web as an enormous Markov chain. Naive random walks on hyperlinks got trapped in dead ends or infinite loops (spider traps). Brin and Page solved this by adding a small teleportation probability ($1-\alpha \approx 0.15$) to jump to any page uniformly. This made the Google matrix $\mat{G} = \alpha \mat{P} + \frac{1-\alpha}{n} \vec{1}\vec{1}\T$ strictly positive, ensuring that power iteration converges reliably to a unique ranking vector of web page importance.
+Sixty years later, in the early 1900s in Imperial Russia, an intense dispute erupted. Pavel
+Nekrasov, a mathematician and Tsarist educational official, published papers claiming that
+the classical \emph{Law of Large Numbers}---the mathematical guarantee that the running
+average of many random trials settles down to a predictable expectation---strictly required
+every trial to be statistically independent. Nekrasov argued that this mathematical
+independence reflected divine free will, asserting that independent moral choices were
+necessary for predictable social order.
+
+Andrey Markov was appalled by what he saw as theological doctrine masquerading as
+mathematics. In 1906, Markov set out to prove that statistical independence was completely
+unnecessary: even sequences of events with strong memory can converge to
+predictable long-term averages. Lacking computing machines, Markov spent months laboriously
+tallying consonant and vowel transitions across the first 20,000 letters of Alexander
+Pushkin's verse novel \emph{Eugene Onegin}. He showed that a consonant was followed by a
+vowel with probability $0.663$ and another consonant with probability $0.337$, yet the
+overall fraction of vowels in the text stabilized at $43.2\%$---establishing the
+foundations of \textbf{Markov chains}.
+
+Around the same time, Oskar Perron (1907) and Georg Frobenius (1912) proved the
+\emph{Perron--Frobenius theorem}: any matrix whose entries are all
+strictly positive numbers has a unique, positive leading eigenvalue with a strictly positive
+eigenvector. For row-stochastic transition matrices (where each row represents outgoing
+probabilities summing to $100\%$), this guaranteed a unique stationary equilibrium
+distribution. Decades later in 1973, Czech mathematician Miroslav Fiedler proved that the
+second eigenvalue of Kirchhoff's Laplacian measured how tightly knit a graph was,
+providing the mathematical foundation for spectral clustering algorithms that partition networks.
+
+In 1998, Stanford graduate students Larry Page and Sergey Brin combined both traditions to
+organize web search. Early search engines ranked pages by keyword counts, leaving
+them vulnerable to manipulation. Page and Brin modeled the web as a giant directed Markov
+chain where links represented votes of confidence. But raw web graphs contained ``spider
+traps'' (closed loops of pages where a random walker gets trapped forever) and dead ends.
+Brin and Page solved both by introducing a teleportation probability ($1-\alpha \approx 0.15$),
+allowing the walker to jump uniformly to any page on the web. This made the Google matrix
+strictly positive, allowing the \emph{power method} (repeatedly multiplying a probability
+vector by the matrix) to converge reliably to a unique ranking: PageRank.
+
+Today, major frontiers remain open: how to defend spectral ranking algorithms against
+adversarial manipulation (such as coordinated ``link farms'' engineered to deceive the
+dominant eigenvector), how to efficiently compute stationary distributions on dynamic graphs
+whose billions of edges update millions of times per second, and how to construct optimal
+``expander graphs''---sparse networks with the largest possible spectral gap, achieving
+optimal mixing times for computer networks and cryptography.
 \end{historybox}
 
 Make this precise with a small \emph{directed, weighted} example -- a tiny model of weather,
@@ -593,11 +701,11 @@ say, or of a user browsing three pages.
 
     % Directed flux corridors with net exchange
     \draw[->,line width=1.4pt,vecblue] (s2) to[bend left=16] node[midway,above,font=\tiny,text=vecblue]{$15.0\%$} (c2);
-    \draw[->,line width=1.2pt,targetgreen] (c2) to[bend left=16] node[midway,below,font=\tiny,text=targetgreen]{$11.7\%$} (s2);
+    \draw[->,line width=1.2pt,targetgreen] (c2) to[bend left=16] node[midway,above=1pt,font=\tiny,text=targetgreen]{$11.7\%$} (s2);
     \draw[->,line width=1.2pt,quotientorange] (r2) to[bend left=12] node[midway,left,font=\tiny,text=quotientorange]{$12.3\%$} (s2);
     \draw[->,line width=1.4pt,targetgreen] (c2) to[bend left=12] node[midway,right,font=\tiny,text=targetgreen]{$15.6\%$} (r2);
 
-    \node[draw=spacegray!40,fill=white,rounded corners=2pt,font=\tiny,align=center] at (1.5,-0.75) {Inflow $=$ Outflow\\at every node};
+    \node[draw=spacegray!40,fill=white,rounded corners=2pt,font=\tiny,inner sep=2pt] at (1.5,-0.9) {Inflow $=$ Outflow};
   \end{scope}
 \end{tikzpicture}
 \caption{A three-state weather Markov chain and its steady-state probability equilibrium. Left: Transition probabilities $P_{ij}$ for Sunny ($S$), Cloudy ($C$), Rainy ($R$), where every node's outgoing arrows sum to $1$. Right: The stationary distribution $\vec{\pi}^* \approx (0.301, 0.391, 0.308)$ acts as an invariant probability fluid. At equilibrium, the probability mass entering any state via incoming flows exactly balances the probability mass exiting via outgoing flows, making $\vec{\pi}^*$ the left eigenvector for $\lambda=1$.}
@@ -668,6 +776,22 @@ stochastic matrix maps probability distributions to probability distributions. I
 $\vec{\pi}^{(k)} = \vec{\pi}^{(0)}\mat{P}^k$. Evolving the chain $k$ steps is multiplying by
 $\mat{P}$ a total of $k$ times.
 
+\begin{recoverybox}
+\textbf{Pause and think: what if every row of $\mat{P}$ were identical?}
+Suppose that regardless of whether today is sunny, cloudy, or rainy, tomorrow's weather is
+always drawn from a fixed probability distribution $\vec{p} = (0.3,\,0.4,\,0.3)$---meaning every
+row of $\mat{P}$ is identical to $\vec{p}$. Then for \emph{any} starting distribution
+$\vec{\pi}^{(0)}$, the very first step gives:
+\[
+\vec{\pi}^{(1)} = \vec{\pi}^{(0)}\mat{P} = \left(\sum_i \pi^{(0)}_i\right) \vec{p} = \vec{p}.
+\]
+The chain completely forgets its starting point in exactly \emph{one step}! In that extreme case,
+$\vec{p}$ is the stationary distribution, and every eigenvalue other than $\lambda_1 = 1$ is $0$.
+In general chains, rows are not identical, so it takes several steps to ``mix,'' but the
+principle is the same: matrix powers repeatedly damp out the non-stationary components until
+only the dominant eigenvector survives.
+\end{recoverybox}
+
 \begin{trapbox}
 Mind the convention. With the \emph{row-stochastic} matrix above, distributions are
 \emph{row} vectors and you multiply on the \emph{left}: $\vec\pi \mapsto \vec\pi\mat{P}$.
@@ -737,7 +861,7 @@ change when you push it through $\mat{P}$ one more time:
 
 This is the \textbf{stationary distribution}. Algebraically it says $\vec\pi^\ast$ is a
 \emph{left} eigenvector of $\mat{P}$ with eigenvalue $1$ -- equivalently a right eigenvector
-of $\mat{P}\T$. There is the headline of this section, stated as plainly as it can be:
+of $\mat{P}\T$. This gives the central result of this section:
 
 \begin{focusbox}
 \textbf{The long-run behavior of a Markov chain is an eigenvector problem.} The fraction of
@@ -766,13 +890,13 @@ exact answer
 \]
 exactly the vector the iteration was crawling toward. In the long run the weather is sunny
 about $30\%$ of days, cloudy about $39\%$, rainy about $31\%$ -- regardless of today's
-weather. The starting vector washed out completely. That ``forgetting of the start'' is the
-defining feature of a well-behaved chain.
+weather. The influence of the initial distribution decays completely, a hallmark of an
+ergodic Markov chain.
 
 \subsection{When is there a unique stationary distribution it converges to?}
 
-Not every chain settles down to a single answer. Two things can go wrong, and a beautiful
-theorem says they are the only two.
+Not every chain settles down to a single answer. Two conditions can prevent convergence,
+and the Perron--Frobenius theorem guarantees convergence when both are excluded.
 
 \begin{formalbox}
 \textbf{Perron--Frobenius for stochastic matrices.} If $\mat{P}$ is the transition matrix of
@@ -804,14 +928,13 @@ strictly irreducible and aperiodic, explaining why it converged so cleanly.
 
 \begin{connectionbox}
 The eigenvalue $\lambda_2$ controlling Markov mixing and the eigenvalue $\lambda_2$
-controlling graph connectivity (the Fiedler value) are \emph{the same idea in two
-costumes}. For a random walk on an undirected graph, the transition matrix is
+controlling graph connectivity (the Fiedler value) reflect the same spectral phenomenon.
+For a random walk on an undirected graph, the transition matrix is
 $\mat{P} = \mat{D}\inv\mat{A}$, and its eigenvalues are related to the (normalized)
 Laplacian eigenvalues by $\mu_k = 1 - \lambda_k$. A large Laplacian gap means a large
 Markov gap means fast mixing means no bottleneck. A graph that is hard to cut is a graph a
-random walker mixes through quickly. Connectivity, clustering, and mixing time are one
-spectral story told from three angles, and that unity is what gives spectral methods their
-reach.
+random walker mixes through quickly. Connectivity, clustering, and mixing time provide three
+complementary perspectives on the spectrum of the Laplacian.
 \end{connectionbox}
 
 \section{PageRank: importance as an eigenvector}
@@ -822,7 +945,7 @@ is to rank the pages of the web by ``importance'' using only the link structure 
 judgment, no reading the text, just who links to whom.
 
 \begin{intuitionbox}
-The founding idea is delightfully circular and entirely correct: \emph{a page is important
+The defining idea is self-referential: \emph{a page is important
 if important pages link to it}. A link is a vote, but votes are weighted by the importance
 of the voter, and the voter's importance is decided the same way. That circular definition
 is not a paradox -- it is an eigenvector equation. ``$\vec{x}$ is proportional to the
@@ -878,8 +1001,8 @@ row-stochastic transition matrix is
 \end{bmatrix}.
 \]
 
-We want the left eigenvector for eigenvalue $1$. But there is a problem lurking, and the fix
-for it is the cleverest part of the whole algorithm.
+We want the left eigenvector for eigenvalue $1$. On a real web graph, however, two
+obstacles prevent us from using $\mat{P}$ directly.
 
 \subsection{Two snags and the ``teleport'' that fixes both}
 
@@ -903,13 +1026,12 @@ replaced by uniform rows $\tfrac1n\vec1\T$, so the surfer ``teleports out'' of d
 This $\mat{G}$ is the \textbf{Google matrix}.
 
 \begin{aestheticbox}
-Look at what teleportation buys, all from one convex combination. Because $\mat{J}/n$ has
+Teleportation resolves both issues through a single convex combination. Because $\mat{J}/n$ has
 \emph{every} entry positive, $\mat{G}$ has every entry strictly positive: from any page you
 can reach any other in one step (you might teleport there). Strict positivity makes
 $\mat{G}$ irreducible \emph{and} aperiodic in a single stroke, so Perron--Frobenius applies
 with no exceptions: a unique, positive, stationary PageRank vector \emph{always} exists and
-the iteration \emph{always} converges. One small probabilistic tweak turns a fragile,
-ill-defined problem into one with a guaranteed clean answer.
+the iteration \emph{always} converges.
 \end{aestheticbox}
 
 The PageRank vector $\vec{r}$ is the stationary distribution of $\mat{G}$:
@@ -925,6 +1047,17 @@ r_j = \frac{1-\alpha}{n} + \alpha \sum_{i \to j} \frac{r_i}{d_i},
 pages that link to me, each split evenly among its out-links.'' Read it twice; it is the
 whole algorithm.
 
+\begin{recoverybox}
+\textbf{Pause and think: what do the extremes $\alpha = 1$ and $\alpha = 0$ mean?}
+If you set $\alpha = 1$, the Google matrix becomes the raw web matrix $\mat{P}$: you trust
+hyperlinks completely, but dead ends leak probability and spider traps capture all the rank.
+If you set $\alpha = 0$, $\mat{G}$ collapses to $\tfrac{1}{n}\mat{J}$: links are ignored
+entirely, and every page is awarded an identical score of $1/n$. The classic choice
+$\alpha = 0.85$ means the surfer follows true hyperlinks $85\%$ of the time, while the
+$15\%$ teleportation fraction guarantees that Perron--Frobenius holds, that spider traps
+drain, and that no page is left with rank zero.
+\end{recoverybox}
+
 \subsection{The power method: how it is actually computed}
 
 The web has billions of pages; you cannot diagonalize a billion-by-billion matrix. But you
@@ -937,9 +1070,7 @@ repeatedly multiply: $\vec\pi^{(k+1)} = \vec\pi^{(k)}\mat{G}$. Write the start i
 eigenvector basis; each multiplication multiplies the component along eigenvector
 $\vec{v}_k$ by $\lambda_k$. Since $\lambda_1 = 1$ dominates and every other $|\lambda_k| < 1$
 shrinks toward zero, all the other components die off and what survives is the
-$\lambda_1$-eigenvector -- the PageRank vector. Repeated multiplication is an
-eigenvector-finding machine that automatically keeps the biggest eigenvalue and forgets the
-rest.
+$\lambda_1$-eigenvector -- the PageRank vector.
 \end{intuitionbox}
 
 This is exactly the ``run the chain forward and watch it settle'' computation from
@@ -971,16 +1102,15 @@ do automatic summarization; \emph{citation analysis} ranks scientific papers and
 biologists rank genes and proteins in interaction networks (``GeneRank''); and random-walk
 node embeddings (DeepWalk, node2vec) -- the graph analog of word embeddings -- feed graph
 neural networks. Every one of them is the chapter you just read: build a transition matrix
-from a network, find the eigenvector for eigenvalue $1$. The eigenvector of a giant sparse
-matrix turned out to be one of the most valuable objects of the information age.
+from a network, find the eigenvector for eigenvalue $1$.
 \end{applicationbox}
 
 \begin{walkbox}
-Take this on a walk. You have now seen the eigenvalue $1$ play the starring role twice -- as
-the stationary distribution of a Markov chain, and as PageRank -- and the eigenvalue $0$
-play it twice as well -- counting connected components, and the constant ground state of the
-Laplacian. Why is it that ``the boring eigenvalue'' ($0$ for $\mat{L}$, $1$ for $\mat{P}$)
-carries the most important information? What is the relationship between $\mat{L} =
+Take this on a walk. You have seen the eigenvalue $1$ appear twice -- as the stationary
+distribution of a Markov chain, and in PageRank -- and the eigenvalue $0$ appear twice as
+well -- counting connected components and as the constant ground state of the Laplacian.
+Why does the leading structural eigenvalue ($0$ for $\mat{L}$, $1$ for $\mat{P}$) carry
+the most important information? What is the relationship between $\mat{L} =
 \mat{D}-\mat{A}$ and $\mat{P} = \mat{D}\inv\mat{A}$, and how does the eigenvalue $0$ of one
 become the eigenvalue $1$ of the other? (Hint: $\mat{P} = \mat{I} - \mat{D}\inv\mat{L}$.)
 Hold that identity in your head and the two halves of this chapter fuse into one.
@@ -988,52 +1118,69 @@ Hold that identity in your head and the two halves of this chapter fuse into one
 
 \section{Looking back}
 
-We started with dots and lines and ended at the algorithm that organizes the web, and every
-step came from turning a network into a matrix and asking about its spectrum.
+We started with simple dots and lines on a page and arrived at the algorithm that
+organizes the billions of documents on the World Wide Web. Every step came from
+translating a network into a matrix and reading off its eigenvalues and
+eigenvectors.
 
+The central lesson is that a network's combinatorial shape, its physical behavior,
+and its probabilistic dynamics are not separate subjects. They are three facets of
+one unified algebraic structure:
 \begin{itemize}
-\item The \textbf{adjacency matrix} $\mat{A}$ records connections; its powers count walks.
-\item The \textbf{incidence matrix} $\mat{B}$ takes differences across edges -- a discrete
-gradient -- and factors the Laplacian as $\mat{L} = \mat{B}\T\mat{B}$.
-\item The \textbf{Laplacian} $\mat{L} = \mat{D}-\mat{A}$ is symmetric and positive
-semidefinite; its energy is $\sum_{(i,j)\in E}(x_i-x_j)^2$; the multiplicity of its
-eigenvalue $0$ counts connected components, and the next eigenvalue $\lambda_2$ (the Fiedler
-value) measures connectivity and locates the best cut -- the foundation of spectral
-clustering.
-\item A \textbf{Markov chain} evolves distributions by $\vec\pi \mapsto \vec\pi\mat{P}$; its
-long-run behavior is the left eigenvector of $\mat{P}$ for eigenvalue $1$, the stationary
-distribution, guaranteed unique and reachable by Perron--Frobenius when the chain is
-irreducible and aperiodic.
-\item \textbf{PageRank} is the stationary distribution of a random surfer, made well-posed
-by teleportation, and computed by the power method -- the same ``iterate and watch it
-settle'' calculation, now recognized as eigenvector finding.
+\item The \textbf{adjacency matrix} $\mat{A}$ records connections; its powers
+$\mat{A}^k$ count paths and walks, turning graph traversals into matrix multiplication.
+\item The \textbf{incidence matrix} $\mat{B}$ acts as a discrete spatial derivative,
+mapping node potentials to edge differences and factoring the Laplacian as
+$\mat{L} = \mat{B}\T\mat{B}$.
+\item The \textbf{graph Laplacian} $\mat{L} = \mat{D}-\mat{A}$ is symmetric and
+positive semidefinite; its quadratic energy $\vec{x}\T\mat{L}\vec{x} = \sum_{(i,j)\in E}(x_i-x_j)^2$
+measures how much a labeling fluctuates across edges. The multiplicity of its zero
+eigenvalue counts disconnected components, and the Fiedler value $\lambda_2$ pinpoints
+the thinnest bottleneck, unlocking spectral clustering without testing exponentially
+many subsets.
+\item A \textbf{Markov chain} advances probability distributions via
+$\vec\pi \mapsto \vec\pi\mat{P}$. Its long-term equilibrium is the left eigenvector of
+$\mat{P}$ for eigenvalue $1$, guaranteed unique and reachable by Perron--Frobenius
+when the chain is irreducible and aperiodic.
+\item \textbf{PageRank} is the stationary distribution of a random surfer, regularized
+by teleportation so that Perron--Frobenius always holds, and extracted efficiently by
+the power method.
 \end{itemize}
 
-The unity behind the walking question is the lesson to carry away: connectivity, clustering,
-mixing, and importance are all the same spectral story. Learn to read the eigenvalues of a
-network's matrix and you can hear the shape of the network.
+The identity $\mat{P} = \mat{I} - \mat{D}\inv\mat{L}$ connects the two views:
+a random walk is the discrete-time heat equation. The stationary distribution where
+probability ceases to shift is the state where probability currents into each node
+balance the currents out---Kirchhoff's current law reborn as conservation of probability.
 
-\subsection*{What We Can Now Do (Capabilities Unlocked)}
-\begin{itemize}
-  \item \textbf{Discrete Differential Geometry on Graphs:} Using the incidence matrix $\mat{B}$ and the graph Laplacian $\mat{L} = \mat{B}\T\mat{B}$, we generalize gradients, divergences, and Dirichlet energy ($\vec{x}\T\mat{L}\vec{x} = \sum (x_i-x_j)^2$) to discrete topological networks.
-  \item \textbf{Spectral Partitioning and Cheeger Cuts:} The second smallest eigenvalue of the Laplacian ($\lambda_2$, the Fiedler value) and its corresponding eigenvector $\vec{v}_2$ enable spectral clustering, cutting graphs along bottleneck boundaries without checking an exponential number of combinatorial subsets.
-  \item \textbf{Stationary Distribution Guarantees:} Using the Perron--Frobenius theorem, we analyze general stochastic transition matrices, proving when a Markov chain possesses a unique equilibrium distribution reachable from any arbitrary starting state.
-  \item \textbf{Scalable Web-Scale Ranking:} By regularizing directed graphs with teleportation, we formulate global node importance as an eigenvector problem on a positive matrix ($\mat{G}\vec{\pi} = \vec{\pi}$), solved efficiently on billions of nodes via power iteration.
-\end{itemize}
+In practical computation, this spectral framework transforms problems that seem
+combinatorially hopeless into routine linear algebra. Partitioning a graph into two
+clusters of minimal cut size is an NP-hard problem; you cannot check all $2^n$ subsets
+of nodes. The Fiedler vector provides an immediate, continuous relaxation that
+separates clusters along their natural boundary. Similarly, the Google matrix
+$\mat{G} = \alpha\mat{P} + \frac{1-\alpha}{n}\vec{1}\vec{1}\T$ would appear to be a
+memory disaster: adding teleportation makes $\mat{G}$ completely dense, with $n^2$
+nonzero entries. On a web of billions of pages, storing $\mat{G}$ explicitly would
+require exabytes of RAM. But because the dense part is a rank-one matrix $\vec{1}\vec{1}\T$,
+we never form $\mat{G}$ directly. We multiply by the sparse link matrix $\mat{P}$ and
+add the scalar teleportation correction $\frac{1-\alpha}{n}\sum_i \pi_i$ at each step,
+keeping every power-method iteration fast and linear in the number of edges.
 
-\subsection*{Honest Downsides and Limitations}
-\begin{itemize}
-  \item \textbf{Spectral Gap and Slow Mixing Bottlenecks:} The rate at which a Markov chain converges to its steady state is dictated by the spectral gap $1 - |\lambda_2|$. On graphs with severe bottlenecks (such as dumbbell graphs or barbell networks), $|\lambda_2| \approx 1$, causing mixing times to explode into millions of steps.
-  \item \textbf{Stationarity Ignores Temporal Dynamics:} Markov chain steady states $\vec{\pi}$ assume static, time-invariant transition probabilities. They fail to capture real-world networks with bursty temporal edges, evolving network topologies, or memory-dependent higher-order interactions.
-  \item \textbf{NP-Hardness of Optimal Graph Cuts:} While the Fiedler vector provides an effective heuristic for graph partitioning, Cheeger's inequality only guarantees an approximation; finding the true conductance-minimizing cut is NP-hard.
-  \item \textbf{Memory Storage of Dense Teleportation:} Although the raw web graph is sparse, the regularized Google matrix $\mat{G} = \alpha\mat{P} + \frac{1-\alpha}{n}\vec{1}\vec{1}\T$ is completely dense ($n^2$ nonzeros). Forming $\mat{G}$ explicitly in RAM would be impossible; algorithms must exploit the low-rank rank-1 perturbation structure $\vec{1}\vec{1}\T$ to maintain $\mathcal{O}(|E| + n)$ iteration cost.
-\end{itemize}
+Yet one must remain honest about the boundaries of the theory. While the Fiedler
+vector offers an effective cut, Cheeger's inequality guarantees only an approximation,
+not the exact minimum. At the same time, the speed at which a Markov chain converges is
+dictated by the spectral gap $1 - |\lambda_2|$. On networks with severe
+bottlenecks---like two massive clusters connected by a narrow bridge---$|\lambda_2|$
+hugs $1$, and a random walker can take millions of steps before crossing over, slowing
+mixing to a crawl. Finally, standard Markov chains assume time-invariant transition
+probabilities, whereas real social networks and web traffic are bursty, dynamic, and
+memory-dependent.
 
-\subsection*{Where We Go Next in the Book}
-\begin{itemize}
-  \item \textbf{Chapter 36 (Optimization and Quadratic Forms):} Graph Dirichlet energy $\vec{x}\T\mat{L}\vec{x}$ is a symmetric positive semidefinite quadratic form. We generalize quadratic minimization to arbitrary symmetric systems, discovering how the Rayleigh quotient $\frac{\vec{x}\T\mat{A}\vec{x}}{\vec{x}\T\vec{x}}$ and the Conjugate Gradient algorithm find extrema without computing full eigenspaces.
-  \item \textbf{Chapter 37 (Connections: Groups, Tensors, Functional):} We extend discrete graphs to continuous manifolds and continuous transformation groups, where graph Laplacians become the Laplace--Beltrami operator $\nabla^2$ of quantum mechanics and general relativity.
-\end{itemize}
+\subsection*{Looking ahead: from graph energy to optimization}
+
+When we derived the Fiedler vector, we minimized the graph Dirichlet energy
+$\vec{x}\T\mat{L}\vec{x} = \sum_{(i,j)\in E} (x_i - x_j)^2$, our first encounter with a
+quadratic form. In Chapter~36, we study general quadratic forms $\vec{x}\T\mat{A}\vec{x}$,
+using eigenvalues to characterize multivariable curvature and solve constrained optimization problems.
 
 \section*{Exercises}
 \addcontentsline{toc}{section}{Exercises}

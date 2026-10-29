@@ -1,28 +1,27 @@
 \chapter{Monte Carlo Methods}
 
-There is an old joke that the fastest way to compute a hard integral is to ask
-a casino. Behind the joke is a deep idea: when you cannot solve a problem with
-pencil and paper, you can often \emph{simulate} it. Roll dice, watch what
-happens, and let the law of large numbers do the work. The answer arrives not as
-a clean formula but as an estimate -- a number with an error bar that shrinks the
-longer you play.
+In the preceding chapter on machine learning, we saw that modern probabilistic
+models often lead to integrals that cannot be evaluated with pencil and paper.
 
-These are the \emph{Monte Carlo methods}, named after the famous casino in
-Monaco. The name was a wartime code word, but it could hardly be more apt: the
-entire subject is built on the idea that controlled randomness is a tool, not a
-nuisance. We will learn how to estimate quantities by simulation, how to
-integrate functions that no formula can touch, how accurate those estimates are
-(the central limit theorem will tell us, almost for free), and how to be
-cleverer than brute force through variance reduction. The chapter ends at the
-summit of the subject: Markov Chain Monte Carlo, the engine that powers modern
-Bayesian statistics and much of statistical physics.
+There is an old joke that the fastest way to compute a hard integral is to ask
+a casino. Behind the joke is a practical principle: when an integral cannot be evaluated
+in closed form, one can often \emph{simulate} it. By generating random samples,
+the law of large numbers guarantees convergence to the true value. The result arrives not as
+a formula but as an estimate -- a number accompanied by an error bar that shrinks as the sample
+size increases.
+
+These are the \emph{Monte Carlo methods}, named after the casino in
+Monaco. The name was originally a wartime code word: the
+entire subject is built on the idea that controlled randomness can be used as a computational tool. We will learn how to estimate quantities by simulation, how to
+integrate functions that lack closed-form antiderivatives, how accurate those estimates are
+via the central limit theorem, and how to improve efficiency
+through variance reduction. The chapter concludes with Markov Chain Monte Carlo (MCMC),
+a foundational method in modern Bayesian statistics and statistical physics.
 
 Everything in this chapter rests on machinery you have already built. Monte
-Carlo integration is the law of large numbers wearing a work uniform. Its error
-bars are the central limit theorem. Its most advanced form, MCMC, is the theory
-of Markov chains turned into an algorithm. So in a real sense this chapter is a
-victory lap: it shows you that the abstract limit theorems you proved earlier
-are deeply, concretely \emph{useful}.
+Carlo integration applies the law of large numbers directly to numerical calculation.
+Its error bars are supplied by the central limit theorem. Its most advanced form, MCMC,
+translates the theory of Markov chains into a computational algorithm.
 
 \section{The Core Idea: Estimating by Simulation}
 \label{ch35:core-idea}
@@ -97,26 +96,19 @@ Monte Carlo.
 Why does this work at all? Because each dart is an independent trial, and the
 indicator ``did this dart land inside?'' is a $\Bern(\pi/4)$ random variable. The
 fraction inside is a sample mean of i.i.d.\ Bernoullis, and the law of large
-numbers guarantees it converges to the true mean $\pi/4$. We are watching a
-theorem run.
+numbers guarantees it converges to the true mean $\pi/4$.
 \begin{historybox}
-The modern Monte Carlo method was born at Los Alamos in the late 1940s. Stanislaw
-Ulam, recovering from illness and playing solitaire, wondered what fraction of
-Canfield solitaire games are winnable. The combinatorics were hopeless, so he
-realized he could simply \emph{deal many hands and count}. He took the idea to
-John von Neumann, who saw immediately that the new electronic computers could
-run such simulations for the brutal neutron-diffusion calculations of the
-hydrogen bomb. Nicholas Metropolis suggested the code name ``Monte Carlo,''
-after the casino where Ulam's uncle borrowed money to gamble. The method that
-now underlies weather forecasting, drug discovery, and machine learning began as
-a card game and a bomb.
+\textbf{Ulam, von Neumann, and Metropolis, 1946--1949: gambling on integrals.}
+The modern Monte Carlo method was born at Los Alamos in the late 1940s. Stanislaw Ulam, recovering from an illness and playing games of Canfield solitaire, found the combinatorial equations for winning probabilities intractable. He realized he did not need a closed-form formula: he could simply \emph{deal out random hands and count the winners}.
+
+He shared the insight with John von Neumann, who realized that new electronic digital computers (like ENIAC and MANIAC) could run such simulations for neutron-diffusion calculations in nuclear physics. Enrico Fermi had independently used similar manual sampling with a mechanical calculator in Rome years earlier. Nicholas Metropolis coined the code name ``Monte Carlo,'' after the Monaco casino where Ulam's uncle borrowed money to gamble. The method that began as a card game became one of the standard computational tools across physics, statistics, and machine learning.
 \end{historybox}
 \section{Monte Carlo Integration}
 \label{ch35:integration}
-The dart game is really a disguised integral. The area under the arc is
-$\int_0^1 \sqrt{1-x^2}\,\dd x = \pi/4$, and our darts estimated it. Let us strip
-away the disguise and state the general principle, because integration is where
-Monte Carlo earns its keep.
+The dart game is an example of numerical integration: the area under the arc is
+$\int_0^1 \sqrt{1-x^2}\,\dd x = \pi/4$, which the random points estimated.
+We now state the general principle, as high-dimensional integration is the
+primary domain where Monte Carlo methods are essential.
 Suppose we want to compute
 \[
   I = \int_{\mathcal X} g(x)\, f(x)\, \dd x = \E[g(X)],
@@ -145,18 +137,18 @@ so the estimator is $\hat I_n = \frac{b-a}{n}\sum_{i=1}^n h(X_i)$ with the
 $X_i$ uniform on $[a,b]$. You sample points, evaluate the function, average, and
 scale by the width. Done.
 \begin{connectionbox}
-Monte Carlo integration \emph{is} the law of large numbers, dressed for work.
+Monte Carlo integration is a direct application of the law of large numbers.
 Recall from Chapter~20 that for i.i.d.\ $Y_1,\dots,Y_n$ with mean $\mu$, the
 sample mean $\bar Y_n \asto \mu$. Here $Y_i = g(X_i)$ and $\mu = \E[g(X)] = I$.
-Nothing more is happening. The reason Monte Carlo works in $1$ dimension or in
-$1000$ dimensions, for smooth functions or jagged ones, is that the LLN never
-asked about dimension or smoothness. It only asked for a finite mean. That
-indifference is exactly what makes the method so powerful.
+The reason Monte Carlo works in $1$ dimension or in
+$1000$ dimensions, for smooth functions or rough ones, is that the LLN requires
+no assumptions about dimension or smoothness, requiring only a finite mean.
+This generality makes the method exceptionally versatile.
 \end{connectionbox}
 \subsection{The Error of Monte Carlo}
 \label{ch35:error}
-How wrong is $\hat I_n$? Here the central limit theorem hands us an answer for
-free, and it is one of the most important formulas in scientific computing.
+How accurate is $\hat I_n$? The central limit theorem supplies the convergence rate
+directly, yielding one of the foundational formulas in scientific computing.
 Let $\sigma^2 = \Var(g(X))$. The estimator $\hat I_n$ is a sample mean of i.i.d.\
 terms, so it is unbiased, $\E[\hat I_n] = I$, and its variance is
 \[
@@ -176,9 +168,9 @@ know $\sigma$, so we estimate it from the same sample,
 \[
   \hat\sigma^2 = \frac{1}{n-1}\sum_{i=1}^n \bigl(g(X_i) - \hat I_n\bigr)^2,
 \]
-and report $\hat I_n \pm 1.96\,\hat\sigma/\sqrt n$. \emph{The simulation tells
-you its own error bar.} This is a gift no deterministic integration scheme gives
-you so cheaply.
+and report $\hat I_n \pm 1.96\,\hat\sigma/\sqrt n$. \emph{The simulation estimates
+its own error bar.} Deterministic quadrature methods rarely provide an error estimate
+so directly from function evaluations alone.
 \begin{aestheticbox}
 Stare at $\SD = \sigma/\sqrt n$ and notice what is \emph{not} there: the
 dimension. A deterministic grid in $d$ dimensions with $m$ points per axis costs
@@ -189,6 +181,12 @@ small advantage; it is the difference between possible and impossible. This is
 why Monte Carlo, not quadrature, integrates the thousand-dimensional integrals of
 Bayesian statistics and statistical physics.
 \end{aestheticbox}
+
+\begin{recoverybox}
+\textbf{Pause and think: the $1/\sqrt{n}$ barrier.}
+To gain a single additional decimal digit of precision in a Monte Carlo estimate, the standard error must shrink by a factor of $10$. By what factor must the number of simulated samples $n$ increase?
+Because the error scales as $1/\sqrt{n}$, cutting the error by $10$ requires multiplying $n$ by $10^2 = 100$. Gaining three decimal digits requires a million times more computation! This quadratic penalty is why practitioners invest in clever variance reduction rather than relying on brute force alone.
+\end{recoverybox}
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
@@ -198,14 +196,15 @@ Bayesian statistics and statistical physics.
   ylabel={estimate of $\pi$},
   xmode=log, log basis x=10,
   xmin=10, xmax=100000, ymin=2.8, ymax=3.5,
-  legend pos=north east, grid=both, grid style={gray!18}]
+  legend style={at={(0.92, 0.95)}, anchor=north east, font=\footnotesize, column sep=3pt},
+  grid=both, grid style={gray!18}]
 \addplot[densityred, very thick, domain=10:100000, samples=2] {3.14159265};
 \addlegendentry{$\pi$}
 \addplot[name path=hi, draw=none, domain=10:100000, samples=80]
   {3.14159265 + 1.96*1.642/sqrt(x)};
 \addplot[name path=lo, draw=none, domain=10:100000, samples=80]
   {3.14159265 - 1.96*1.642/sqrt(x)};
-\addplot[sourceblue, opacity=0.18] fill between[of=hi and lo];
+\addplot[sourceblue, opacity=0.18, area legend] fill between[of=hi and lo];
 \addlegendentry{$95\%$ band $\pm 1.96\sigma/\sqrt n$}
 \addplot[structurepurple, thick, mark=none] coordinates {
 (10,3.05)(20,3.27)(50,2.98)(100,3.21)(200,3.09)(500,3.165)
@@ -215,17 +214,17 @@ Bayesian statistics and statistical physics.
 \end{axis}
 \end{tikzpicture}
 \caption{A running Monte Carlo estimate of $\pi$ settling toward the truth. The
-shaded $1/\sqrt n$ band narrows agonizingly slowly: a hundredfold increase in
-samples buys only a tenfold reduction in error.}
+shaded $1/\sqrt n$ band narrows slowly: a hundredfold increase in
+samples yields only a tenfold reduction in error.}
 \label{ch35:fig-convergence}
 \end{figure}
 \begin{trapbox}
 The error formula $\sigma/\sqrt n$ assumes $\sigma^2 = \Var(g(X))$ is finite. If
 the integrand has heavy tails so that $\Var(g(X)) = \infty$, the CLT does not
-apply, the estimator's fluctuations do not shrink like $1/\sqrt n$, and your tidy
-confidence interval is a lie. Always ask whether the thing you are averaging has
-a finite variance. A symptom in practice: the running estimate keeps making large
-jumps that never settle, and a few enormous samples dominate the average.
+apply, the estimator's fluctuations do not shrink like $1/\sqrt n$, and nominal
+confidence intervals become invalid. Always verify whether the function being
+averaged has a finite variance. A symptom in practice: the running estimate makes large
+jumps that never settle, and a few outlier samples dominate the average.
 \end{trapbox}
 \begin{example}[A high-dimensional integral]
 \label{ch35:ex-highdim}
@@ -240,25 +239,25 @@ all in a fraction of a second. The dimension never entered the error.
 \end{example}
 \section{Variance Reduction: Working Smarter}
 \label{ch35:variance-reduction}
-The error is $\sigma/\sqrt n$. We can shrink it two ways: increase $n$ (brute
-force, expensive, slow) or decrease $\sigma$ (cleverness, often free). The art of
+The error is $\sigma/\sqrt n$. We can shrink it two ways: increase $n$ (by drawing
+more samples) or decrease $\sigma$ (by structuring the estimator more effectively). The goal of
 \emph{variance reduction} is to find an estimator with the same mean $I$ but a
-smaller variance. A method that halves $\sigma$ is worth quadrupling $n$ -- and
-costs nothing per sample. We study two classic techniques: importance sampling
+smaller variance. A method that halves $\sigma$ achieves the same precision as quadrupling $n$ -- without
+increasing the sample size. We study two classic techniques: importance sampling
 and antithetic variates.
 \subsection{Importance Sampling}
 \label{ch35:importance}
-The idea behind it is this. When you sample uniformly and average $g$, you waste
-effort sampling regions where $g$ is tiny and contributes almost nothing to the
-integral. It would be smarter to draw more samples where $g$ is \emph{large} and
-correct for the oversampling afterward. That correction is importance sampling.
+When sampling uniformly to estimate the expectation of $g$, one often evaluates
+regions where $g$ is negligible and contributes little to the integral.
+Efficiency improves by concentrating samples in regions where $g$ is large and
+adjusting for the non-uniform sampling afterward. This adjustment is importance sampling.
 \begin{intuitionbox}
-Imagine estimating the average wealth of a country by polling. If you sample
-people uniformly, almost none of them will be billionaires, yet billionaires
-move the average enormously. You will get a wildly variable estimate. Instead,
-\emph{deliberately oversample the rich}, then \emph{down-weight} their answers to
-correct for it. You spent your samples where the action is. That is importance
-sampling.
+Suppose you want to estimate the average wealth of a population. A simple uniform
+sample rarely includes high-net-worth individuals, whose values significantly influence
+the population mean. This leads to high estimator variance. Instead, you can
+deliberately oversample higher wealth brackets and then down-weight their contributions
+proportionally. Concentrating samples where the variation is greatest lowers overall variance.
+That is the rationale behind importance sampling.
 \end{intuitionbox}
 Mathematically, suppose we want $I = \E_f[g(X)] = \int g(x) f(x)\,\dd x$ but we
 sample from a different density $q$, called the \emph{proposal} or \emph{importance
@@ -279,37 +278,36 @@ estimator is still unbiased: $\E_q[g(X)w(X)] = I$. What changes is the variance.
 \begin{whybox}
 Why can importance sampling help? The variance of the new estimator is governed
 by $\E_q[(gw)^2] = \int \frac{g(x)^2 f(x)^2}{q(x)}\,\dd x$. We get to choose $q$.
-If we pick $q$ proportional to $\abs{g(x)}f(x)$ -- putting samples exactly where
-the integrand is big -- this quantity shrinks dramatically. In the idealized
+If we pick $q$ proportional to $\abs{g(x)}f(x)$ -- placing samples where
+the integrand is largest -- this quantity decreases substantially. In the idealized
 limit $q(x) \propto g(x) f(x)$ (assuming $g \ge 0$), the weighted integrand
-$g(x)f(x)/q(x)$ becomes a \emph{constant}, so its variance is \emph{zero}. One
-sample would give the exact answer. We can never achieve this perfectly (it
-requires knowing $I$ already), but it tells us the goal: \textbf{match the
-proposal to the shape of the integrand.}
+$g(x)f(x)/q(x)$ becomes constant, yielding zero variance. A single
+sample would give the exact answer. While this optimum cannot be achieved in practice
+(since normalizing $q$ requires knowing $I$), it establishes the design principle:
+\textbf{match the proposal density to the shape of the integrand.}
 \end{whybox}
 \begin{trapbox}
-Importance sampling is a double-edged sword. Choose $q$ \emph{badly} -- too narrow,
-missing a region where $gf$ is large -- and a rare sample lands in the missed
-region with an enormous weight $f/q$. A handful of giant weights then dominate
-the average, the variance explodes (possibly to infinity), and the estimator
-becomes worse than plain Monte Carlo. The rule of thumb: the proposal $q$ must
-have \emph{heavier tails} than the target $f$, never lighter. Light tails on $q$
-are how importance sampling silently fails.
+Importance sampling requires care. If $q$ is chosen poorly -- for example, with tails
+lighter than $f$ -- an occasional sample can fall in a region where $q(x)$ is tiny relative
+to $f(x)$, generating an enormous weight $f/q$. These rare extreme weights then dominate
+the sample average, inflating the variance (sometimes to infinity) and making the estimator
+far less reliable than standard Monte Carlo. A standard rule of thumb: the proposal $q$ must
+have \emph{heavier tails} than the target $f$, never lighter.
 \end{trapbox}
 \begin{example}[Estimating a rare-event probability]
 \label{ch35:ex-rare}
 Suppose $X \sim \Normal(0,1)$ and we want $I = \P(X > 5)$. The true value is about
-$2.87\times 10^{-7}$. Plain Monte Carlo draws standard normals and counts how many
-exceed $5$; but in ten million draws you expect about \emph{three} hits, so your
-estimate is dominated by counting noise -- the relative error is dreadful.
-Importance sampling rescues us. Sample instead from a shifted normal,
-$q = \Normal(5,1)$, which lives right where the action is
+$2.87\times 10^{-7}$. Standard Monte Carlo draws standard normals and counts how many
+exceed $5$; in ten million draws one expects only about three positive hits, so the
+relative error is very large.
+Importance sampling resolves this issue. Sample instead from a shifted normal,
+$q = \Normal(5,1)$, which concentrates probability mass near $5$
 (Figure~\ref{ch35:fig-importance}), so roughly half the
 samples exceed $5$. Each sample carries weight $w(x) = \phi(x)/\phi(x-5)$, where
 $\phi$ is the standard normal density. The estimator
-$\frac1n\sum \ind\{X_i > 5\}\,w(X_i)$ now converges with a tiny relative error
-using only thousands of samples instead of billions. We moved the sampler to the
-rare region and let the weights pay it back.
+$\frac1n\sum \ind\{X_i > 5\}\,w(X_i)$ converges with small relative error
+using thousands of samples rather than billions. The sampler focuses on the
+region of interest, while the weights maintain unbiasedness.
 \end{example}
 \begin{figure}[H]
 \centering
@@ -349,20 +347,20 @@ variables,
 \]
 If $Y_1$ and $Y_2$ are independent, the covariance is zero and we get the usual
 variance reduction by averaging. But if we can arrange $\Cov(Y_1,Y_2) < 0$ -- so
-that when one estimate is too high the other tends to be too low -- the errors
-\emph{cancel}, and the average is more accurate than independence would allow.
+that when one estimate is above the mean, the other tends to be below it -- the deviations
+partially cancel, and the average has lower variance than under independence.
 \begin{intuitionbox}
-Think of two pollsters who make opposite mistakes: when one over-counts, the
-other under-counts. Average them and the mistakes cancel. Antithetic variates
-manufacture exactly this by pairing each random draw with its ``mirror image.''
+Consider combining two measurements whose errors are negatively correlated: whenever
+one overestimates the quantity, the other tends to underestimate it. Averaging the two
+yields smaller deviations overall. Antithetic variates implement this principle by pairing
+each random draw with an inversely correlated counterpart.
 \end{intuitionbox}
 The standard construction: if you sample $U \sim \Unif(0,1)$, then $1-U$ is also
-$\Unif(0,1)$, and the two are perfectly negatively correlated. Use the pair
+$\Unif(0,1)$, and the two are negatively correlated. Use the pair
 $(U, 1-U)$ to generate two evaluations $g(U)$ and $g(1-U)$, average them, and
 average those averages over many pairs. If $g$ is monotone increasing (or
 decreasing), then $g(U)$ and $g(1-U)$ move in opposite directions, the covariance
-is negative, and the variance drops -- sometimes by a large factor, always for
-free.
+is negative, and the variance drops significantly without requiring additional independent samples.
 \begin{example}[Antithetic pairs in action]
 \label{ch35:ex-antithetic}
 Estimate $I = \int_0^1 e^x\,\dd x = e - 1 \approx 1.71828$. Plain Monte Carlo with
@@ -378,28 +376,25 @@ Thirty times less variance is the same accuracy as thirty times more brute-force
 for no extra cost.
 \end{example}
 \begin{happeningbox}
-Both variance-reduction tricks are really about \emph{where you spend your
-randomness}. Plain Monte Carlo spreads samples blindly. Importance sampling
-concentrates them where the integrand is large. Antithetic variates pairs samples
-so their errors cancel. Stratified sampling (a cousin we mention only in passing)
-forces samples into every region of the space. In each case you are not changing
-the question, only spending your finite budget of random draws more wisely. This
-is the real intellectual content of Monte Carlo beyond ``just average a lot of
-samples.''
+Both variance-reduction methods operate by allocating sampling effort strategically.
+Standard Monte Carlo samples uniformly according to the base density. Importance sampling
+concentrates draws where the integrand is largest in magnitude. Antithetic variates pairs draws
+so that deviations negatively correlate and cancel upon averaging. Stratified sampling
+partitions the domain to guarantee coverage across regions. In each case, one improves
+efficiency by structuring the estimator rather than simply increasing the sample size.
 \end{happeningbox}
 \section{Generating Samples: Rejection Sampling}
 \label{ch35:rejection}
-Everything above assumed we could \emph{draw} samples from the distribution we
-care about. For uniforms and normals, library routines handle it. But what about
-a weird density $f$ of your own -- a posterior distribution, say, that you can
-write down only up to a constant? How do you sample from \emph{that}? The first
-general-purpose answer is rejection sampling, and it has a beautiful geometric
-soul.
+The methods above assumed that draws from the reference distribution are readily
+available. Standard algorithms exist for uniform and normal distributions. But many
+distributions -- such as Bayesian posteriors defined only up to an unknown normalizing
+constant -- cannot be sampled directly by standard generators. Rejection sampling
+provides a general method for such settings, based on a direct geometric principle.
 \begin{intuitionbox}
 To sample a point uniformly from \emph{under the curve} of a density, throw darts
 uniformly at a box that contains the curve, and keep only the darts that land
 under the curve. The $x$-coordinates of the kept darts are distributed exactly
-according to the density. Sampling from a density is the same as sampling
+according to the density. Sampling from a density is equivalent to sampling
 uniformly from the area beneath it.
 \end{intuitionbox}
 This rests on a clean fact worth stating on its own.
@@ -446,7 +441,7 @@ given try is $1/M$, so on average it takes $M$ tries per accepted sample.
 \addplot[sourceblue, thick, dashed] {0.58*exp(-x^2/8)};
 \addlegendentry{envelope $M\,q(x)$}
 \addplot[only marks, mark=*, targetgreen, mark size=1.6pt] coordinates {(-1.2,0.05)};
-\node[targetgreen, anchor=west] at (axis cs:-1.1,0.05) {\small accept};
+\node[targetgreen, anchor=east] at (axis cs:-1.35,0.05) {\small accept};
 \addplot[only marks, mark=*, trapred, mark size=1.6pt] coordinates {(1.0,0.30)};
 \node[trapred, anchor=west] at (axis cs:1.1,0.30) {\small reject};
 \end{axis}
@@ -462,7 +457,7 @@ $U\sim\Unif(0,1)$ and forming $(X,\,U\cdot M q(X))$ produces a point distributed
 \emph{uniformly under the envelope} $Mq$. The acceptance test $U \le f(X)/(Mq(X))$
 is exactly the condition that this point lies under $f$. So accepted points are
 uniform under $f$, and by Theorem~\ref{ch35:thm-fts} their $x$-coordinates have
-density $f$. The geometry \emph{is} the proof.
+density $f$.
 \end{whybox}
 \begin{trapbox}
 The cost of rejection sampling is $M$ proposals per accepted sample, and $M$ must
@@ -470,35 +465,35 @@ satisfy $f \le Mq$ \emph{everywhere}. If the proposal $q$ is a poor match for th
 target -- especially in the tails -- then $M$ must be huge, and you reject almost
 everything. In high dimensions this is fatal: the envelope's volume typically
 exceeds the target's by a factor that grows exponentially with dimension, so the
-acceptance probability $1/M$ becomes astronomically small. Rejection sampling is
-wonderful in one or two dimensions and useless in fifty. This failure is exactly
-the gap that MCMC was invented to cross.
+acceptance probability $1/M$ becomes astronomically small. Rejection sampling
+works well in one or two dimensions, but becomes impractical in moderate or high dimensions.
+This limitation motivated the development of Markov chain Monte Carlo.
 \end{trapbox}
 \section{Markov Chain Monte Carlo}
 \label{ch35:mcmc}
-Now for the hardest and most useful case. Suppose you have a complicated, high-dimensional
-distribution -- a Bayesian posterior over a hundred parameters, or the
-Boltzmann distribution over the configurations of a magnet -- and you want to
-sample from it or compute expectations under it. Rejection sampling drowns in
-the curse of dimensionality. Direct sampling is impossible. What now?
-The astonishing answer of Markov Chain Monte Carlo (MCMC): \emph{do not try to
-draw independent samples at all}. Instead, build a Markov chain that wanders
-through the space, designed so that its long-run stationary distribution is
-exactly the target $\pi$ you want. Run the chain for a long time, and the states
-it visits are (correlated) samples from $\pi$. Average a function over the visited
-states and you get the expectation you wanted.
+Consider now the problem of sampling from a complex, high-dimensional
+distribution, such as a Bayesian posterior over many parameters or the
+Boltzmann distribution of a physical lattice. Rejection sampling is thwarted
+by the curse of dimensionality, and direct independent sampling is generally impossible.
+
+Markov chain Monte Carlo (MCMC) addresses this by replacing independent sampling
+with a dependent sequence. One constructs an ergodic Markov chain whose unique
+stationary distribution is the desired target distribution $\pi$. As the chain runs,
+the sequence of states it visits converges in distribution to $\pi$, and time averages
+along the trajectory converge to expectations under $\pi$.
 \begin{connectionbox}
 This is the payoff of everything you learned about Markov chains
-(Chapters~23--24). There you started with a transition matrix $P$ and \emph{found}
-the stationary distribution $\pi$ satisfying $\pi P = \pi$. MCMC runs the logic
-\emph{backwards}: you are \emph{given} the distribution $\pi$ you want, and you
-must \emph{design} a transition rule $P$ whose stationary distribution is that
-$\pi$. The ergodic theorem for Markov chains then guarantees that time averages
-along a single long trajectory converge to expectations under $\pi$:
+(Chapters~23--24). There you started with a transition matrix $P$ and found
+the stationary distribution $\pi$ satisfying $\pi P = \pi$.
+
+MCMC runs that logic \emph{backwards}: you are \emph{given} an
+intractable distribution $\pi$ (such as a high-dimensional continuous posterior),
+and you must \emph{design} a transition rule $P$ whose unique
+stationary distribution is that $\pi$. The ergodic theorem for Markov chains then guarantees
+that time averages along a single long trajectory converge to expectations under $\pi$:
 \[
   \frac1n \sum_{t=1}^n g(X_t) \asto \E_\pi[g(X)].
 \]
-MCMC is the engineering inverse of the Markov chain theory you already own.
 \end{connectionbox}
 The key design tool is \emph{detailed balance} (reversibility), which you met
 when studying stationary distributions. A chain with transition density
@@ -509,16 +504,15 @@ $P(x\to y)$ has $\pi$ as its stationary distribution if
 Read it as a flow-conservation law: in equilibrium, the probability current from
 $x$ to $y$ exactly balances the current from $y$ to $x$. If detailed balance
 holds, no net probability moves anywhere, so $\pi$ stays put -- it is stationary.
-Every MCMC algorithm is a recipe for cooking up a transition rule that satisfies
+Every MCMC algorithm provides a systematic way to construct a transition rule that satisfies
 detailed balance with respect to your chosen $\pi$.
 \subsection{The Metropolis--Hastings Algorithm}
 \label{ch35:metropolis}
-Metropolis--Hastings is the master algorithm. Its genius is that it needs $\pi$
-only \emph{up to a constant} -- which is exactly the situation in Bayesian
-inference, where the posterior is (likelihood)$\times$(prior) divided by an
-intractable normalizing integral. The algorithm sidesteps that integral entirely,
-because it only ever looks at \emph{ratios} $\pi(y)/\pi(x)$, in which the unknown
-constant cancels.
+The Metropolis--Hastings algorithm requires $\pi$ only \emph{up to a normalizing constant} --
+which is exactly the situation in Bayesian inference, where the posterior is proportional to
+(likelihood)$\times$(prior), but the normalizing integral is intractable. The algorithm
+circumvents this integral entirely because it only ever evaluates the \emph{ratio}
+$\pi(y)/\pi(x)$, in which the unknown normalizing constant cancels.
 \begin{formalbox}
 \textbf{Metropolis--Hastings.} Choose a proposal density $q(y \given x)$ from
 which you can sample. Start at $x_0$. For $t = 0, 1, 2, \dots$:
@@ -535,14 +529,13 @@ which you can sample. Start at $x_0$. For $t = 0, 1, 2, \dots$:
 The resulting chain has stationary distribution $\pi$.
 \end{formalbox}
 \begin{intuitionbox}
-Picture a hiker exploring a landscape whose height is $\pi$, looking for the high
-country but wanting to visit everywhere in proportion to altitude. From the
-current spot she takes a tentative step (the proposal). If the new spot is
-\emph{higher} ($\pi(y) > \pi(x)$), she always goes -- climb toward probability
-mass. If it is \emph{lower}, she still goes sometimes, with probability equal to
-the ratio of heights. That occasional willingness to step downhill is what stops
-her from getting stuck on one peak and lets her map the whole terrain. Greedy
-enough to find the mass, humble enough to explore all of it
+Picture exploring an unknown surface whose height represents $\pi$, seeking high-density
+regions while visiting states in proportion to their probability mass. From the
+current state, the sampler proposes a candidate move $y$. If the candidate has higher
+probability density ($\pi(y) > \pi(x)$), the step is always accepted. If the candidate
+has lower density, it is still accepted with probability $\pi(y)/\pi(x)$. This balance
+between accepting upward moves and occasionally accepting downward moves ensures the chain
+traverses the full distribution rather than remaining trapped at a local mode
 (Figure~\ref{ch35:fig-mcmc-path}).
 \end{intuitionbox}
 \begin{whybox}
@@ -561,9 +554,9 @@ while
   \pi(y)\,P(y\to x) = \pi(y)\,q(x\given y)\cdot 1 = \pi(y)\,q(x\given y).
 \]
 The two sides are equal, so detailed balance holds, and $\pi$ is stationary. The
-$\min$ and the ratio are engineered precisely to make this equality fall out. And
+$\min$ and the ratio are engineered precisely to make this equality hold. And
 because only the ratio $\pi(y)/\pi(x)$ appears, any normalizing constant in $\pi$
-cancels -- the reason MCMC conquers intractable posteriors.
+cancels, allowing MCMC to handle unnormalized posteriors directly.
 \end{whybox}
 \begin{figure}[H]
 \centering
@@ -571,7 +564,7 @@ cancels -- the reason MCMC conquers intractable posteriors.
 \begin{axis}[
   name=landPlot,
   width=12cm, height=5.2cm,
-  title={MCMC: Exploring an unknown probability landscape $\pi(x)$},
+  title={MCMC: Exploring an unknown probability surface $\pi(x)$},
   title style={font=\small},
   xlabel={state space $x$},
   ylabel={target altitude $\pi(x)$},
@@ -582,7 +575,7 @@ cancels -- the reason MCMC conquers intractable posteriors.
   y label style={font=\footnotesize},
   tick label style={font=\scriptsize},
 ]
-% Bimodal landscape
+% Bimodal density surface
 \addplot[distblue, very thick, fill=distblue!12] {0.55*exp(-(x+1.5)^2/0.8) + 0.85*exp(-(x-1.2)^2/1.0)} \closedcycle;
 
 % State x0 at -2.4 (altitude ~ 0.2)
@@ -592,24 +585,20 @@ cancels -- the reason MCMC conquers intractable posteriors.
 % Move 1: Uphill proposal to y1 = -1.6 (altitude ~ 0.54) -> Accepted!
 \draw[->, very thick, targetgreen] (axis cs:-2.4, 0.2) to[out=40,in=160] (axis cs:-1.6, 0.54);
 \fill[targetgreen!80!black] (axis cs:-1.6, 0.54) circle (2.2pt);
-\node[above, font=\scriptsize, targetgreen!80!black] at (axis cs:-2.0, 0.45) {Step 1: uphill (accepted)};
-\node[below, font=\scriptsize] at (axis cs:-1.6, 0.50) {$x_1$};
+\node[above left, font=\scriptsize, targetgreen!80!black, align=center] at (axis cs:-1.8, 0.55) {Step 1: uphill\\(accepted)};
+\node[below, font=\scriptsize] at (axis cs:-1.6, 0.48) {$x_1$};
 
 % Move 2: Cross-valley proposal to y2 = 0.5 (altitude ~ 0.52) -> Accepted downhill/cross
 \draw[->, very thick, quotientorange] (axis cs:-1.6, 0.54) to[out=15,in=150] (axis cs:0.5, 0.52);
 \fill[quotientorange!80!black] (axis cs:0.5, 0.52) circle (2.2pt);
 \node[above, font=\scriptsize, quotientorange!80!black] at (axis cs:-0.4, 0.65) {Step 2: downhill ratio (accepted)};
-\node[below, font=\scriptsize] at (axis cs:0.5, 0.48) {$x_2$};
+\node[font=\scriptsize] at (axis cs:0.62, 0.38) {$x_2 = x_3$};
 
 % Move 3: Bad proposal into deep tail y3 = 3.2 (altitude ~ 0.01) -> Rejected!
-\draw[->, thick, dashed, trapred] (axis cs:0.5, 0.52) to[out=20,in=140] (axis cs:3.0, 0.03);
+\draw[->, thick, dashed, trapred] (axis cs:0.5, 0.52) to[out=15,in=140] (axis cs:3.0, 0.03);
 \draw[trapred, thick] (axis cs:2.95,0.08) -- (axis cs:3.05,-0.02);
 \draw[trapred, thick] (axis cs:2.95,-0.02) -- (axis cs:3.05,0.08);
-\node[above, font=\scriptsize, trapred] at (axis cs:2.0, 0.35) {Step 3: proposal $y$ into void (rejected)};
-
-% Self loop for rejected step 3: x3 = x2
-\draw[->, thick, trapred] (axis cs:0.5, 0.52) arc[start angle=0, end angle=280, radius=0.18];
-\node[right, font=\scriptsize, trapred] at (axis cs:0.55, 0.52) {$x_3 = x_2$};
+\node[anchor=north east, font=\scriptsize, trapred, align=right] at (axis cs:3.4, 0.75) {Step 3: proposal into far tail\\(rejected, stays at $x_2$)};
 \end{axis}
 
 % Bottom lane: Timeline of samples
@@ -627,7 +616,7 @@ cancels -- the reason MCMC conquers intractable posteriors.
 \node[font=\scriptsize, align=center, text width=9cm] at (0,-0.7) {Trajectory visits each region with frequency proportional to local mass $\pi(x)$};
 \end{scope}
 \end{tikzpicture}
-\caption{Metropolis--Hastings as exploring an unknown landscape. The hiker proposes candidate steps $y \sim q(y\given x_t)$. Uphill steps ($\pi(y) \ge \pi(x_t)$) are always accepted (green). Downhill steps ($\pi(y) < \pi(x_t)$) are accepted with probability $\alpha = \pi(y)/\pi(x_t)$ (orange), preventing the chain from getting trapped on a single local peak. Proposals into deep low-probability valleys are rejected (red), causing the chain to stay put ($x_{t+1}=x_t$), which correctly accumulates extra sampling weight in dense regions.}
+\caption{Metropolis--Hastings exploring a target probability density. At each step, a candidate $y \sim q(y\given x_t)$ is proposed. Steps with $\pi(y) \ge \pi(x_t)$ are always accepted (green). Downhill steps ($\pi(y) < \pi(x_t)$) are accepted with probability $\alpha = \pi(y)/\pi(x_t)$ (orange), preventing the chain from remaining trapped at a single local peak. Proposals into low-probability regions are rejected (red), causing the chain to stay put ($x_{t+1}=x_t$), which correctly accumulates sampling weight in high-density regions.}
 \label{ch35:fig-mcmc-path}
 \end{figure}
 
@@ -766,7 +755,8 @@ MCMC samples are \emph{correlated}, and this changes how you read the output.
 Consecutive states are not independent, so the effective sample size is smaller
 than the number of iterations -- sometimes far smaller. Two practical
 consequences. First, \emph{burn-in}: the chain starts at an arbitrary point and
-needs time to ``forget'' it and reach equilibrium; discard the early states.
+requires an initial segment to reach its stationary regime and reduce dependence
+on the initial value; these early iterations are discarded.
 Second, the naive error bar $\hat\sigma/\sqrt n$ is \emph{too optimistic} because
 it assumes independence; the true variance of an MCMC average involves the
 autocorrelation and is larger. And if the target has well-separated modes, a
@@ -776,19 +766,19 @@ Run multiple chains from different starts and check that they agree.
 \end{trapbox}
 
 \begin{paradoxbox}
-\textbf{The convergence you cannot see.} Here is the unsettling part of MCMC.
-The theory guarantees that \emph{eventually} time averages converge to the right
-answer -- but ``eventually'' can mean longer than the age of the universe, and the
-output gives you few reliable warnings. A chain trapped in one mode of a multimodal
-distribution looks perfectly healthy: the trace wanders, the histogram is smooth,
-the running average settles. It has simply settled to the \emph{wrong} value,
-because it never discovered the other modes. This is the deep difference between
-i.i.d.\ Monte Carlo, whose error the CLT pins down exactly, and MCMC, whose
-error depends on an unknown mixing time. The resolution is not a formula but a
-discipline: run several independent chains, start them far apart, compare their
-answers (the Gelman--Rubin diagnostic formalizes this), and stay humble. MCMC is
-correct in the limit and treacherous in practice -- which is exactly why
-diagnosing convergence is a serious craft.
+\textbf{The convergence you cannot see.} Here is the difficulty with MCMC.
+The theory guarantees that time averages converge to the expectation under $\pi$
+as $n \to \infty$, but the rate depends on the mixing time of the chain.
+A chain trapped in one mode of a multimodal distribution can appear stationary:
+the trace oscillates, the histogram looks smooth, and running averages settle, yet
+the estimate misses other modes entirely. This distinguishes i.i.d.\ Monte Carlo,
+whose standard error is governed directly by the central limit theorem, from MCMC,
+whose finite-time accuracy depends on mixing throughout the state space.
+The practical resolution relies on careful diagnostic procedure: run several
+independent chains initialized from dispersed starting values, compare their output
+(the Gelman--Rubin diagnostic formalizes this across-chain variance comparison),
+and examine trace plots and autocorrelation times. MCMC guarantees asymptotic convergence,
+but diagnosing finite-sample mixing requires systematic empirical verification.
 \end{paradoxbox}
 
 \section{Applications Across Science and Machine Learning}
@@ -818,18 +808,19 @@ Simulating how a magnet behaves near its critical temperature is a Monte Carlo
 calculation.
 \end{applicationbox}
 
-\begin{historybox}
-The 1953 paper by Metropolis, the Rosenbluths, and the Tellers introduced what we
-now call the Metropolis algorithm to compute equations of state for interacting
-particles. In 1970 W.\ K.\ Hastings generalized it to asymmetric proposals,
-giving the Metropolis--Hastings form we use today. For decades the method lived
-mostly in physics. Then in the early 1990s statisticians (notably Gelfand and
-Smith, who popularized Gibbs sampling for Bayesian models) realized it was the
-missing key to practical Bayesian inference. MCMC promptly transformed statistics:
-problems that had been theoretically Bayesian but computationally hopeless became
-routine. A physics tool for bombs and magnets became the workhorse of modern data
-analysis.
-\end{historybox}
+\begin{connectionbox}
+\textbf{From interacting particles to Bayesian posteriors.}
+The 1953 paper by Nicholas Metropolis, Arianna Rosenbluth, Marshall Rosenbluth,
+Augusta Teller, and Edward Teller introduced what we now call the Metropolis algorithm
+to compute equations of state for interacting particles in statistical mechanics.
+In 1970, W.\ K.\ Hastings generalized it to asymmetric proposals, giving the
+Metropolis--Hastings form we use today. For decades the method lived mostly in physics.
+Then in the early 1990s, statisticians (notably Alan Gelfand and Adrian Smith, who
+popularized Gibbs sampling for Bayesian models) demonstrated that it offered a practical
+computational framework for Bayesian inference. Models that had been intractable
+analytically could now be sampled and estimated numerically. A method originating in
+statistical physics became a standard foundation for computational statistics and machine learning.
+\end{connectionbox}
 
 \begin{applicationbox}
 \textbf{Machine learning.} Monte Carlo is everywhere in modern ML. Variational
@@ -853,23 +844,30 @@ it by simulating thousands of price paths and averaging the discounted payoffs,
 with antithetic variates and importance sampling to tighten the estimate. Value
 at Risk and stress testing simulate portfolio losses to estimate the probability
 and size of rare, catastrophic outcomes -- exactly the rare-event regime where
-importance sampling earns its keep (Example~\ref{ch35:ex-rare}).
+importance sampling is effective (Example~\ref{ch35:ex-rare}).
 \end{applicationbox}
 
 \begin{aestheticbox}
-Step back and admire the unity. A single idea -- replace a quantity you cannot
-compute with an average over samples, and let a limit theorem guarantee the
-answer -- spans card games, hydrogen bombs, the magnetism of iron, the price of
-options, the posterior of a hierarchical model, and the images conjured by a
-diffusion model. The law of large numbers promises the average converges; the
-central limit theorem sizes the error; the theory of Markov chains lets us sample
-when nothing else can. Monte Carlo is where the abstract probability of the
-earlier chapters becomes a practical engine for computing the otherwise
-incomputable. That is as good as applied mathematics gets.
+A single principle -- replacing an intractable integral with a sample average
+and relying on limit theorems for theoretical guarantees -- connects these diverse
+applications. The law of large numbers guarantees convergence; the central limit
+theorem characterizes the rate of error reduction; and Markov chain theory enables
+sampling from complex, high-dimensional distributions.
 \end{aestheticbox}
 
 \section{Exercises}
 \label{ch35:exercises}
+
+\begin{exercise}[Warm-up mental checks]
+\label{ch35:exr-warmup}
+Answer these quick checks before reaching for paper:
+\begin{enumerate}[label=(\alph*)]
+  \item If you increase the number of Monte Carlo samples from $1{,}000$ to $100{,}000$, by what factor does the standard error shrink?
+  \item In importance sampling, what happens to the weights and variance if your proposal distribution $q(x)$ has lighter tails than the target distribution $f(x)$?
+  \item If you evaluate an integral using antithetic pairs $(U, 1-U)$, why does a strictly monotone integrand $g$ guarantee that the errors of the two evaluations tend to cancel?
+  \item In the Metropolis algorithm, if the proposed candidate $y$ has higher target density than the current state $x_t$ ($\pi(y) > \pi(x_t)$), what is the probability of accepting the step?
+\end{enumerate}
+\end{exercise}
 
 \begin{exercise}[Estimating $\pi$, and its error]
 \label{ch35:exr-pi}

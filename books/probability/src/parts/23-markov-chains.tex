@@ -1,45 +1,45 @@
 \chapter{Markov Chains}
 
-So far almost every random sequence in this book has been built out of \emph{independent}
-pieces. Coin flips, dice rolls, the increments of a simple random walk -- in each case the
-next thing that happens knows nothing about the past. Independence is clean, but it is also
-a strong assumption, and the world rarely obliges. Tomorrow's weather depends on today's.
-Your next word depends on the word you just typed. Whether a gambler is up or down at the
-next bet depends on whether they are up or down right now. The genome you inherit at one
-site is correlated with the site next door.
+Up to now, our random sequences were almost always built from \emph{independent}
+building blocks: repeated coin tosses, dice rolls, or measurement noise.
+In every step, the next random variable knew nothing about the ones that came before.
+Independence makes calculations clean, but the world rarely obliges. Tomorrow's weather
+depends on today's. Your next word depends on the word you just typed. Whether a gambler is
+up or down at the next bet depends on whether they are up or down right now. The genome you
+inherit at one site is correlated with the site next door.
 
-We need a model of randomness \emph{with memory} -- but not too much memory, or there is
-nothing we can compute. The Markov chain strikes that balance. It is the simplest interesting
-way for the future to depend on the past, and it is also one of the most useful
-objects in applied probability. Page rankings on the web, the autocomplete in your
-phone, models of ion channels in neurons, queueing theory, Monte Carlo samplers that power
-modern Bayesian statistics, the spread of epidemics -- all of these are Markov chains
-wearing different clothes.
+We need a model of randomness \emph{with memory} -- but with structured dependence so
+that exact calculations remain tractable. The Markov chain provides this framework.
+It is the simplest tractable model in which the future depends on the past, and it is widely applied
+in probability and statistics: web page ranking, language modeling, ion channels in biophysics,
+queueing theory, Markov chain Monte Carlo in Bayesian computation, and the spread of
+epidemics can all be formulated as Markov chains.
 
-The whole subject rests on a single, almost philosophical idea: \emph{the present screens
-off the past}. Once you know where you are right now, the road that brought you here tells
-you nothing more about where you are going. This chapter is about taking that one sentence
-seriously and seeing how far it carries us.
+The core property of a Markov chain is conditional independence: \emph{the present screens
+off the past}. Conditioned on the state of the process at the current time, its future trajectory
+is independent of its past history. This chapter develops the mathematical framework that
+flows from this single property.
 
 \chapterline
 
 \section{The Markov property: the present is enough}
 \label{ch23:markov-property}
 
-Picture a frog hopping among a few lily pads. At each tick of a clock the frog jumps to a
-(possibly different) pad according to some probabilities that depend only on the pad it is
-sitting on \emph{right now}. The frog has no diary. It does not remember the long scenic
-route it took to reach its current pad; it just looks around from where it is and jumps.
+Picture a system hopping among a set of states (such as a particle moving between discrete locations).
+At each step, the transition to the next state depends only on the state it occupies
+\emph{right now}. The transition rule ignores the path taken to reach the current state;
+the current location alone determines the transition probabilities.
 
 \begin{intuitionbox}
-A Markov chain is a random walk on a set of \emph{states} where the only thing that matters
+A Markov chain is a process hopping among a set of \emph{states} where the only thing that matters
 for the next step is the current state. The history is not erased -- you can still write it
 down -- but it is \emph{irrelevant} to the future once the present is known. ``Given the
 present, the future and the past are independent.''
 \end{intuitionbox}
 
 Let us make this precise. We have a sequence of random variables $X_0, X_1, X_2, \dots$,
-each taking values in a finite or countable set $S$ called the \emph{state space}. We think
+each taking values in a finite or countable set $S$ called the \emph{state space} -- the catalog
+of all possible locations, conditions, or configurations the system can inhabit. We think
 of $X_n$ as the state at time $n$.
 
 \begin{definition}[Markov property]
@@ -51,9 +51,11 @@ probability of the conditioning event,
   \P(X_{n+1} = j \given X_n = i,\, X_{n-1} = i_{n-1}, \dots, X_0 = i_0)
    = \P(X_{n+1} = j \given X_n = i).
 \]
-The chain is \emph{time-homogeneous} if this last quantity does not depend on $n$; we then
-write $p_{ij} = \P(X_{n+1} = j \given X_n = i)$ for the \emph{transition probability} from
-$i$ to $j$. Unless we say otherwise, all our chains are time-homogeneous.
+The chain is \emph{time-homogeneous} if this last quantity does not depend on $n$ -- meaning
+the transition rules stay identical as the clock ticks forward. We then write
+$p_{ij} = \P(X_{n+1} = j \given X_n = i)$ for the \emph{transition probability} from $i$ to $j$,
+the probability of hopping directly from $i$ to $j$ in a single tick. Unless we say otherwise,
+all our chains are time-homogeneous.
 \end{definition}
 
 Read the equation slowly. On the left you condition on the \emph{entire} history. On the
@@ -63,8 +65,8 @@ equal: the extra history $i_{n-1}, \dots, i_0$ adds nothing once you know $i$. T
 
 \begin{trapbox}
 ``Memoryless'' does \emph{not} mean the steps are independent, and it does \emph{not} mean
-the chain forgets everything. The frog's current pad is highly informative about its next
-pad. What the Markov property says is narrower: \emph{additional} past beyond the present
+the chain forgets everything. The system's current state is highly informative about its next
+state. What the Markov property says is narrower: \emph{additional} past beyond the present
 contributes no \emph{further} information. Also beware the symmetric trap -- the past and
 future are conditionally independent \emph{given the present}, but they are usually very much
 dependent if you do not condition. Knowing $X_0$ tells you plenty about $X_5$.
@@ -83,16 +85,33 @@ table. It is the most memory you can have while staying finitely specifiable.
 
 \begin{historybox}
 The chains are named for \textbf{Andrey Andreyevich Markov} (1856--1922), a student of
-Chebyshev in St.\ Petersburg. In 1906 Markov was partly motivated by a quarrel. Pavel
-Nekrasov had argued that the law of large numbers \emph{required} independence, and used
-this to make theological claims about free will. Markov wanted to show that the law of large
-numbers, and limit theorems generally, hold for \emph{dependent} sequences too -- provided
-the dependence is of his restricted kind. To demonstrate it on real data he did something
-strikingly modern: he took the text of Pushkin's verse novel \emph{Eugene Onegin}, stripped
-out the first 20{,}000 letters, and counted how often a vowel was followed by a vowel, a
-vowel by a consonant, and so on. That two-state chain (vowel/consonant) was, in effect, the
-first statistical language model -- a direct ancestor of the autocomplete on your phone,
-written a century before the phone.
+Pafnuty Chebyshev at Saint Petersburg University. In 1906, Markov was spurred into action by
+an ideological controversy. Pavel Nekrasov, a mathematician and theologian, had asserted that
+the weak law of large numbers strictly required independence, enlisting probability to argue
+that voluntary human decisions must be mutually independent acts of free will. Markov, an
+uncompromising materialist with little patience for theological mathematics, set out to
+shatter Nekrasov's premise. He asked: could limit theorems still hold when variables are
+entangled with their neighbors?
+
+Markov had no modern measure theory -- Andrey Kolmogorov's foundational axioms would not appear
+until 1933 -- and no graph-theoretic language of networks. Working with classical tools like
+determinants, continued fractions, and Chebyshev's inequality, Markov had to invent matrix
+contraction techniques from scratch. To prove that his dependent variables obeyed a law of
+large numbers, he introduced what we now call the Markov property: the future is conditioned
+only on the immediate present. In 1913, to demonstrate his theory on empirical data, Markov
+performed a remarkably modern experiment. He took the first 20{,}000 letters of Alexander
+Pushkin's verse novel \emph{Eugene Onegin}, tallied vowels and consonants by hand, and showed
+that a vowel was followed by another vowel with probability $0.128$, but by a consonant with
+probability $0.872$. That two-state chain was the world's first statistical language model --
+the direct intellectual ancestor of $n$-gram models and modern generative language models.
+
+Markov's breakthrough unlocked modern stochastic processes: the Chapman--Kolmogorov equations
+in physics, queueing theory in telecommunications, and Markov Chain Monte Carlo (MCMC)
+algorithms that power computational Bayesian statistics and machine learning. Today, active
+frontiers remain wide open. Chief among them is bounding \emph{mixing times} in high
+dimensions -- understanding the sharp ``cutoff phenomenon'' where a chain hovers far from
+equilibrium before abruptly dropping into steady state (as when riffle-shuffling cards), and
+designing rapid-mixing non-reversible chains for sampling non-convex energy landscapes.
 \end{historybox}
 
 \subsection{From the present to the whole future}
@@ -124,6 +143,17 @@ contributing its own factor -- start weight times a product of transition weight
 This factorization is the computational engine of the subject. A path is a product, and sums
 over paths are exactly what matrix multiplication computes -- the bridge we build next.
 
+\begin{recoverybox}
+\textbf{Pause and think: identifying the Markov boundary.}
+Before moving on to matrices, test whether your intuition can distinguish what is Markovian from what is not:
+\begin{enumerate}[label=(\alph*)]
+  \item You roll a fair die repeatedly. Let $S_n = X_1 + \dots + X_n$ be the running sum after $n$ rolls. Is $(S_n)_{n \ge 1}$ a Markov chain?
+  \item Let $M_n = \max(X_1, \dots, X_n)$ be the running maximum roll. Is $(M_n)_{n \ge 1}$ a Markov chain?
+  \item Let $Y_n = \ind(X_n > X_{n-1})$ record whether the $n$-th roll strictly exceeded the previous one. Is $(Y_n)_{n \ge 2}$ a Markov chain?
+\end{enumerate}
+\emph{Reflections:} In (a), yes: $S_{n+1} = S_n + X_{n+1}$. Given the current sum $S_n$, the next sum depends only on the fresh roll $X_{n+1}$; the breakdown of how $S_n$ was formed is irrelevant. In (b), yes: $M_{n+1} = \max(M_n, X_{n+1})$, which depends only on the current maximum and the new roll. But in (c), \textbf{no}: knowing only that $Y_n = 1$ tells you the roll went up, but not \emph{what} number was rolled. If $X_n = 6$, $Y_{n+1}$ is guaranteed to be $0$; if $X_n = 2$, $Y_{n+1}$ is likely $1$. To make the process Markovian, the state must store the actual value of $X_n$, not merely the binary direction of change.
+\end{recoverybox}
+
 \section{Transition matrices and state diagrams}
 \label{ch23:transition-matrix}
 
@@ -138,9 +168,10 @@ from $i$ you must land \emph{somewhere}, every row sums to $1$:
 \[
   \sum_{j \in S} p_{ij} = 1 \quad \text{for every } i, \qquad p_{ij} \ge 0.
 \]
-A nonnegative square matrix whose rows each sum to $1$ is called a \emph{stochastic matrix}.
-Stochastic matrices and (time-homogeneous, finite) Markov chains are the same thing seen two
-ways.
+A nonnegative square matrix whose rows each sum to $1$ is called a \emph{stochastic matrix} --
+a square grid of probabilities where each row records how a total probability mass of $1$
+sitting at state $i$ is dispersed among all possible destinations. Stochastic matrices and
+(time-homogeneous, finite) Markov chains are the same thing seen two ways.
 
 \begin{trapbox}
 \emph{Rows} sum to $1$, not columns. Mixing this up is the single most common Markov-chain
@@ -397,11 +428,13 @@ to the same value no matter where we began.
   width=12cm, height=6.2cm,
   xlabel={day $n$}, ylabel={$\P(X_n = \text{Sun})$},
   xmin=0, xmax=10, ymin=0, ymax=1.05,
-  xtick={0,2,4,6,8,10}, ytick={0,0.25,0.5,0.667,0.75,1},
-  yticklabels={$0$,$0.25$,$0.5$,$\tfrac23$,$0.75$,$1$},
+  xtick={0,2,4,6,8,10}, ytick={0,0.3333,0.6667,1},
+  yticklabels={$0$,$\tfrac13$,$\tfrac23$,$1$},
   title style={font=\small},
   title={Convergence of marginal distribution to stationary state $\pi_{\text{Sun}} = 2/3$},
-  legend pos=south east, grid=both, grid style={gray!18},
+  legend style={font=\small, at={(0.98,0.06)}, anchor=south east, column sep=4pt},
+  legend cell align=left,
+  grid=both, grid style={gray!18},
   every axis plot/.append style={thick}]
   % start sunny: P(Sun)=1; recursion s_{n+1}=0.8 s + 0.4(1-s)=0.4+0.4 s
   \addplot[sourceblue,mark=*,mark size=1.4pt] coordinates {
@@ -453,7 +486,8 @@ $n \ge 0$ -- you can get from $i$ to $j$ in some number of steps. States $i$ and
 Communication is an equivalence relation (it is reflexive since $p_{ii}^{(0)}=1$, symmetric by
 definition, and transitive by Chapman--Kolmogorov: if $i \to k$ in $r$ steps and $k \to j$ in
 $s$ steps then $p_{ij}^{(r+s)} \ge p_{ik}^{(r)}p_{kj}^{(s)} > 0$). It therefore partitions the
-state space into \emph{communicating classes}.
+state space into \emph{communicating classes} -- disjoint clusters of states within which
+every member can reach every other.
 
 \begin{definition}[Irreducible]
 \label{ch23:def-irreducible}
@@ -479,12 +513,12 @@ $f_i < 1$ (there is positive probability you never return).
 \end{definition}
 
 \begin{intuitionbox}
-A recurrent state is a home you always come back to; a transient state is a place you pass
-through and, with positive probability, leave for good. The deep fact is that this is
-all-or-nothing over infinite time. If return is certain ($f_i=1$), then \emph{each} return is
-certain, so you return again and again, infinitely often. If return is only probable
-($f_i<1$), then the number of returns is a geometric race the chain eventually loses, so you
-visit $i$ only finitely many times and then abandon it forever.
+A recurrent state is visited infinitely often with probability $1$, while a transient state is
+visited only finitely many times before the chain departs from it permanently.
+If the return probability is $f_i = 1$, then by the strong Markov property each subsequent
+return is also certain, yielding infinitely many visits. If $f_i < 1$, the total number of
+returns follows a geometric distribution with parameter $1 - f_i$, which is finite with
+probability $1$.
 \end{intuitionbox}
 
 That intuition turns into a clean criterion. Let $N_i$ be the total number of visits to
@@ -495,7 +529,11 @@ geometric and
   \E[N_i \given X_0 = i] = \sum_{n=0}^{\infty} p_{ii}^{(n)} = \frac{1}{1 - f_i},
 \]
 with the convention that the sum is $+\infty$ when $f_i = 1$. This gives a test you can run
-straight from the matrix powers.
+straight from the matrix powers. In mathematical physics, a \emph{Green's function} (or potential kernel)
+sums the total response of a system to a localized unit impulse. Here, the infinite series
+$G(i,i) = \sum_{n=0}^{\infty} p_{ii}^{(n)}$ is the probabilistic Green's function: starting from
+an initial unit mass at state $i$, it tallies the expected total time spent revisiting $i$
+across the entire future.
 
 \begin{theorem}[Recurrence via the Green's function]
 \label{ch23:recurrence-test}
@@ -529,11 +567,11 @@ always has at least one recurrent state. Every finite irreducible chain is recur
 \end{proposition}
 
 \begin{intuitionbox}
-Picture the communicating classes as rooms connected by one-way doors. A class with a door
-leading out is transient: eventually you take that door and, lacking a way back (or you'd be
-in the same class), you never return. A class with no exit door is a trap -- once inside you
-bounce around its states forever, so they are recurrent. In finite chains the entire story of
-recurrence is just: \emph{which rooms are sealed}.
+In a finite chain, recurrence is determined entirely by whether a communicating class has
+transitions leaving it. If a class has transitions to other classes, the probability of
+eventually leaving is $1$, and because the states cannot be re-entered from outside the class,
+all states in that class are transient. If no transitions lead out of the class (the class is closed),
+probability mass cannot leave, and every state in the class is recurrent.
 \end{intuitionbox}
 
 \begin{figure}[H]
@@ -551,8 +589,8 @@ recurrence is just: \emph{which rooms are sealed}.
     (2) edge node[right]{} (4)
     (3) edge[bend left=15] node[above]{} (4)
     (4) edge[bend left=15] node[below]{} (3);
-  \node[quotientorange, above=3.5mm of $(1)!0.5!(2)$] {transient class $\{1,2\}$};
-  \node[targetgreen, below=3.5mm of $(3)!0.5!(4)$] {recurrent class $\{3,4\}$};
+  \node[quotientorange, above=7mm of $(1)!0.5!(2)$] {transient class $\{1,2\}$};
+  \node[targetgreen, below=7mm of $(3)!0.5!(4)$] {recurrent class $\{3,4\}$};
 \end{tikzpicture}
 \caption{A four-state chain with two communicating classes. From $\{1,2\}$ (orange) there are
 doors down into $\{3,4\}$ (green) but none coming back up, so $\{1,2\}$ is transient -- the
@@ -560,6 +598,17 @@ chain eventually falls through and never returns. The class $\{3,4\}$ is closed:
 leaves it, so it is recurrent and the chain stays there forever after.}
 \label{ch23:fig-classes}
 \end{figure}
+
+\begin{recoverybox}
+\textbf{Pause and think: can all states in a chain be transient?}
+Proposition~\ref{ch23:finite-recurrence} promises that every \emph{finite} chain possesses at least one recurrent state. Can an \emph{infinite} chain have every single state be transient?
+\begin{itemize}
+  \item Picture a particle hopping on the non-negative integers $\{0, 1, 2, \dots\}$ that always steps to the right: $p_{i, i+1} = 1$ for all $i \ge 0$.
+  \item The particle marches strictly onward: $0 \to 1 \to 2 \to 3 \to \dots$. It visits each state $i$ exactly once (at time $n=i$) and never looks back. The return probability is $f_i = 0$ for every state!
+  \item Every state is transient, and $\sum_{n=0}^\infty p_{ii}^{(n)} = p_{ii}^{(0)} = 1 < \infty$.
+\end{itemize}
+In a finite chain, the entire probability mass of $1$ must live on a finite set of nodes at every step, so with no escape route to infinity, the mass must eventually pool into at least one closed recurrent trap. On an infinite graph, mass can leak away to infinity forever.
+\end{recoverybox}
 
 \begin{example}[Gambler's ruin is mostly transient]
 \label{ch23:ex-gamblers-ruin}
@@ -575,9 +624,9 @@ exercise in itself, left to the end of the chapter.
 \end{example}
 
 \begin{paradoxbox}[Polya's drunkard: recurrent in 2D, transient in 3D]
-Consider a symmetric random walk that starts at the origin and at each step moves to a uniformly
-random neighbor on the integer lattice. On the line ($\Z^1$) and in the plane ($\Z^2$) the
-walk is \emph{recurrent}: with probability $1$ it returns to the origin (indeed to every point)
+Consider a walker who starts at the origin and at each tick steps to a uniformly random
+neighbor on the integer grid $\Z^d$. On the line ($\Z^1$) and in the plane ($\Z^2$) the
+motion is \emph{recurrent}: with probability $1$ it returns to the origin (indeed to every point)
 infinitely often. But in three dimensions ($\Z^3$) it is \emph{transient}: there is a positive
 probability -- about $0.66$ -- that it \emph{never} comes home, and over time it drifts off to
 infinity. George Polya proved this in 1921. Shizuo Kakutani summarized it perfectly: ``A drunk
@@ -595,7 +644,7 @@ Now sum: $\sum_n n^{-d/2}$ \emph{diverges} for $d = 1, 2$ (the exponents $1/2$ a
 big enough) but \emph{converges} for $d \ge 3$ (exponent $3/2 > 1$). The whole dichotomy is the
 convergence of a $p$-series. Two dimensions is exactly the borderline where the harmonic series
 $\sum 1/n$ still diverges; one more dimension tips the sum into finiteness and lets the bird
-escape. Probability and the integral test, hand in hand.
+escape.
 \end{paradoxbox}
 
 \begin{figure}[H]
@@ -635,9 +684,10 @@ The \emph{period} of state $i$ is
 \[
   d(i) = \gcd\set{ n \ge 1 : p_{ii}^{(n)} > 0 },
 \]
-the greatest common divisor of the times at which return is possible. If $d(i) = 1$ the state
-is \emph{aperiodic}; if $d(i) > 1$ it is \emph{periodic} with period $d(i)$. Period is a class
-property: communicating states share a period.
+the greatest common divisor of the times at which return is possible -- the
+step-cadence that constrains returns. If $d(i) = 1$ the state
+is \emph{aperiodic} (no rigid cadence); if $d(i) > 1$ it is \emph{periodic} with period $d(i)$.
+Period is a class property: communicating states share a period.
 \end{definition}
 
 \begin{example}[The triangle walk has period... 2? No, 1]
@@ -647,8 +697,56 @@ question above). Return to corner $1$ is possible in $2$ steps ($1\to2\to1$) and
 ($1\to2\to3\to1$). So the return-time set contains $2$ and $3$, and $\gcd(2,3) = 1$: the walk
 is \emph{aperiodic}. Contrast a walk on a \emph{square} (a $4$-cycle) where you can only move
 to an adjacent corner: returns to a corner happen only at even times, $\gcd = 2$, period $2$.
-The triangle's odd loop breaks the rhythm; the square's bipartite structure enforces it.
+The triangle's odd loop breaks the rhythm; the square's bipartite structure enforces it
+(Figure~\ref{ch23:fig-periodicity-triangle-square}).
 \end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth,
+  mystate/.style={circle,draw=#1,thick,fill=#1!12,minimum size=0.95cm,font=\small\bfseries}]
+  % Left panel: Triangle (Aperiodic)
+  \begin{scope}[shift={(0,0)}]
+    \node[mystate=sourceblue] (T1) at (0, 2.2) {$1$};
+    \node[mystate=sourceblue] (T2) at (-1.8, -0.6) {$2$};
+    \node[mystate=sourceblue] (T3) at (1.8, -0.6) {$3$};
+
+    \draw[<->, thick, sourceblue] (T1) -- node[above left=1pt, font=\scriptsize] {$1/2$} (T2);
+    \draw[<->, thick, sourceblue] (T2) -- node[below=2pt, font=\scriptsize] {$1/2$} (T3);
+    \draw[<->, thick, sourceblue] (T3) -- node[above right=1pt, font=\scriptsize] {$1/2$} (T1);
+
+    \node[font=\small\bfseries, align=center] at (0, -1.5) {Triangle: Aperiodic ($d=1$)};
+    \node[font=\footnotesize, gray!40!black, align=center] at (0, -2.2) {
+      Return times: $2$ ($1 \leftrightarrow 2$), $3$ ($1 \to 2 \to 3 \to 1$)\\
+      $\gcd(2, 3) = 1 \implies$ rhythm broken
+    };
+  \end{scope}
+
+  % Divider between panels
+  \draw[dashed, gray!40, thick] (3.4, -2.5) -- (3.4, 2.6);
+
+  % Right panel: Bipartite Square (Period 2)
+  \begin{scope}[shift={(6.8,0)}]
+    \node[mystate=sourceblue] (S1) at (-1.4, 1.4) {$1$};
+    \node[mystate=quotientorange] (S2) at (1.4, 1.4) {$2$};
+    \node[mystate=sourceblue] (S3) at (1.4, -0.6) {$3$};
+    \node[mystate=quotientorange] (S4) at (-1.4, -0.6) {$4$};
+
+    \draw[<->, thick, gray!60!black] (S1) -- node[above=2pt, font=\scriptsize] {$1/2$} (S2);
+    \draw[<->, thick, gray!60!black] (S2) -- node[right=2pt, font=\scriptsize] {$1/2$} (S3);
+    \draw[<->, thick, gray!60!black] (S3) -- node[below=2pt, font=\scriptsize] {$1/2$} (S4);
+    \draw[<->, thick, gray!60!black] (S4) -- node[left=2pt, font=\scriptsize] {$1/2$} (S1);
+
+    \node[font=\small\bfseries, align=center] at (0, -1.5) {Square: Periodic ($d=2$)};
+    \node[font=\footnotesize, gray!40!black, align=center] at (0, -2.2) {
+      Bipartite: blue $\leftrightarrow$ orange\\
+      Return times: $\{2, 4, 6, \dots\}$, $\gcd=2$
+    };
+  \end{scope}
+\end{tikzpicture}
+\caption{Periodicity is about odd versus even cycles. Left: on a triangle, a particle can return to state $1$ in $2$ steps ($1 \to 2 \to 1$) or in $3$ steps ($1 \to 2 \to 3 \to 1$), giving $\gcd(2,3) = 1$; the odd loop breaks any rigid beat, making the chain aperiodic. Right: on a bipartite square, every step alternates between blue (odd parity) and orange (even parity). Returning to state $1$ requires an even number of steps, giving $\gcd(2,4,6,\dots) = 2$ and locking the distribution into a persistent two-step alternation.}
+\label{ch23:fig-periodicity-triangle-square}
+\end{figure}
 
 \begin{happeningbox}
 Period is really a statement about the eigenvalues lying \emph{on} the unit circle. An
@@ -656,25 +754,25 @@ aperiodic irreducible chain has $\lambda = 1$ as its only eigenvalue of modulus 
 $P^n$ settles down to a single limiting matrix. A chain with period $d$ has $d$ eigenvalues
 spread evenly around the unit circle (the $d$-th roots of unity), and $P^n$ never settles --
 it cycles through $d$ phases forever. The bipartite square chain has eigenvalues $\pm 1$; the
-$+1$ gives the equilibrium and the $-1$ gives the eternal odd/even flicker. Aperiodicity is
-exactly the condition that kills every undying oscillation and lets the chain converge, which
+$+1$ gives the equilibrium and the $-1$ gives the persistent odd/even alternation. Aperiodicity
+rules out these unit-circle oscillations and lets the chain converge, which
 is why the next chapter's convergence theorem assumes it.
 \end{happeningbox}
 
 \begin{aestheticbox}
-We now have a complete vocabulary for the ``shape'' of a chain, all read off the diagram:
+The structural properties of a Markov chain organize as follows:
 \begin{itemize}
-  \item \textbf{Communicating classes}: the strongly connected blobs. \emph{Irreducible} = one
-    blob.
-  \item \textbf{Closed vs.\ open}: a class is recurrent iff no arrow leaves it (finite case);
-    open classes are transient.
-  \item \textbf{Period}: the gcd of possible return times; \emph{aperiodic} = period $1$.
+  \item \textbf{Communicating classes}: the strongly connected components of the state diagram.
+    A chain is \emph{irreducible} if there is only one class.
+  \item \textbf{Closed vs.\ open}: in a finite chain, a class is recurrent if and only if no arrow
+    leaves it; open classes are transient.
+  \item \textbf{Period}: the greatest common divisor of possible return times; \emph{aperiodic}
+    means period $1$.
 \end{itemize}
-A finite, irreducible, aperiodic chain -- one blob, sealed (it must be, being everything),
-with no rhythm -- is called \emph{ergodic}, and these are the chains that forget their start
-and settle to a unique equilibrium. Every condition in that mouthful is a structural property
-you can verify by staring at the picture. The classification is not bureaucracy; it is exactly
-the set of hypotheses the limit theorems need.
+A finite, irreducible, aperiodic chain is called \emph{ergodic}. These chains converge to a unique
+stationary equilibrium from any initial distribution: irreducibility guarantees all states communicate,
+recurrence ensures no probability mass escapes to transient states, and aperiodicity rules out
+rigid cyclic oscillations. Each property can be verified directly from the state diagram.
 \end{aestheticbox}
 
 \section{A larger worked example}
@@ -785,13 +883,27 @@ at bottom, the stationary distribution of an ergodic Markov chain.
 \end{applicationbox}
 
 \begin{connectionbox}
-Stationary distributions and equilibrium -- finding the $\pi$ with $\pi P = \pi$, proving it
-exists and is unique, and bounding how fast $\mu^{(n)} \to \pi$ -- are the whole subject of the
-next chapter. Everything there is built on three pillars from \emph{this} chapter: path
-probabilities multiply (Proposition~\ref{ch23:path-factorization}), $n$-step transitions are
-matrix powers (Theorem~\ref{ch23:chapman-kolmogorov}), and the structural classification
-(irreducible, recurrent, aperiodic) tells you exactly when a unique equilibrium exists. Keep
-the state diagram in your mind's eye; it is the map for all of it.
+In the previous chapter on modes of convergence, we studied what it means for random variables
+to converge in distribution: the probabilities $\P(X_n = j)$ march toward a fixed limit $\pi_j$.
+In this chapter, we saw a concrete instance of that convergence: the state distributions
+$\mu^{(n)} = \mu^{(0)} P^n$ settle toward a unique equilibrium vector $\pi$.
+
+That equilibrium -- finding the row vector $\pi$ with $\pi P = \pi$, proving it exists and is
+unique, and calculating how rapidly $\mu^{(n)} \to \pi$ -- is the central theme of the next
+chapter, \emph{Markov Chain Steady States and Mixing}. There we will explore:
+\begin{itemize}
+  \item \textbf{The convergence theorem}: why every finite, irreducible, aperiodic chain
+    forgets its past and settles into its stationary distribution.
+  \item \textbf{Mixing times and spectral gaps}: how the second eigenvalue $\lambda_2$ governs the
+    clock of convergence, and how cutoff phenomena create abrupt transitions to equilibrium.
+  \item \textbf{Coupling}: a probabilistic technique that proves convergence by running
+    two copies of the chain on the same graph until their paths meet, bypassing matrix powers directly.
+\end{itemize}
+Everything there stands on the three pillars established here: path probabilities multiply
+(Proposition~\ref{ch23:path-factorization}), $n$-step transitions are matrix powers
+(Theorem~\ref{ch23:chapman-kolmogorov}), and the classification triad (irreducible, recurrent,
+aperiodic) guarantees that the equilibrium exists. Keep the state diagram in your mind's eye;
+it is the roadmap for all that follows.
 \end{connectionbox}
 
 \section{Exercises}
@@ -883,7 +995,8 @@ one molecule chosen uniformly at random switches chambers. Let $X_n$ be the numb
 left chamber, a chain on $\{0, 1, \dots, N\}$. (a) Write the transition probabilities
 $p_{i,i-1}$ and $p_{i,i+1}$. (b) Show the chain is irreducible. (c) Show it has period $2$, and
 explain physically what the period means. (d) \emph{(Proof.)} Show that the binomial
-distribution $\pi_i = \binom{N}{i} 2^{-N}$ satisfies the \emph{detailed balance} equations
-$\pi_i p_{i,i+1} = \pi_{i+1} p_{i+1,i}$, and explain why this makes $\pi$ stationary
-($\pi P = \pi$).
+distribution $\pi_i = \binom{N}{i} 2^{-N}$ satisfies the \emph{detailed balance} condition
+$\pi_i p_{i,i+1} = \pi_{i+1} p_{i+1,i}$ -- which says the probability flux flowing forward
+from $i$ to $i+1$ exactly balances the reverse flux from $i+1$ to $i$ -- and explain why summing
+these two-way fluxes across all states makes $\pi$ stationary ($\pi P = \pi$).
 \end{exercise}

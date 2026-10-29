@@ -1,34 +1,15 @@
 \chapter{Generating Functions}
 
-In the last chapter you learned what happens when you add independent random
-variables: their distributions \emph{convolve}. Convolution is exact, but it
-is also a chore. To find the distribution of $X+Y$ you slide one
-pmf across another and sum, term by term; to find the distribution of
-$X_1+\cdots+X_n$ you do this $n-1$ times, each pass smearing the answer a little
-further out. By the time you reach a sum of fifty dice the bookkeeping has
-buried the idea.
+The previous chapter showed that the distribution of a sum of independent random
+variables is given by convolution. Calculating repeated convolutions by hand,
+however, quickly becomes unmanageable.
 
-This chapter is about a change of language that makes the chore disappear.
-Instead of carrying a distribution around as a list of probabilities or as a
-density curve, we will encode the \emph{entire} distribution inside a single
-function --- a \emph{generating function}. The encoding is chosen so cleverly
-that the operations we care about become easy: \textbf{convolution turns into
-ordinary multiplication}, \textbf{moments fall out by differentiation}, and
-\textbf{two distributions are equal exactly when their generating functions
-agree}. A hard problem about sums of random variables becomes an easy problem
-about products of functions, and at the end you translate back.
-
-There are three such encodings, and they are really the same idea wearing three
-costumes. The \emph{probability generating function} (PGF) is built for
-nonnegative integers and is the gentlest to meet first. The \emph{moment
-generating function} (MGF) works for any random variable and is the workhorse of
-applied probability --- it is how we will identify distributions and, in a later
-chapter, prove the Central Limit Theorem. The \emph{characteristic function}
-(CF) is the MGF's bulletproof cousin: it exists for \emph{every} random
-variable without exception, which is exactly why the deepest theorems are proved
-with it. We will build all three from the ground up, see why each one does what
-it does, and end with the punchline that makes the whole machine trustworthy:
-\emph{a distribution is determined by its transform}.
+Generating functions solve this by encoding an entire probability distribution
+into a single function, transforming convolution into ordinary multiplication
+and moments into derivatives. We study three versions: the \emph{probability
+generating function} (PGF) for discrete counts, the \emph{moment generating
+function} (MGF) for general random variables, and the \emph{characteristic
+function} (CF), which is guaranteed to exist for every distribution.
 
 \chapterline
 
@@ -84,7 +65,69 @@ two probabilities. Summing all the ways to land on shelf $k$ \emph{is} the
 convolution that gives $\P(X+Y=k)$. So ``add independent random variables''
 $\longleftrightarrow$ ``multiply their generating functions.'' Everything else
 in this chapter is a consequence and a refinement of that single line.
+Figure~\ref{ch18:fig-coatrack-conv} shows this multiplication in action for two dice.
 \end{happeningbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.92]
+  \begin{scope}[shift={(0,0)}]
+    \node[anchor=south, font=\small\bfseries] at (2.4, 4.5) {1. Outcome Pairs $(i,j)$};
+    \foreach \i in {1,...,6} {
+      \foreach \j in {1,...,6} {
+        \pgfmathtruncatemacro{\k}{\i+\j}
+        \ifnum\k=7
+          \fill[quotientorange!35, draw=quotientorange!70, rounded corners=1pt] 
+            ({\i*0.65-0.28}, {\j*0.65-0.28}) rectangle ({\i*0.65+0.28}, {\j*0.65+0.28});
+          \node[font=\tiny\bfseries, quotientorange!90!black] at ({\i*0.65}, {\j*0.65}) {$s^7$};
+        \else
+          \fill[gray!6, draw=gray!25, rounded corners=1pt] 
+            ({\i*0.65-0.28}, {\j*0.65-0.28}) rectangle ({\i*0.65+0.28}, {\j*0.65+0.28});
+          \node[font=\tiny, gray!60] at ({\i*0.65}, {\j*0.65}) {$s^{\k}$};
+        \fi
+      }
+    }
+    \draw[->, thick, gray!70] (0.2, 0.35) -- (4.4, 0.35) node[right, font=\scriptsize] {Die 1 ($i$)};
+    \draw[->, thick, gray!70] (0.35, 0.2) -- (0.35, 4.2) node[above, font=\scriptsize] {Die 2 ($j$)};
+    \foreach \i in {1,...,6} {
+      \node[font=\tiny, gray!80] at ({\i*0.65}, 0.15) {$\i$};
+      \node[font=\tiny, gray!80] at (0.15, {\i*0.65}) {$\i$};
+    }
+    \draw[quotientorange, thick, dashed] (0.65*1, 0.65*6) -- (0.65*6, 0.65*1)
+      node[above right=2pt, font=\scriptsize\bfseries, quotientorange!90!black] {$i+j = 7$};
+  \end{scope}
+
+  \begin{scope}[shift={(4.7, 2.1)}]
+    \draw[->, >=stealth, very thick, sourceblue] (0, 0) -- (1.4, 0);
+    \node[align=center, font=\scriptsize\bfseries, sourceblue, anchor=south] at (0.7, 0.1) {Multiply\\$s^i \cdot s^j = s^{i+j}$};
+    \node[font=\tiny, gray!70, anchor=north] at (0.7, -0.1) {Collect like terms};
+  \end{scope}
+
+  \begin{scope}[shift={(6.9, 0)}]
+    \node[anchor=south, font=\small\bfseries] at (3.5, 4.5) {2. Coefficients of $G(s)^2$ (Sum PMF)};
+    \draw[->, thick, gray!70] (0, 0.35) -- (6.6, 0.35) node[right, font=\scriptsize] {power of $s$};
+    \draw[->, thick, gray!70] (0.3, 0.2) -- (0.3, 4.2) node[above left, font=\scriptsize] {$\P(X+Y=k)$};
+
+    \foreach \k/\h in {2/1, 3/2, 4/3, 5/4, 6/5, 8/5, 9/4, 10/3, 11/2, 12/1} {
+      \pgfmathsetmacro{\xpos}{0.5 * (\k - 2) + 0.8}
+      \pgfmathsetmacro{\yht}{0.48 * \h}
+      \fill[sourceblue!45, draw=sourceblue] ({\xpos-0.18}, 0.35) rectangle ({\xpos+0.18}, {0.35+\yht});
+      \node[font=\tiny, gray!80] at (\xpos, 0.15) {$s^{\k}$};
+    }
+    \pgfmathsetmacro{\xseven}{0.5 * (7 - 2) + 0.8}
+    \fill[quotientorange!55, draw=quotientorange!90, very thick] 
+      ({\xseven-0.18}, 0.35) rectangle ({\xseven+0.18}, {0.35 + 0.48*6});
+    \node[font=\tiny\bfseries, quotientorange!90!black] at (\xseven, 0.15) {$s^7$};
+    \node[font=\scriptsize\bfseries, quotientorange!90!black, anchor=south] 
+      at (\xseven, {0.35 + 0.48*6}) {$\frac{6}{36}$};
+
+    \node[anchor=west, align=center, font=\scriptsize, draw=quotientorange!70, fill=white, rounded corners=2pt, inner sep=2pt]
+      at (3.8, 3.6) {6 terms on diagonal $i+j=7$\\[1pt]combine into $\frac{6}{36}s^7$};
+  \end{scope}
+\end{tikzpicture}
+\caption{How polynomial multiplication automates convolution. (Left) Rolling two dice produces $36$ equally likely outcome pairs $(i,j)$, each carrying the term $\frac{1}{36}s^i s^j = \frac{1}{36}s^{i+j}$. Exponents add ($s^i \cdot s^j = s^{i+j}$), so all pairs lying on the diagonal slice $i+j=k$ share the exact same power $s^k$. (Right) Multiplying the generating functions $G(s)\cdot G(s)$ automatically gathers all terms on diagonal $k$ into the coefficient of $s^k$, producing the triangular sum distribution without any manual summation.}
+\label{ch18:fig-coatrack-conv}
+\end{figure}
 
 \section{The Probability Generating Function}
 \label{ch18:pgf}
@@ -113,6 +156,16 @@ The series converges at least for $\abs{s}\le 1$, because there the terms are
 dominated by the probabilities: $\sum_k p_k \abs{s}^k \le \sum_k p_k = 1$.
 In particular $G_X(1)=\sum_k p_k = 1$ always, which is a handy sanity check ---
 a correct PGF must pass through the point $(1,1)$.
+
+\begin{recoverybox}
+\textbf{Mental check: reading the edges of a PGF.}
+Every valid PGF comes with two instant sanity checks:
+\begin{itemize}
+  \item At $s=1$: $G_X(1) = \sum_{k=0}^\infty p_k = 1$. The probabilities must sum to $1$.
+  \item At $s=0$: $G_X(0) = p_0 \cdot 0^0 + p_1 \cdot 0^1 + p_2 \cdot 0^2 + \cdots = p_0 = \P(X=0)$. The value at the origin is always the probability of zero!
+\end{itemize}
+For example, for the Poisson PGF $G(s) = e^{\lambda(s-1)}$, checking $s=0$ gives $G(0) = e^{-\lambda}$, exactly $\P(X=0)$.
+\end{recoverybox}
 
 \begin{example}[The usual suspects]
 \label{ch18:ex-pgfs}
@@ -178,7 +231,7 @@ fact from \S\ref{ch18:idea}, now stated cleanly in the language of expectation.
 The $n$-fold version follows by induction.
 \end{whybox}
 
-\begin{example}[Sum of independent Poissons, in one breath]
+\begin{example}[Sum of independent Poissons via PGFs]
 \label{ch18:ex-pois-sum}
 Let $X\sim\Pois(\lambda)$ and $Y\sim\Pois(\mu)$ be independent. By
 Theorem~\ref{ch18:thm-pgf-product},
@@ -206,6 +259,8 @@ lines.
   title style={font=\small},
   xtick={0,4,8,12,16,20},
   ytick={0,0.05,0.10,0.15},
+  scaled y ticks=false,
+  yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2},
   enlarge x limits=0.02,
   legend style={font=\small},
 ]
@@ -230,8 +285,8 @@ $\lambda(s-1)$ and $\mu(s-1)$ add.}
 
 \subsection{Reading moments off the PGF}
 
-The PGF does double duty: it not only multiplies sums together, it also coughs
-up moments when you differentiate it. Differentiate the series term by term:
+The PGF does double duty: it not only turns independent sums into products, it
+also yields moments when you differentiate it. Differentiate the series term by term:
 \[
   G_X'(s) = \sum_{k\ge 1} k\,p_k\, s^{k-1},
   \qquad
@@ -239,8 +294,10 @@ up moments when you differentiate it. Differentiate the series term by term:
 \]
 Now evaluate at $s=1$. The first gives $G_X'(1)=\sum_k k\,p_k = \E[X]$. The
 second gives $G_X''(1)=\sum_k k(k-1)p_k = \E[X(X-1)] = \E[X^2]-\E[X]$. These
-$\E[X(X-1)\cdots]$ quantities are called \emph{factorial moments}, and the PGF
-is their natural home.
+quantities $\E[X(X-1)\cdots(X-m+1)]$ are called \emph{factorial moments} (averages
+of falling powers of $X$), and the PGF is their natural home. To recover the ordinary
+variance, solve for the second moment $\E[X^2] = G_X''(1) + G_X'(1)$, then subtract
+the squared mean $(\E[X])^2 = (G_X'(1))^2$.
 
 \begin{proposition}[Mean and variance from the PGF]
 \label{ch18:prop-pgf-moments}
@@ -275,27 +332,35 @@ $\Var(X)=q/p^2$.
 
 \begin{applicationbox}[Branching processes and extinction]
 PGFs are the native language of \emph{branching processes}, the model behind
-nuclear chain reactions, surname survival, and epidemic spread. Suppose each
-individual independently produces a random number of offspring with PGF $G$.
-Then the size of generation $n$ has PGF obtained by \emph{composing} $G$ with
-itself $n$ times: $G_n(s) = G(G(\cdots G(s)\cdots))$. The probability of
-eventual extinction turns out to be the smallest fixed point of $G$, i.e.\ the
-smallest solution of $G(s)=s$ in $[0,1]$. A whole theory --- including the
-clean threshold ``extinction is certain iff the mean offspring count is
-$\le 1$'' --- falls out of iterating one function. Composition of PGFs encodes
-generations the way multiplication encodes independent sums.
+nuclear chain reactions, surname survival, and epidemic spread. Suppose a single
+ancestor starts generation $0$. In generation $1$, this individual produces a
+random number of offspring with PGF $G(s)$. In generation $2$, each offspring
+independently produces their own children using the same distribution $G(s)$.
+A random sum of independent random variables corresponds to substituting one
+PGF into another: the size of generation $2$ has PGF $G(G(s))$. By generation
+$n$, the population size has PGF given by $n$-fold composition:
+$G_n(s) = G(G(\cdots G(s)\cdots))$.
+
+What is the probability of \emph{extinction} --- the event that the population
+eventually drops to zero and stays there forever? If $d$ is the extinction
+probability, conditioning on the number of offspring in the very first generation
+shows that $d = G(d)$. The extinction probability is the smallest solution to
+the fixed-point equation $G(s)=s$ in $[0,1]$. A whole theory --- including the
+clean threshold that extinction is certain if and only if the mean offspring
+count $\E[X]=G'(1)$ is $\le 1$ (excluding the trivial case $\P(X=1)=1$) --- falls
+out of iterating one single-variable function. Composition of PGFs tracks
+generational branching just as multiplication tracks independent sums.
 \end{applicationbox}
 
 \section{The Moment Generating Function}
 \label{ch18:mgf}
 
-The PGF is lovely but provincial: it only speaks to nonnegative integers,
-because $s^X$ needs an integer exponent to make plain sense. Real life is full
-of continuous quantities --- waiting times, measurement errors, asset returns
---- and for those we need a transform that does not care whether $X$ is integer,
-continuous, positive, or negative. The fix is to replace the base $s$ by $e^t$.
-Then $s^X = (e^t)^X = e^{tX}$ makes sense for \emph{any} real $X$, because the
-exponential eats any real exponent.
+The PGF has a built-in limitation: it is tailored to nonnegative integers,
+where $s^X$ forms an ordinary power series. Real life is full of continuous
+quantities --- waiting times, measurement errors, asset returns --- and for
+those we need a transform that works whether $X$ is discrete, continuous,
+positive, or negative. The fix is to replace the base $s$ by $e^t$. Then
+$s^X = (e^t)^X = e^{tX}$ is well defined for \emph{any} real $X$.
 
 \begin{definition}[Moment generating function]
 \label{ch18:def-mgf}
@@ -307,6 +372,13 @@ defined for those real $t$ where the expectation is finite. We say the MGF
 \emph{exists} if $M_X(t)<\infty$ for all $t$ in some open interval
 $(-\delta,\delta)$ around $0$.
 \end{definition}
+
+\begin{recoverybox}
+\textbf{Mental check: the anchor of an MGF.}
+What must $M_X(0)$ equal for \emph{any} random variable $X$?
+Evaluate directly: $M_X(0) = \E[e^{0\cdot X}] = \E[1] = 1$.
+Every legitimate MGF must pass through the point $(0,1)$, just as every PGF passes through $(1,1)$. If an MGF calculation gives $M_X(0) \ne 1$, an algebra error has happened along the way.
+\end{recoverybox}
 
 You can think of the MGF as the PGF with $s=e^t$ substituted in: where they both
 exist, $M_X(t)=G_X(e^t)$. Everything good about the PGF carries over, and the
@@ -448,24 +520,27 @@ facts. For dependent sums you must keep the joint distribution (or use the
 \emph{joint} MGF $\E[e^{t_1 X + t_2 Y}]$ and its mixed partials).
 \end{trapbox}
 
-\begin{applicationbox}[Chernoff bounds, the workhorse of modern ML theory]
+\begin{applicationbox}[Chernoff bounds and tail behavior]
 The MGF is not only for identifying distributions; it is the engine behind the
 sharpest elementary tail bounds in all of probability. For any $t>0$, Markov's
-inequality applied to $e^{tX}$ gives
+inequality (the fundamental bound $\P(Y\ge c)\le \E[Y]/c$ for a nonnegative
+random variable $Y$, which we explore deeply in Chapter~19) applied to $e^{tX}$ gives
 \[
   \P(X\ge a) = \P\!\left(e^{tX}\ge e^{ta}\right)
              \le \frac{\E[e^{tX}]}{e^{ta}}
              = e^{-ta}\,M_X(t).
 \]
-Because this holds for \emph{every} $t>0$, you may optimize: the
-\emph{Chernoff bound} $\P(X\ge a)\le \min_{t>0} e^{-ta}M_X(t)$. For a sum of
-independent variables the MGF factorizes, so the bound on the sum is a product
-of one-variable MGFs --- which is exactly why Chernoff bounds give
-\emph{exponentially small} failure probabilities for averages. This is the
-backbone of generalization bounds in statistical learning, the analysis of
-randomized algorithms and hashing, and concentration inequalities like
-Hoeffding's. Whenever a machine-learning paper writes ``with probability at least
-$1-\delta$,'' a Chernoff/MGF argument is usually doing the work underneath.
+Because this holds for \emph{every} $t>0$, you may optimize over $t$: the
+\emph{Chernoff bound} is $\P(X\ge a)\le \min_{t>0} e^{-ta}M_X(t)$. For an
+independent sum $S_n=X_1+\cdots+X_n$, the MGF factorizes:
+$M_{S_n}(t) = \prod_{i=1}^n M_{X_i}(t)$. For i.i.d.\ variables this becomes
+$(M_{X_1}(t))^n$, so the bound on the tail of the average $\overline{X}_n = S_n/n$
+takes the form $\big[e^{-ta} M_{X_1}(t)\big]^n$ --- a quantity that shrinks
+\emph{exponentially fast} as the sample size $n$ grows. This exponential decay
+is the mathematical backbone of generalization bounds in statistical learning,
+the performance of randomized hashing algorithms, and concentration inequalities.
+Whenever a machine-learning paper writes ``with probability at least $1-\delta$,''
+an optimized MGF Chernoff bound is almost certainly doing the heavy lifting underneath.
 \end{applicationbox}
 
 \section{Uniqueness: Why the Transform Is Trustworthy}
@@ -473,7 +548,7 @@ $1-\delta$,'' a Chernoff/MGF argument is usually doing the work underneath.
 
 Every trick in this chapter ends with the phrase ``\dots and therefore $X+Y$ is
 Poisson'' or ``\dots and therefore $X+Y$ is normal.'' Each such conclusion
-secretly relies on one deep fact: that the MGF \emph{determines} the
+relies on one essential fact: that the MGF \emph{determines} the
 distribution. If two random variables have the same MGF, they have the same
 distribution --- so recognizing the MGF lets you name the distribution. Without
 this, computing $M_{X+Y}$ would be a dead end; with it, recognition is proof.
@@ -487,8 +562,8 @@ $X$ and $Y$ have the same distribution.
 
 We will not prove this in full --- the real proof routes through the
 characteristic function and Fourier inversion, which we meet next. But the
-\emph{reason} it is plausible is worth stating, because it demystifies what
-would otherwise look like a magic trick.
+\emph{reason} it is plausible is worth stating, because it explains the
+underlying mechanism.
 
 \begin{whybox}
 A finite MGF on an interval around $0$ is real-analytic there, and its Taylor
@@ -519,19 +594,22 @@ converges, and uniqueness holds. This is why we are careful to say ``the MGF
 exists,'' not merely ``the moments exist.''
 \end{trapbox}
 
-\begin{historybox}
-The moment problem --- when does a sequence of moments determine a unique
-distribution? --- occupied Chebyshev, Markov, and Stieltjes in the late
-nineteenth century, and it is where modern probability cut its teeth on
-analysis. Stieltjes (1894) gave the first careful treatment, inventing along the
-way the Stieltjes integral. Hamburger and Hausdorff later pinned down exact
-conditions. The upshot, in the language we use: a distribution is determined by
-its moments when those moments do not grow too fast (Carleman's condition is the
-sharp form), and finiteness of the MGF near $0$ is a clean sufficient condition.
-The lognormal counterexample, that two different curves can share every moment,
-was a genuine shock --- a reminder that infinitely many numbers can still leave
-something undetermined.
-\end{historybox}
+\begin{connectionbox}[The Stieltjes moment problem: when moments fail to pin down a distribution]
+The question of whether a sequence of moments $\E[X^n]$ uniquely determines a
+distribution occupied Pafnuty Chebyshev, Andrei Markov, and Thomas Stieltjes in the
+late nineteenth century. Stieltjes (1894) gave the first systematic treatment,
+inventing the Stieltjes integral (integrating directly against a general distribution
+function that may possess both discrete jumps and smooth continuous curves) specifically
+to solve it. Later, Hans Hamburger and Felix Hausdorff pinned down exact conditions on
+the moment sequence. The practical rule of thumb is Carleman's condition: a distribution
+on the real line is uniquely determined by its moments if the series
+$\sum_{k=1}^\infty (\E[X^{2k}])^{-1/(2k)}$ diverges (meaning high-order moments do
+not grow faster than $(2k)!$). Finiteness of the MGF in an open interval around $0$
+guarantees Carleman's condition with plenty of room to spare. The lognormal
+distribution's failure to be pinned down by its moments was a landmark historical
+warning: even an infinite list of summary numbers can leave a distribution ambiguous
+if the tails are heavy.
+\end{connectionbox}
 
 \begin{example}[Recognition in practice]
 Suppose you compute, for some $X$ built out of a complicated experiment, that
@@ -546,9 +624,9 @@ distribution.
 \section{Characteristic Functions: The Transform That Always Exists}
 \label{ch18:cf}
 
-The MGF has one flaw, and it is fatal often enough to matter:
-\emph{it may not exist.} We saw the exponential's MGF die for $t\ge\lambda$, and
-the lognormal's die for every $t>0$. Heavy-tailed distributions --- the Cauchy
+The MGF has one serious limitation:
+\emph{it may not exist.} We saw the exponential's MGF diverge for $t\ge\lambda$, and
+the lognormal's diverge for every $t>0$. Heavy-tailed distributions --- the Cauchy
 distribution being the headline case --- have $\E[e^{tX}]=\infty$ for every
 $t\ne 0$, so their MGF is useless. Since the MGF is built from $e^{tX}$, which
 explodes when $X$ is large and $t>0$, any distribution with fat enough tails
@@ -584,7 +662,7 @@ the MGF with its dangerous growth tamed into harmless rotation.
 \begin{tikzpicture}[scale=0.95]
   % Panel 1: Real MGF growth explosion
   \begin{scope}[shift={(0,0)}]
-    \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-1.0,-1.4) rectangle (5.0,3.9);
+    \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-1.0,-1.55) rectangle (5.0,3.9);
     \node[anchor=north, font=\small\bfseries, densityred!90!black] at (2.0,3.75) {1. Real MGF: Explosive Growth $e^{tx}$};
 
     % Axes
@@ -598,10 +676,8 @@ the MGF with its dangerous growth tamed into harmless rotation.
 
     % Divergence callout for heavy tails
     \node[align=center, font=\scriptsize, draw=densityred!70, fill=white, rounded corners=2pt, inner sep=2pt]
-      at (2.0, 1.1) {For heavy tails (e.g.\ Cauchy):\\[1pt]
+      at (2.0, -0.75) {For heavy tails (e.g.\ Cauchy):\\[1pt]
       $f(x) \sim \frac{1}{x^2} \implies \displaystyle\int_{-\infty}^\infty e^{tx} f(x)\,\dd x = \infty$\\[1pt]\scriptsize (MGF fails to exist)};
-
-    \node[font=\tiny, gray!70] at (2.0, -0.9) {Unbounded growth along the real axis};
   \end{scope}
 
   % Arrow connecting panels
@@ -610,7 +686,7 @@ the MGF with its dangerous growth tamed into harmless rotation.
 
   % Panel 2: Complex CF bounded unit circle rotation
   \begin{scope}[shift={(8.8,0)}]
-    \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-2.2,-1.4) rectangle (3.8,3.9);
+    \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-2.2,-1.55) rectangle (3.8,3.9);
     \node[anchor=north, font=\small\bfseries, sourceblue!90!black] at (0.8,3.75) {2. Complex CF: Bounded Unit Circle};
 
     % Axes: Re and Im
@@ -620,7 +696,7 @@ the MGF with its dangerous growth tamed into harmless rotation.
     % Center of circle is at (0.8, 0.8), radius = 1.4
     \coordinate (C) at (0.8, 0.8);
     \draw[structurepurple!70, thick] (C) circle (1.4);
-    \node[structurepurple!80!black, font=\tiny\bfseries] at ($(C)+(1.15, 1.15)$) {$|z| = 1$};
+    \node[structurepurple!80!black, font=\tiny\bfseries] at ($(C)+(1.2, -1.1)$) {$|z| = 1$};
 
     % Points spinning on the unit circle
     \foreach \ang/\lbl in {35/{x_1}, 110/{x_2}, 205/{x_3}, 290/{x_4}} {
@@ -638,7 +714,7 @@ the MGF with its dangerous growth tamed into harmless rotation.
     \fill[sourceblue!90!black] (Phi) circle (2pt);
 
     \node[align=center, font=\scriptsize, draw=sourceblue!70, fill=white, rounded corners=2pt, inner sep=2pt]
-      at (0.8, -0.9) {Trapped in unit disk: $|\varphi_X(t)| \le 1$\\[1pt]\scriptsize Always finite for every distribution};
+      at (0.8, -1.08) {Trapped in unit disk: $|\varphi_X(t)| \le 1$\\[1pt]\scriptsize Always finite for every distribution};
   \end{scope}
 \end{tikzpicture}
 \caption{Why the characteristic function always exists. (Left) The real exponential $e^{tx}$ diverges toward $+\infty$ on the real line, causing the MGF integral $\int e^{tx} f(x)\,\dd x$ to blow up for heavy-tailed distributions. (Right) The complex exponential $e^{itx} = \cos(tx) + i\sin(tx)$ rotates around the unit circle without growing ($|e^{itx}|=1$). The characteristic function $\varphi_X(t) = \E[e^{itX}]$ is the center-of-mass vector average of these points, guaranteed to remain trapped inside the unit disk $|\varphi_X(t)| \le 1$.}
@@ -696,7 +772,7 @@ If $X$ has a density $f$ and $\varphi_X$ is integrable, then
 \]
 \end{theorem}
 
-This is the punchline of the whole chapter, stated as a formula: the
+This formula captures the main idea of the chapter: the
 characteristic function is the \emph{Fourier transform of the density}, and the
 density is the \emph{inverse Fourier transform of the characteristic function}.
 Nothing is lost in the round trip. The transform is not a lossy summary like the
@@ -705,15 +781,15 @@ and the inversion integral is the proof.
 
 \begin{connectionbox}[This is Fourier analysis]
 If you have met Fourier series or transforms (in the companion calculus book, or
-in any signal-processing course), the characteristic function is an old friend
-in disguise. Writing $\varphi_X(t)=\int e^{itx}f(x)\,\dd x$, it is literally the
+in any signal-processing course), the characteristic function is familiar:
+writing $\varphi_X(t)=\int e^{itx}f(x)\,\dd x$, it is precisely the
 Fourier transform of the density $f$ (with a sign and $2\pi$ convention chosen
 by probabilists). The convolution theorem of Fourier analysis --- ``the
 transform of a convolution is the product of the transforms'' --- is exactly our
 Theorem~\ref{ch18:thm-cf-props}(2): the density of $X+Y$ is the convolution
-$f_X * f_Y$, and its transform is the product $\varphi_X\varphi_Y$. The whole
-machinery of this chapter is probability borrowing the deepest tool of
-harmonic analysis. The reason transforms turn convolution into multiplication
+$f_X * f_Y$, and its transform is the product $\varphi_X\varphi_Y$. The
+machinery of this chapter applies this core tool of
+harmonic analysis to distributions. The reason transforms turn convolution into multiplication
 is the same reason here as there: $e^{it(x+y)}=e^{itx}e^{ity}$.
 \end{connectionbox}
 
@@ -739,9 +815,9 @@ $X$. Averaging a thousand independent Cauchy observations gives you something
 distributed exactly like one observation --- the sample mean does not
 concentrate, and the Law of Large Numbers fails. This famous failure is
 invisible to the MGF (which does not exist here) but laid bare by the CF in
-three lines. It is also a vivid demonstration of why the CF is the tool of
+three lines. It also demonstrates why the CF is the tool of
 choice: it works where everything else has given up. The resolution of the
-``paradox'' is that the LLN secretly requires a finite mean, which the Cauchy
+``paradox'' is that the LLN requires a finite mean, which the Cauchy
 lacks; the heavy tails mean any average is dominated by its largest term.
 \end{paradoxbox}
 
@@ -773,7 +849,7 @@ could never do.}
 \end{figure}
 
 \begin{aestheticbox}
-Step back and admire the ladder we climbed. The PGF handles counts and turns
+The three transforms form a natural hierarchy. The PGF handles counts and turns
 convolution into polynomial multiplication. The MGF widens the door to all real
 random variables and dispenses moments by differentiation --- but it can crash
 on heavy tails. The CF puts an $i$ in the exponent, trading explosive growth for
@@ -827,6 +903,7 @@ uniqueness and a continuity theorem, $S_n$ converges in distribution to
 $\Normal(0,1)$. \emph{That is the Central Limit Theorem.}
 \end{focusbox}
 
+% Underlying X: symmetric Bernoulli +-1, CF cos(t). S_n CF = [cos(t/sqrt n)]^n.
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
@@ -836,11 +913,12 @@ $\Normal(0,1)$. \emph{That is the Central Limit Theorem.}
   xlabel={$t$}, ylabel={$\varphi_{S_n}(t)$},
   title={The CF of a standardized sum climbs toward the Gaussian $e^{-t^2/2}$},
   title style={font=\small},
-  ymin=-0.35, ymax=1.08,
+  ymin=-0.2, ymax=1.08,
+  xtick={-3,-2,-1,0,1,2,3},
+  ticklabel style={font=\small},
   legend style={font=\small, at={(0.98,0.97)}, anchor=north east},
   axis lines=left,
 ]
-% Underlying X: symmetric Bernoulli +-1, CF cos(t). S_n CF = [cos(t/sqrt n)]^n.
 \addplot[quotientorange, very thick] {cos(deg(x))};
 \addplot[structurepurple, very thick, dashed] {(cos(deg(x/1.7320508)))^3};
 \addplot[targetgreen, very thick, dotted] {(cos(deg(x/3.1622777)))^10};
@@ -862,22 +940,39 @@ transform space it is a single power $[\varphi(t/\sqrt n)]^n$ (watch it converge
 in Figure~\ref{ch18:fig-clt}), the limit is a one-line Taylor expansion, and the
 answer $e^{-t^2/2}$ recognizes itself as the normal. \emph{Why is the bell curve universal?} Because near zero every
 characteristic function looks like $1-\frac12(\text{variance})u^2$, and that
-quadratic --- the only surviving term after the mean is killed and the scale is
-fixed --- exponentiates into the Gaussian. The normal is universal because
+quadratic --- the only surviving term after centering sets the mean to zero and
+scaling fixes the variance --- exponentiates into the Gaussian. The normal is universal because
 $-\frac12 t^2$ is what is left when you keep only the first two moments. The
 generating function is what let us see it.
 
 \begin{historybox}
-Laplace, around 1810, found the bell-curve limit using what were essentially
-characteristic-function calculations (he worked with the Fourier-style integral
-transforms of the day). The modern proof was perfected by Lyapunov and then by
-Paul L\'evy in the 1920s, who turned the characteristic function into a precise
-instrument and proved the \emph{continuity theorem} --- the missing link above:
-if characteristic functions converge pointwise to a function continuous at $0$,
-then the distributions converge. L\'evy's theorem is what licenses the leap from
-``$\varphi_{S_n}(t)\to e^{-t^2/2}$'' to ``$S_n\dto\Normal(0,1)$.'' It is no
-exaggeration to say the characteristic function \emph{is} the modern theory of
-the CLT.
+The story of generating functions and transforms is the story of probability
+transforming from an ad-hoc collection of gambling calculations into a rigorous
+branch of modern analysis. Abraham de Moivre in the 1730s first used generating
+polynomials to solve the gambler's ruin problem. In 1812, Pierre-Simon Laplace
+greatly expanded the idea in his \emph{Th\'eorie analytique des probabilit\'es},
+using formal integral transforms to discover the bell-curve limit for sums of
+errors. Laplace and his contemporaries were stuck in a computational swamp:
+evaluating $n$-fold convolution integrals by hand quickly became impossible.
+Transforming functions gave them an operational calculus to turn convolutions
+into algebra, but they lacked modern analysis and treated complex exponentials
+and divergent series as formal tricks. Nineteenth-century mathematicians viewed
+these manipulations with deep suspicion as lacking rigorous foundations. Controversy deepened
+when Thomas Stieltjes in 1894 showed that two distinct probability distributions
+could share identical moments of every order (such as the lognormal), revealing
+that the method of moments could fail to determine a distribution. The breakthrough
+came in the 1920s when Paul L\'evy and Aleksandr Khinchin built the rigorous
+theory of characteristic functions on the complex unit circle. L\'evy proved
+the celebrated \emph{continuity theorem} (if characteristic functions converge
+pointwise to a continuous function, the underlying distributions converge),
+providing the first watertight proof of the Central Limit Theorem. Today,
+while one-dimensional transforms are fully solved by Fourier inversion,
+inverting transforms in hundreds or thousands of dimensions remains computationally
+formidable due to the curse of dimensionality (the exponential explosion of grid
+points). Researchers in machine-learning diffusion models, quantum tomography,
+and medical imaging still actively work on high-dimensional transform inversion
+and phase retrieval (reconstructing a probability distribution when only incomplete
+transform data can be observed).
 \end{historybox}
 
 \section{Summary}
@@ -921,6 +1016,14 @@ The single fact under all of it: $\;e^{(\cdot)(X+Y)}=e^{(\cdot)X}e^{(\cdot)Y}$,
 so independence turns ``sum of variables'' into ``product of transforms.'' That
 one identity is why generating functions exist, why convolutions simplify, and
 why the normal distribution is universal.
+
+\subsection*{Looking ahead: inequalities and concentration}
+Generating functions provide exact distributions and moments when closed forms exist.
+In many applications, however, only partial information is available---such as the mean,
+variance, or bounded range of a variable.
+Chapter~19 turns from exact calculations to \textbf{inequalities and concentration},
+showing how Markov's inequality, Chebyshev's inequality, and Chernoff bounds
+(using the MGF) provide exponential tail bounds on deviations from the mean.
 
 \section{Exercises}
 \label{ch18:exercises}
@@ -1034,5 +1137,28 @@ offspring with probabilities $\tfrac14,\tfrac14,\tfrac12$.
   \item The extinction probability is the smallest root in $[0,1]$ of
         $G(s)=s$. Solve the resulting quadratic and report the extinction
         probability. Does it match your expectation from part (a)?
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Looking ahead: Chernoff bound for coin flips]
+\label{ch18:ex-chernoff-coin}
+Let $X_1,\dots,X_n$ be independent Bernoulli$(1/2)$ variables (fair coin flips
+taking values in $\set{0,1}$), and let $S_n = \sum_{i=1}^n X_i$ be the total
+number of heads.
+\begin{enumerate}[label=(\alph*)]
+  \item Show that the MGF of a single flip is $M_{X_1}(t) = \frac{1+e^t}{2}$,
+        and deduce that $M_{S_n}(t) = \big(\frac{1+e^t}{2}\big)^n$.
+  \item Use the elementary calculus inequality $1+u \le e^u$ (with $u=(e^t-1)/2$)
+        to show that $\frac{1+e^t}{2} \le \exp\big(\frac{e^t-1}{2}\big)$.
+  \item Using Markov's inequality, for any threshold $a > n/2$ and any $t > 0$,
+        show that
+        \[
+          \P(S_n \ge a) \;\le\; e^{-ta}\left(\frac{1+e^t}{2}\right)^n .
+        \]
+  \item Notice that this bound has the form $(c(t))^n$ for a constant $c(t) < 1$
+        when $t$ is chosen smartly. Explain in one sentence why this guarantees
+        that the probability of getting mostly heads decays \emph{exponentially}
+        with the number of flips, previewing the concentration inequalities of
+        Chapter~19.
 \end{enumerate}
 \end{exercise}

@@ -1,33 +1,14 @@
 \chapter{Transformations of Random Variables}
 
-You already own a small zoo of random variables -- uniforms, normals, exponentials,
-Poissons -- and you can compute their means, variances, and probabilities. But the
-random variables you actually \emph{care} about are almost never the ones handed to you.
-A physicist measures a voltage $X$ but wants the power $X^2$. A statistician simulates a
-uniform $U$ but needs a normal. A financier holds a log-return $R$ but quotes the price
-$e^{R}$. A geometer drops a random point and asks for its distance from the origin. In
-every case the same question arises: \emph{given the distribution of $X$, what is the
-distribution of $Y = g(X)$?}
+The previous chapters studied random variables coupled probabilistically.
+Now consider deterministic transformations: if $X$ has a known distribution and
+$g$ is a function, what is the distribution of the transformed variable $Y = g(X)$?
 
-Answering it is the business of this chapter. We will develop three complementary tools,
-each illuminating a different facet of the same problem:
-
-\begin{enumerate}
-  \item The \textbf{CDF method} -- the always-correct workhorse: chase the
-        probability through the definition $F_Y(y) = \P(g(X) \le y)$.
-  \item The \textbf{change-of-variables (Jacobian) method} -- a shortcut for smooth,
-        invertible $g$ that reveals \emph{why} densities stretch and squeeze the way they
-        do, and which is nothing other than calculus' substitution rule wearing a
-        probabilistic hat.
-  \item \textbf{Order statistics} -- what happens to the minimum, the maximum, and the
-        sorted values of a sample, a transformation of \emph{many} variables at once.
-\end{enumerate}
-
-We close with the result that ties the whole chapter together: the \emph{probability
-integral transform}, which says that every random variable is secretly a uniform in
-disguise. That single fact is the engine inside almost every simulation you will ever
-run, and it leads straight to the Box--Muller trick for manufacturing normals out of
-thin air.
+This question arises whenever we measure one quantity but need another:
+computing dissipated power $X^2$ from voltage $X$, or converting uniform random
+numbers into Gaussian variables. We develop the cumulative distribution function
+(CDF) method, the Jacobian change-of-variables formula for smooth maps, and the
+distributions of order statistics.
 
 \chapterline
 
@@ -61,6 +42,12 @@ are \emph{amounts of probability per unit length}. When $g$ stretches the axis, 
 chunk of probability is smeared over a longer interval, so the density must \emph{drop}.
 You must account for how much $g$ stretches or compresses -- that correction factor is the
 Jacobian. Forgetting it is the number-one error in transformation problems.
+
+To see how badly naive relabeling fails, consider $Y = 2X$ with $X \sim \Unif(0,1)$. The
+inverse map is $x = y/2$. If you simply set $f_Y(y) = f_X(y/2) = 1$ on $(0,2)$, the total
+probability would be $\int_0^2 1\,\dd y = 2$ -- twice the total probability of the entire
+sample space. Because the interval was stretched by a factor of $2$, the density must be
+halved to $f_Y(y) = 1/2$.
 \end{trapbox}
 
 A clean way to never make that mistake is to always reason in terms of the CDF, which
@@ -136,6 +123,14 @@ squaring compresses the small values together, piling density up near $0$.}
 \label{ch16:fig-square}
 \end{figure}
 
+\begin{recoverybox}
+\textbf{Pause and think.} Suppose $X \sim \Unif(0, 1)$ and $Y = 2X$. Before applying any
+formula, where does $Y$ live, and what must its density be if total probability is conserved?
+\emph{Check:} $Y$ lives on $(0, 2)$, an interval of width $2$. Conserving the total probability
+of $1$ forces the density to be constant and equal to $1/2$. Doubling the interval width halves
+the density height.
+\end{recoverybox}
+
 \subsection{When $g$ is not monotone: fold the probability}
 
 If $g$ is not one-to-one, the inequality $g(X)\le y$ can correspond to \emph{several}
@@ -158,9 +153,13 @@ $\tfrac{\dd}{\dd y}\sqrt{y} = \tfrac{1}{2\sqrt{y}}$:
   f_Y(y) = 2\,\varphi(\sqrt{y})\cdot \frac{1}{2\sqrt{y}}
          = \frac{1}{\sqrt{2\pi}}\, y^{-1/2} e^{-y/2}, \qquad y > 0.
 \]
-This is the \textbf{chi-squared distribution with one degree of freedom}, $\chi^2_1$
-(equivalently $\Gam(\tfrac12,\tfrac12)$). The factor of $2$ came from \emph{both} tails of
-the normal mapping onto the same positive $y$ -- the probability got \emph{folded}.
+This is the \textbf{chi-squared distribution with one degree of freedom}, denoted $\chi^2_1$.
+It measures the squared deviation or kinetic energy of a single standard Gaussian kick. (The
+term ``degree of freedom'' simply records how many independent squared standard normals are
+being added together -- here, exactly one.) It is also a member of the Gamma family,
+$\Gam(\tfrac12,\tfrac12)$, which governs waiting times and squared Gaussian magnitudes.
+The factor of $2$ came from \emph{both} tails of the normal mapping onto the same positive
+$y$ -- the probability got \emph{folded}.
 \end{example}
 
 \begin{whybox}
@@ -184,9 +183,16 @@ Differentiating with the chain rule,
   f_Y(y) = f_X\big(g^{-1}(y)\big)\cdot \frac{\dd}{\dd y} g^{-1}(y).
 \]
 If instead $g$ is \emph{strictly decreasing}, then $g(X)\le y \iff X \ge g^{-1}(y)$, so
-$F_Y(y) = 1 - F_X(g^{-1}(y))$, and now $\tfrac{\dd}{\dd y}g^{-1}(y)$ is negative;
-differentiating flips a sign and we land on the same formula with an absolute value. Both
-cases collapse into one clean statement, which is important enough to box.
+$F_Y(y) = 1 - F_X(g^{-1}(y))$. Differentiating yields
+\[
+  f_Y(y) = \frac{\dd}{\dd y}\big(1 - F_X(g^{-1}(y))\big)
+         = -f_X(g^{-1}(y))\cdot \frac{\dd}{\dd y}g^{-1}(y)
+         = f_X(g^{-1}(y))\cdot \left(-\frac{\dd}{\dd y}g^{-1}(y)\right).
+\]
+Because $g$ is decreasing, its inverse $g^{-1}$ is also decreasing, meaning
+$\frac{\dd}{\dd y}g^{-1}(y) < 0$. The factor $-\frac{\dd}{\dd y}g^{-1}(y)$ is therefore
+strictly positive and equals $\abs{\frac{\dd}{\dd y}g^{-1}(y)}$. Both cases collapse into
+one clean statement, which is important enough to box.
 
 \begin{formalbox}
 \textbf{Change-of-variables formula (monotone case).} If $g$ is strictly monotone and
@@ -200,10 +206,13 @@ $\tfrac{\dd x}{\dd y} = 1/g'(x)$, this is the same as
 $f_Y(y) = f_X(x)\,/\,\abs{g'(x)}$.
 \end{formalbox}
 
-That absolute-value derivative term is the \textbf{Jacobian} (in one dimension). It is
-exactly the stretch factor of $g$: where $g$ stretches space ($\abs{g'}$ large), the
-density gets divided down; where $g$ compresses ($\abs{g'}$ small), the density gets
-multiplied up. This is the precise, quantitative form of ``conservation of paint.''
+That absolute-value derivative term is the \textbf{Jacobian} (in one dimension). The
+Jacobian is the local stretch factor: it relates the width of an infinitesimal output
+interval $\dd y$ to the width of the corresponding input interval $\dd x$, via
+$\dd y = \abs{g'(x)}\,\dd x$. Where $g$ stretches space ($\abs{g'} > 1$), a fixed slice of
+probability is smeared over a wider interval and the density must drop; where $g$
+compresses space ($\abs{g'} < 1$), the paint piles up and the density spikes. This is the
+precise, quantitative form of ``conservation of paint.''
 
 \section{The Change-of-Variables (Jacobian) Method}
 \label{ch16:jacobian}
@@ -235,6 +244,48 @@ That is the whole theorem in two lines. Everything else is a careful version of 
 ``equal probability in corresponding little boxes.''
 \end{whybox}
 
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.05]
+  \draw[->, thick, gray!70] (-0.3, 0) -- (5.2, 0) node[right, font=\small] {$x$};
+  \draw[->, thick, gray!70] (0, -0.3) -- (0, 4.6) node[above, font=\small] {$y$};
+
+  \def\xone{1.3}
+  \def\xtwo{1.8}
+  \pgfmathsetmacro{\yone}{0.4 + 0.45*\xone*\xone}
+  \pgfmathsetmacro{\ytwo}{0.4 + 0.45*\xtwo*\xtwo}
+
+  \fill[sourceblue!25, draw=sourceblue!90!black, thick] (\xone, 0) rectangle (\xtwo, -0.45);
+  \node[font=\footnotesize, sourceblue!90!black] at ({0.5*(\xone+\xtwo)}, -0.22) {$\dd x$};
+  \node[font=\scriptsize, align=center, sourceblue!90!black, below=2pt] at ({0.5*(\xone+\xtwo)}, -0.45) {$\dd P = f_X(x)\,\dd x$};
+
+  \fill[densityred!25, draw=densityred!90!black, thick] (0, \yone) rectangle (-0.45, \ytwo);
+  \node[font=\footnotesize, densityred!90!black] at (-0.22, {0.5*(\yone+\ytwo)}) {$\dd y$};
+  \node[font=\scriptsize, align=right, densityred!90!black, left=3pt] at (-0.45, {0.5*(\yone+\ytwo)}) {$\dd P = f_Y(y)\,\dd y$};
+
+  \draw[dashed, sourceblue!70, thick] (\xone, 0) -- (\xone, \yone) -- (0, \yone);
+  \draw[dashed, sourceblue!70, thick] (\xtwo, 0) -- (\xtwo, \ytwo) -- (0, \ytwo);
+
+  \draw[domain=0.3:2.8, smooth, variable=\t, very thick, targetgreen!80!black]
+    plot ({\t}, {0.4 + 0.45*\t*\t}) node[right, font=\small] {$y = g(x)$};
+
+  \pgfmathsetmacro{\xm}{0.5*(\xone+\xtwo)}
+  \pgfmathsetmacro{\ym}{0.4 + 0.45*\xm*\xm}
+  \pgfmathsetmacro{\slope}{0.9*\xm}
+  \draw[very thick, quotientorange!90!black] ({\xm-0.6}, {\ym-0.6*\slope}) -- ({\xm+0.6}, {\ym+0.6*\slope});
+  \fill[quotientorange!90!black] (\xm, \ym) circle (2pt);
+  \node[font=\footnotesize\bfseries, quotientorange!90!black, anchor=south east] at ({\xm-0.1}, {\ym+0.4})
+    {$\text{Slope } g'(x) = \dfrac{\dd y}{\dd x}$};
+
+  \node[draw=gray!40, fill=gray!3, rounded corners=3pt, align=center, font=\small, inner sep=5pt]
+    at (3.6, 1.8) {Conservation of mass:\\[3pt]
+    $f_Y(y)\,\dd y = f_X(x)\,\dd x$\\[4pt]
+    $\implies f_Y(y) = \dfrac{f_X(x)}{g'(x)}$};
+\end{tikzpicture}
+\caption{The geometry of the one-dimensional Jacobian. An input interval of width $\dd x$ carries probability mass $\dd P = f_X(x)\,\dd x$. The transformation $y = g(x)$ maps it to an output interval of width $\dd y = g'(x)\,\dd x$. Because probability is conserved ($\dd P = f_X(x)\,\dd x = f_Y(y)\,\dd y$), the output density must equal the input density divided by the local slope: $f_Y(y) = f_X(x)/g'(x)$. Where the curve is steep, the interval is stretched and the density is diluted.}
+\label{ch16:fig-jacobian-1d}
+\end{figure}
+
 \subsection{Worked example: the lognormal}
 
 \begin{example}[Exponentiating a normal]
@@ -248,6 +299,9 @@ Plugging into the boxed formula,
            \exp\!\left(-\frac{(\ln y - \mu)^2}{2\sigma^2}\right), \qquad y>0.
 \]
 This is the \textbf{lognormal distribution}: a random variable whose logarithm is normal.
+It describes quantities formed by compounding many independent percentage changes -- such
+as stock prices, incomes, and sizes of cities -- yielding a distribution strictly confined
+to positive numbers with a long, heavy right tail.
 \end{example}
 
 \begin{figure}[H]
@@ -277,12 +331,13 @@ multiplicative shocks. The Gaussian exponential factor pins the density to zero 
 \textbf{Why finance loves the lognormal.} Stock prices cannot go negative, and over a day
 they tend to move by \emph{percentages}, not by fixed dollar amounts -- a \$1000 stock and
 a \$10 stock both ``feel'' a $2\%$ move. If the log-return $\ln(S_{t+1}/S_t)$ is roughly
-normal (a sum of many small multiplicative shocks, blessed by the central limit theorem),
+normal (a sum of many small log-shocks, governed by the central limit theorem),
 then the price ratio is lognormal (Figure~\ref{ch16:fig-lognormal}), and the price stays positive automatically. The
 celebrated Black--Scholes option-pricing model is built on exactly this transformation:
-model the log-price as Brownian motion (normal increments), and the price itself is
-lognormal. The $1/y$ Jacobian factor is the mathematical fingerprint of ``returns are
-multiplicative.''
+model the log-price as Brownian motion (the continuous-time mathematical limit of a particle
+buffeted incessantly by tiny random shocks, producing normal increments), and the price
+itself is lognormal. The $1/y$ Jacobian factor is the mathematical fingerprint of ``returns
+are multiplicative.''
 \end{applicationbox}
 
 \subsection{The affine case, and why normals stay normal}
@@ -307,10 +362,12 @@ recovers the standardization $Z=(X-\mu)/\sigma \sim \Normal(0,1)$.
 \subsection{Several variables at once: the Jacobian determinant}
 
 When $g$ maps a vector $(X_1,\dots,X_n)$ to a vector $(Y_1,\dots,Y_n)$, the one-dimensional
-stretch factor $\abs{g'}$ becomes the absolute value of the \emph{Jacobian determinant} of
-the inverse map. The logic is unchanged -- equal probability in corresponding little boxes
--- but now the ``little box'' is an $n$-dimensional volume, and a linear map scales volume
-by the absolute value of its determinant.
+stretch factor $\abs{g'}$ generalizes to the absolute value of the \textbf{Jacobian determinant}
+of the inverse map $\mathbf{x} = h(\mathbf{y})$. The Jacobian determinant measures how much an
+infinitesimal $n$-dimensional block of volume in target space scales when pulled back into source
+space: $\dd x_1\cdots\dd x_n = \abs{\det J_h(\mathbf y)}\,\dd y_1\cdots\dd y_n$. The logic is
+unchanged -- equal probability in corresponding little boxes -- but now the ``little box'' is
+an $n$-dimensional parallelotope, scaled by the linear approximation's determinant.
 
 \begin{formalbox}
 \textbf{Multivariate change of variables.} Let $\mathbf{X}=(X_1,\dots,X_n)$ have joint
@@ -329,46 +386,46 @@ with inverse $\mathbf x = h(\mathbf y)$. Then
 \begin{tikzpicture}[scale=0.95]
   % Panel 1: Target coordinate plane (y_1, y_2)
   \begin{scope}[shift={(0,0)}]
-    \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-0.8,-1.8) rectangle (5.2,3.4);
-    \node[anchor=north, font=\small\bfseries, sourceblue!80!black] at (2.2,3.2) {1. Coordinate Box in $y$-Plane};
+    \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-0.6,-1.8) rectangle (4.8,3.6);
+    \node[anchor=north, font=\small\bfseries, sourceblue!80!black] at (2.1,3.4) {1. Coordinate Box in $y$-Plane};
 
     % Axes
-    \draw[->, thick, gray!70] (-0.2,0) -- (4.6,0) node[right, font=\scriptsize] {$y_1$};
-    \draw[->, thick, gray!70] (0,-0.2) -- (0,2.8) node[above, font=\scriptsize] {$y_2$};
+    \draw[->, thick, gray!70] (-0.2,0) -- (4.4,0) node[right, font=\scriptsize] {$y_1$};
+    \draw[->, thick, gray!70] (0,-0.2) -- (0,2.3) node[above, font=\scriptsize] {$y_2$};
 
-    % Rectangular tile at (1.4, 0.8) with dimensions (1.6, 1.2)
-    \coordinate (Y0) at (1.4, 0.8);
-    \fill[sourceblue!25, draw=sourceblue!90!black, thick] (Y0) rectangle ($(Y0)+(1.6, 1.2)$);
+    % Rectangular tile at (1.3, 0.7) with dimensions (2.0, 1.3)
+    \coordinate (Y0) at (1.3, 0.7);
+    \fill[sourceblue!25, draw=sourceblue!90!black, thick] (Y0) rectangle ($(Y0)+(2.0, 1.3)$);
 
     % Dimension labels
-    \draw[<->, >=stealth, gray!80] ($(Y0)+(0, -0.25)$) -- ($(Y0)+(1.6, -0.25)$)
+    \draw[<->, >=stealth, gray!80] ($(Y0)+(0, -0.25)$) -- ($(Y0)+(2.0, -0.25)$)
       node[midway, below, font=\scriptsize] {$\dd y_1$};
-    \draw[<->, >=stealth, gray!80] ($(Y0)+(-0.25, 0)$) -- ($(Y0)+(-0.25, 1.2)$)
+    \draw[<->, >=stealth, gray!80] ($(Y0)+(-0.25, 0)$) -- ($(Y0)+(-0.25, 1.3)$)
       node[midway, left, font=\scriptsize] {$\dd y_2$};
 
-    \node[font=\footnotesize\bfseries, sourceblue!90!black] at ($(Y0)+(0.8, 0.6)$) {$\text{Area} = \dd y_1 \dd y_2$};
+    \node[font=\scriptsize\bfseries, sourceblue!90!black] at ($(Y0)+(1.0, 0.65)$) {$\text{Area} = \dd y_1 \dd y_2$};
 
     \node[align=center, font=\scriptsize, draw=sourceblue!60, fill=white, rounded corners=2pt, inner sep=2pt]
-      at (2.2, -1.1) {Probability in Tile:\\[1pt]$\dd P = f_{\mathbf Y}(y_1, y_2)\,\dd y_1\,\dd y_2$};
+      at (2.1, -1.1) {Probability in Tile:\\[1pt]$\dd P = f_{\mathbf Y}(y_1, y_2)\,\dd y_1\,\dd y_2$};
   \end{scope}
 
   % Transmission arrow
-  \draw[->, >=stealth, very thick, structurepurple] (5.5, 1.4) -- (6.9, 1.4)
-    node[midway, above, font=\scriptsize\bfseries, align=center] {Inverse Map\\$\mathbf{x} = h(\mathbf{y})$};
+  \draw[->, >=stealth, very thick, structurepurple] (5.0, 1.4) -- (6.7, 1.4);
+  \node[above=3pt, font=\scriptsize\bfseries, align=center, structurepurple] at (5.85, 1.4) {Inverse Map\\[1pt]\scriptsize $\mathbf{x} = h(\mathbf{y})$};
 
   % Panel 2: Deformed parallelogram in source plane (x_1, x_2)
-  \begin{scope}[shift={(7.3,0)}]
-    \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-0.8,-1.8) rectangle (5.6,3.4);
-    \node[anchor=north, font=\small\bfseries, densityred!80!black] at (2.4,3.2) {2. Deformed Parallelogram in $x$-Plane};
+  \begin{scope}[shift={(7.55,0)}]
+    \draw[draw=gray!30, fill=gray!3, rounded corners=4pt] (-0.6,-1.8) rectangle (5.5,3.6);
+    \node[anchor=north, font=\small\bfseries, densityred!80!black] at (2.45,3.4) {2. Deformed Parallelogram in $x$-Plane};
 
     % Axes
-    \draw[->, thick, gray!70] (-0.2,0) -- (4.8,0) node[right, font=\scriptsize] {$x_1$};
-    \draw[->, thick, gray!70] (0,-0.2) -- (0,2.8) node[above, font=\scriptsize] {$x_2$};
+    \draw[->, thick, gray!70] (-0.2,0) -- (5.1,0) node[right, font=\scriptsize] {$x_1$};
+    \draw[->, thick, gray!70] (0,-0.2) -- (0,2.5) node[above, font=\scriptsize] {$x_2$};
 
     % Parallelogram base point x0 = h(y0)
-    \coordinate (X0) at (1.0, 0.5);
-    \coordinate (V1) at (2.0, 0.4);  % dx/dy1 * dy1
-    \coordinate (V2) at (0.6, 1.5);  % dx/dy2 * dy2
+    \coordinate (X0) at (0.75, 0.45);
+    \coordinate (V1) at (3.25, 0.35);  % dx/dy1 * dy1
+    \coordinate (V2) at (0.65, 1.48);  % dx/dy2 * dy2
 
     \fill[densityred!25, draw=densityred!90!black, thick]
       (X0) -- ($(X0)+(V1)$) -- ($(X0)+(V1)+(V2)$) -- ($(X0)+(V2)$) -- cycle;
@@ -379,7 +436,7 @@ with inverse $\mathbf x = h(\mathbf y)$. Then
     \draw[->, >=stealth, very thick, quotientorange!90!black] (X0) -- ($(X0)+(V2)$)
       node[above left=-2pt, font=\tiny\bfseries] {$\frac{\partial \mathbf{x}}{\partial y_2}\dd y_2$};
 
-    \node[font=\footnotesize\bfseries, densityred!90!black] at ($(X0)+(1.3, 0.95)$) {$\text{Area} = |\det J_h|\,\dd y_1 \dd y_2$};
+    \node[font=\tiny\bfseries, densityred!90!black] at ($(X0)+(1.95, 0.91)$) {$\text{Area} = |\det J_h|\,\dd y_1 \dd y_2$};
 
     \node[align=center, font=\scriptsize, draw=densityred!60, fill=white, rounded corners=2pt, inner sep=2pt]
       at (2.4, -1.1) {Conservation of Probability:\\[1pt]$f_{\mathbf Y}(\mathbf y)\,\dd y_1\dd y_2 = f_{\mathbf X}(h(\mathbf y))\,|\det J_h|\,\dd y_1\dd y_2$};
@@ -411,7 +468,9 @@ largest:
 \[
   X_{(1)} \le X_{(2)} \le \dots \le X_{(n)}.
 \]
-The $k$-th value $X_{(k)}$ is the \textbf{$k$-th order statistic}. In particular
+The $k$-th value $X_{(k)}$ is the \textbf{$k$-th order statistic}. An order statistic is
+simply the value occupying rank $k$ after sorting an observed sample from smallest to largest --
+the sample minimum, the sample median, or the sample maximum. In particular
 $X_{(1)} = \min_i X_i$ and $X_{(n)} = \max_i X_i$. These are the random variables behind
 record-breaking, extreme weather, system reliability (a chain fails when its
 \emph{weakest} link fails -- the minimum), the sample median, and the range of a dataset.
@@ -432,8 +491,9 @@ For the maximum $M = X_{(n)}$:
 \]
 Differentiating, $f_M(y) = n\,[F(y)]^{n-1} f(y)$.
 
-For the minimum $L = X_{(1)}$, it is cleaner to use the survival function, since the
-minimum exceeds $y$ iff \emph{all} observations exceed $y$:
+For the minimum $L = X_{(1)}$, it is cleaner to use the \textbf{survival function}
+$S(y) = \P(X > y) = 1 - F(y)$ -- the probability that a random lifespan outlasts threshold
+$y$ -- since the minimum exceeds $y$ if and only if \emph{all} observations exceed $y$:
 \[
   \P(L > y) = \P(X_1 > y,\dots,X_n > y) = [1-F(y)]^n,
   \qquad F_L(y) = 1 - [1-F(y)]^n,
@@ -449,6 +509,16 @@ with the rates \emph{added}. This memorable fact -- ``the first of many independ
 clocks rings at the combined rate'' -- is the algebraic heart of the Poisson process you
 will meet later.
 \end{example}
+
+\begin{recoverybox}
+\textbf{Pause and think.} You have $100$ independent lightbulbs, each with lifetime
+$\Expo(\lambda)$ (mean lifetime $1/\lambda$). What is the expected waiting time until the
+\emph{first} bulb burns out?
+\emph{Check:} By Example~\ref{ch16:min-expo}, the minimum of the $100$ lifespans is distributed
+as $\Expo(100\lambda)$. Its expected value is $\frac{1}{100\lambda}$ -- exactly one-hundredth
+of a single bulb's lifespan. More competing components make the first failure arrive
+proportionally faster.
+\end{recoverybox}
 
 \subsection{The general $k$-th order statistic}
 
@@ -480,11 +550,12 @@ Let $X_1,\dots,X_n$ be i.i.d.\ $\Unif(0,1)$, so $F(y)=y$ and $f(y)=1$ on $(0,1)$
 \[
   f_{X_{(k)}}(y) = \frac{n!}{(k-1)!\,(n-k)!}\,y^{k-1}(1-y)^{n-k}, \qquad 0<y<1.
 \]
-This is exactly the $\Bet(k,\,n-k+1)$ density! So the $k$-th smallest of $n$ uniforms is
-Beta-distributed -- which is why the Beta family is the natural language for ``the
-distribution of a sorted uniform position,'' and why $\E[X_{(k)}] = k/(n+1)$: the order
-statistics divide $(0,1)$ into $n+1$ gaps of equal expected width. The sample maximum
-($k=n$) is $\Bet(n,1)$ with density $n y^{n-1}$, matching $n[F(y)]^{n-1}f(y)$ from before.
+This is exactly the $\Bet(k,\,n-k+1)$ density! The Beta distribution is the continuous family
+supported on the unit interval $(0,1)$ with density proportional to $y^{\alpha-1}(1-y)^{\beta-1}$,
+making it the canonical model for random proportions and sorted positions of uniform draws.
+Here $\E[X_{(k)}] = k/(n+1)$: the $n$ order statistics divide $(0,1)$ into $n+1$ gaps of equal
+expected width $1/(n+1)$. The sample maximum ($k=n$) is $\Bet(n,1)$ with density $n y^{n-1}$,
+matching $n[F(y)]^{n-1}f(y)$ from before.
 \end{example}
 
 \begin{figure}[H]
@@ -495,36 +566,40 @@ statistics divide $(0,1)$ into $n+1$ gaps of equal expected width. The sample ma
   xlabel={$y$}, ylabel={density of $X_{(k)}$},
   domain=0:1, samples=120,
   ymin=0, ymax=5, xmin=0, xmax=1,
-  legend pos=north west, legend cell align=left,
+  legend style={at={(0.5,0.96)}, anchor=north}, legend cell align=left,
   axis lines=left, thick,
 ]
-% n=5, Beta(k, 6-k)
-\addplot[distblue, very thick] {5*(1-x)^4};            % k=1: 5(1-y)^4
+\addplot[distblue, very thick] {5*(1-x)^4};
 \addlegendentry{$k=1$ (min)}
-\addplot[targetgreen, very thick] {30*x^2*(1-x)^2};    % k=3: 30 y^2 (1-y)^2
+\addplot[targetgreen, very thick] {30*x^2*(1-x)^2};
 \addlegendentry{$k=3$ (median)}
-\addplot[densityred, very thick] {5*x^4};              % k=5: 5 y^4
+\addplot[densityred, very thick] {5*x^4};
 \addlegendentry{$k=5$ (max)}
 \end{axis}
 \end{tikzpicture}
 \caption{Order statistics of $n=5$ i.i.d.\ uniforms, each a Beta density. The minimum
 (left) clusters near $0$, the maximum (right) near $1$, and the median (middle) peaks at
-$\tfrac12$ -- the sorted positions spread out across $(0,1)$.}
+$\tfrac12$ -- the sorted positions spread out across $(0,1)$ without overlapping.}
 \label{ch16:fig-order}
 \end{figure}
 
 \begin{paradoxbox}
 \textbf{The German Tank Problem.} In World War II, the Allies wanted to estimate how many
 tanks Germany was producing. Captured tanks had sequential serial numbers
-$1,2,\dots,N$, and the Allies observed a sample of them; $N$ was unknown. The largest
-serial number seen, $X_{(n)}$, is an order statistic, and naively it \emph{underestimates}
-$N$ -- the true maximum is almost surely larger than any you have seen. But order-statistic
-reasoning fixes the bias: since the $n$ observed numbers carve $\{1,\dots,N\}$ into $n+1$
-expected-equal gaps, the gap above the maximum has expected size $N/(n+1)$, suggesting the
-unbiased estimate $\hat N = \tfrac{n+1}{n}X_{(n)} - 1$.
+$1,2,\dots,N$, and the Allies observed a random sample of $n$ of them; $N$ was unknown.
+The largest serial number seen, $X_{(n)}$, is an order statistic, and naively it
+\emph{underestimates} $N$ -- the true maximum is almost surely larger than any sample draw.
+Order-statistic geometry fixes the bias: the $n$ observed numbers divide the range
+$\{1,\dots,N\}$ into $n+1$ equal expected gaps, so the average gap between adjacent values
+is $(N-n)/(n+1)$. The sample maximum therefore expects to reach $\E[X_{(n)}] = \frac{n}{n+1}(N+1)$.
+Solving for $N$ yields the minimum-variance unbiased estimator:
+\[
+  \hat N = X_{(n)} + \frac{X_{(n)}}{n} - 1 = \frac{n+1}{n}X_{(n)} - 1.
+\]
 Statisticians using this beat the intelligence agencies' guesses dramatically -- postwar
-records showed the formula was off by a few percent while espionage was off by factors of
-several. A transformation of a sample, understood correctly, outperformed spies.
+German factory records revealed the mathematical formula was off by just a few percent
+while espionage estimates were off by factors of two to three. A simple transformation
+of an order statistic outperformed an international spy network.
 \end{paradoxbox}
 
 \section{The Probability Integral Transform}
@@ -567,27 +642,62 @@ using that $\P(U \le u) = u$. So $X$ has CDF $F$, as claimed.
 \end{proof}
 
 \begin{happeningbox}
-\textbf{Every distribution is a uniform in disguise.} The two halves of the theorem say
+\textbf{Equivalence with the uniform distribution.} The two halves of the theorem say
 the same thing from opposite ends. The forward half flattens \emph{any} continuous
 distribution into the uniform by viewing each value through its own percentile lens. The
 backward half rebuilds \emph{any} distribution from the uniform by running the percentile
-lens in reverse with $F^{-1}$ (the quantile function). The uniform on $(0,1)$ is thus a
-universal raw material: hand me uniform randomness and a quantile function, and I can
-conjure any distribution you like. This is not a curiosity -- it is the foundational
-algorithm of all stochastic simulation.
+lens in reverse with $F^{-1}$, known as the \textbf{quantile function}. The quantile
+function takes a probability rank $u \in (0,1)$ and returns the cutoff value $x$ below
+which that fraction of probability sits. The uniform distribution on $(0,1)$ thus
+provides a universal foundation: given uniform random numbers and an invertible CDF, one
+can generate samples from any desired continuous distribution. This principle forms the
+basis of stochastic simulation.
 \end{happeningbox}
 
+\begin{recoverybox}
+\textbf{Pause and think.} Suppose $U \sim \Unif(0, 1)$ and you define $X = -\ln(1-U)$. What is
+$\P(X > 2)$? Solve this in two ways: (1) using basic algebra on uniforms, and (2) using the
+exponential distribution.
+\emph{Check:} (1) $X > 2 \iff -\ln(1-U) > 2 \iff 1-U < e^{-2} \iff U > 1 - e^{-2}$, which has
+probability $1 - (1 - e^{-2}) = e^{-2}$. (2) By the probability integral transform,
+$X \sim \Expo(1)$, whose survival function is directly $\P(X > 2) = e^{-2}$. The two approaches
+match instantaneously.
+\end{recoverybox}
+
 \begin{historybox}
-The idea that a CDF transforms its own variable into a uniform crystallized in the work of
-statisticians in the 1930s--40s -- it underlies R.~A.\ Fisher's use of $p$-values (a
-$p$-value is precisely $F$ applied to a test statistic under the null, hence uniform when
-the null holds) and the goodness-of-fit literature. When electronic computers arrived,
-John von Neumann, Stanislaw Ulam, and Nicholas Metropolis at Los Alamos turned it into an
-engine: the \emph{Monte Carlo method}, named for Ulam's gambling uncle, needed a way to
-manufacture samples from arbitrary distributions, and inverting the CDF was the first tool
-reached for. Von Neumann famously quipped that ``anyone who considers arithmetical methods
-of producing random digits is, of course, in a state of sin'' -- but the sin was
-productive: every simulation you run today descends from those Los Alamos nights.
+The realization that a cumulative distribution function turns its own random variable into a
+uniform crystallized during the 1930s. Statisticians like Karl Pearson and Ronald A.\ Fisher
+needed a universal framework for ``goodness-of-fit'' tests -- checking whether observed
+experimental data genuinely follows a proposed scientific model. Under Fisher's framework,
+applying $F$ to a test statistic under the ``null hypothesis'' (the baseline assumption that no
+special effect exists) produced a $p$-value that was guaranteed to be flatly uniform on $(0,1)$.
+A controversy immediately broke out: Fisher viewed $p$-values as a continuous scale of evidentiary
+surprise, while Jerzy Neyman and Egon Pearson insisted on rigid, pre-set error thresholds for
+making binary decisions.
+
+A decade later in 1946 at Los Alamos, Stanislaw Ulam and John von Neumann hit a computational wall.
+They were trying to model neutron diffusion -- the chaotic scattering and chain-reaction fission
+of neutrons inside fissile cores -- but the governing differential equations were far too
+complex to solve on paper. Their only available tools were mechanical Marchant desk calculators,
+cumbersome published tables of random digits, and the newly built ENIAC, an experimental
+computer containing 18,000 glowing vacuum tubes.
+
+Ulam realized they could bypass analytic integration by playing a game of chance on the computer:
+simulate thousands of individual neutron trajectories step by step and tally the outcomes.
+Nicholas Metropolis dubbed the technique the \emph{Monte Carlo method}, after the Monaco casino
+where Ulam's uncle borrowed money to gamble. Inverting the CDF was their primary tool for turning
+raw uniform numbers into physical velocities and collision angles. But this sparked a second
+controversy: could a deterministic machine produce genuine randomness? Von Neumann famously
+admitted that ``anyone who considers arithmetical methods of producing random digits is, of
+course, in a state of sin.'' Critics worried that deterministic pseudorandom formulas would have
+hidden repeating cycles that would corrupt the nuclear physics simulations.
+
+The method triumphed, unlocking modern scientific computing, Bayesian inference, and statistical
+mechanics. Today, the foundational open challenge lies in high dimensions: when dealing with
+millions of coupled variables -- such as pixels in image generation or tokens in language models --
+the joint CDF is impossible to write down or invert directly. Developing efficient transformations
+from simple Gaussian or uniform noise to intractable, high-dimensional target distributions
+remains one of the most active research frontiers in machine learning.
 \end{historybox}
 
 \begin{applicationbox}
@@ -639,22 +749,27 @@ is doing the ``paint relocation'' of Section~\ref{ch16:core}.}
 \begin{trapbox}
 The probability integral transform as stated needs $F$ \emph{continuous} (so that $F(X)$
 hits every value in $(0,1)$) and is cleanest when $F$ is strictly increasing (so $F^{-1}$
-is a genuine function). For discrete or mixed distributions, $F$ has jumps and flat
-stretches; you then use the \emph{generalized inverse}
-$F^{-1}(u) = \inf\set{x : F(x) \ge u}$, and inverse-transform sampling still works -- it is
-how you simulate a Poisson or a Bernoulli. But $F(X)$ is no longer exactly uniform when $X$
-is discrete, so do not apply the forward half blindly to a discrete variable.
+is an ordinary two-sided inverse function). For discrete or mixed distributions, $F$ has
+jumps and flat stretches. In that case, one uses the \textbf{generalized inverse}:
+\[
+  F^{-1}(u) = \inf\set{x : F(x) \ge u},
+\]
+which identifies the smallest value $x$ where the cumulative probability staircase reaches or
+exceeds percentile rank $u$. Inverse-transform sampling still works flawlessly with this
+definition -- it is how a computer generates a Poisson, Geometric, or Bernoulli variable
+from a single uniform draw. However, because $F(X)$ takes only discrete values, $F(X)$ is no
+longer uniform when $X$ is discrete, so do not run the forward half blindly on discrete
+distributions.
 \end{trapbox}
 
 \section{Box--Muller: Manufacturing Normals}
 \label{ch16:box-muller}
 
-Inverse-transform sampling has one villain: the normal distribution. Its CDF $\Phi$ has
+Inverse-transform sampling hits one major snag: the normal distribution. Its CDF $\Phi$ has
 \emph{no elementary closed form}, and neither does $\Phi^{-1}$. So the slick
 ``$F^{-1}(U)$'' recipe stalls exactly where we need it most -- the normal is the most
-sampled distribution on Earth. In 1958, George Box and Mervin Muller found a gorgeous way
-around this by transforming \emph{two} uniforms at once and exploiting the geometry of the
-plane.
+sampled distribution on Earth. In 1958, George Box and Mervin Muller introduced an elegant
+solution by transforming \emph{two} uniforms simultaneously using polar coordinates in the plane.
 
 \begin{intuitionbox}
 The trick: a single normal is hard, but a \emph{pair} of independent normals is easy --
@@ -688,25 +803,25 @@ density we can integrate in closed form, unlike $\Phi$.
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[scale=1.0]
-% axes
-\draw[->,gray] (-2.6,0) -- (2.8,0) node[right]{$x=Z_1$};
-\draw[->,gray] (0,-2.6) -- (0,2.8) node[above]{$y=Z_2$};
-% circular gaussian cloud (faux scatter)
-\foreach \a/\rr in {20/1.1, 75/0.6, 130/1.5, 200/0.9, 250/1.7, 300/0.7, 340/1.3, 45/1.9, 160/0.4, 280/1.2, 110/2.0, 10/0.8, 220/1.4, 35/0.5, 190/1.6}{
+\draw[->,gray] (-2.6,0) -- (2.8,0) node[right, font=\small]{$x=Z_1$};
+\draw[->,gray] (0,-2.6) -- (0,2.8) node[above, font=\small]{$y=Z_2$};
+
+\foreach \a/\rr in {75/1.8, 80/1.0, 110/2.0, 130/1.5, 160/0.8, 190/1.6, 210/1.1, 240/1.8, 260/0.9, 285/1.5, 310/1.0, 335/1.7, 350/0.8}{
   \fill[sourceblue!55] (\a:\rr) circle (1.6pt);
 }
-% the sampled point
-\def\ang{35}\def\rad{2.1}
-\draw[targetgreen, very thick] (0,0) -- (\ang:\rad) node[midway,above,sloped]{$R=\sqrt{-2\ln U_1}$};
+
+\def\ang{38}\def\rad{2.4}
+\draw[targetgreen, very thick] (0,0) -- (\ang:\rad)
+  node[pos=0.58, above left=-1pt, font=\footnotesize] {$R=\sqrt{-2\ln U_1}$};
 \fill[densityred] (\ang:\rad) circle (2.4pt);
-\draw[densityred, thick] (0.7,0) arc (0:\ang:0.7);
-\node[densityred] at (16:1.05) {$\Theta=2\pi U_2$};
-\node[densityred,right] at (\ang:\rad) {$(Z_1,Z_2)$};
+\draw[densityred, thick] (0.75,0) arc (0:\ang:0.75);
+\node[densityred, font=\footnotesize, anchor=west] at (16:0.85) {$\Theta=2\pi U_2$};
+\node[densityred, right=2pt, font=\footnotesize] at (\ang:\rad) {$(Z_1,Z_2)$};
 \end{tikzpicture}
-\caption{Box--Muller geometry. A pair of independent standard normals is a rotationally
-symmetric cloud in the plane. Rather than sampling the Cartesian coordinates directly, draw
-a uniform angle $\Theta=2\pi U_2$ and a radius $R=\sqrt{-2\ln U_1}$, then read off
-$(Z_1,Z_2)=(R\cos\Theta,\,R\sin\Theta)$.}
+\caption{Box--Muller geometry. A pair of independent standard normals forms a rotationally
+symmetric Gaussian cloud in the plane. Rather than sampling the Cartesian coordinates directly, draw
+a uniform angle $\Theta=2\pi U_2$ and an independent radius $R=\sqrt{-2\ln U_1}$, then project back
+via $(Z_1,Z_2)=(R\cos\Theta,\,R\sin\Theta)$.}
 \label{ch16:fig-boxmuller}
 \end{figure}
 
@@ -737,9 +852,8 @@ What just happened is the multivariate change-of-variables theorem
 (Section~\ref{ch16:jacobian}) run \emph{in reverse} and read as an algorithm. We could not
 invert $\Phi$ in one dimension, so we lifted to two dimensions where the Gaussian's
 rotational symmetry hands us a factorization the one-dimensional problem hid. The Jacobian
-$r$ from polar coordinates was the secret ingredient -- it converted the stubborn
-$e^{-r^2/2}$ into the friendly $r\,e^{-r^2/2}$, whose integral is elementary. Symmetry plus
-a Jacobian defeated a non-elementary integral.
+factor $r$ from polar coordinates makes this possible: it converts $e^{-r^2/2}$ into
+$r\,e^{-r^2/2}$, which has an elementary antiderivative $-e^{-r^2/2}$.
 \end{happeningbox}
 
 \begin{example}[Box--Muller by hand]
@@ -771,10 +885,10 @@ universal uniform into the expensive and indispensable normal.
 \label{ch16:unify}
 
 \begin{aestheticbox}
-Step back and notice that all three methods are one method seen from three angles.
+All three methods express the same core transformation principle in different mathematical forms.
 
-The \textbf{CDF method} tracks accumulated probability and is always valid because
-probabilities never lie. The \textbf{Jacobian method} is the CDF method differentiated --
+The \textbf{CDF method} tracks accumulated probability directly and works for any
+distribution without stretch factors. The \textbf{Jacobian method} is the CDF method differentiated --
 it trades global accounting for a local stretch factor, and it is fastest when $g$ is
 smooth and invertible. \textbf{Order statistics} are a multivariate transformation
 (sorting) handled by either method, plus a combinatorial count of arrangements. And the
@@ -787,6 +901,16 @@ never make or destroy it. Master that one principle and you never need to memori
 transformation formula again -- you can re-derive any of them from ``where did the
 probability go?''
 \end{aestheticbox}
+
+\subsection*{Looking ahead: sums and convolutions}
+The most important transformation in probability is the sum of two independent
+random variables, $S = X + Y$. Applying the bivariate change of variables
+$(S, T) = (X+Y, X)$ and integrating out $T$ yields the continuous \textbf{convolution formula},
+\[
+  f_S(s) = \int_{-\infty}^{\infty} f_X(t)\,f_Y(s-t)\,\dd t.
+\]
+Chapter~17 develops convolutions for discrete and continuous variables, exploring
+how distributions behave under addition and leading directly toward the Central Limit Theorem.
 
 \section*{Exercises}
 \addcontentsline{toc}{section}{Exercises}

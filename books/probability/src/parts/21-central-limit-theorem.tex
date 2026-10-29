@@ -1,26 +1,27 @@
 \chapter{The Central Limit Theorem}
 
-There is a moment in everyone's probabilistic education when a strange and beautiful
-fact arrives. You take a random quantity -- it does not matter much which one. It could
-be the roll of a die, the outcome of a coin flip, the waiting time at a bus stop, the
-glitch in a measurement. You add up many independent copies of it. And no matter how
-lopsided, skewed, lumpy, or jagged the original quantity was, the \emph{shape} of the
-sum settles down to the same smooth, symmetric bell curve. Every time. The bell appears
-whether you started with coins or dice or exponential waiting times or the strangest
-home-made distribution you can invent.
+In Chapter~20 we proved the Law of Large Numbers: averaging many independent
+copies of a random quantity pulls the sample mean $\bar X_n$ toward $\mu$.
+The gap $\bar X_n - \mu$ collapses to zero. But what does the leftover
+fluctuation look like when magnified by $\sqrt{n}$?
 
-This is the Central Limit Theorem (CLT), and it is the closest thing probability has to
-a law of nature. It is why the normal distribution is everywhere. It is why your
-calculator's statistics functions, your A/B test, your political poll, your physics
-experiment, and your machine-learning confidence band all secretly run on the same
-engine. We will state it carefully, watch it happen in simulation,
+It turns out the shape does not depend on the original distribution. Whether you
+start with dice rolls, coin flips, or exponential waiting times, adding
+independent copies and standardizing the scale yields the exact same smooth,
+symmetric bell curve. Every time.
+
+This is the Central Limit Theorem (CLT), and it is foundational to probability and statistics.
+It explains why the normal distribution appears across applications: measurement error,
+survey sampling, A/B testing, physical experiments, and confidence intervals in machine learning
+all rely on the same mathematical mechanism. We will state it carefully, watch it happen in simulation,
 understand \emph{why} it is true (with both the intuitive moment generating function
-argument and the rigorous characteristic function proof), learn the practical tricks
+argument and the rigorous characteristic function proof), learn the practical tools
 that make it usable (standardization, the continuity correction), and find out how fast
-it kicks in (Berry--Esseen). Our goal is not merely to verify the theorem algebraically,
-but to see why the emergence of the bell curve is geometrically inevitable: every sum of
-independent variables is a convolution, and convolution acts as a relentless smoothing iron
-on probability densities.
+it takes effect (Berry--Esseen). Along the way, we will see why the bell curve is
+geometrically natural: every sum of independent variables is governed by convolution,
+which progressively smooths probability densities as more terms are added.
+
+\chapterline
 
 \section{The phenomenon, first}
 \label{ch21:phenomenon}
@@ -40,13 +41,11 @@ distribution settles toward a single fixed shape -- the standard normal bell cur
 The die was just the starting point; the repeated addition did the work.
 
 \begin{intuitionbox}
-The CLT is a statement about \emph{averaging out idiosyncrasy}. Any one random draw
-carries the full personality of its distribution -- its skew, its discreteness, its
-fat tail. But when you add many independent draws, each one's personality is one voice
-in a large crowd. The crowd's aggregate behavior is governed not by any individual
-quirk but by just two summary numbers: the mean (where the crowd centers) and the
-variance (how spread out it is). Everything else washes out. The normal distribution
-is precisely the distribution that remembers \emph{only} a mean and a variance.
+A single random draw carries all the quirks of its parent distribution -- its skewness,
+discreteness, or tail behavior. But when you add many independent draws together, those
+finer details wash out, and the sum is governed almost entirely by just two numbers: its
+mean (where it is centered) and its variance (how wide it spreads). What remains is the
+distribution determined by mean and variance alone: the normal distribution.
 \end{intuitionbox}
 
 Figure~\ref{ch21:fig-dice} shows the dice story numerically. Watch the boxy uniform
@@ -60,6 +59,8 @@ become a triangle become a bell.
   ybar, bar width=3pt,
   xlabel={value of the sum}, ylabel={probability},
   xmin=0, xmax=37, ymin=0,
+  scaled y ticks=false,
+  yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2},
   title style={font=\small},
   title={Sum of $n$ fair dice: $n=1$ (flat), $n=2$ (triangle), $n=5$ (bell)},
   legend style={font=\footnotesize, at={(0.98,0.97)}, anchor=north east},
@@ -89,21 +90,24 @@ even though the underlying die has nothing bell-shaped about it.}
 \label{ch21:fig-dice}
 \end{figure}
 
-The geometric engine driving this transformation is \emph{convolution}. When independent
-random variables add, their probability density functions convolve:
+The geometric engine driving this transformation is \emph{convolution}---the
+operation that computes the distribution of a sum of independent variables by sliding
+one density across the other and integrating their overlap:
 \[
   (f * g)(z) = \int_{-\infty}^{\infty} f(x)\, g(z - x)\,\dd x.
 \]
-Think of convolution as a continuous moving average: as $z$ shifts, the function $g(z-x)$
-glides across $f(x)$, blending and smearing local variations. Each convolution operation
-acts as an integrator, raising the smoothness class by one level:
+Think of convolution as a continuous moving average: as $z$ shifts, the inverted profile
+$g(z-x)$ glides across $f(x)$, blending and smearing local variations. Each convolution
+acts as an integrator, smoothing the result and raising its smoothness class by one level
+(where $C^0$ means continuous with no breaks, $C^1$ means continuous slope with no sharp
+corners, and $C^\infty$ means infinitely smooth with every derivative well-behaved):
 \begin{itemize}
-  \item At $n=1$, the uniform density is discontinuous ($C^{-1}$ with jump steps).
+  \item At $n=1$, the uniform density is discontinuous ($C^{-1}$ with jump steps at the boundaries).
   \item At $n=2$, convolving two step functions yields a continuous piecewise-linear triangle ($C^0$).
-  \item At $n=3$, convolving again yields a quadratic spline ($C^1$ with continuous slope), rounding off the point.
-  \item By $n=4$ and beyond, the spline is $C^2$ and rapidly approaches the infinite smoothness ($C^\infty$) of the Gaussian bell.
+  \item At $n=3$, convolving again yields a quadratic spline ($C^1$ with continuous slope)---a curve stitched together from parabolic arches with matching slopes, rounding off the sharp peak.
+  \item By $n=4$ and beyond, the curve has continuous curvature ($C^2$) and rapidly approaches the infinite smoothness ($C^\infty$) of the Gaussian bell.
 \end{itemize}
-Figure~\ref{ch21:fig-convolution-smoothing} demonstrates this progressive smoothing of Irwin--Hall distributions (sums of uniform random variables).
+Figure~\ref{ch21:fig-convolution-smoothing} demonstrates this progressive smoothing of Irwin--Hall distributions (the classic name for sums of independent uniform random variables on $[0,1]$).
 
 \begin{figure}[H]
 \centering
@@ -114,7 +118,7 @@ Figure~\ref{ch21:fig-convolution-smoothing} demonstrates this progressive smooth
   xlabel={$x$}, ylabel={density},
   xmin=-0.5, xmax=4.5, ymin=0, ymax=1.15,
   title style={font=\small},
-  title={Step 1: Uniform $n=1$ ($C^{-1}$, jump cliffs)},
+  title={Step 1: Uniform $n=1$ ($C^{-1}$, jump steps)},
 ]
 \addplot[sourceblue, very thick, fill=sourceblue!20] coordinates {
   (-0.4,0) (0,0) (0,1) (1,1) (1,0) (4.4,0)
@@ -156,10 +160,11 @@ Figure~\ref{ch21:fig-convolution-smoothing} demonstrates this progressive smooth
   name=p4, at={($(p2.south)-(0,1.9cm)$)}, anchor=north,
   width=7.2cm, height=4.2cm,
   xlabel={$z$ (standardized)}, ylabel={density},
-  xmin=-3.2, xmax=3.2, ymin=0, ymax=0.48,
+  xmin=-3.2, xmax=3.2, ymin=0, ymax=0.58,
+  ytick={0,0.2,0.4},
   title style={font=\small},
   title={Step 4: Standardized $n=4$ vs.\ Gaussian ($C^\infty$)},
-  legend style={font=\scriptsize, at={(0.96,0.94)}, anchor=north east},
+  legend style={font=\scriptsize, at={(0.96,0.96)}, anchor=north east},
 ]
 \addplot[densityred, very thick, domain=-3.1:3.1, samples=80] {0.3989*exp(-x^2/2)};
 \addlegendentry{$\Normal(0,1)$ target}
@@ -172,25 +177,52 @@ Figure~\ref{ch21:fig-convolution-smoothing} demonstrates this progressive smooth
 \end{figure}
 
 \begin{historybox}
-The bell curve was discovered repeatedly by people chasing exactly this phenomenon.
-Abraham de Moivre, around 1733, was trying to approximate binomial probabilities --
-sums of coin flips -- for large numbers of trials, because the factorials were
-impossible to compute by hand. He found that the binomial probabilities, suitably
-scaled, hugged a smooth curve involving $e^{-x^2/2}$. This was the very first central
-limit theorem, the \emph{de Moivre--Laplace theorem}, though nobody called it that yet.
-Laplace generalized it dramatically around 1810, and over the nineteenth century
-Chebyshev, Markov, and Lyapunov turned it into the rigorous statement we use today.
-The name ``central'' is due to George P\'olya in 1920; he meant central in the sense of
-\emph{centrally important to probability theory}, not central as in middle. He was
-right.
+The bell curve was discovered in stages by mathematicians trying to solve very practical
+calculation bottlenecks. In 1733, French-born mathematician Abraham de Moivre was
+consulting for gamblers and trying to calculate exact binomial probabilities for long series
+of coin flips. Computing factorials like $\binom{1000}{500}$ was humanly impossible by hand.
+Armed with what we now call Stirling's approximation (an asymptotic formula replacing large
+factorials with powers and square roots, which de Moivre co-developed), he discovered that
+the middle binomial terms hugged a smooth curve proportional to $e^{-x^2/2}$. This was the
+very first central limit theorem---the \emph{de Moivre--Laplace theorem}---though nobody named
+it that yet.
+
+Nearly eighty years later, in 1810, Pierre-Simon Laplace generalized de Moivre's coin-flip
+result to sums of continuous measurement errors in astronomy and census surveys. Laplace
+invented characteristic functions (transforming probability distributions into complex
+exponentials to turn sums into products). Yet Laplace's derivation sparked a century of
+controversy. His handling of limits and complex integrals was brilliant but heuristic,
+interchanging limits freely without specifying when the theorem held. For decades,
+mathematicians debated whether the bell curve was a universal law of nature or an artifact
+of symmetric, convenient examples. Augustin-Louis Cauchy and Sim\'eon Denis Poisson argued
+over whether heavy tails could break it, but lacked the analytical machinery to prove it.
+
+Rigorous proof arrived from the St.~Petersburg school in Russia. Pafnuty Chebyshev introduced
+the method of moments (matching all integer powers $\E[X^k]$ to the normal's moments), his
+student Andrei Markov refined it, and in 1901 Aleksandr Lyapunov delivered the first fully
+rigorous proof using characteristic functions and precise epsilon-delta bounds. In 1922,
+German mathematician Jarl Waldemar Lindeberg identified the clean condition guaranteeing that
+no single term dominates the sum, which William Feller later proved was essentially necessary.
+The name ``central limit theorem'' was coined by George P\'olya in 1920; he meant central in the
+sense of \emph{centrally important to probability theory}, not central as in the middle.
+
+The theorem unlocked modern statistical inference, Gauss's method of least squares,
+experimental error analysis, and statistical mechanics (Maxwell and Boltzmann's velocity
+distributions for gas molecules). Today, active frontiers remain: closing the gap on the
+exact optimal constant in the Berry--Esseen finite-sample bound (the best proven upper bound
+is $0.4748$, while the theoretical lower bound is $\approx 0.4097$), establishing
+high-dimensional central limit theorems where the number of features $d$ grows alongside
+the sample size $n$ in machine learning, and proving universality for eigenvalues of large
+random matrices.
 \end{historybox}
 
 \section{Standardization: stopping the curve from running away}
 \label{ch21:standardization}
 
 Before we can state the theorem we have to deal with a bookkeeping problem. If
-$X_1, X_2, \dots$ are independent and identically distributed (i.i.d.) with mean $\mu$
-and variance $\sigma^2$, then the raw sum
+$X_1, X_2, \dots$ are independent and identically distributed (i.i.d.---each draw is
+sampled from the exact same distribution, completely unaffected by the other draws) with
+mean $\mu$ and variance $\sigma^2$, then the raw sum
 \[
   S_n = X_1 + X_2 + \cdots + X_n
 \]
@@ -199,17 +231,17 @@ of $S_n$ marches off to infinity at rate $n$, and its spread widens at rate $\sq
 So $S_n$ itself has no limiting distribution at all -- it just drifts away and fattens.
 We have to chase it with a coordinate change.
 
-There are two natural fixes, and they are the same fix in disguise.
+Two natural normalizations clarify what scaling is needed.
 
 \textbf{Fix the center: the sample mean.} Divide by $n$:
 \[
   \bar X_n = \frac{S_n}{n}, \qquad \E[\bar X_n] = \mu, \qquad \Var(\bar X_n) = \frac{\sigma^2}{n}.
 \]
 Now the center is pinned at $\mu$, but the variance shrinks to zero. By the Law of Large
-Numbers $\bar X_n \to \mu$. The mean stops running away, but it collapses to a point --
-it loses all its shape. We have over-corrected.
+Numbers $\bar X_n \to \mu$. The mean stops running away, but it collapses to a single
+point spike -- it loses all its shape. We have over-corrected.
 
-\textbf{Fix both: standardize.} Subtract the mean, divide by the standard deviation.
+\textbf{Fix both: standardize.} Subtract the mean and divide by the standard deviation.
 Define
 \[
   Z_n = \frac{S_n - n\mu}{\sigma\sqrt{n}}
@@ -220,22 +252,28 @@ drift and frozen the spread. Now $Z_n$ is neither running away nor collapsing; i
 sitting still, mean $0$ and variance $1$, ready to converge to something with a fixed
 shape. That something is the standard normal.
 
+\begin{recoverybox}
+\textbf{Mental check (pause and think):} Suppose you quadruple your sample size from $n$ to $4n$.
+What happens to the spread of the raw sum $S_n$? What happens to the spread of the sample mean $\bar X_n$?
+
+\emph{Answer:} The raw sum's standard deviation $\sigma\sqrt{n}$ doubles (it increases by $\sqrt{4} = 2$), because adding more terms creates more total variability. But the sample mean's standard deviation $\sigma/\sqrt{n}$ is cut in half (it shrinks by $1/\sqrt{4} = 1/2$), because dividing the sum by $4n$ crushes the fluctuations faster than the sum generates them.
+\end{recoverybox}
+
 \begin{focusbox}
-The magic factor is $\sqrt{n}$ in the denominator. The sum's fluctuations around its
+The key factor is $\sqrt{n}$ in the denominator. The sum's fluctuations around its
 mean are of size $\sigma\sqrt{n}$ -- not $n$, not $\sqrt[3]{n}$, but exactly $\sqrt{n}$.
-This is the single most important number in all of statistics. It says: to halve your
-uncertainty about an average, you must \emph{quadruple} your sample size. Polls,
-experiments, and Monte Carlo simulations all pay this $\sqrt{n}$ tax.
+This scaling governs estimation throughout statistics: to halve the
+uncertainty about an average, one must \emph{quadruple} the sample size.
 \end{focusbox}
 
 \begin{whybox}
 Why $\sqrt{n}$ and not something else? Variance adds for independent quantities:
 $\Var(S_n) = \Var(X_1) + \cdots + \Var(X_n) = n\sigma^2$. Standard deviation is the
-square root of variance, so $\SD(S_n) = \sigma\sqrt{n}$. The independence is doing the
-work. If the $X_i$ were perfectly correlated (all equal), the sum would just be $nX_1$,
-with standard deviation $n\sigma$ -- linear, not square-root. The $\sqrt{n}$ savings is
-the dividend that independence pays you. Half of statistics is the harvest of that
-dividend; the other half is worrying about whether independence really holds.
+square root of variance, so $\SD(S_n) = \sigma\sqrt{n}$. The independence is essential.
+If the $X_i$ were perfectly correlated (all equal), the sum would just be $nX_1$,
+with standard deviation $n\sigma$ -- linear in $n$, not square-root. The $\sqrt{n}$ scaling
+is a direct consequence of independence: larger samples yield more precise estimates
+precisely because uncorrelated fluctuations cancel each other out.
 \end{whybox}
 
 \section{The statement}
@@ -258,7 +296,7 @@ where $\Phi(z) = \int_{-\infty}^{z} \frac{1}{\sqrt{2\pi}} e^{-t^2/2}\,\dd t$ is 
 standard normal cumulative distribution function.
 \end{theorem}
 
-Read that carefully, because the precision is where the meaning lives.
+Three details in this statement are doing the real work.
 
 \begin{itemize}
 \item \textbf{The hypotheses are minimal.} We need i.i.d., a finite mean, and a finite
@@ -280,8 +318,8 @@ infinite variance -- like a Cauchy distribution, whose tails are so heavy that
 $\E[X^2] = \infty$ and even $\E[X]$ fails to exist -- the CLT is \emph{false}. The
 average of $n$ independent Cauchy variables is not approximately normal; it is exactly
 Cauchy again, no matter how large $n$ is. Averaging does not help at all. Heavy tails
-break the theorem because a single freak observation can dominate the whole sum, so the
-``crowd of equal voices'' picture collapses. There is a beautiful generalization (the
+break the theorem because a single extreme observation can dominate the whole sum,
+preventing independent fluctuations from averaging out. There is a beautiful generalization (the
 \emph{stable laws}, with $\alpha$-stable limits) for these cases, but the friendly normal
 limit requires finite variance.
 \end{trapbox}
@@ -332,10 +370,16 @@ away. By $n=30$ it is nearly indistinguishable from the bell.
 \addplot[quotientorange, thick, domain=-1.732:4.2, samples=160]
   {1.732050808*((1.732050808*x+3)^2)*exp(-(1.732050808*x+3))/2};
 \addlegendentry{$n=3$}
-% n=30: standardized Gamma(30,1) is essentially the bell; plot a near-Gaussian
-% (tiny residual right-shift in mode; variance ~1.01, peak 1/sqrt(2 pi*1.01)~0.3970)
-\addplot[targetgreen, thick, dashed, domain=-3.5:4.2]
-  {0.3970*exp(-(x-0.09)^2/2.02)};
+% n=30: exact standardized Gamma(30,1) density
+\addplot[targetgreen, thick, dashed, smooth] coordinates {
+  (-3.20,0.00014) (-2.90,0.00098) (-2.61,0.00457) (-2.31,0.01559)
+  (-2.02,0.04117) (-1.72,0.08790) (-1.42,0.15667) (-1.13,0.23911)
+  (-0.83,0.31897) (-0.54,0.37814) (-0.24,0.40390) (0.06,0.39320)
+  (0.35,0.35225) (0.65,0.29280) (0.94,0.22743) (1.24,0.16608)
+  (1.54,0.11464) (1.83,0.07514) (2.13,0.04696) (2.42,0.02809)
+  (2.72,0.01613) (3.02,0.00892) (3.31,0.00476) (3.61,0.00246)
+  (3.90,0.00123) (4.20,0.00060)
+};
 \addlegendentry{$n=30$ (essentially the bell)}
 \end{axis}
 \end{tikzpicture}
@@ -347,17 +391,16 @@ left wall of the exponential is what takes longest to erode.}
 \end{figure}
 
 \begin{happeningbox}
-Look at what is physically happening as $n$ grows in
-Figure~\ref{ch21:fig-converge}. The skewed exponential has a hard floor: a single draw
+Observe the progression as $n$ grows in
+Figure~\ref{ch21:fig-converge}. The exponential distribution is bounded below: a single draw
 can never be more than $1$ standard deviation below its mean (since the minimum value
-is $0$ and the mean is $1$). When you standardize a single draw, nothing can land left
-of $z=-1$. But the \emph{sum} of many draws can dip below its mean by many standard
-deviations, because the floor on each individual term gets averaged into irrelevance.
-So the left tail, which was amputated at $n=1$, slowly grows back as $n$ increases until
-it matches the normal's symmetric left tail. The CLT is the story of a distribution's
-constraints dissolving under aggregation. The slowest part to heal is always the
-skewness; that is exactly what the Berry--Esseen bound in
-Section~\ref{ch21:berry-esseen} will quantify.
+is $0$ and the mean is $1$). When standardizing a single draw, nothing can fall left
+of $z=-1$. But the \emph{sum} of many draws can dip below its mean by several standard
+deviations, because the lower bound on each individual term has diminishing influence on the sum.
+As $n$ increases, the support of the standardized sum expands to the left, matching the
+normal distribution's symmetric tail. The skewness decreases more slowly than the variance
+stabilizes, which is quantified precisely by the Berry--Esseen bound in
+Section~\ref{ch21:berry-esseen}.
 \end{happeningbox}
 
 \begin{labbox}
@@ -419,10 +462,10 @@ around $t=0$ begins
        = 1 + t\cdot 0 + \tfrac{t^2}{2}\cdot 1 + o(t^2)
        = 1 + \tfrac{t^2}{2} + o(t^2).
 \]
-This is the heart of the matter: \emph{the first two derivatives of $M$ at $0$ are
-exactly the mean and the second moment}, and after centering and scaling those are $0$
-and $1$. The personality of $X_1$ -- everything beyond its mean and variance -- has been
-banished into the $o(t^2)$ remainder, and that remainder is about to be crushed.
+This is the key point: \emph{the first two derivatives of $M$ at $0$ are
+the mean and the second moment}, and after centering and scaling those are $0$
+and $1$. All higher moments of $X_1$ enter only through the $o(t^2)$ remainder,
+which vanishes in the limit.
 
 \textbf{Multiply, because the terms are independent.} Each $X_i / \sqrt n$ has MGF
 $M(t/\sqrt n)$, so
@@ -437,8 +480,15 @@ Now substitute the Taylor expansion with the small argument $t/\sqrt n$:
    = 1 + \frac{1}{2}\!\left(\frac{t}{\sqrt n}\right)^{\!2} + o\!\left(\frac{1}{n}\right)
    = 1 + \frac{t^2}{2n} + o\!\left(\frac{1}{n}\right).
 \]
-Raise to the $n$-th power and take the limit. This is the classic
-$\left(1 + \frac{c}{n}\right)^n \to e^{c}$ structure, with $c = t^2/2$:
+Raise to the $n$-th power and take the limit. To see why the little $o(1/n)$ disappears,
+take the natural logarithm:
+\[
+  \ln M_{Z_n}(t) = n \ln\!\left( 1 + \frac{t^2/2}{n} + o\!\left(\tfrac1n\right) \right)
+                 = n \left( \frac{t^2/2}{n} + o\!\left(\tfrac1n\right) \right)
+                 = \frac{t^2}{2} + o(1).
+\]
+As $n \to \infty$, the $o(1)$ term vanishes, leaving exactly $t^2/2$. Exponentiating back gives
+the classic $\left(1 + \frac{c}{n}\right)^n \to e^{c}$ limit:
 \[
   M_{Z_n}(t) = \left[ 1 + \frac{t^2/2}{n} + o\!\left(\tfrac1n\right) \right]^{n}
              \;\longrightarrow\; e^{t^2/2}.
@@ -477,7 +527,7 @@ Substituting $u = t X_1$ and taking expectations yields
   \varphi(t) = \E[e^{itX_1}] = 1 + i t \E[X_1] - \frac{t^2}{2}\E[X_1^2] + \E[R(tX_1)]
              = 1 - \frac{t^2}{2} + o(t^2) \quad \text{as } t \to 0,
 \]
-since $\E[\abs{R(tX_1)}] \le t^2 \E[\min(X_1^2, \tfrac{|t|}{6}|X_1|^3)] = o(t^2)$ by dominated convergence.
+since $\frac{1}{t^2}\E[\abs{R(tX_1)}] \le \E[\min(X_1^2, \tfrac{|t|}{6}|X_1|^3)] \to 0$ as $t \to 0$ by the Dominated Convergence Theorem (the integrand vanishes pointwise and is bounded by the integrable ceiling $X_1^2$, where $\E[X_1^2] = 1 < \infty$).
 Now consider the standardized sum $Z_n = \frac{1}{\sqrt n} \sum_{k=1}^n X_k$. By independence,
 \[
   \varphi_{Z_n}(t) = \E\!\left[ \exp\!\Big( i t \frac{1}{\sqrt n}\sum_{k=1}^n X_k \Big) \right]
@@ -550,6 +600,8 @@ square-root tax in action.
   ybar, bar width=5pt,
   xlabel={number of heads}, ylabel={probability},
   xmin=12, xmax=38, ymin=0, ymax=0.13,
+  scaled y ticks=false,
+  yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2},
   title style={font=\small},
   title={$\Bin(50,0.5)$ bars vs.\ its normal approximation},
   legend style={font=\footnotesize, at={(0.02,0.97)}, anchor=north west},
@@ -582,8 +634,8 @@ binomial puts a lump of probability exactly at each integer $k$; the normal smea
 probability continuously and assigns probability $0$ to any single point. To translate
 accurately, you must decide how to split the gaps between integers.
 
-The fix is the \emph{continuity correction}: represent the integer $k$ by the interval
-$[k - \tfrac12, k + \tfrac12]$ when you pass to the normal. Each integer ``owns'' the
+The fix is the \emph{continuity correction}: represent each integer $k$ by the unit-width
+interval $[k - \tfrac12, k + \tfrac12]$ when you pass to the normal. Each integer ``owns'' the
 half-unit on either side of it. Concretely:
 \[
   \P(S_n = k) \approx \P\!\left(k - \tfrac12 \le \Normal \le k + \tfrac12\right),
@@ -594,8 +646,42 @@ half-unit on either side of it. Concretely:
   \P(S_n \ge k) \approx 1 - \Phi\!\left(\frac{k - \tfrac12 - n\mu}{\sigma\sqrt n}\right).
 \]
 The half-unit shifts are easy to get backwards, so reason about which integers you mean
-to \emph{include}. ``At most $k$'' includes $k$, so push the boundary up to $k+\tfrac12$.
-``At least $k$'' includes $k$, so push the boundary down to $k-\tfrac12$.
+to \emph{include}. ``At most $k$'' includes $k$, so push the boundary up to $k+\tfrac12$
+to capture the entire bar. ``At least $k$'' includes $k$, so push the boundary down to $k-\tfrac12$.
+Figure~\ref{ch21:fig-continuity} shows the geometry behind this shift.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=5.8cm,
+  xlabel={value $x$}, ylabel={probability / density},
+  xmin=6.2, xmax=13.8, ymin=0, ymax=0.29,
+  xtick={7,8,9,10,11,12,13},
+  title style={font=\small},
+  title={Geometry of the continuity correction for $\P(S_n \le k)$ with $k=10$},
+  axis lines=left,
+]
+\addplot[draw=none, fill=densityred!15, domain=6.2:10.5, samples=60] {0.1735 * exp(-(x-10)^2 / (2 * 2.3^2))} \closedcycle;
+\addplot[densityred, very thick, domain=6.2:13.8, samples=120] {0.1735 * exp(-(x-10)^2 / (2 * 2.3^2))};
+\draw[draw=sourceblue, fill=sourceblue!30] (axis cs:6.5, 0) rectangle (axis cs:7.5, 0.045);
+\draw[draw=sourceblue, fill=sourceblue!30] (axis cs:7.5, 0) rectangle (axis cs:8.5, 0.090);
+\draw[draw=sourceblue, fill=sourceblue!30] (axis cs:8.5, 0) rectangle (axis cs:9.5, 0.145);
+\draw[draw=sourceblue, fill=sourceblue!35] (axis cs:9.5, 0) rectangle (axis cs:10.5, 0.170);
+\draw[draw=gray!60, fill=gray!10] (axis cs:10.5, 0) rectangle (axis cs:11.5, 0.145);
+\draw[draw=gray!60, fill=gray!10] (axis cs:11.5, 0) rectangle (axis cs:12.5, 0.090);
+\draw[draw=gray!60, fill=gray!10] (axis cs:12.5, 0) rectangle (axis cs:13.5, 0.045);
+\draw[densityred, very thick, dashed] (axis cs:10.5, 0) -- (axis cs:10.5, 0.185);
+\draw[gray!70!black, thick, dashdotted] (axis cs:10, 0) -- (axis cs:10, 0.185);
+\draw[<-, thick, densityred] (axis cs:10.5, 0.185) -- (axis cs:12.0, 0.22)
+  node[above, font=\footnotesize, align=center] {Correct boundary $k+0.5=10.5$\\[2pt]Includes entire bar for $k$};
+\draw[<-, thick, gray!70!black] (axis cs:10.0, 0.185) -- (axis cs:8.2, 0.22)
+  node[above, font=\footnotesize, align=center] {Uncorrected boundary $k=10$\\[2pt]Cuts bar $k$ in half};
+\end{axis}
+\end{tikzpicture}
+\caption{Why the continuity correction adds $\frac12$. Each discrete integer $k$ is represented by a bar of width $1$ centered at $k$, covering the interval $[k-\frac12, k+\frac12]$. To evaluate $\P(S_n \le k)$ using the smooth normal curve, the continuous integral must extend to the right edge of the $k$-th bar at $k+\frac12$; stopping at $k$ would lose half of that bar's probability mass.}
+\label{ch21:fig-continuity}
+\end{figure}
 
 \begin{example}[Continuity correction pays off]
 \label{ch21:ex-cc}
@@ -620,6 +706,12 @@ a genuinely continuous quantity, where it does nothing but add noise: if your $X
 continuous (waiting times, measurements), there are no integer lumps and no correction
 to make. The continuity correction is for discrete-to-continuous translation only.
 \end{trapbox}
+
+\begin{recoverybox}
+\textbf{Mental check (pause and think):} You roll a fair die $60$ times. Let $K$ be the number of sixes. You want to approximate $\P(K > 12)$ with the normal distribution. What boundary value should you plug into the standardized formula?
+
+\emph{Answer:} Because $K$ counts discrete rolls, the strict inequality $K > 12$ is identical to $K \ge 13$. The included integers start at $13$, so the continuity correction moves the boundary down by half a unit to $12.5$. We evaluate the normal tail $1 - \Phi$ at $12.5$. If you had carelessly shifted $12$ up to $12.5$, you would have gotten the right number by accident---but for $\P(K < 12) = \P(K \le 11)$, the boundary moves up to $11.5$! Always translate strict inequalities to inclusive ones ($\le$ or $\ge$) before shifting by $\pm \frac12$.
+\end{recoverybox}
 
 \section{How fast? The Berry--Esseen theorem}
 \label{ch21:berry-esseen}
@@ -666,13 +758,12 @@ Example~\ref{ch21:ex-cc} was essentially exact.
 \end{example}
 
 \begin{aestheticbox}
-Berry--Esseen turns the CLT from a promise into a contract. The plain CLT is an
-asymptotic statement -- true ``in the limit,'' which by itself never tells you whether
-$n = 30$ is enough. Berry--Esseen gives a concrete, computable error bar for finite $n$,
-depending only on three numbers you can estimate from data ($\sigma$, $\rho$, and $n$).
-This is the difference between ``the bridge will eventually be safe'' and ``the bridge
-holds 40 tons with this margin.'' Modern statistics and machine learning live on
-finite-sample guarantees, and Berry--Esseen is the prototype.
+The plain CLT is an asymptotic statement: it guarantees convergence as $n \to \infty$,
+but does not specify the approximation error for a given finite sample size such as $n = 30$.
+Berry--Esseen provides an explicit, computable error bound for finite $n$,
+depending only on three quantities ($\sigma$, $\rho$, and $n$).
+Such non-asymptotic bounds are essential in statistical practice and theoretical computer science,
+where explicit finite-sample guarantees are required.
 \end{aestheticbox}
 
 \section{Why the normal, and not some other curve?}
@@ -692,31 +783,28 @@ $(A+B)/\sqrt 2 \sim \Normal(0,1)$ again. The bell is the shape that reproduces i
 under averaging, and the CLT says it is the stable one that everything flows toward.
 
 \textbf{The maximum-entropy answer.} Among all distributions with a given mean and
-variance, the normal is the one of maximum entropy -- the most spread-out, least
-committal, ``most random'' distribution consistent with those two constraints. Summing
-independent things destroys information about the individual terms while preserving the
-total mean and variance, so the result drifts toward the most-uncertain distribution
-compatible with what survives. The normal is where information about everything-but-the-
-mean-and-variance goes to die.
+variance, the normal is the one of maximum entropy -- the most spread-out distribution
+consistent with those two constraints. Summing independent random variables combines
+their variability while preserving only the total mean and variance, so the distribution
+settles toward the maximum-entropy distribution matching those constraints: the Gaussian.
 
 \textbf{The moment answer.} We saw it in the proof: the only moments that survive
 standardization and the $n \to \infty$ limit are the mean and variance. Any limit law is
-therefore pinned down by mean $0$ and variance $1$ alone, and the normal is the
-distribution determined by exactly those. There is nothing left for the limit to be.
+therefore pinned down by mean $0$ and variance $1$ alone, and the normal is the unique
+distribution determined by exactly those.
 
 \begin{paradoxbox}
-\textbf{The paradox of the disappearing details.} It feels almost paradoxical that the
-limit forgets so much. Two starting distributions can be wildly different -- a coin and
-an exponential and a uniform-to-the-fourth-power -- yet their standardized sums all
-become \emph{the identical} curve. Where did all that distinguishing information go? It
-did not vanish from any finite sum: for finite $n$, the sum of coins and the sum of
-exponentials really are different distributions, distinguishable by their skewness and
-higher moments. What the CLT says is that those differences shrink at rate $1/\sqrt n$
-(skewness) and faster (kurtosis), while the bell-shaped part stays $O(1)$. So in the
-\emph{ratio}, the personality becomes negligible. The information is not destroyed; it is
-out-grown. This is also a warning: never conclude that two processes are ``the same''
-because their averages look normal. They agree only to leading order, and the
-disagreements live in the tails -- precisely where rare, important events hide.
+\textbf{The disappearance of distribution-specific details.} It may seem surprising that the
+limit retains so few features of the original distribution. Two starting distributions can have
+very different shapes -- a coin flip, an exponential variable, and a uniform variable -- yet
+their standardized sums all approach the same standard normal curve.
+These differences do not vanish instantly: for finite $n$, sums of Bernoulli variables and sums of
+exponentials remain distinguishable by their skewness and higher moments.
+What the CLT and Berry--Esseen state is that these differences shrink at rate $1/\sqrt n$
+(for skewness) and faster (for kurtosis), while the Gaussian profile remains of order $1$.
+In the standardized limit, the contribution of higher moments becomes negligible.
+This is also a practical caution: two processes whose standardized averages both look approximately normal
+may still differ substantially in their extreme tails, where rare events occur.
 \end{paradoxbox}
 
 \section{Applications: the normal everywhere}
@@ -768,9 +856,9 @@ says $\hat\theta_n \to \theta$; the CLT tells you the \emph{error}: $\hat\theta_
 approximately $\Normal(\theta, \tau^2/n)$, so the Monte Carlo error shrinks like
 $\tau/\sqrt n$. This $1/\sqrt n$ rate is independent of the dimension of $X$ -- which is
 exactly why Monte Carlo beats grid-based numerical integration in high dimensions, and
-why it is the workhorse of computational physics, Bayesian statistics, and quantitative
-finance. See the Monte Carlo chapter for variance-reduction tricks that shrink $\tau$
-(you cannot beat the $\sqrt n$, so you attack the constant).
+why it is widely used in computational physics, Bayesian statistics, and quantitative
+finance. See the Monte Carlo chapter for variance-reduction methods that shrink $\tau$
+(the $1/\sqrt n$ rate remains, but the constant factor is reduced).
 \end{applicationbox}
 
 \begin{connectionbox}
@@ -805,10 +893,9 @@ Weights are continuous, so no continuity correction is needed. Then
 \[
   \P(S_{20} > 1600) \approx 1 - \Phi(1.49) \approx 1 - 0.9319 = 0.0681 \approx 0.068.
 \]
-About a $6.8\%$ chance of overload. Notice the full power of the CLT here: we knew only
+About a $6.8\%$ chance of overload. Notice the practical utility of the CLT here: we knew only
 the mean and standard deviation of an individual weight -- not the distribution's shape
-at all -- and yet we produced a usable probability for the total. That is the everyday
-miracle the theorem performs. (How trustworthy is the $6.8\%$? With $n=20$ and a
+at all -- and yet we produced a usable probability for the total. (How trustworthy is the $6.8\%$? With $n=20$ and a
 moderately skewed weight distribution, Berry--Esseen warns the answer could be off by a
 few percentage points in the tail; for a safety-critical decision you would want a
 larger margin or the real weight distribution.)
@@ -834,9 +921,9 @@ right tail beyond the standardized threshold $z \approx 1.49$.
 \addplot[draw=none, name path=axis] {0};
 \addplot[densityred!25] fill between[of=bell and axis, soft clip={domain=1.49:3.6}];
 \draw[dashed, gray] (axis cs:1.49,0) -- (axis cs:1.49,0.13);
-\node[anchor=south, font=\footnotesize] at (axis cs:2.25,0.04)
-  {$\approx 0.068$};
-\node[anchor=south, font=\footnotesize] at (axis cs:1.49,0.135)
+\draw[<-, thick, densityred] (axis cs:1.85, 0.025) -- (axis cs:2.3, 0.08)
+  node[above, font=\footnotesize, text=black] {tail area $\approx 0.068$};
+\node[anchor=south, font=\footnotesize] at (axis cs:1.49, 0.14)
   {$z\approx 1.49$};
 \end{axis}
 \end{tikzpicture}
@@ -851,19 +938,19 @@ $1 - \Phi(1.49) \approx 0.068$.}
 \label{ch21:summary}
 
 \begin{focusbox}
-\textbf{The chapter in one breath.} Add many independent finite-variance things,
-subtract the mean $n\mu$, divide by $\sigma\sqrt n$, and you always get the same bell:
+\textbf{Core takeaway.} For independent random variables with finite variance,
+subtracting the mean $n\mu$ and dividing by $\sigma\sqrt n$ yields the standard normal limit:
 \[
   \frac{S_n - n\mu}{\sigma\sqrt n} \dto \Normal(0,1).
 \]
 \begin{itemize}
-\item \textbf{Standardization} keeps the curve from drifting ($-n\mu$) or collapsing
-($\div\,\sigma\sqrt n$). The $\sqrt n$ is the master scale of statistics.
+\item \textbf{Standardization} keeps the curve centered ($-n\mu$) with constant variance
+($\div\,\sigma\sqrt n$). The factor $\sqrt n$ sets the scale of statistical fluctuation.
 \item \textbf{Why it works:} MGFs turn sums into products; Taylor expansion leaves only
 the mean and variance; $(1 + \frac{t^2/2}{n})^n \to e^{t^2/2}$, the normal MGF. Higher
-moments die in the limit -- hence universality.
+moments vanish in the limit -- hence universality.
 \item \textbf{Continuity correction:} for discrete sums, replace integer $k$ by
-$[k \pm \tfrac12]$ before going to the normal.
+$[k \pm \tfrac12]$ before evaluating the normal approximation.
 \item \textbf{Berry--Esseen:} the CDF error is at most $0.4748\,\rho/(\sigma^3\sqrt n)$
 -- rate $1/\sqrt n$, scaled by skewness.
 \item \textbf{Caveat:} finite variance is required. Infinite-variance (Cauchy,
@@ -871,8 +958,41 @@ heavy-tail) distributions have non-normal stable limits.
 \end{itemize}
 \end{focusbox}
 
+\subsection*{Looking ahead: what kind of convergence is this?}
+The Central Limit Theorem asserts that $Z_n \dto \Normal(0,1)$. But pause on what that
+arrow $\dto$ actually means. We proved that the cumulative distribution functions
+$\P(Z_n \le z)$ converge pointwise to the normal CDF $\Phi(z)$. We did \emph{not} prove
+that the random variable $Z_n$ gets close to any fixed normal variable $Z$ on our sample
+space. In fact, $Z_n$ keeps fluctuating with every new draw, never settling down to any
+single numerical value.
+
+This distinction is the gateway to Chapter~22 (\emph{Modes of Convergence}). In Chapter~20,
+the Law of Large Numbers established that $\bar X_n$ converges to $\mu$ \emph{in probability}
+and \emph{almost surely}---sample averages cluster tightly around a single number.
+Here in Chapter~21, the CLT establishes convergence \emph{in distribution}---the
+distribution functions align, rather than the random variables themselves. In the next chapter,
+we examine the complete hierarchy connecting these modes of convergence, determine when one mode
+implies another, and develop core tools (the continuous mapping theorem, Slutsky's theorem,
+and the delta method) that allow us to propagate normal limits through nonlinear transformations.
+
 \section*{Exercises}
 \addcontentsline{toc}{section}{Exercises}
+
+\begin{exercise}[Mental check: absolute error vs.\ relative frequency]
+\label{ch21:ex-mental-error}
+A student claims: ``By the Central Limit Theorem and Law of Large Numbers, if I flip a fair
+coin $n = 10{,}000$ times, the exact number of heads will almost certainly be within $5$
+of $5{,}000$.'' (a) Explain the fallacy: what is the typical size of the absolute deviation
+$|S_n - n/2|$ for $n = 10{,}000$? (b) Why does the \emph{fraction} of heads get closer to
+$1/2$ while the \emph{count} of excess heads spreads out?
+\end{exercise}
+
+\begin{exercise}[Mental check: sample size scaling]
+\label{ch21:ex-mental-scale}
+You are designing an experiment whose current margin of error is $\pm 6$ units. (a) By what
+factor must you multiply the sample size $n$ to shrink the margin of error to $\pm 2$ units?
+(b) If the original sample had $n = 100$, what new sample size is required?
+\end{exercise}
 
 \begin{exercise}[Standardize a sum]
 \label{ch21:ex-standardize}

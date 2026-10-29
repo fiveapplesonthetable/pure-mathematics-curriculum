@@ -259,9 +259,11 @@ const mount: Mount = (root) => {
     // Axis ticks and labels
     ticksG.replaceChildren();
 
-    // Y ticks: 0, 1, and mark for 1/N
-    label(ticksG, x0 - 8, y0 + 4, '0', 'lbl', 'end');
-    s('line', { class: 'ax', x1: x0 - 4, x2: x0, y1: y0, y2: y0 }, ticksG);
+    // Y ticks: 0, 1, and mark for 1/N (suppress tick '0' if 1/N guideline is too close)
+    if (!showOneOverN || y0 - yOneOverN >= 18) {
+      label(ticksG, x0 - 8, y0 + 4, '0', 'lbl', 'end');
+      s('line', { class: 'ax', x1: x0 - 4, x2: x0, y1: y0, y2: y0 }, ticksG);
+    }
 
     label(ticksG, x0 - 8, yScale(1) + 4, '1', 'lbl', 'end');
     s('line', { class: 'ax', x1: x0 - 4, x2: x0, y1: yScale(1), y2: yScale(1) }, ticksG);
