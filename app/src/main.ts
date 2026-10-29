@@ -27,17 +27,28 @@ const figureFiles = import.meta.glob<{ default: Mount }>('./figures/*.ts');
 // ---------- theme ----------
 
 const THEME_NAMES: Record<store.Theme, string> = { system: 'System', light: 'Light', dark: 'Dark' };
+const THEME_ICONS: Record<store.Theme, string> = {
+  system:
+    '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 14.5A6.5 6.5 0 0 1 9.5 6a6.5 6.5 0 1 0 8.5 8.5Z"/><path d="M16 3v2M21 8h-2M19.5 4.5l-1.4 1.4"/></svg>',
+  light:
+    '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>',
+  dark:
+    '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+};
+const BACK_ICON =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>';
 function applyTheme(t: store.Theme) {
   if (t === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = t;
 }
 function themeButton(): HTMLButtonElement {
   const b = document.createElement('button');
-  b.className = 'linkish';
+  b.className = 'linkish theme-btn';
   b.type = 'button';
   const show = () => {
     const t = store.theme();
-    b.textContent = `Theme: ${THEME_NAMES[t]}`;
+    b.innerHTML = THEME_ICONS[t];
+    b.title = `Theme: ${THEME_NAMES[t]}`;
     b.setAttribute('aria-label', `Colour theme: ${THEME_NAMES[t]}. Change theme`);
   };
   b.addEventListener('click', () => {
@@ -55,7 +66,7 @@ applyTheme(store.theme());
 function topBar(back?: { href: string; text: string }) {
   const el = document.createElement('div');
   el.className = 'bar';
-  el.innerHTML = back ? `<a href="${back.href}">${back.text}</a>` : '<span></span>';
+  el.innerHTML = back ? `<a href="${back.href}">${BACK_ICON}<span>${back.text}</span></a>` : '<span></span>';
   el.appendChild(themeButton());
   return el;
 }
