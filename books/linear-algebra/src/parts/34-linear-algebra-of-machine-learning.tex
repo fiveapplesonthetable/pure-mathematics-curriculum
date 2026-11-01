@@ -162,11 +162,11 @@ multiplication, read carefully. So $\mat{G}$, the \emph{Gram matrix}, packages a
 $n^2$ similarities into one symmetric matrix.
 
 Flip the order and you get the other geometry. The $d \times d$ matrix
-$\mat{X}\T\mat{X}$ collects all pairwise dot products between \emph{columns} (features),
-and -- once the data is centered and divided by $n$ -- it is exactly the
-\textbf{covariance matrix} you may have met in statistics. We will return to it; for now
+$\mat{X}\T\mat{X}$ collects all pairwise dot products between \emph{columns} (features);
+once each column is centered to mean zero, $\tfrac1n\mat{X}\T\mat{X}$ is exactly the
+\textbf{covariance matrix} you met in Chapter~30. We will return to it; for now
 notice the elegant duality: $\mat{X}\mat{X}\T$ compares examples, $\mat{X}\T\mat{X}$
-compares features, and they share the same nonzero eigenvalues. The SVD chapter explains
+compares features, and they share the same nonzero eigenvalues. Chapter~29 explains
 why; for now, notice that one little matrix product, taken two ways, generates both
 geometries of your data.
 
@@ -175,7 +175,7 @@ geometries of your data.
 
 The oldest learning algorithm in data analysis is linear regression, and it is pure linear
 algebra -- in fact it is the least-squares problem you have already studied, expressed in
-the vocabulary of data science. Let us rederive it from scratch from an optimization viewpoint, since the picture carries
+the vocabulary of data science. Let us set it up in that notation, since the picture carries
 straight over to the harder models later.
 
 \subsection{The setup}
@@ -814,8 +814,12 @@ application of ``the dot product is maximized when the vectors align.''
 
 \subsection{Gradient descent on our regression}
 
-Let us connect the two methods. For $L(\vec{w})=\norm{\vec{y}-\mat{X}\vec{w}}^2$, the
-gradient works out to
+Let us connect the two methods. Expand the loss as a dot product,
+$L(\vec{w})=\norm{\vec{y}-\mat{X}\vec{w}}^2
+=\vec{y}\T\vec{y}-2(\mat{X}\T\vec{y})\T\vec{w}+\vec{w}\T(\mat{X}\T\mat{X})\vec{w}$:
+a constant, a linear term, and a quadratic form. Differentiating term by term (the
+linear term contributes $-2\mat{X}\T\vec{y}$, the symmetric quadratic form
+$2\mat{X}\T\mat{X}\vec{w}$) gives
 \[
 \nabla L = -2\,\mat{X}\T(\vec{y}-\mat{X}\vec{w}) = 2\big(\mat{X}\T\mat{X}\,\vec{w}-\mat{X}\T\vec{y}\big).
 \]
@@ -892,6 +896,21 @@ backpropagation: propagate the gradient \emph{backward} through the network, lay
 layer, as a vector being hit by each layer's Jacobian (in transposed form). The
 ``backward'' in the name is just the choice to multiply the Jacobian chain in the order
 that keeps everything a vector instead of a matrix (Figure~\ref{ch34:fig-backprop}).
+Where does the ``transposed form'' come from? Look at one layer,
+$\vec{z}=\mat{W}\vec{x}+\vec{b}$ followed by $\vec{a}=\sigma(\vec{z})$, and write
+gradients as columns. Given the upstream gradient $\nabla_{\vec{a}}L$, the elementwise
+bend scales each coordinate, $\vec{\delta}=\nabla_{\vec{z}}L=\nabla_{\vec{a}}L\odot\sigma'(\vec{z})$.
+Since $z_i=\sum_j W_{ij}x_j+b_i$, we have $\partial z_i/\partial x_j=W_{ij}$ and
+$\partial z_i/\partial W_{ij}=x_j$, so one backward step yields
+\[
+\nabla_{\vec{x}}L=\mat{W}\T\vec{\delta},\qquad
+\nabla_{\mat{W}}L=\vec{\delta}\,\vec{x}\T,\qquad
+\nabla_{\vec{b}}L=\vec{\delta}.
+\]
+The row-vector product $\vec{\delta}\T\mat{W}$, turned back into a column, is
+$\mat{W}\T\vec{\delta}$: that is the transpose. And every weight gradient is a rank-one
+outer product, pairing the error $\delta_i$ arriving at output $i$ with the activation
+$x_j$ that fed it.
 
 \begin{figure}[H]
 \centering
@@ -986,10 +1005,12 @@ This is the Gram-matrix idea from Section~\ref{ch34:data-matrix} again: \emph{al
 similarities at once}, as a single matrix product. Large dot product means ``these two are
 relevant to each other.''
 
-\textbf{Step 2: the scaling $1/\sqrt{d_k}$.} Dividing by the square root of the key
-dimension keeps the dot products from growing too large when the vectors are
-high-dimensional (a high-dimensional dot product is a sum of many terms and tends to
-spread out). It is a normalization for numerical stability, nothing deeper.
+\textbf{Step 2: the scaling $1/\sqrt{d_k}$.} If the coordinates of a query and a key are
+roughly independent with unit variance, their dot product is a sum of $d_k$ such
+products, so it has variance $d_k$ and typical size $\sqrt{d_k}$. Dividing by
+$\sqrt{d_k}$ brings the scores back to unit scale. Without it, large scores would push the
+softmax in Step~3 into saturation -- nearly all weight on one entry -- where its gradients
+vanish and training stalls.
 
 \textbf{Step 3: softmax, row by row.} The softmax turns each row of scores into a
 probability distribution -- nonnegative numbers that sum to $1$:
@@ -1163,7 +1184,7 @@ the top $k$ terms of the SVD and throwing the rest away:
 If the singular values decay quickly (and for real data they almost always do), then a
 small $k$ captures almost all of $\mat{A}$ (Figure~\ref{ch34:fig-svdecay}), and you have
 compressed an $m\times n$ matrix
-($mn$ numbers) down to $k(m+n)$ numbers. For a $1000\times1000$ matrix kept at rank $10$,
+($mn$ numbers) down to $k(m+n)$ numbers (absorbing each $\sigma_i$ into $\vec{u}_i$). For a $1000\times1000$ matrix kept at rank $10$,
 that is a 50-fold compression.
 
 \begin{figure}[H]

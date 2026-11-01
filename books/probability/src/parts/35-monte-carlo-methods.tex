@@ -52,6 +52,7 @@ which means $4\hat p \approx \pi$.
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
+\pgfmathsetseed{2718}
 \begin{axis}[
   width=8.2cm, height=8.2cm,
   xmin=0, xmax=1, ymin=0, ymax=1,
@@ -60,22 +61,7 @@ which means $4\hat p \approx \pi$.
   title={$n=400$ darts; inside the arc estimates $\pi/4$},
   title style={font=\small}]
 \addplot[densityred, very thick, domain=0:1, samples=120] {sqrt(1-x^2)};
-\addplot[only marks, mark=*, mark size=0.6pt, sourceblue] table {
-0.12 0.81 0.55 0.21 0.93 0.07 0.34 0.66 0.71 0.49
-0.08 0.27 0.62 0.88 0.41 0.15 0.77 0.53 0.29 0.95
-0.46 0.38 0.19 0.72 0.84 0.11 0.59 0.31 0.67 0.04
-0.23 0.91 0.57 0.13 0.79 0.44 0.36 0.68 0.05 0.52
-0.86 0.24 0.61 0.17 0.74 0.39 0.28 0.63 0.09 0.97
-0.48 0.33 0.71 0.18 0.82 0.06 0.54 0.42 0.26 0.69
-0.14 0.58 0.37 0.89 0.51 0.22 0.76 0.31 0.64 0.03
-0.92 0.16 0.45 0.73 0.21 0.85 0.56 0.34 0.67 0.08
-0.29 0.62 0.47 0.11 0.78 0.41 0.35 0.65 0.07 0.53
-0.87 0.25 0.6 0.19 0.75 0.4 0.27 0.66 0.1 0.96
-0.32 0.49 0.7 0.23 0.81 0.05 0.55 0.43 0.3 0.68
-0.13 0.59 0.36 0.9 0.5 0.2 0.77 0.33 0.63 0.02
-0.91 0.17 0.44 0.72 0.22 0.84 0.57 0.35 0.66 0.09
-0.28 0.61 0.46 0.12 0.79 0.42 0.34 0.64 0.06 0.54
-};
+\addplot[only marks, mark=*, mark size=0.6pt, sourceblue, samples=400, domain=0:1] ({rnd},{rnd});
 \end{axis}
 \end{tikzpicture}
 \caption{Estimating $\pi$ by Monte Carlo. Each dart is uniform on the square;
@@ -174,7 +160,7 @@ so directly from function evaluations alone.
 \begin{aestheticbox}
 Notice what does \emph{not} appear in $\SD = \sigma/\sqrt n$: the
 dimension $d$. A deterministic grid in $d$ dimensions with $m$ points per axis costs
-$m^d$ evaluations -- the ``curse of dimensionality.'' Its error shrinks like
+$m^d$ evaluations -- the ``curse of dimensionality.'' For a trapezoid-type rule on a smooth integrand its error shrinks like
 $m^{-2} = (m^d)^{-2/d}$, which becomes hopeless as $d$ grows. Monte Carlo's error
 shrinks like $n^{-1/2}$ \emph{regardless of $d$}. In high dimensions this is not a
 small advantage; it is the difference between possible and impossible. This is
@@ -425,7 +411,10 @@ constant $M$ with $f(x) \le M\,q(x)$ for all $x$ (the scaled proposal
         try again.
 \end{enumerate}
 The accepted values are exact draws from $f$. The probability of accepting on a
-given try is $1/M$, so on average it takes $M$ tries per accepted sample.
+given try is $\int \frac{f(x)}{M\,q(x)}\,q(x)\,\dd x = \frac{1}{M}$, so on average it takes $M$ tries per accepted sample.
+If $f$ is known only up to a constant, $\tilde f = Z f$ with $Z$ unknown, run the same
+test with $\tilde f$ and an envelope $\tilde f \le \tilde M q$: the ratio $\tilde f/(\tilde M q)$
+accepts exactly the same region, so $Z$ is never needed.
 \end{formalbox}
 \begin{figure}[H]
 \centering
@@ -503,7 +492,8 @@ $P(x\to y)$ has $\pi$ as its stationary distribution if
 \]
 Read it as a flow-conservation law: in equilibrium, the probability current from
 $x$ to $y$ exactly balances the current from $y$ to $x$. If detailed balance
-holds, no net probability moves anywhere, so $\pi$ stays put -- it is stationary.
+holds, no net probability moves anywhere, so $\pi$ stays put -- it is stationary. (Summing
+the detailed-balance equation over $x$ gives $\sum_x \pi(x)P(x\to y) = \pi(y)\sum_x P(y\to x) = \pi(y)$.)
 Every MCMC algorithm provides a systematic way to construct a transition rule that satisfies
 detailed balance with respect to your chosen $\pi$.
 \subsection{The Metropolis--Hastings Algorithm}
@@ -696,7 +686,10 @@ resulting chain is exactly $\pi$.
 \end{formalbox}
 
 Gibbs sampling is Metropolis--Hastings with a proposal that is the exact
-conditional distribution; one can check that its acceptance probability is always
+conditional distribution. Updating coordinate $j$ with proposal $q(x_j' \given x_{-j}) = \pi(x_j' \given x_{-j})$
+and writing $\pi(x_j, x_{-j}) = \pi(x_{-j})\,\pi(x_j \given x_{-j})$, the Metropolis--Hastings ratio is
+$\frac{\pi(x_{-j})\pi(x_j' \given x_{-j})\,\pi(x_j \given x_{-j})}{\pi(x_{-j})\pi(x_j \given x_{-j})\,\pi(x_j' \given x_{-j})} = 1$,
+so its acceptance probability is always
 $1$. Nothing is ever rejected -- every proposed move is taken. This makes Gibbs
 attractive whenever the full conditionals have nice closed forms, which happens
 constantly in hierarchical Bayesian models built from conjugate pieces.
