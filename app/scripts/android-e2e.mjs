@@ -86,7 +86,7 @@ console.log(`device ${serial || '(default)'}, dpr ${dpr}, webview offset (${offX
 await page.goto(`http://localhost:${port}/`, { waitUntil: 'networkidle0' });
 await sleep(800);
 const nBooks = await page.$$eval('.books li', (l) => l.length);
-check('library lists four books', nBooks === 4, `${nBooks}`);
+check('library lists five books', nBooks === 5, `${nBooks}`);
 shot('01-library');
 
 // ---- 2. real taps: book, then chapter 20

@@ -1,0 +1,423 @@
+\chapter{The Double-Entry Ledger as a Conservation Law}
+\label{ch:double-entry}
+\chapterline
+
+Suppose you and two co-founders launch a payment-routing software company. If you only track a single number -- the balance in your corporate checking account -- you have a single-entry log. For a household buying groceries in cash, a single-entry log mostly works. Inside a company, it fails within weeks. Suppose a customer signs a \$50,000 contract and uses your API all month on Net-30 terms while you pay \$26,000 in cash for cloud servers and salaries. Your checking account drops by \$26,000, making a profitable month look like a pure loss. Conversely, suppose you borrow \$100,000 from a bank. Your checking balance jumps by \$100,000 even though your company is not a single dollar wealthier, because an equal repayment obligation now sits beside the cash.
+
+To track reality without losing value or inventing phantom profit, an enterprise needs a state machine that records both what resources it holds and where every resource came from. That state machine is the \textbf{double-entry ledger}.
+
+\begin{historybox}
+Modern accounting grew directly out of medieval Mediterranean trade. By the fourteenth century, merchants in Venice, Genoa, and Florence financed multi-year sea voyages through \emph{commenda} partnerships: passive investors supplied silver ducats or spice cargo, active sea captains sailed to Alexandria or Constantinople, goods were bartered across three currencies, bills of exchange were drawn on foreign bankers, and profits had to be split cleanly among partners when the ship returned. Single-column tally sheets broke down under partial shipments, credit sales, and shared expenses.
+
+In 1494, the Franciscan friar and mathematician Luca Pacioli -- a collaborator of Leonardo da Vinci -- published \emph{Summa de arithmetica, geometria, proportioni et proportionalita} in Venice. Its ninth treatise, \emph{Particularis de computis et scripturis}, documented ``the Method of Venice'': a chronological transaction log (\emph{giornale}) paired with a classified account book (\emph{quaderno}) in which every transaction was entered twice, once as a debit and once as an equal credit. Pacioli warned that a merchant should not go to sleep at night until total debits equaled total credits. Over five centuries later, every ERP database, bank core, and payment ledger runs the exact invariant Pacioli wrote down.
+\end{historybox}
+
+\section{The Accounting Identity as a Structural Invariant}
+
+Before recording a single number, accounting enforces the \textbf{entity boundary}: the corporation is a distinct state space separated from its founders, employees, and lenders. When a founder transfers \$200,000 from a personal bank account into the company, we analyze the event strictly from inside the company's boundary.
+
+At any instant $t$, everything of measurable economic value controlled by the entity is called an \textbf{Asset}: cash, unpaid customer invoices, prepaid server commitments, hardware, inventory, or intellectual property. Where did those resources come from, and who has legal claims against them? There are only two classes of claimants:
+
+\begin{enumerate}
+  \item \textbf{Creditors (Liabilities):} outsiders to whom the entity owes fixed or priority obligations -- banks, unpaid cloud vendors, employees owed accrued wages, or customers who paid upfront for undelivered services.
+  \item \textbf{Owners (Equity):} shareholders who hold the \textbf{residual claim} -- whatever value remains after every liability is satisfied in full.
+\end{enumerate}
+
+Defining Equity as the residual value $\text{Equity}(t) \coloneqq \text{Assets}(t) - \text{Liabilities}(t)$ yields the fundamental accounting identity at every instant $t$:
+\begin{equation}
+  \label{eq:fundamental-identity}
+  \text{Assets}(t) = \text{Liabilities}(t) + \text{Equity}(t).
+\end{equation}
+
+\begin{formalbox}
+Equation~\eqref{eq:fundamental-identity} is an identity, not an empirical hypothesis that could fail in a bad quarter. Every dollar of Assets held inside the entity boundary is claimed either by an external creditor (Liabilities) or, as to the remainder, by the owners (Equity). If an uninsured server warehouse burns down and destroys \$100,000 of Assets while Liabilities stay fixed, Equity immediately absorbs the \$100,000 drop so that $\text{Assets} = \text{Liabilities} + \text{Equity}$ continues to hold.
+\end{formalbox}
+
+Now follow the entity across an operating interval $[t_0, t_1]$. How does $\text{Equity}$ change over time? Owners can inject fresh capital (\textbf{Contributed Equity}) or withdraw cash distributions (\textbf{Dividends}). In between, the business operates: it earns inflows of economic value from delivering goods or services (\textbf{Revenue}) and consumes value to run the business (\textbf{Expenses}). Accumulated past profits kept inside the business up to $t_0$ sit in \textbf{Retained Earnings}. Therefore, at instant $t_1$:
+\[
+  \text{Equity}(t_1) = \text{Contributed Equity}(t_1) + \text{Retained Earnings}(t_0) + \text{Revenue} - \text{Expenses} - \text{Dividends}.
+\]
+Substitute this expansion into Equation~\eqref{eq:fundamental-identity}:
+\[
+  \text{Assets} = \text{Liabilities} + \text{Contributed Equity} + \text{Retained Earnings} + \text{Revenue} - \text{Expenses} - \text{Dividends}.
+\]
+Finally, move the two subtracted terms ($\text{Expenses}$ and $\text{Dividends}$) across the equals sign so that every quantity in the equation appears with a positive coefficient:
+\begin{equation}
+  \label{eq:expanded-identity}
+  \underbrace{\text{Assets} + \text{Expenses} + \text{Dividends}}_{\text{Left-hand (Debit-normal)}}
+  =
+  \underbrace{\text{Liabilities} + \text{Paid-In Equity} + \text{Ret.\ Earnings} + \text{Revenue}}_{\text{Right-hand (Credit-normal)}}.
+\end{equation}
+
+Keep Equation~\eqref{eq:expanded-identity} in sight. Every sign rule in accounting is a direct consequence of which side of Equation~\eqref{eq:expanded-identity} an account sits on.
+
+\section{Debits and Credits Without Rote Memorization}
+
+Beginners often stall on the words \textbf{debit} (abbreviated \textbf{Dr}, from Latin \emph{debere}) and \textbf{credit} (abbreviated \textbf{Cr}, from Latin \emph{credere}) because everyday English attaches moral or banking connotations to both words. In accounting, debit and credit mean only two things: \textbf{Left column} and \textbf{Right column}. Two complementary engineering views make their behavior completely mechanical.
+
+\subsection*{View 1: Two non-negative registers instead of negative numbers}
+
+When Venetian bookkeepers designed ledgers in the fourteenth and fifteenth centuries, negative numbers were not accepted in European commercial arithmetic -- and writing minus signs in ink invites transcription mistakes when summing long columns by hand. Instead of giving an account $a$ a single signed register $x_a \in \R$, double-entry gives every account $a$ an ordered pair of non-negative accumulators:
+\[
+  (D_a,\, C_a) \in \R_{\ge 0} \times \R_{\ge 0},
+\]
+drawn visually as a ``T-account'' with \textbf{Debit ($D_a$)} on the left and \textbf{Credit ($C_a$)} on the right. Instead of subtracting $w > 0$ from the left column, you add $+w$ to the right column; instead of subtracting $w > 0$ from the right column, you add $+w$ to the left column.
+
+Look back at Equation~\eqref{eq:expanded-identity}:
+\begin{itemize}
+  \item Accounts on the \textbf{left side} of Equation~\eqref{eq:expanded-identity} (\textbf{Assets}, \textbf{Expenses}, and \textbf{Dividends}) carry their normal balance on the \textbf{Left (Debit)} side: their net magnitude is $D_a - C_a$. Adding to their left column increases them; adding to their right column decreases them.
+  \item Accounts on the \textbf{right side} of Equation~\eqref{eq:expanded-identity} (\textbf{Liabilities}, \textbf{Equity}, and \textbf{Revenue}) carry their normal balance on the \textbf{Right (Credit)} side: their net magnitude is $C_a - D_a$. Adding to their right column increases them; adding to their left column decreases them.
+\end{itemize}
+
+\subsection*{View 2: Conserved value flow on a directed graph}
+
+There is an even cleaner operational picture. Treat the chart of accounts as the vertex set $V$ of a directed graph, and assign each vertex $a \in V$ the signed state
+\[
+  x_a \coloneqq D_a - C_a.
+\]
+Under this sign convention, Debit-normal accounts (Assets, Expenses) hold positive signed balances ($x_a \ge 0$), while Credit-normal accounts (Liabilities, Equity, Revenue) hold negative signed balances ($x_a \le 0$). Equation~\eqref{eq:expanded-identity} simply states that the sum of signed states across the entire graph vanishes at all times:
+\begin{equation}
+  \label{eq:graph-conservation}
+  \sum_{a \in V} x_a = \sum_{a \in V} (D_a - C_a) = 0.
+\end{equation}
+
+Every economic transaction is a directed transfer of value $w > 0$ along an edge $u \xrightarrow{\;w\;} v$ from a \textbf{source} vertex $u$ to a \textbf{destination} vertex $v$ (or a multi-leg split where total outflow from sources equals total inflow to destinations):
+\begin{itemize}
+  \item \textbf{Credit (Right column, $+w$ to $C_u$):} records the \textbf{source} account $u$ from which value originates ($\Delta x_u = -w$).
+  \item \textbf{Debit (Left column, $+w$ to $D_v$):} records the \textbf{destination} account $v$ where value lands ($\Delta x_v = +w$).
+\end{itemize}
+Because $\Delta x_u + \Delta x_v = -w + w = 0$, every valid journal entry preserves Equation~\eqref{eq:graph-conservation} identically.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[>=Stealth]
+  % Left node: Sources (Credit)
+  \node[draw=quotientorange!90!black, fill=quotientorange!10, rounded corners=4pt, thick, minimum width=3.5cm, minimum height=3.2cm, align=center] (src) at (2.0, 2.0) {};
+  \node[font=\footnotesize\bfseries, text=quotientorange!85!black] at (2.0, 3.25) {Source Vertex $u$ (Credit)};
+  \node[font=\scriptsize, align=center] at (2.0, 2.05) {Value originates here:\\[0.3em]
+    $\bullet$ Equity issued (\texttt{Common Stock})\\[0.15em]
+    $\bullet$ Debt borrowed (\texttt{Bank Loan})\\[0.15em]
+    $\bullet$ Service earned (\texttt{Revenue})\\[0.15em]
+    $\bullet$ Asset spent (\texttt{Cash} paid out)};
+  \node[font=\scriptsize\bfseries, text=quotientorange!85!black] at (2.0, 0.72) {$\Delta C_u = +w \quad (\Delta x_u = -w)$};
+
+  % Directed conserved flow arrow in center
+  \draw[->, line width=1.6pt, sourceblue] (3.9, 2.25) -- (7.9, 2.25)
+    node[midway, above, font=\footnotesize\bfseries, text=sourceblue] {Conserved value flow $w > 0$}
+    node[midway, below, font=\scriptsize, text=gray!80!black] {Journal entry: $\mathrm{Dr}\;v\;w \;/\; \mathrm{Cr}\;u\;w$};
+
+  % Right node: Destinations (Debit)
+  \node[draw=targetgreen!85!black, fill=targetgreen!10, rounded corners=4pt, thick, minimum width=3.5cm, minimum height=3.2cm, align=center] (dst) at (9.8, 2.0) {};
+  \node[font=\footnotesize\bfseries, text=targetgreen!80!black] at (9.8, 3.25) {Destination Vertex $v$ (Debit)};
+  \node[font=\scriptsize, align=center] at (9.8, 2.05) {Value arrives here:\\[0.3em]
+    $\bullet$ Asset acquired (\texttt{Cash}, \texttt{Servers})\\[0.15em]
+    $\bullet$ Customer claim (\texttt{Receivables})\\[0.15em]
+    $\bullet$ Resource consumed (\texttt{Expense})\\[0.15em]
+    $\bullet$ Debt retired (\texttt{Bank Loan} repaid)};
+  \node[font=\scriptsize\bfseries, text=targetgreen!80!black] at (9.8, 0.72) {$\Delta D_v = +w \quad (\Delta x_v = +w)$};
+
+  % Bottom invariant bar
+  \node[draw=gray!60, fill=gray!6, rounded corners=3pt, font=\scriptsize, inner sep=4pt] at (5.9, -0.15)
+    {Global ledger invariant across all accounts $a \in V$: \quad $\displaystyle\sum_{a \in V} D_a = \sum_{a \in V} C_a \;\Longleftrightarrow\; \sum_{a \in V} x_a = 0$};
+\end{tikzpicture}
+\caption{Every double-entry transaction as a conserved flow $u \to v$ on a directed graph. Value $w > 0$ leaves the source vertex $u$ via a Credit ($\Delta C_u = +w$) and enters the destination vertex $v$ via an equal Debit ($\Delta D_v = +w$).}
+\label{fig:ch01-directed-flow}
+\end{figure}
+
+Test this source-to-destination rule against five everyday events:
+\begin{enumerate}
+  \item \emph{Founders invest \$200,000 cash for stock:} value flows from the owners' claim (\texttt{Common Stock}, source $\to$ Credit) into the corporate bank account (\texttt{Cash}, destination $\to$ Debit).
+  \item \emph{Company buys \$120,000 of servers for cash:} value flows out of \texttt{Cash} (source $\to$ Credit) into \texttt{Equipment} (destination $\to$ Debit).
+  \item \emph{Company delivers \$50,000 of API service on Net-30 invoice:} newly earned value originates in \texttt{Service Revenue} (source $\to$ Credit) and lands in a legal claim against the customer (\texttt{Accounts Receivable}, destination $\to$ Debit).
+  \item \emph{Company pays \$8,000 cash for cloud hosting:} value flows out of \texttt{Cash} (source $\to$ Credit) and is consumed in \texttt{Cloud Hosting Expense} (destination $\to$ Debit).
+  \item \emph{Company repays \$5,000 of bank loan principal in cash:} value flows out of \texttt{Cash} (source $\to$ Credit) into \texttt{Bank Loan Payable} (destination $\to$ Debit, reducing the negative creditor claim toward zero).
+\end{enumerate}
+
+Table~\ref{tab:ch01-five-accounts} summarizes the five core account types for quick reference.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{@{}llllll@{}}
+\toprule
+\textbf{Account Type} & \textbf{Kind} & \textbf{Identity Side} & \textbf{Normal Side} & \textbf{To Increase} & \textbf{To Decrease} \\
+\midrule
+Asset     & Stock (State) & Left of \eqref{eq:expanded-identity}  & Debit (Left)   & Debit (Dr)  & Credit (Cr) \\
+Liability & Stock (State) & Right of \eqref{eq:expanded-identity} & Credit (Right) & Credit (Cr) & Debit (Dr)  \\
+Equity    & Stock (State) & Right of \eqref{eq:expanded-identity} & Credit (Right) & Credit (Cr) & Debit (Dr)  \\
+Revenue   & Flow (Rate)   & Right of \eqref{eq:expanded-identity} & Credit (Right) & Credit (Cr) & Debit (Dr)  \\
+Expense   & Flow (Rate)   & Left of \eqref{eq:expanded-identity}  & Debit (Left)   & Debit (Dr)  & Credit (Cr) \\
+\bottomrule
+\end{tabular}
+\caption{The five primary account types, their position in the expanded accounting identity~\eqref{eq:expanded-identity}, and their Debit/Credit rules.}
+\label{tab:ch01-five-accounts}
+\end{table}
+
+\begin{trapbox}
+Why does your bank send an alert saying ``We credited your checking account \$1,000'' when a paycheck arrives, if cash increases with a Debit? Because the bank is reading you \emph{its own} ledger, not yours. On a bank's Balance Sheet, customer deposits are a \textbf{Liability} -- money the bank owes you on demand. When \$1,000 arrives, the bank's liability to you increases, so the bank records a Credit to your deposit account on its books. On \emph{your} books, that same checking balance is an \textbf{Asset}, so you record a \$1,000 Debit. Similarly, a ``debit card'' is named from the bank's viewpoint: swiping it reduces the bank's deposit liability to you via a Debit on the bank's ledger.
+\end{trapbox}
+
+\section{Accrual Accounting Versus Cash Accounting}
+
+Under \textbf{cash-basis accounting}, revenue is recorded only when cash hits the bank account, and expenses are recorded only when cash leaves. Cash basis is simple, and small sole proprietorships sometimes use it for taxes, but it severely distorts unit economics whenever cash timing and service delivery diverge.
+
+Consider a B2B software startup that signs a customer to a \$120,000 annual contract paid upfront on January~1, while also paying an annual \$60,000 cloud reserved-instance bill on January~1 and \$8,000 per month in salaries. Under cash accounting, January shows \$120,000 of revenue and \$68,000 of expenses (+\$52,000 profit), while February through December each show \$0 of revenue and \$8,000 of losses. Neither number reflects reality: the startup is earning \$10,000 per month and spending \$13,000 per month (\$5,000 of cloud capacity plus \$8,000 of salaries), losing \$3,000 every single month.
+
+\textbf{Accrual accounting} (required under both US GAAP and IFRS) fixes this distortion through two rules:
+\begin{enumerate}
+  \item \textbf{Revenue recognition principle:} record revenue in the period in which the performance obligation is satisfied (goods delivered or service rendered), regardless of when cash is collected.
+  \item \textbf{Matching principle:} record expenses in the same period as the revenues those resources helped generate, regardless of when cash is paid.
+\end{enumerate}
+
+Whenever cash moves earlier or later than economic delivery, double-entry creates one of four timing-bridge accounts on the Balance Sheet:
+
+\begin{itemize}
+  \item \textbf{Accounts Receivable (Asset -- earn now, collect cash later):} You deliver \$50,000 of API traffic in January on Net-30 terms. On delivery: Dr \texttt{Accounts Receivable} \$50,000 / Cr \texttt{Revenue} \$50,000. When the wire arrives in February: Dr \texttt{Cash} \$50,000 / Cr \texttt{Accounts Receivable} \$50,000. Notice that February revenue is untouched.
+  \item \textbf{Deferred / Unearned Revenue (Liability -- collect cash now, earn later):} A customer pays \$12,000 upfront for a 12-month subscription. On receipt, you owe 12 months of service: Dr \texttt{Cash} \$12,000 / Cr \texttt{Deferred Revenue} \$12,000. At the end of each month as you deliver service, you release \$1,000 from the liability into revenue: Dr \texttt{Deferred Revenue} \$1,000 / Cr \texttt{Revenue} \$1,000.
+  \item \textbf{Accounts Payable \& Accrued Expenses (Liability -- incur cost now, pay cash later):} Engineers work the second half of January earning \$14,000, payable on February~5, or a cloud vendor sends a Net-30 invoice. In January: Dr \texttt{Wages Expense} \$14,000 / Cr \texttt{Accrued Wages Payable} \$14,000. When paid on February~5: Dr \texttt{Accrued Wages Payable} \$14,000 / Cr \texttt{Cash} \$14,000.
+  \item \textbf{Prepaid Expenses (Asset -- pay cash now, incur cost later):} You pay \$12,000 upfront on January~1 for a 12-month cyber-insurance policy. On payment, you swap one asset (cash) for another asset (prepaid coverage): Dr \texttt{Prepaid Expenses} \$12,000 / Cr \texttt{Cash} \$12,000. Each month, one-twelfth expires into expense: Dr \texttt{Insurance Expense} \$1,000 / Cr \texttt{Prepaid Expenses} \$1,000.
+\end{itemize}
+
+\section{Complete 7-Transaction Ledger Walkthrough: RelayPay Inc.}
+
+Let us walk a concrete payment-infrastructure startup, \textbf{RelayPay Inc.}, from Day~0 incorporation ($B(t_0) = 0$ across all accounts) through seven January transactions. Track both the chronological \textbf{Journal Entries} and how they accumulate in the \textbf{T-accounts}.
+
+\subsubsection*{Transaction 1 (Jan 1 -- Founder equity injection)}
+Founders incorporate RelayPay Inc.\ and wire \$200,000 of seed capital in exchange for common shares. Value flows from \texttt{Common Stock} (Equity source) into \texttt{Cash} (Asset destination):
+\begin{center}
+\small
+\begin{tabular}{@{}llrr@{}}
+Jan 1 & Dr \texttt{Cash} (Asset) & \$200,000 & \\
+      & \quad Cr \texttt{Common Stock} (Equity) & & \$200,000
+\end{tabular}
+\end{center}
+
+\subsubsection*{Transaction 2 (Jan 3 -- Bank term loan)}
+RelayPay borrows \$100,000 under a 3-year commercial bank loan to fund hardware infrastructure. Value originates from the lender's claim (\texttt{Bank Loan Payable}, Liability source) and lands in \texttt{Cash}:
+\begin{center}
+\small
+\begin{tabular}{@{}llrr@{}}
+Jan 3 & Dr \texttt{Cash} (Asset) & \$100,000 & \\
+      & \quad Cr \texttt{Bank Loan Payable} (Liability) & & \$100,000
+\end{tabular}
+\end{center}
+At this point RelayPay holds \$300,000 of Cash, matched by \$100,000 of Liabilities and \$200,000 of Equity. Zero revenue has been earned.
+
+\subsubsection*{Transaction 3 (Jan 5 -- Purchasing dedicated server hardware)}
+RelayPay buys a dedicated hardware security module (HSM) and server cluster for \$120,000 in cash. The cluster has an expected useful life of 5~years (60~months) and zero expected salvage value. Because the hardware will serve customers for 60~months rather than being consumed in January, this is an asset swap (\texttt{Cash} source $\to$ \texttt{Equipment} destination), not an immediate January expense:
+\begin{center}
+\small
+\begin{tabular}{@{}llrr@{}}
+Jan 5 & Dr \texttt{Equipment} (Asset) & \$120,000 & \\
+      & \quad Cr \texttt{Cash} (Asset) & & \$120,000
+\end{tabular}
+\end{center}
+
+\subsubsection*{Transaction 4 (Jan 12 -- Delivering service on a Net-30 invoice)}
+RelayPay completes onboarding and routes January payment volume for an enterprise merchant, issuing a \$50,000 invoice payable within 30~days. Because the service has been delivered, accrual accounting recognizes revenue immediately (\texttt{Service Revenue} source $\to$ \texttt{Accounts Receivable} destination):
+\begin{center}
+\small
+\begin{tabular}{@{}llrr@{}}
+Jan 12 & Dr \texttt{Accounts Receivable} (Asset) & \$50,000 & \\
+       & \quad Cr \texttt{Service Revenue} (Revenue) & & \$50,000
+\end{tabular}
+\end{center}
+
+\subsubsection*{Transaction 5 (Jan 20 -- Paying cloud hosting and mid-month payroll)}
+RelayPay pays \$8,000 cash to its cloud provider for January production traffic and \$18,000 cash for first-half January engineering salaries (total cash outflow \$26,000). This is a split entry with one Credit source (\texttt{Cash}) feeding two Expense destinations:
+\begin{center}
+\small
+\begin{tabular}{@{}llrr@{}}
+Jan 20 & Dr \texttt{Cloud Hosting Expense} (Expense) & \$8,000 & \\
+       & Dr \texttt{Wages Expense} (Expense) & \$18,000 & \\
+       & \quad Cr \texttt{Cash} (Asset) & & \$26,000
+\end{tabular}
+\end{center}
+
+\subsubsection*{Transaction 6 (Jan 28 -- Collecting partial customer cash)}
+The enterprise merchant wires \$30,000 toward its \$50,000 invoice, leaving \$20,000 open for February. Value moves out of \texttt{Accounts Receivable} (source) into \texttt{Cash} (destination). No new revenue is recorded -- converting a receivable into cash is a pure asset swap:
+\begin{center}
+\small
+\begin{tabular}{@{}llrr@{}}
+Jan 28 & Dr \texttt{Cash} (Asset) & \$30,000 & \\
+       & \quad Cr \texttt{Accounts Receivable} (Asset) & & \$30,000
+\end{tabular}
+\end{center}
+
+\subsubsection*{Transaction 7 (Jan 31 -- Month-end depreciation and accrued wages)}
+Before closing the books on January~31, RelayPay posts two month-end adjusting entries so January expenses match January operations:
+\begin{enumerate}
+  \item \emph{Hardware depreciation:} One month of the server cluster's 60-month life has been consumed: \$120,000 divided by 60~months equals \$2,000. Rather than overwriting the historical purchase cost in \texttt{Equipment}, accounting credits a companion \textbf{contra-asset} account called \texttt{Accumulated Depreciation} (which carries a normal Credit balance and offsets \texttt{Equipment} on the Balance Sheet).
+  \item \emph{Accrued second-half payroll:} Engineers worked January~16--31 and earned \$14,000 of salaries that will be paid via ACH on February~5.
+\end{enumerate}
+\begin{center}
+\small
+\begin{tabular}{@{}llrr@{}}
+Jan 31a & Dr \texttt{Depreciation Expense} (Expense) & \$2,000 & \\
+        & \quad Cr \texttt{Accumulated Depreciation} (Contra-Asset) & & \$2,000 \\[0.35em]
+Jan 31b & Dr \texttt{Wages Expense} (Expense) & \$14,000 & \\
+        & \quad Cr \texttt{Accrued Wages Payable} (Liability) & & \$14,000
+\end{tabular}
+\end{center}
+
+\subsection*{Posting to T-Accounts and Compiling the Trial Balance}
+
+Figure~\ref{fig:ch01-t-accounts} displays how each journal leg posts into RelayPay's individual T-accounts, tagged by transaction number `(1)` through `(7)`. Within each T-account, we sum the Debit column and the Credit column and place the net balance on the heavier side.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[>=Stealth]
+  % Row 1: 3 Asset T-accounts
+  % Cash
+  \begin{scope}[shift={(0, 3.6)}]
+    \node[font=\scriptsize\bfseries, text=sourceblue] at (1.75, 2.25) {Cash (Asset)};
+    \draw[thick] (0.1, 2.0) -- (3.4, 2.0);
+    \draw[thick] (1.75, 0.35) -- (1.75, 2.0);
+    \node[font=\tiny, anchor=west] at (0.12, 1.78) {(1) 200,000};
+    \node[font=\tiny, anchor=west] at (0.12, 1.48) {(2) 100,000};
+    \node[font=\tiny, anchor=west] at (0.12, 1.18) {(6) \phantom{0}30,000};
+    \node[font=\tiny, anchor=east] at (3.38, 1.78) {120,000 (3)};
+    \node[font=\tiny, anchor=east] at (3.38, 1.48) {\phantom{0}26,000 (5)};
+    \draw[gray, densely dashed] (0.1, 0.78) -- (3.4, 0.78);
+    \node[font=\scriptsize\bfseries, text=sourceblue, anchor=west] at (0.12, 0.52) {Dr 184,000};
+  \end{scope}
+
+  % Accounts Receivable
+  \begin{scope}[shift={(4.15, 3.6)}]
+    \node[font=\scriptsize\bfseries, text=sourceblue] at (1.75, 2.25) {Accounts Receivable};
+    \draw[thick] (0.1, 2.0) -- (3.4, 2.0);
+    \draw[thick] (1.75, 0.35) -- (1.75, 2.0);
+    \node[font=\tiny, anchor=west] at (0.12, 1.78) {(4) 50,000};
+    \node[font=\tiny, anchor=east] at (3.38, 1.78) {30,000 (6)};
+    \draw[gray, densely dashed] (0.1, 0.78) -- (3.4, 0.78);
+    \node[font=\scriptsize\bfseries, text=sourceblue, anchor=west] at (0.12, 0.52) {Dr 20,000};
+  \end{scope}
+
+  % Equipment & Accum Depr
+  \begin{scope}[shift={(8.3, 3.6)}]
+    \node[font=\scriptsize\bfseries, text=sourceblue] at (1.75, 2.25) {Equipment / (Accum.\ Depr.)};
+    \draw[thick] (0.1, 2.0) -- (3.4, 2.0);
+    \draw[thick] (1.75, 0.35) -- (1.75, 2.0);
+    \node[font=\tiny, anchor=west] at (0.12, 1.78) {(3) 120,000};
+    \node[font=\tiny, anchor=east] at (3.38, 1.78) {2,000 (7a)};
+    \draw[gray, densely dashed] (0.1, 0.78) -- (3.4, 0.78);
+    \node[font=\tiny\bfseries, text=sourceblue, anchor=west] at (0.12, 0.52) {Dr 120k};
+    \node[font=\tiny\bfseries, text=quotientorange!85!black, anchor=east] at (3.38, 0.52) {Cr 2k};
+  \end{scope}
+
+  % Row 2: Liabilities, Equity, Revenue, Expenses
+  % Liabilities + Equity
+  \begin{scope}[shift={(0, 0.8)}]
+    \node[font=\scriptsize\bfseries, text=quotientorange!85!black] at (1.75, 2.25) {Liabilities \& Equity};
+    \draw[thick] (0.1, 2.0) -- (3.4, 2.0);
+    \draw[thick] (1.75, 0.35) -- (1.75, 2.0);
+    \node[font=\tiny, anchor=east] at (3.38, 1.78) {Stock: 200,000 (1)};
+    \node[font=\tiny, anchor=east] at (3.38, 1.48) {Loan: 100,000 (2)};
+    \node[font=\tiny, anchor=east] at (3.38, 1.18) {Wages: \phantom{0}14,000 (7b)};
+    \draw[gray, densely dashed] (0.1, 0.78) -- (3.4, 0.78);
+    \node[font=\scriptsize\bfseries, text=quotientorange!85!black, anchor=east] at (3.38, 0.52) {Cr 314,000};
+  \end{scope}
+
+  % Revenue
+  \begin{scope}[shift={(4.15, 0.8)}]
+    \node[font=\scriptsize\bfseries, text=quotientorange!85!black] at (1.75, 2.25) {Service Revenue};
+    \draw[thick] (0.1, 2.0) -- (3.4, 2.0);
+    \draw[thick] (1.75, 0.35) -- (1.75, 2.0);
+    \node[font=\tiny, anchor=east] at (3.38, 1.78) {50,000 (4)};
+    \draw[gray, densely dashed] (0.1, 0.78) -- (3.4, 0.78);
+    \node[font=\scriptsize\bfseries, text=quotientorange!85!black, anchor=east] at (3.38, 0.52) {Cr 50,000};
+  \end{scope}
+
+  % Expenses
+  \begin{scope}[shift={(8.3, 0.8)}]
+    \node[font=\scriptsize\bfseries, text=targetgreen!80!black] at (1.75, 2.25) {January Expenses};
+    \draw[thick] (0.1, 2.0) -- (3.4, 2.0);
+    \draw[thick] (1.75, 0.35) -- (1.75, 2.0);
+    \node[font=\tiny, anchor=west] at (0.12, 1.78) {(5) Cloud \phantom{0}8,000};
+    \node[font=\tiny, anchor=west] at (0.12, 1.48) {(5,7b) Wages 32,000};
+    \node[font=\tiny, anchor=west] at (0.12, 1.18) {(7a) Depr \phantom{00}2,000};
+    \draw[gray, densely dashed] (0.1, 0.78) -- (3.4, 0.78);
+    \node[font=\scriptsize\bfseries, text=targetgreen!80!black, anchor=west] at (0.12, 0.52) {Dr 42,000};
+  \end{scope}
+
+  % Bottom Trial Balance Checksum Banner
+  \node[draw=sourceblue!80, fill=sourceblue!6, rounded corners=3pt, thick, font=\scriptsize, inner sep=4.5pt] at (5.9, 0.0)
+    {\textbf{Trial Balance Checksum:} \quad $\sum\text{Debits} = 184\text{k} + 20\text{k} + 120\text{k} + 42\text{k} = 366\text{k} \;=\; 2\text{k} + 314\text{k} + 50\text{k} = \sum\text{Credits}$};
+\end{tikzpicture}
+\caption{T-account postings for RelayPay Inc.\ across January transactions (1)--(7). Every individual transaction adds equal amounts to left and right columns, forcing the month-end Trial Balance to balance at \$366,000.}
+\label{fig:ch01-t-accounts}
+\end{figure}
+
+Listing every general-ledger account with its ending January~31 balance produces RelayPay's \textbf{Adjusted Trial Balance} in Table~\ref{tab:ch01-trial-balance}.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{@{}llrr@{}}
+\toprule
+\textbf{Account Name} & \textbf{Account Type} & \textbf{Debit Balance} & \textbf{Credit Balance} \\
+\midrule
+Cash                           & Asset          & \$184,000 &           \\
+Accounts Receivable            & Asset          & \$20,000  &           \\
+Equipment                      & Asset          & \$120,000 &           \\
+Accumulated Depreciation       & Contra-Asset   &           & \$2,000   \\
+Accrued Wages Payable          & Liability      &           & \$14,000  \\
+Bank Loan Payable              & Liability      &           & \$100,000 \\
+Common Stock                   & Equity         &           & \$200,000 \\
+Service Revenue                & Revenue        &           & \$50,000  \\
+Cloud Hosting Expense          & Expense        & \$8,000   &           \\
+Wages Expense                  & Expense        & \$32,000  &           \\
+Depreciation Expense           & Expense        & \$2,000   &           \\
+\midrule
+\textbf{Total}                 &                & \textbf{\$366,000} & \textbf{\$366,000} \\
+\bottomrule
+\end{tabular}
+\caption{Adjusted Trial Balance of RelayPay Inc.\ as of January~31.}
+\label{tab:ch01-trial-balance}
+\end{table}
+
+\subsection*{What Bugs a Trial Balance Catches -- and What It Misses}
+
+Think of the Trial Balance equality $\sum \text{Dr} = \sum \text{Cr}$ the same way an engineer thinks of a parity bit or linear checksum over a message bus. It guarantees that no asymmetric write occurred, which immediately catches three common bugs:
+\begin{itemize}
+  \item \textbf{One-legged entries:} debiting \texttt{Cash} \$30,000 when a wire arrives while forgetting to credit \texttt{Accounts Receivable}.
+  \item \textbf{Sign-flip postings:} recording both legs of a \$14,000 accrual as Debits, creating a \$28,000 gap ($2w$).
+  \item \textbf{Single-leg digit transpositions:} writing \$54,000 on the Debit leg and \$45,000 on the Credit leg. Whenever two adjacent digits $a$ and $b$ are swapped on one leg, the imbalance equals $\abs{(10a + b) - (10b + a)} \cdot 10^k = 9\abs{a - b}\cdot 10^k$, which is always divisible by~$9$ -- a classic diagnostic trick bookkeepers used for centuries to isolate transposition typos.
+\end{itemize}
+
+Equally important, $\sum \text{Dr} = \sum \text{Cr}$ has a nonzero nullspace: any error vector $(\Delta D, \Delta C)$ satisfying $\sum \Delta D = \sum \Delta C$ passes the Trial Balance silently. Specifically, a Trial Balance \textbf{misses}:
+\begin{enumerate}
+  \item \textbf{Omitted transactions:} forgetting to record an unbilled vendor invoice leaves both sides off by \$0.
+  \item \textbf{Duplicate postings:} running a webhook handler twice without an idempotency key posts both Debit and Credit twice, keeping the ledger balanced while doubling the economic effect.
+  \item \textbf{Wrong-account misclassifications:} posting an \$8,000 cloud bill as a Debit to \texttt{Equipment} (an Asset) instead of \texttt{Cloud Hosting Expense} (an Expense) keeps $\sum \text{Dr} = \sum \text{Cr}$ intact while overstating both profit and assets by \$8,000. Posting customer cash against the wrong customer's receivable sub-account likewise preserves the aggregate balance.
+  \item \textbf{Equal-amount entry errors:} recording a \$50,000 invoice as \$5,000 on both the Debit and Credit legs.
+\end{enumerate}
+
+Catching errors inside the nullspace of the Trial Balance requires reconciling internal ledger accounts against independent external state -- bank statements, payment-processor settlement files, and customer confirmations -- a control architecture we will build systematically in Part~IV.
+
+\section*{Exercises}
+
+\begin{exercise}
+\label{ex:ch01-prepaid-deferred}
+On March~1, a developer-tools company (a) collects \$36,000 cash upfront from a customer for a 12-month enterprise license running March~1 through February~28 of the following year, and (b) pays \$18,000 cash upfront for a 6-month security-monitoring contract running March~1 through August~31. Write the journal entries on March~1 and the adjusting entries on March~31, and state the March~31 Balance Sheet balances of \texttt{Deferred Revenue} and \texttt{Prepaid Expenses}.
+\end{exercise}
+
+\begin{exercise}
+\label{ex:ch01-graph-edges}
+Model a ledger as a directed graph with signed balances $x_a = D_a - C_a$ initialized to zero. Write each of the following events as a weighted directed edge $(u, v, w)$ from source $u$ to destination $v$, then compute $x_a$ for every vertex after all four events execute: (1) issue \$80,000 of common stock for cash; (2) buy \$24,000 of inventory on Net-30 vendor credit (\texttt{Accounts Payable}); (3) pay \$10,000 of that vendor payable in cash; (4) sell half the inventory (\$12,000 cost, recorded to \texttt{Cost of Goods Sold}) to a customer for \$20,000 cash (a two-edge event: one edge for the revenue/cash inflow and one edge for the inventory/cost transfer). Verify that $\sum_a x_a = 0$.
+\end{exercise}
+
+\begin{exercise}
+\label{ex:ch01-transposition}
+An automated ledger import finishes with Total Debits of \$412,850 and Total Credits of \$406,550. Compute the imbalance, check whether it is divisible by $9$, and determine which adjacent digit pair could have been transposed on a single journal leg in the thousands/hundreds positions. Give one concrete example of a true Credit amount and its transposed value that produces this exact discrepancy.
+\end{exercise}
+
+\begin{exercise}
+\label{ex:ch01-cash-vs-accrual}
+An AI consulting firm starts April~1 with \$0 in all accounts. On April~2 it collects a \$90,000 upfront retainer covering equal engineering delivery across April, May, and June (\$30,000 earned per month). Contractors perform \$22,000 of work each month in April, May, and June, but under Net-45 terms the April contractor bill is paid in cash on May~15, the May bill on June~15, and the June bill on July~15. Compute monthly profit for April, May, and June under (a) cash-basis accounting and (b) accrual accounting.
+\end{exercise}
+
+\begin{exercise}
+\label{ex:ch01-relaypay-tx8}
+Continue RelayPay Inc.'s ledger from Table~\ref{tab:ch01-trial-balance} into February. On February~5, RelayPay runs payroll and wires \$30,000 cash to employees: \$14,000 settles the second-half January wages accrued in Transaction~7b, and \$16,000 pays wages earned during February~1--5. Write the compound journal entry on February~5, verify that Debits equal Credits, and explain why February \texttt{Wages Expense} increases by only \$16,000 even though \$30,000 of cash left the bank.
+\end{exercise}

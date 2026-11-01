@@ -50,9 +50,19 @@ let where = '';
 const warn = (msg) => warnings.push(`${where}: ${msg}`);
 
 function stripComments(s) {
+  let inVerb = null;
   return s
     .split('\n')
     .map((l) => {
+      if (inVerb) {
+        if (l.includes(`\\end{${inVerb}}`)) inVerb = null;
+        return l;
+      }
+      const m = /\\begin\{(lstlisting|verbatim|Verbatim|minted)\}/.exec(l);
+      if (m && !l.includes(`\\end{${m[1]}}`)) {
+        inVerb = m[1];
+        return l;
+      }
       for (let i = 0; i < l.length; i++) {
         if (l[i] === '\\') { i++; continue; }
         if (l[i] === '%') return l.slice(0, i);
@@ -248,7 +258,7 @@ function tikzPreamble(pre) {
 
 const DELIM = { p: ['(', ')'], b: ['[', ']'], B: ['\\{', '\\}'], v: ['|', '|'], V: ['\\|', '\\|'] };
 // Always-available macros for KaTeX (LaTeX commands KaTeX lacks).
-const BASE_MACROS = { '\\qed': '\\quad\\blacksquare', '\\qedsymbol': '\\blacksquare', '\\textsuperscript': '^{\\text{#1}}' };
+const BASE_MACROS = { '\\qed': '\\quad\\blacksquare', '\\qedsymbol': '\\blacksquare', '\\textsuperscript': '^{\\text{#1}}', '\\pounds': '\\text{£}', '\\textsterling': '\\text{£}' };
 
 function prepMath(src) {
   let t = src
@@ -295,7 +305,7 @@ const SIMPLE = {
   '%': '%', '&': '&amp;', '#': '#', '_': '_', '{': '{', '}': '}', '$': '$', ' ': ' ', ',': '&thinsp;', ';': ' ', '!': '', '/': '', '-': '&shy;', '@': '',
   ldots: '…', dots: '…', textendash: '–', textemdash: '—', LaTeX: 'LaTeX', TeX: 'TeX', '\\': '<br>', newline: '<br>', linebreak: ' ',
   S: '§', P: '¶', checkmark: '✓', textbullet: '•', quad: '&emsp;', qquad: '&emsp;&emsp;', enspace: '&ensp;', thinspace: '&thinsp;', textasciitilde: '~', textbackslash: '\\',
-  times: '×', copyright: '©', dag: '†', textdegree: '°', ss: 'ß', ae: 'æ', o: 'ø', aa: 'å', i: 'ı', today: '', par: ' ', relax: '', textquotesingle: "'", 
+  times: '×', copyright: '©', dag: '†', textdegree: '°', ss: 'ß', ae: 'æ', o: 'ø', aa: 'å', i: 'ı', today: '', par: ' ', relax: '', textquotesingle: "'", pounds: '£', textsterling: '£', 
 };
 const IGNORE_TEXT = new Set(['small', 'footnotesize', 'scriptsize', 'tiny', 'large', 'Large', 'LARGE', 'huge', 'Huge', 'normalsize', 'centering', 'raggedright', 'raggedleft', 'noindent', 'indent', 'hfill', 'vfill', 'protect', 'medskip', 'bigskip', 'smallskip', 'newpage', 'clearpage', 'pagebreak', 'nopagebreak', 'chapterline', 'bfseries', 'itshape', 'em', 'normalfont', 'ttfamily', 'sffamily', 'rmfamily', 'upshape', 'mdseries', 'selectfont', 'break', 'allowbreak', 'nobreak', 'qed', 'hline', 'toprule', 'midrule', 'bottomrule', 'item', 'maketitle', 'tableofcontents', 'frontmatter', 'mainmatter', 'backmatter', 'appendix', 'null', 'leavevmode', 'strut', 'displaystyle', 'sloppy', 'qedhere']);
 const DROP_ARGS = { vspace: 1, hspace: 1, label: 1, addcontentsline: 3, needspace: 1, setlength: 2, addtocontents: 2, phantomsection: 0, markboth: 2, markright: 1, index: 1, rule: 2, color: 1, pagestyle: 1, thispagestyle: 1, setcounter: 2, addtocounter: 2, enlargethispage: 1, vskip: 0, fontsize: 2, addlinespace: 0 };
@@ -925,6 +935,8 @@ function buildChapter(ch, headings) {
   B.tabN = 0;
   B.eqN = 0;
   where = `${B.cfg.id} ch ${ch.label}`;
+  const chLab = /^\s*\\label\{([^}]*)\}/.exec(ch.content);
+  if (chLab) B.labels[chLab[1]] = { text: `Chapter ${ch.label}`, anchor: '' };
   const blocks = parseBlocks(ch.content, { headings });
   // number headings and assign ids/refs
   const out = [];
@@ -997,7 +1009,7 @@ for (const cfg of BOOKS) {
       let text = t.text;
       if (cmd === 'ref' || cmd === 'eqref') text = t.eq ? (cmd === 'eqref' ? t.text : t.text.replace(/[()]/g, '')) : t.text.replace(/^[A-Z][a-z]+ /, '');
       if (cmd === 'pageref') text = t.text;
-      return `<a class="xref" href="#/${cfg.id}/${t.chapter}#${t.anchor}">${text}</a>`;
+      return `<a class="xref" href="#/${cfg.id}/${t.chapter}${t.anchor ? '#' + t.anchor : ''}">${text}</a>`;
     });
   const resolveMath = (html) =>
     html.replace(/\\text\{@@REF:([a-zA-Z]+):([^@]*)@@\}/g, (_, cmd, l) => {

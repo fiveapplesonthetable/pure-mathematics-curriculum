@@ -14,13 +14,13 @@ Outputs are written to `dist/`.
 
 ## Companion books
 
-Three companion readers live under `books/`, each merged with its full history
-(`git subtree`) from its original repository:
+Four companion readers live under `books/`:
 
 | Book | Source | Build | PDF |
 |---|---|---|---|
 | Calculus From the Ground Up | `books/calculus/src/main.tex` | `books/calculus/build.sh` | `books/calculus/dist/calculus-from-the-ground-up.pdf` |
 | Linear Algebra From the Ground Up | `books/linear-algebra/src/main.tex` | `books/linear-algebra/build.sh` | `books/linear-algebra/dist/linear-algebra-from-the-ground-up.pdf` |
 | Probability From the Ground Up | `books/probability/src/main.tex` | `books/probability/build.sh` | `books/probability/dist/probability-from-the-ground-up.pdf` |
+| Finance and Accounting From the Ground Up | `books/finance/src/main.tex` | `books/finance/build.sh` | `books/finance/dist/finance-from-the-ground-up.pdf` |
 
 Each `build.sh` runs from its own directory (`cd books/calculus && ./build.sh`).

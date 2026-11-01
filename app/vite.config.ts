@@ -36,7 +36,7 @@ export default defineConfig({
           {
             urlPattern: ({ url }) => url.pathname.includes('/figures/'),
             handler: 'CacheFirst',
-            options: { cacheName: 'book-figures', expiration: { maxEntries: 1000 } },
+            options: { cacheName: 'book-figures', expiration: { maxEntries: 1500 } },
           },
         ],
       },

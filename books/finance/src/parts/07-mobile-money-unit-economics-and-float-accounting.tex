@@ -1,0 +1,406 @@
+\chapter{Mobile Money Ledgers, Safeguarded Float, and Payment Unit Economics}
+\label{ch:mobile-money-ledgers}
+\chapterline
+
+Suppose you build a digital wallet application in Nairobi, Lagos, or S\~{a}o Paulo. At 09:00 on Monday morning, a customer walks up to a neighborhood kiosk, hands physical banknotes worth $5{,}000$ Kenyan shillings (KES) to a registered retail agent, and receives an instant notification that her phone wallet balance is now KES $5{,}000$. At the same moment, your company's pooled settlement account reflects KES $5{,}000$ of fresh liquidity.
+
+An engineer writing the backend service and a founder reading the bank dashboard face the exact same accounting question: \emph{whose money is that KES $5{,}000$, and did the company just earn KES $5{,}000$ of revenue?}
+
+The answer from double-entry accounting is unambiguous. Your company earned zero revenue, and none of that KES $5{,}000$ belongs to corporate operations. Every shilling of a customer's wallet balance is a \textbf{liability} owed back to the customer on demand, matched one-for-one by a ring-fenced \textbf{safeguarded float asset} that the company is legally forbidden from spending on servers, salaries, or office rent. Getting this wall right -- both in statutory bank accounts and in the database schema that posts journal entries under network failures -- is the foundation of every payment business.
+
+\section{From Prepaid Airtime to Safeguarded Electronic Money}
+
+To understand why mobile money accounting looks the way it does, start with the physical problem it solved: moving small sums of purchasing power across distance for households without commercial bank accounts, without turning the payment operator itself into an unregulated fractional-reserve bank.
+
+\begin{historybox}
+In the early 2000s, mobile telephone adoption across East and West Africa grew far faster than branch banking. Researchers funded by the UK Department for International Development noticed an informal practice across Kenya and Uganda: urban workers bought scratch cards for prepaid mobile airtime, texted the sixteen-digit PIN code to relatives upcountry, and the recipient either loaded the minutes or sold the PIN to a local shopkeeper for physical banknotes at a $10\%$ to $20\%$ discount. Prepaid airtime had spontaneously become a bearer remittance instrument.
+
+Vodafone and Kenya's mobile network operator Safaricom formalized this pattern by building a dedicated electronic value ledger alongside the SIM card and recruiting thousands of small retail shops to handle physical \textbf{cash-in} (converting banknotes into electronic wallet value) and \textbf{cash-out} (redeeming electronic value back into banknotes). Launched across Kenya in March 2007 as \textbf{M-Pesa} (\emph{pesa} is Swahili for money), the system scaled within a few years to process value equivalent to a large share of Kenyan GDP. Parallel agent-led mobile money networks followed across the continent -- including \textbf{MTN MoMo}, \textbf{Airtel Money}, and \textbf{Wave} across Francophone West Africa -- while central banks later built account-to-account instant payment switches such as India's UPI (2016) and Brazil's \textbf{Pix} (2020).
+
+Regulators initially asked whether Safaricom was operating an unlicensed bank. The legal resolution pioneered with the Central Bank of Kenya -- and codified globally in \textbf{Electronic Money Institution (EMI)} and \textbf{Payment Service Provider (PSP)} statutes from Kenya's National Payment System Act to the UK and EU Electronic Money Regulations -- was the \textbf{Safeguarding Trust}: the operator may issue 1-for-1 electronic value only if $100\%$ of customer balances sit inside bankruptcy-remote trust accounts at prudentially regulated commercial banks (or central-bank reserves), legally insulated from the operator's own creditors.
+\end{historybox}
+
+Compare a commercial bank with an electronic money institution or mobile money PSP:
+\begin{itemize}
+  \item A \textbf{commercial bank} takes deposits onto its balance sheet and lends the majority out as mortgages, working-capital lines, and Treasury securities, holding only a fraction as liquid reserves. In return for taking credit and maturity-transformation risk, a bank endures heavy capital-adequacy regulation (Basel CET1 ratios) and deposit-insurance levies.
+  \item A \textbf{payment institution / EMI / mobile money operator} does not intermediate credit. It provides storage and state-transition rails for customer funds. Because it takes zero lending risk with customer principal, regulators require $100\%$ liquid backing of customer balances inside segregated safeguarding accounts rather than fractional reserves.
+\end{itemize}
+
+\section{The Balance Sheet Wall: Customer Float vs Corporate Operating Cash}
+
+A compliant digital wallet or payment company maintains two strictly separated cash perimeters on its balance sheet:
+\begin{enumerate}
+  \item \textbf{The Safeguarding Perimeter:} Holds segregated client-money assets (\texttt{Safeguarded Float} across Trust Banks and Telco/M-Pesa Pools) matched against \texttt{Customer Wallet Liability} and unpaid in-flight customer transfers.
+  \item \textbf{The Corporate Operating Perimeter (House Money):} Holds \texttt{Corporate Operating Cash} alongside equipment, software receivables, trade payables, and \texttt{Shareholders' Equity}. Corporate operating cash is the \emph{only} cash account permitted to pay cloud hosting bills, engineering payroll, office leases, marketing, or dividends.
+\end{enumerate}
+
+\begin{definition}[The Safeguarding Parity Invariant]
+Let $F_{\text{trust}}(t)$ denote total unencumbered liquid funds held across segregated safeguarding trust banks and ring-fenced telco float pools at time $t$, and let $L_{\text{cust}}(t)$ denote the sum of all customer wallet balances (both available and reserved in-flight) plus unredeemed payment obligations at time $t$. Statutory safeguarding requires
+\[
+  F_{\text{trust}}(t) \ge L_{\text{cust}}(t) \quad \text{for all } t.
+\]
+Any excess $S_{\text{earned}}(t) = F_{\text{trust}}(t) - L_{\text{cust}}(t) > 0$ represents accrued corporate fees (or a deliberate corporate safeguarding buffer) not yet swept to the corporate operating bank account.
+\end{definition}
+
+Let us trace how money enters, moves within, and exits this structure through exact double-entry postings.
+
+\subsection{Wallet Funding (Cash-In) Creates Zero Revenue}
+
+Suppose Customer Alice funds her digital wallet with KES $5{,}000.00$ via an M-Pesa SIM Toolkit (STK) push or instant bank transfer that settles into your segregated trust pool at zero deposit fee. Your ledger posts:
+
+\begin{center}
+\small
+\begin{tabular}{llrr}
+\toprule
+\textbf{Account} & \textbf{Balance Sheet Bucket} & \textbf{Debit (KES)} & \textbf{Credit (KES)} \\
+\midrule
+Safeguarded Float -- M-Pesa Pool & Asset (Safeguarded) & $5{,}000.00$ & \\
+Customer Wallet Liability -- Alice & Liability (Safeguarded) & & $5{,}000.00$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Check the conservation invariants immediately after this entry:
+\begin{itemize}
+  \item Safeguarded assets rose by KES $5{,}000.00$, and customer wallet liabilities rose by KES $5{,}000.00$. Net company equity changed by $\text{KES } 0.00$.
+  \item Revenue on the income statement is $\text{KES } 0.00$.
+  \item \texttt{Corporate Operating Cash} changed by $\text{KES } 0.00$.
+\end{itemize}
+
+\begin{trapbox}
+\textbf{Commingling Customer Float with Corporate Cash.} Early-stage payment startups frequently open a single business checking account, receive customer wallet deposits into that account, and wire AWS hosting fees and payroll from the same pool. Even if founders intend to ``replace it from next month's VC round,'' spending KES $1$ of customer float reduces $F_{\text{trust}}$ below $L_{\text{cust}}$. Under EMI, PSP, and money-transmitter laws across almost every jurisdiction, commingling and spending client float is not merely sloppy bookkeeping -- it is a license-revoking regulatory breach and, in insolvency, can carry personal director liability.
+\end{trapbox}
+
+\subsection{How Earned Fees Cross the Wall via Daily Settlement Sweep}
+
+If customer float cannot pay salaries, how does a wallet operator turn transaction fees into spendable corporate cash? By extinguishing customer liability first through double-entry revenue recognition, and then sweeping the resulting surplus out of the trust account.
+
+Suppose Alice sends KES $5{,}000.00$ from her wallet to Bob's wallet on the same platform, and your fee schedule charges Alice a KES $50.00$ transfer fee (assuming Alice previously deposited at least KES $5{,}050.00$). At the instant the transfer executes, the ledger posts:
+
+\begin{center}
+\begin{tabular}{llrr}
+\toprule
+\textbf{Account} & \textbf{Ledger Classification} & \textbf{Debit (KES)} & \textbf{Credit (KES)} \\
+\midrule
+Customer Wallet Liability -- Alice & Liability ($\downarrow$) & $5{,}050.00$ & \\
+Customer Wallet Liability -- Bob & Liability ($\uparrow$) & & $5{,}000.00$ \\
+Transfer Fee Revenue & Revenue / Equity ($\uparrow$) & & $50.00$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Look closely at what just happened to the safeguarding equation $F_{\text{trust}} - L_{\text{cust}}$:
+\begin{itemize}
+  \item No physical bank transfer occurred yet, so \texttt{Safeguarded Float -- M-Pesa Trust Pool} still holds all the cash originally deposited (including Alice's KES $5{,}050.00$).
+  \item Total \texttt{Customer Wallet Liability} across Alice and Bob dropped by net KES $50.00$ (Alice owes $-5{,}050.00$, Bob is owed $+5{,}000.00$).
+  \item Therefore $F_{\text{trust}} - L_{\text{cust}} = \text{KES } 50.00$. Inside the trust account sits KES $50.00$ of cash that is \emph{no longer owed to any customer}; it backs corporate retained earnings created by \texttt{Transfer Fee Revenue}.
+\end{itemize}
+
+At the daily settlement cutoff (say 09:00 local banking hours after automated three-way reconciliation confirms all trust balances), treasury executes an inter-account bank transfer -- the \textbf{Daily Fee Sweep} -- moving earned net fees from the Trust Account to the Corporate Operating Account:
+
+\begin{center}
+\small
+\begin{tabular}{llrr}
+\toprule
+\textbf{Account} & \textbf{Balance Sheet Bucket} & \textbf{Debit (KES)} & \textbf{Credit (KES)} \\
+\midrule
+Corporate Operating Cash & Asset (Corporate House) & $50.00$ & \\
+Safeguarded Float -- M-Pesa Pool & Asset (Safeguarded) & & $50.00$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Now KES $50.00$ sits cleanly inside \texttt{Corporate Operating Cash}, ready to pay engineers, database licenses, or rent, while \texttt{Safeguarded Float} once again equals \texttt{Customer Wallet Liability} shilling-for-shilling.
+
+What if Alice instead sends KES $5{,}000.00$ \emph{externally} to a non-customer phone number via a telco Business-to-Consumer (B2C) rail that deducts a KES $15.00$ rail tariff directly from your telco float pool? At settlement:
+\begin{enumerate}
+  \item Alice's liability drops by KES $5{,}050.00$ (\texttt{Dr Customer Wallet Liability -- Alice 5,050.00}), while \texttt{Safeguarded Float -- Telco Pool} drops by KES $5{,}015.00$ (\texttt{5,000.00} principal delivered plus \texttt{15.00} telco tariff).
+  \item You record \texttt{Cr Transfer Fee Revenue 50.00} and \texttt{Dr Payout Rail Tariff Expense 15.00}.
+  \item The net corporate surplus generated inside the float pool is $\text{KES } 50.00 - \text{KES } 15.00 = \text{KES } 35.00$, which is the exact amount swept to \texttt{Corporate Operating Cash}.
+\end{enumerate}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm,>=Latex,font=\small]
+  % Safeguarding Perimeter Box
+  \draw[thick, draw=sourceblue, fill=sourceblue!5, rounded corners=5pt] (0,0) rectangle (5.5,5.0);
+  \node[font=\bfseries\small, text=sourceblue, anchor=north] at (2.75,4.85) {Safeguarding Perimeter (1:1 Ring-Fenced)};
+
+  \draw[draw=sourceblue!80!black, fill=white, rounded corners=3pt] (0.35,2.75) rectangle (5.15,4.15);
+  \node[font=\bfseries\footnotesize, align=center] at (2.75,3.72) {Asset: Safeguarded Float};
+  \node[font=\scriptsize, text=gray!80!black, align=center] at (2.75,3.18) {Trust Bank Accounts \&\\Telco / M-Pesa Float Pools};
+
+  \draw[draw=sourceblue!80!black, fill=white, rounded corners=3pt] (0.35,0.45) rectangle (5.15,1.85);
+  \node[font=\bfseries\footnotesize, align=center] at (2.75,1.42) {Liability: Customer Wallets};
+  \node[font=\scriptsize, text=gray!80!black, align=center] at (2.75,0.88) {Available Balances +\\In-Flight Reserved Funds};
+
+  \draw[<->, thick, sourceblue] (2.75,2.70) -- node[right, font=\scriptsize\bfseries, text=sourceblue] {$F_{\text{trust}} \ge L_{\text{cust}}$} (2.75,1.90);
+
+  % Firewall line
+  \draw[ultra thick, dashed, trapred] (6.15,-0.2) -- (6.15,5.2);
+  \node[font=\scriptsize\bfseries, text=trapred, fill=white, inner sep=2pt] at (6.15,5.25) {Statutory Firewall};
+
+  % Corporate Perimeter Box
+  \draw[thick, draw=targetgreen!85!black, fill=targetgreen!5, rounded corners=5pt] (6.8,0) rectangle (12.3,5.0);
+  \node[font=\bfseries\small, text=targetgreen!75!black, anchor=north] at (9.55,4.85) {Corporate Perimeter (House Money)};
+
+  \draw[draw=targetgreen!80!black, fill=white, rounded corners=3pt] (7.15,2.75) rectangle (11.95,4.15);
+  \node[font=\bfseries\footnotesize, align=center] at (9.55,3.72) {Asset: Corporate Operating Cash};
+  \node[font=\scriptsize, text=gray!80!black, align=center] at (9.55,3.18) {Pays Cloud, Engineers, Rent,\\Compliance, \& Taxes};
+
+  \draw[draw=targetgreen!80!black, fill=white, rounded corners=3pt] (7.15,0.45) rectangle (11.95,1.85);
+  \node[font=\bfseries\footnotesize, align=center] at (9.55,1.42) {Equity \& Net Fee Revenue};
+  \node[font=\scriptsize, text=gray!80!black, align=center] at (9.55,0.88) {Paid-In Capital + Earned\\Fees Minus Rail \& Opex};
+
+  % Sweep arrow across firewall
+  \draw[->, very thick, quotientorange!90!black] (5.18,3.45) -- node[above, font=\scriptsize\bfseries, text=quotientorange!85!black, fill=white, inner sep=1.5pt, yshift=2pt] {Daily Earned} node[below, font=\scriptsize\bfseries, text=quotientorange!85!black, fill=white, inner sep=1.5pt, yshift=-2pt] {Fee Sweep} (7.12,3.45);
+\end{tikzpicture}
+\caption{Statutory separation between customer wallet float and corporate operating cash. Principal deposits stay inside the safeguarding perimeter; only reconciled net earned fees cross the firewall into corporate operating cash via periodic settlement sweeps.}
+\label{fig:safeguarding-firewall}
+\end{figure}
+
+\section{GTV, Take Rate, and Payment Unit Economics}
+
+Because millions of dollars of customer principal pass through safeguarded float accounts without touching the income statement, evaluating a payment company requires distinguishing \emph{volume} from \emph{revenue}, and \emph{gross revenue} from \emph{net contribution}.
+
+\begin{definition}[Volume, Basis Points, and Payment Margins]
+Over a reporting period with $N$ settled payment instructions of principal amounts $p_1, p_2, \dots, p_N$:
+\begin{enumerate}
+  \item \textbf{Gross Transaction Volume (GTV)} -- also called \textbf{Total Payment Volume (TPV)} -- is the total principal value moved:
+  \[
+    \text{GTV} = \sum_{i=1}^{N} p_i.
+  \]
+  \item A \textbf{basis point (bp)} is one hundredth of one percent:
+  \[
+    1\text{ bp} = 0.01\% = 0.0001, \qquad 100\text{ bps} = 1.00\%, \qquad 10{,}000\text{ bps} = 100\%.
+  \]
+  \item \textbf{Gross Take Rate} is total earned transaction fees and customer FX spread divided by GTV:
+  \[
+    r_{\text{gross}} = \frac{R_{\text{gross}}}{\text{GTV}}, \qquad r_{\text{gross}}\text{ (in bps)} = 10{,}000 \times \frac{R_{\text{gross}}}{\text{GTV}}.
+  \]
+  \item \textbf{Net Transaction Margin (Contribution Margin)} is gross revenue minus all variable direct transaction costs $C_{\text{direct}}$ (collection gateway fees, agent cash-in/cash-out commissions, outbound payout tariffs, per-transaction SMS/KYC/screening costs, and fraud/reversal losses):
+  \[
+    M_{\text{net}} = R_{\text{gross}} - C_{\text{direct}}, \qquad m_{\text{net}}\text{ (in bps)} = 10{,}000 \times \frac{R_{\text{gross}} - C_{\text{direct}}}{\text{GTV}}.
+  \]
+\end{enumerate}
+\end{definition}
+
+Payment engineers work in basis points rather than percentages because payment margins live in narrow slices of $1\%$. Subtracting $110\text{ bps}$ of rail costs from $145\text{ bps}$ of take rate immediately yields $35\text{ bps}$, whereas writing $0.0145 - 0.0110 = 0.0035$ invites decimal-shift mistakes in pricing configs and SQL queries.
+
+\subsection{Why Confusing \$20M in Monthly GTV with Revenue Is Fatal}
+
+Consider a growing mobile-money and wallet operator processing \textbf{\$20,000,000} in monthly GTV across $400{,}000$ transactions (average ticket size \$50.00). On a pitch slide, ``\$240M annualized payment volume'' sounds massive. Table~\ref{tab:payment-unit-econ} decomposes what actually reaches the company's operating bank account each month.
+
+\begin{table}[htbp]
+\centering
+\caption{Monthly unit-economics waterfall for a digital wallet processing \$20,000,000 GTV across 400,000 transactions (\$50.00 average ticket).}
+\label{tab:payment-unit-econ}
+\footnotesize
+\setlength{\tabcolsep}{3.8pt}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Line Item} & \textbf{Rate (bps)} & \textbf{Per \$50 Tx (\$)} & \textbf{Monthly Total (\$)} \\
+\midrule
+\textbf{Gross Transaction Volume (GTV / TPV)} & $10{,}000\text{ bps}$ & \$50.000 & \$20,000,000 \\
+\midrule
+Customer transfer fees \& FX margin (\textbf{Gross Revenue}) & $145\text{ bps}$ & \$0.725 & \$290,000 \\
+\quad Less: Collection rail / STK push / card pay-in fees & $-48\text{ bps}$ & $-$\$0.240 & $-$\$96,000 \\
+\quad Less: Agent commissions \& telco B2C payout tariffs & $-37\text{ bps}$ & $-$\$0.185 & $-$\$74,000 \\
+\quad Less: OTP SMS, KYC verification, \& AML screening & $-13\text{ bps}$ & $-$\$0.065 & $-$\$26,000 \\
+\quad Less: Fraud, chargebacks, \& unrecovered reversals & $-12\text{ bps}$ & $-$\$0.060 & $-$\$24,000 \\
+\midrule
+\textbf{Total Direct Variable Rail \& Risk Costs (COGS)} & $-110\text{ bps}$ & $-$\$0.550 & $-$\$220,000 \\
+\midrule
+\textbf{Net Contribution Margin} & $\mathbf{35}\textbf{ bps}$ & \textbf{\$0.175} & \textbf{\$70,000} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Read the bottom line of Table~\ref{tab:payment-unit-econ} soberly:
+\begin{enumerate}
+  \item Out of \$20,000,000 in monthly flow, \$19,710,000 is customer principal that never belonged to the company, and \$220,000 goes straight out the door to telecom rails, collection gateways, retail agents, SMS aggregators, and fraud losses.
+  \item The entire business runs on \textbf{\$70,000 per month} (\texttt{35 bps}, or $17.5$ cents per \$50 payment) to cover engineering salaries, compliance staff, cloud databases, external audits, and office rent. If fixed monthly operating expenses are \$95,000, the company is burning \$25,000 of equity cash per month despite moving a quarter-billion dollars a year. To break even at $35\text{ bps}$ net contribution, monthly GTV must reach $\text{USD } 95{,}000 / 0.0035 \approx \text{USD } 27{,}142{,}857$.
+  \item Every basis point of operational leakage hits survival directly. If a retry bug double-pays $1$ in $2{,}500$ transactions ($4\text{ bps}$ of principal loss), or a marketing promotion waives $50\text{ bps}$ of fees without renegotiating rail tariffs, contribution margin drops from $+35\text{ bps}$ to $-15\text{ bps}$. At negative contribution margin, scaling transaction volume accelerates insolvency.
+\end{enumerate}
+
+\begin{intuitionbox}
+Think of GTV as the weight of cargo carried by a freight railway, gross take rate as the freight tariff billed to shippers, and direct rail costs as diesel fuel and track access tolls. No railway accountant books the market value of customers' shipping containers as railway revenue. In payments, money itself happens to be the cargo -- which makes confusing the cargo with the freight fee uniquely tempting unless your ledger separates them from line one.
+\end{intuitionbox}
+
+\section{Designing a Production Double-Entry Wallet Schema}
+
+How do you translate these accounting rules into a production database that survives concurrent API requests, dropped mobile networks, and duplicate telco webhooks?
+
+\subsection{Why a Mutable \texttt{users.balance} Column Fails}
+
+Beginners often design a wallet table as \texttt{users(id, phone, balance DECIMAL)} and implement an external payout by either updating \texttt{balance} after an HTTP call or updating it before:
+
+\begin{itemize}
+  \item \textbf{Failure Mode 1 -- Deducting after the external HTTP call (Double-Spend Race):} Alice has KES $6{,}000$. Two concurrent HTTP requests arrive $8\text{ ms}$ apart, each asking to withdraw KES $5{,}000$ to M-Pesa. Both threads read \texttt{balance = 6000 >= 5000}, both call the external telco B2C endpoint, both succeed externally (KES $10{,}000$ leaves your telco float pool), and your database ends at \texttt{balance = -4000} (or \texttt{1000} if one update overwrites the other without atomic increment).
+  \item \textbf{Failure Mode 2 -- Deducting before the HTTP call and auto-refunding on timeout:} Suppose you deduct KES $5{,}050$ first, call the external telco endpoint, and after $30\text{ seconds}$ receive \texttt{HTTP 504 Gateway Timeout} because an upstream proxy dropped the connection. If your error handler catches the exception and immediately adds KES $5{,}050$ back to \texttt{users.balance}, you have handed Alice a free refund while the telco may have already executed the payout. Alice withdraws the refunded KES $5{,}050$ a second time before tomorrow's reconciliation CSV reveals the double loss.
+  \item \textbf{Failure Mode 3 -- Floating-point drift and silent mutation:} Storing balances as IEEE-754 binary floats (\texttt{DOUBLE} or \texttt{FLOAT}) introduces representation error ($0.10 + 0.20 \neq 0.30$ in binary float), and overwriting a single number leaves zero double-entry trail when auditors ask how \texttt{balance} moved from $6{,}000$ to $950$.
+\end{itemize}
+
+\subsection{The Two-Phase Reservation Pattern (State Machine + Immutable Postings)}
+
+Production payment switches solve all three failure modes by combining three engineering invariants:
+\begin{enumerate}
+  \item \textbf{Integer minor units only:} Store every amount as a 64-bit signed integer (\texttt{BIGINT}) counting the smallest currency subdivision (e.g., USD cents, NGN kobo, or KES cents where $\text{KES } 5{,}050.00 = \texttt{505000}$).
+  \item \textbf{End-to-end idempotency keys:} Every client payment request carries an idempotency key, and every ledger transition posts a journal batch keyed deterministically by \texttt{(payment\_id, stage)} (\texttt{RESERVE}, \texttt{SETTLE}, or \texttt{REVERSE}) under a \texttt{UNIQUE} constraint so retries return the original result without posting twice.
+  \item \textbf{Two-stage liability split (\texttt{Available} vs \texttt{In-Flight Reserved}):} Each customer wallet is modeled not as one account, but as two liability sub-accounts: \texttt{Customer Available} ($L_{\text{avail}}$) and \texttt{Customer In-Flight Reserved} ($L_{\text{res}}$).
+\end{enumerate}
+
+Let us trace Alice's outbound payout of KES $5{,}000.00$ plus a KES $50.00$ fee (total \texttt{505000} minor units), where the external telco charges a KES $15.00$ (\texttt{1500} minor units) B2C rail tariff.
+
+\paragraph{Stage 1 -- Synchronous Lock / Reservation (Before Calling External Rail).}
+Inside a single ACID database transaction that acquires a row lock (\texttt{SELECT ... FOR UPDATE}) on Alice's \texttt{Customer Available} account row:
+\begin{itemize}
+  \item Verify $L_{\text{avail}}(\text{Alice}) \ge 505000$. If insufficient, abort cleanly before touching the network.
+  \item Insert payment state \texttt{RESERVED} and post journal batch \texttt{(pay\_981, 'RESERVE')}:
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{llrr}
+\toprule
+\textbf{Ledger Account} & \textbf{Type} & \textbf{Debit (KES)} & \textbf{Credit (KES)} \\
+\midrule
+Customer Available -- Alice & Liability ($\downarrow$) & $5{,}050.00$ & \\
+Customer In-Flight Reserved -- Alice & Liability ($\uparrow$) & & $5{,}050.00$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Commit this database transaction \emph{before} making the external HTTP call to the telco API. Observe two properties:
+\begin{itemize}
+  \item Alice's spendable balance (\texttt{Customer Available}) immediately drops by KES $5{,}050.00$, so a concurrent withdrawal request $2\text{ ms}$ later sees the reduced balance and cannot double-spend.
+  \item Total safeguarded customer liability ($L_{\text{avail}} + L_{\text{res}}$) is unchanged, accurately reflecting the reality that the payout has not yet settled externally.
+\end{itemize}
+
+\paragraph{Stage 2a -- Confirmed External Settlement (\texttt{SETTLED}).}
+When the telco webhook arrives (or an asynchronous status-query worker confirms) with a terminal receipt ID proving KES $5{,}000.00$ reached the recipient and KES $15.00$ tariff was charged, post journal batch \texttt{(pay\_981, 'SETTLE')}:
+
+\begin{center}
+\begin{tabular}{llrr}
+\toprule
+\textbf{Ledger Account} & \textbf{Type} & \textbf{Debit (KES)} & \textbf{Credit (KES)} \\
+\midrule
+Customer In-Flight Reserved -- Alice & Liability ($\downarrow$) & $5{,}050.00$ & \\
+Payout Rail Tariff Expense & Expense / COGS ($\uparrow$) & $15.00$ & \\
+Safeguarded Float -- Telco B2C Pool & Asset ($\downarrow$) & & $5{,}015.00$ \\
+Transfer Fee Revenue & Revenue ($\uparrow$) & & $50.00$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Every sum balances ($\text{Dr } 5{,}065.00 = \text{Cr } 5{,}065.00$). If the telco delivers the same webhook three more times over the next hour, the \texttt{UNIQUE(payment\_id, stage)} constraint catches \texttt{(pay\_981, 'SETTLE')} as already committed and returns \texttt{200 OK} idempotently.
+
+\paragraph{Stage 2b -- Confirmed Terminal Rejection (\texttt{REVERSED}).}
+What if the external rail confirms a deterministic, terminal rejection (for instance, invalid unregistered recipient MSISDN or hard limit rejection)? Only upon confirmed terminal failure -- \emph{never} upon an ambiguous timeout -- post journal batch \texttt{(pay\_981, 'REVERSE')}:
+
+\begin{center}
+\begin{tabular}{llrr}
+\toprule
+\textbf{Ledger Account} & \textbf{Type} & \textbf{Debit (KES)} & \textbf{Credit (KES)} \\
+\midrule
+Customer In-Flight Reserved -- Alice & Liability ($\downarrow$) & $5{,}050.00$ & \\
+Customer Available -- Alice & Liability ($\uparrow$) & & $5{,}050.00$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{trapbox}
+\textbf{Never Auto-Reverse on an HTTP Timeout.} In distributed payments, \texttt{HTTP 504}, \texttt{ECONNRESET}, or a missing webhook means \emph{outcome unknown}, not \emph{payment failed}. When an external payout call times out, transition the state machine to \texttt{PENDING\_RECON} while keeping the funds locked inside \texttt{Customer In-Flight Reserved}. Poll the provider's transaction-status endpoint using your original \texttt{originator\_conversation\_id} (or match against the T+1 settlement file) until the provider gives a definitive \texttt{SETTLED} or \texttt{REJECTED} verdict. Releasing reserved funds while the external state is unknown turns every upstream network blip into a double-withdrawal exploit.
+\end{trapbox}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm,>=Latex,font=\footnotesize]
+  \tikzset{
+    state/.style={draw=sourceblue!85!black, thick, fill=sourceblue!7, rounded corners=4pt, minimum width=2.55cm, minimum height=0.95cm, align=center},
+    termok/.style={draw=targetgreen!85!black, thick, fill=targetgreen!10, rounded corners=4pt, minimum width=2.65cm, minimum height=0.95cm, align=center},
+    termrev/.style={draw=quotientorange!90!black, thick, fill=quotientorange!10, rounded corners=4pt, minimum width=2.65cm, minimum height=0.95cm, align=center},
+    ambig/.style={draw=trapred!85!black, thick, fill=trapred!8, rounded corners=4pt, minimum width=2.65cm, minimum height=0.95cm, align=center}
+  }
+
+  \node[state] (init) at (1.35,2.2) {\textbf{INITIATED}\\Client API Request};
+  \node[state] (res) at (5.15,2.2) {\textbf{RESERVED}\\Dr Avail / Cr In-Flight};
+  \node[ambig] (pend) at (5.15,0.25) {\textbf{PENDING\_RECON}\\Timeout: Hold Lock};
+  \node[termok] (set) at (9.85,3.45) {\textbf{SETTLED}\\Dr In-Flight / Cr Float + Fee};
+  \node[termrev] (rev) at (9.85,0.95) {\textbf{REVERSED}\\Dr In-Flight / Cr Avail};
+
+  \draw[->, thick] (init) -- node[above, font=\scriptsize] {DB Lock OK} (res);
+  \draw[->, thick, targetgreen!80!black] (res) -- node[above, sloped, font=\scriptsize] {200 OK / Webhook} (set);
+  \draw[->, thick, quotientorange!85!black] (res) -- node[below, sloped, font=\scriptsize] {Confirmed Reject} (rev);
+  \draw[->, thick, trapred!80!black] (res) -- node[left, font=\scriptsize] {504 / Timeout} (pend);
+  \draw[->, thick, dashed, targetgreen!80!black] (pend.east) .. controls (7.6,0.25) and (7.9,3.1) .. node[pos=0.58, fill=white, inner sep=1pt, font=\scriptsize] {Poll: Paid} (set.west);
+  \draw[->, thick, dashed, quotientorange!85!black] (pend.east) -- node[below, font=\scriptsize] {Poll: Not Found / Failed} (rev.south west);
+\end{tikzpicture}
+\caption{Two-phase wallet payout state machine. Ambiguous network timeouts hold funds in \texttt{PENDING\_RECON} until provider status polling or settlement reconciliation establishes a terminal truth.}
+\label{fig:two-phase-wallet}
+\end{figure}
+
+The SQL schema below enforces integer minor units, idempotency keys, cached row-locked balances, and zero-sum double-entry batches:
+
+\begin{lstlisting}[language=SQL]
+CREATE TABLE ledger_accounts (
+  id             BIGSERIAL PRIMARY KEY,
+  code           TEXT NOT NULL UNIQUE,      -- e.g. 'WALLET_AVAIL:user_42'
+  currency       CHAR(3) NOT NULL,          -- ISO 4217: 'KES', 'NGN', 'USD'
+  normal_side    CHAR(2) NOT NULL CHECK (normal_side IN ('DR', 'CR')),
+  balance_minor  BIGINT NOT NULL DEFAULT 0  -- cached minor units; locked FOR UPDATE
+);
+
+CREATE TABLE journal_batches (
+  id               BIGSERIAL PRIMARY KEY,
+  idempotency_key  TEXT NOT NULL UNIQUE,    -- e.g. 'pay_981:SETTLE'
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  description      TEXT NOT NULL
+);
+
+CREATE TABLE ledger_postings (
+  id             BIGSERIAL PRIMARY KEY,
+  batch_id       BIGINT NOT NULL REFERENCES journal_batches(id),
+  account_id     BIGINT NOT NULL REFERENCES ledger_accounts(id),
+  currency       CHAR(3) NOT NULL,
+  signed_minor   BIGINT NOT NULL CHECK (signed_minor <> 0)
+  -- Convention: Debit = +signed_minor, Credit = -signed_minor.
+  -- Deferred constraint trigger verifies SUM(signed_minor) = 0 per (batch_id, currency).
+);
+\end{lstlisting}
+
+Signed integer postings (\texttt{Debit > 0}, \texttt{Credit < 0}) turn the fundamental conservation law of Part~I into a single SQL invariant: across every \texttt{batch\_id} and \texttt{currency}, \texttt{SUM(signed\_minor) = 0}, and across the entire database at any instant, \texttt{SUM(signed\_minor) = 0}. In Chapter~\ref{ch:fx-corridors}, we extend this zero-sum ledger invariant to transactions that cross currency boundaries.
+
+\section*{Exercises}
+\addcontentsline{toc}{section}{Exercises}
+
+\begin{exercise}[Safeguarding Balance Sheet and Daily Fee Sweep]
+A newly licensed mobile wallet starts Monday with KES $2{,}000{,}000$ of paid-in shareholder equity sitting in \texttt{Corporate Operating Cash} and KES $0$ in its \texttt{Safeguarded Trust Account}. During Monday:
+\begin{enumerate}
+  \item $1{,}000$ customers each deposit KES $4{,}000$ via free instant bank transfer into the trust account.
+  \item Customers execute $600$ internal peer-to-peer wallet transfers of KES $1{,}500$ each, paying a KES $15$ fee per transfer.
+  \item Customers execute $300$ external M-Pesa B2C cash-outs of KES $2{,}000$ each, paying a KES $45$ customer fee per cash-out, while the telco deducts a KES $18$ B2C tariff per cash-out from the safeguarded float pool.
+  \item Engineering receives an invoice for KES $120{,}000$ of cloud hosting and pays it.
+\end{enumerate}
+Compute: (a) total \texttt{Customer Wallet Liability} at 23:59 before any sweep; (b) actual cash held inside the safeguarded float pool before any sweep; (c) the exact maximum legal \textbf{Daily Fee Sweep} to operating cash; and (d) ending \texttt{Corporate Operating Cash} and \texttt{Shareholders' Equity} after paying the cloud bill and executing the sweep.
+\end{exercise}
+
+\begin{exercise}[GTV vs Net Contribution Stress Test]
+A payment startup processes \$15,000,000 in monthly GTV with an average transaction size of \$30.00. Customers pay an average gross take rate of $130\text{ bps}$. Variable costs per transaction are: collection rail fee $42\text{ bps}$, outbound payout tariff \$0.09 flat per transaction, SMS/KYC compliance \$0.03 flat per transaction, and fraud/dispute losses $9\text{ bps}$. Fixed monthly operating expenses (payroll, servers, compliance, rent) are \$62,000.
+\begin{enumerate}
+  \item Express every cost component in basis points at the \$30.00 average ticket size, and compute monthly Net Contribution Margin in both basis points and dollars. Is the company cash-flow positive?
+  \item Compute the exact monthly GTV required to reach operating break-even if ticket size and per-transaction economics remain constant.
+  \item Growth proposes a ``Zero-Fee Friday'' campaign expected to double Friday volume while cutting average monthly gross take rate from $130\text{ bps}$ to $95\text{ bps}$. Determine whether the campaign moves the company closer to or further from profitability.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Concurrency Race vs Two-Phase Reservation]
+Customer Kofi holds \texttt{450000} kobo (NGN $4{,}500.00$) in his wallet. Two mobile app retries arrive simultaneously, each attempting to withdraw NGN $3{,}000.00$ plus a NGN $50.00$ fee (\texttt{305000} kobo total) to an external bank rail.
+\begin{enumerate}
+  \item Trace the exact sequence of database reads, external API calls, and ending account balances under a naive implementation that checks \texttt{balance >= 305000} without locking and deducts \texttt{balance} only inside the webhook handler.
+  \item Trace the same two requests under the two-phase \texttt{Customer Available} $\to$ \texttt{In-Flight Reserved} design with \texttt{SELECT ... FOR UPDATE} and deterministic idempotency keys, including the case where Request 1's external HTTP call returns \texttt{504 Gateway Timeout} and the bank delivers the settlement webhook $14$ minutes later.
+\end{enumerate}
+\end{exercise}
+
+\begin{exercise}[Integer Minor Units and Remainder Conservation]
+An agent-assisted cash-out of KES $1{,}333.00$ (\texttt{133300} minor units) charges a customer fee of $1.75\%$ rounded to the nearest shilling cent (minor unit), and splits that fee $35\%$ to \texttt{Agent Commission Payable} and $65\%$ to \texttt{Corporate Fee Revenue}. Compute the exact integer minor units posted to \texttt{Customer In-Flight Reserved}, \texttt{Agent Cash-Out Float}, \texttt{Agent Commission Payable}, and \texttt{Corporate Fee Revenue}, stating a deterministic rounding rule that guarantees $\sum \text{signed\_minor} = 0$ on every transaction without losing or inventing a single minor unit.
+\end{exercise}
