@@ -29,6 +29,8 @@ import probability20 from './probability-20';
 import probability21 from './probability-21';
 import probability5 from './probability-5';
 import linearAlgebra23 from './linear-algebra-23';
+import finance6 from './finance-6';
+import finance9 from './finance-9';
 
 // Keyed by "<book>/<chapter key>".
 export const chapters: Record<string, Placement[]> = {
@@ -45,4 +47,6 @@ export const chapters: Record<string, Placement[]> = {
   'probability/20': probability20,
   'probability/21': probability21,
   'probability/5': probability5,
+  'finance/6': finance6,
+  'finance/9': finance9,
 };

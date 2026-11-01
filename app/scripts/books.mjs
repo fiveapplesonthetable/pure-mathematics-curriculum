@@ -42,4 +42,14 @@ export const BOOKS = [
     common: ['books/probability/src/common.tex'],
     unit: 'chapter',
   },
+  {
+    id: 'finance',
+    short: 'Finance',
+    title: 'Finance and Accounting From the Ground Up',
+    subtitle: 'Ledgers, financial statements, valuation, startup equity, and cross-border payment systems',
+    main: 'books/finance/src/main.tex',
+    root: 'books/finance',
+    common: ['books/finance/src/common.tex'],
+    unit: 'chapter',
+  },
 ];
