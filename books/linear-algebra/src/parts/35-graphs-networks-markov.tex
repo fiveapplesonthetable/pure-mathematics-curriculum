@@ -455,9 +455,11 @@ connected components of the graph.
 \end{theorem}
 
 \begin{proof}
-An eigenvector for $0$ is a vector $\vec{x}$ with $\mat{L}\vec{x}=\vec{0}$, equivalently
-$\vec{x}\T\mat{L}\vec{x} = \sum_{(i,j)\in E}(x_i-x_j)^2 = 0$ (using that $\mat{L}$ is
-positive semidefinite, energy zero forces $\mat{L}\vec x = 0$). Every squared term must
+An eigenvector for $0$ is a vector $\vec{x}$ with $\mat{L}\vec{x}=\vec{0}$. If
+$\mat{L}\vec{x}=\vec{0}$ then $\vec{x}\T\mat{L}\vec{x} = \norm{\mat{B}\vec{x}}^2 = 0$;
+conversely, $\norm{\mat{B}\vec{x}}^2 = 0$ forces $\mat{B}\vec{x}=\vec{0}$ and hence
+$\mat{L}\vec{x}=\mat{B}\T(\mat{B}\vec{x})=\vec{0}$. So $\mat{L}\vec{x}=\vec{0}$ exactly when
+$\sum_{(i,j)\in E}(x_i-x_j)^2 = 0$. Every squared term must
 vanish, so $x_i = x_j$ across each edge. Hence $\vec{x}$ is constant on each connected
 component, and free to choose a different constant per component. If there are $c$
 components, the space of such vectors has dimension exactly $c$ -- one indicator vector per
@@ -593,10 +595,11 @@ probability of the next step depends solely on the current state, completely obl
 past. The mathematical beauty is that this random walk is the exact discrete-time sibling of
 our Laplacian physics. The transition matrix that advances the walker is
 $\mat{P} = \mat{D}\inv\mat{A} = \mat{I} - \mat{D}\inv\mat{L}$. The one-step change in the
-probability vector is $-\vec{\pi}\mat{D}\inv\mat{L}$---the Laplacian operating directly on
-probability. The stationary equilibrium where the walker settles down is the state where
-probability currents into each node balance the currents out: Kirchhoff's current law,
-rewritten for probability.
+probability (row) vector is $\vec{\pi}(\mat{P}-\mat{I}) = -(\vec{\pi}\mat{D}\inv)\mat{L}$ --
+the Laplacian acting on probability \emph{per unit degree}, $\pi_i/d_i$, which plays the
+role of a voltage. The stationary equilibrium where the walker settles down is the state
+where those ``voltages'' are level, $\pi_i \propto d_i$, so probability currents into each
+node balance the currents out: Kirchhoff's current law, rewritten for probability.
 
 \begin{intuitionbox}
 A Markov chain is a memoryless random walk. The walker sits at some node, looks at the
@@ -930,8 +933,10 @@ strictly irreducible and aperiodic, explaining why it converged so cleanly.
 The eigenvalue $\lambda_2$ controlling Markov mixing and the eigenvalue $\lambda_2$
 controlling graph connectivity (the Fiedler value) reflect the same spectral phenomenon.
 For a random walk on an undirected graph, the transition matrix is
-$\mat{P} = \mat{D}\inv\mat{A}$, and its eigenvalues are related to the (normalized)
-Laplacian eigenvalues by $\mu_k = 1 - \lambda_k$. A large Laplacian gap means a large
+$\mat{P} = \mat{D}\inv\mat{A} = \mat{I}-\mat{D}\inv\mat{L}$. The matrix $\mat{D}\inv\mat{L}$ is
+similar to the symmetric \emph{normalized Laplacian}
+$\mat{D}^{-1/2}\mat{L}\mat{D}^{-1/2}$ (conjugate by $\mat{D}^{1/2}$), so its eigenvalues
+$\lambda_k$ are real and nonnegative, and $\mat{P}$'s eigenvalues are $\mu_k = 1 - \lambda_k$. A large Laplacian gap means a large
 Markov gap means fast mixing means no bottleneck. A graph that is hard to cut is a graph a
 random walker mixes through quickly. Connectivity, clustering, and mixing time provide three
 complementary perspectives on the spectrum of the Laplacian.
@@ -1157,12 +1162,13 @@ combinatorially hopeless into routine linear algebra. Partitioning a graph into 
 clusters of minimal cut size is an NP-hard problem; you cannot check all $2^n$ subsets
 of nodes. The Fiedler vector provides an immediate, continuous relaxation that
 separates clusters along their natural boundary. Similarly, the Google matrix
-$\mat{G} = \alpha\mat{P} + \frac{1-\alpha}{n}\vec{1}\vec{1}\T$ would appear to be a
+$\mat{G} = \alpha\mat{P} + \frac{1-\alpha}{n}\mat{J}$ (with $\mat{J}=\vec{1}\vec{1}\T$ the all-ones matrix) would appear to be a
 memory disaster: adding teleportation makes $\mat{G}$ completely dense, with $n^2$
 nonzero entries. On a web of billions of pages, storing $\mat{G}$ explicitly would
 require exabytes of RAM. But because the dense part is a rank-one matrix $\vec{1}\vec{1}\T$,
-we never form $\mat{G}$ directly. We multiply by the sparse link matrix $\mat{P}$ and
-add the scalar teleportation correction $\frac{1-\alpha}{n}\sum_i \pi_i$ at each step,
+we never form $\mat{G}$ directly. Since $\vec{\pi}\vec{1}\vec{1}\T = (\sum_i\pi_i)\vec{1}\T = \vec{1}\T$
+for a probability vector, each step multiplies by the sparse link matrix ($\alpha\vec{\pi}\mat{P}$)
+and adds the same constant $\frac{1-\alpha}{n}$ to every entry,
 keeping every power-method iteration fast and linear in the number of edges.
 
 Yet one must remain honest about the boundaries of the theory. While the Fiedler
@@ -1268,7 +1274,7 @@ the coin flips? (This is why reducibility breaks uniqueness.)
 \label{ch35:ex-pagerank}
 Use the four-page web of Figure~\ref{ch35:fig-web} with damping factor $\alpha = 0.85$.
 \begin{enumerate}
-\item Replace the dangling-free $\mat{P}$ given in the text and form the Google matrix
+\item Take the (dangling-free) transition matrix $\mat{P}$ given in the text and form the Google matrix
 $\mat{G} = \alpha\mat{P} + \tfrac{1-\alpha}{4}\mat{J}$ explicitly (a $4\times4$ matrix).
 \item Starting from uniform $\vec\pi^{(0)} = (\tfrac14,\tfrac14,\tfrac14,\tfrac14)$, run two
 power-method steps $\vec\pi^{(0)}\mat{G}$ and $(\vec\pi^{(0)}\mat{G})\mat{G}$.
@@ -1283,11 +1289,14 @@ For an undirected, connected graph let $\mat{L} = \mat{D}-\mat{A}$ be the Laplac
 $\mat{P} = \mat{D}\inv\mat{A}$ be the random-walk transition matrix.
 \begin{enumerate}
 \item Verify the identity $\mat{P} = \mat{I} - \mat{D}\inv\mat{L}$.
-\item Deduce that if $\vec{x}$ is an eigenvector of $\mat{D}\inv\mat{L}$ with eigenvalue
+\item Deduce that if $\vec{x}$ is a (right) eigenvector of $\mat{D}\inv\mat{L}$ with eigenvalue
 $\mu$, it is an eigenvector of $\mat{P}$ with eigenvalue $1-\mu$. In particular the
-Laplacian's eigenvalue $0$ (constant eigenvector) maps to $\mat{P}$'s eigenvalue $1$. Explain
-in words how this links ``connected $\Rightarrow$ unique constant ground state'' with
-``connected $\Rightarrow$ unique stationary distribution.''
+Laplacian's eigenvalue $0$ (constant eigenvector $\vec{1}$) maps to $\mat{P}\vec{1}=\vec{1}$.
+\item The stationary distribution is a \emph{left} eigenvector, $\vec{\pi}\mat{P}=\vec{\pi}$.
+Show this holds exactly when $(\vec{\pi}\mat{D}\inv)\mat{L}=\vec{0}$, and use
+Theorem~\ref{ch35:thm-components} to conclude that on a connected graph
+$\pi_i = d_i/\sum_k d_k$. Explain in words how this links ``connected $\Rightarrow$ unique
+constant ground state'' with ``connected $\Rightarrow$ unique stationary distribution.''
 \end{enumerate}
 \end{exercise}
 
