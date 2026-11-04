@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import katex from 'katex';
 import { BOOKS } from './books.mjs';
+import { highlightCode } from './highlight.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const REPO = join(here, '../..');
@@ -651,8 +652,22 @@ function parseEnv(name, inner, level) {
   }
   if (bare === 'quote' || bare === 'quotation' || bare === 'verse') return { t: 'quote', blocks: parseBlocks(inner, level) };
   if (bare === 'verbatim' || bare === 'lstlisting' || bare === 'Verbatim' || bare === 'minted') {
-    inner = inner.replace(/^\[[^\]]*\]/, '').replace(/^\{[^}]*\}/, '');
-    return { t: 'pre', text: inner.replace(/^\r?\n/, '').replace(/\s+$/, '') };
+    const LANG_NAMES = {
+      rust: 'Rust', 'c++': 'C++', cpp: 'C++', c: 'C', java: 'Java',
+      typescript: 'TypeScript', javascript: 'JavaScript', kotlin: 'Kotlin',
+      go: 'Go', golang: 'Go', ocaml: 'OCaml', haskell: 'Haskell',
+      sql: 'SQL', python: 'Python', toml: 'TOML', json: 'JSON', bash: 'Shell', sh: 'Shell',
+    };
+    const [opts, e0] = optArg(inner, 0);
+    let lang = null;
+    let rawLang = '';
+    if (opts) {
+      const langM = /\blanguage\s*=\s*(?:\{([^}]*)\}|([^,\s\]}]+))/.exec(opts);
+      rawLang = langM ? (langM[1] || langM[2]).trim().replace(/^\[[^\]]*\]/, '').toLowerCase() : '';
+      if (rawLang && LANG_NAMES[rawLang]) lang = LANG_NAMES[rawLang];
+    }
+    const cleanText = inner.slice(e0).replace(/^\{[^}]*\}/, '').replace(/^\r?\n/, '').replace(/\s+$/, '');
+    return { t: 'pre', text: cleanText, codeHtml: highlightCode(cleanText, rawLang), lang };
   }
   if (bare === 'tikzpicture') {
     const b = tikzBlock(`\\begin{tikzpicture}${inner}\\end{tikzpicture}`);
@@ -828,7 +843,7 @@ function render(b) {
       return `<${tag}${id}>${b.number ? `<span class="secnum">${b.number}</span> ` : ''}${b.html}</${tag}>`;
     }
     case 'math': return mathHtml(b.src, true);
-    case 'pre': return `<pre><code>${esc(b.text)}</code></pre>`;
+    case 'pre': return `<pre${b.lang ? ` data-lang="${escAttr(b.lang)}"` : ''}><code>${b.codeHtml ?? esc(b.text)}</code></pre>`;
     case 'quote': return `<blockquote>${b.blocks.map(render).join('')}</blockquote>`;
     case 'list': {
       if (b.kind === 'dl') return `<dl>${b.items.map((it) => `<dt>${it.term ?? ''}</dt><dd>${it.blocks.map(render).join('')}</dd>`).join('')}</dl>`;
