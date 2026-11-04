@@ -1,376 +1,317 @@
-\chapter{Bitcoin, USDT, Collection and Payout Providers, and Book Settlement}
+\chapter{Bitcoin, USDT, Collection Partners, and Payout Settlement}
 \label{ch:btc-usdt-settlement}
 \chapterline
 
-In Chapter~\ref{ch:fx-corridors}, we proved that the working capital trapped inside a pre-funded cross-border payment corridor scales linearly with the treasury replenishment cycle $\tau$: $W \ge k \cdot D \cdot \tau$. When wholesale settlement relies on multi-hop correspondent wires that pause over weekends and bank holidays ($\tau \approx 3.5\text{ days}$), a mid-sized payment operator must immobilize millions of dollars of idle float. Shrinking $\tau$ to a few hours eliminates more than $85\%$ of that capital requirement.
+At the end of Chapter~\ref{ch:fx-corridors}, Savanna Pay faced a costly bottleneck. Paying Mary in Nairobi took ten seconds only because Savanna Pay kept a large pile of Kenyan shillings sitting idle inside its Nairobi tub. Refilling that tub through traditional SWIFT bank wires took three to four days and paused completely every Friday afternoon until Monday morning.
 
-How do modern cross-border payment companies achieve three-hour global treasury settlement 365 days a year when commercial banks close at 17:00 on Friday? And how do you structure the general ledger when a single customer payment touches an origin card or bank processor, a corporate settlement bank, an on-chain blockchain rail, and a destination mobile-money payout orchestrator?
+Those slow wires forced Savanna Pay to lock up hundreds of thousands of dollars in dead working capital and exposed its thin $1.8\%$ fee margin to weekend currency swings.
 
-In this chapter we first establish the universal three-role architecture of cross-border payment plumbing and compare volatile bearer cryptoassets against reserve-backed stablecoins from first principles. We then walk through a complete multi-provider case study -- pairing an origin fiat collection processor with an on-chain \texttt{USDT} treasury bridge and a regional payout orchestrator (\textbf{HoneyCoin}) -- posting and reconciling every double-entry journal line to the cent and shilling.
+One afternoon in Nairobi, Tunde asks a practical engineering question. ``Why are we waiting four days for correspondent banks when a stablecoin transfer settles globally in thirty minutes, even at midnight on Saturday?''
 
-\section{Three-Role Cross-Border Payment Plumbing}
+Today, many cross-border payment companies settle their wholesale treasury leg over stablecoin rails in under half an hour. Even better, neither the sender in New York or London nor the grandmother in Nairobi ever touches cryptocurrency. Let us build how this works from zero, compare Bitcoin and dollar stablecoins honestly, and trace how every book settles to the exact cent.
 
-No single commercial bank offers low-cost consumer payment collection in North America or Europe alongside instant programmatic disbursements to mobile money wallets and local banks across dozens of emerging markets. Across the payment industry, operators solve this coverage gap by decomposing cross-border money movement into three modular roles coordinated by their own internal double-entry ledger:
+\section{Bitcoin vs Dollar Stablecoins From First Principles}
 
-\begin{enumerate}
-  \item \textbf{Origin Collection Processor (Pay-In Rail):} Accepts domestic payment instruments where the sender lives -- such as US ACH and debit cards, UK Faster Payments and Open Banking, European SEPA Instant, or local mobile-money push prompts -- deducts an acquiring or collection fee, and settles net domestic fiat into the operator's bank account on a \texttt{T+0} or \texttt{T+1} schedule.
-  \item \textbf{Cross-Border Treasury Bridge (Wholesale Settlement Rail):} Converts settled origin liquidity into a portable settlement asset that moves across borders continuously without correspondent banking cutoffs, delivering wholesale purchasing power to the destination market.
-  \item \textbf{Destination Liquidity and Payout Orchestrator (Pay-Out Rail):} Maintains direct technical integrations and local liquidity pools across destination mobile money networks and domestic bank switches, converts wholesale settlement funds into local currency via an over-the-counter (OTC) treasury desk, and executes instant single or bulk API disbursements to end recipients.
-\end{enumerate}
+If you have never worked with a blockchain, strip away the hype and picture a shared, append-only ledger replicated across thousands of computers worldwide. Unlike a commercial bank ledger that closes at 17:00 on Friday, a public blockchain processes transfers 24 hours a day, 365 days a year.
 
-Notice that Roles~1 and~3 are symmetric: when money flows in the reverse direction (for example, an emerging-market business paying a foreign supplier), the regional orchestrator acts as the \emph{Origin Collection Processor} (collecting local mobile money or virtual bank transfers and converting to wholesale dollar liquidity), while an offshore banking partner acts as the \emph{Destination Payout Rail}.
-
-\section{First Principles of Blockchain Settlement: Bitcoin vs Stablecoins}
-
-Historically, only tier-one multinational banks with Nostro accounts in fifty countries could operate a fast internal treasury bridge. Public blockchains introduced programmable, 24/7 global settlement layers accessible via standard cryptographic signatures without bilateral correspondent credit lines.
+Two very different digital assets run on public blockchains as cross-border payment rails: \textbf{Bitcoin (\texttt{BTC})} and \textbf{dollar stablecoins} such as \textbf{USDT (Tether)} and \textbf{USDC (Circle)}.
 
 \begin{historybox}
-In October 2008, Satoshi Nakamoto published \emph{Bitcoin: A Peer-to-Peer Electronic Cash System}, launching the genesis block in January 2009. Bitcoin solved the double-spend problem without a central clearinghouse by recording ownership as discrete \textbf{Unspent Transaction Outputs (UTXOs)} ordered in an append-only chain of Proof-of-Work blocks targeted at ten-minute intervals. Anyone holding the private key to a UTXO could transfer value globally on a Saturday night without asking permission from a correspondent bank.
+In January 2009, Satoshi Nakamoto launched \textbf{Bitcoin}, the first digital asset that could move globally from person to person without a central bank or clearinghouse. Anyone holding a cryptographic private key could send value across borders on a Sunday night. For a remittance business earning half a percent per transfer, however, Bitcoin had a major catch: its market price in US dollars routinely swung $2\%$ to $5\%$ in a single afternoon.
 
-For thin-margin payment treasuries, however, Bitcoin's floating market price created a severe accounting obstacle: an asset whose fiat exchange rate swings $1\%$ to $4\%$ within an afternoon cannot serve as stable working-capital inventory for a remittance business earning $0.40\%$ per transfer.
-
-That mismatch drove the creation of \textbf{fiat-backed stablecoins} -- starting with \textbf{USDT (Tether)} in 2014 and followed by \textbf{USDC (Circle)} in 2018. Under the fiat-backed stablecoin model, an off-chain issuer holds a reserve portfolio of short-dated US Treasury bills, overnight reverse repurchase agreements, and bank cash, and mints or burns on-chain smart-contract tokens redeemable 1-for-1 for US dollars by authorized institutional participants. Deployed across high-throughput networks including Tron (\texttt{TRC-20}), Ethereum (\texttt{ERC-20}) and its Layer-2 rollups (Arbitrum, Base, Optimism), Solana, and Polygon, dollar stablecoins combined 24/7 blockchain settlement finality with dollar unit-of-account stability.
+To keep 24/7 blockchain speed while removing price swings, companies created \textbf{stablecoins} (blockchain tokens designed to hold a steady $1.00\text{ USD}$ price by backing every issued token with cash and short-term US government Treasury bills). Tether launched \textbf{USDT} in 2014, and Circle launched \textbf{USDC} in 2018. Running on fast networks such as Tron, Solana, and Ethereum Layer-2 chains, dollar stablecoins quickly became the wholesale cargo rail of emerging-market treasury desks.
 \end{historybox}
 
-\subsection{Engineering and Treasury Comparison: BTC vs USDT / USDC}
+\subsection{Comparing BTC and USDT as Treasury Plumbing}
 
-Choosing between a decentralized bearer asset (\textbf{Bitcoin}) and a reserve-backed token (\textbf{USDT} or \textbf{USDC}) is an engineering trade-off across data model, finality latency, counterparty freeze risk, gas accounting, and price variance. Table~\ref{tab:btc-vs-stablecoin} summarizes the structural differences.
+Before wiring company money across a blockchain, an engineer and an accountant must check four practical properties (Table~\ref{tab:btc-vs-stablecoin}):
+\begin{enumerate}
+  \item \textbf{Price volatility during transit:} Suppose Savanna Pay earns $45\text{ bps}$ ($0.45\%$) net profit on a $50{,}000\text{ USD}$ batch ($225\text{ USD}$). If Savanna Pay buys $50{,}000\text{ USD}$ of unhedged Bitcoin, waits $40\text{ minutes}$ to convert it in Nairobi, and Bitcoin dips by a routine $1.5\%$, Savanna Pay loses $750\text{ USD}$ -- wiping out the entire $225\text{ USD}$ profit. Therefore, Bitcoin only works for fiat-to-fiat corridors when swapped in seconds over the \textbf{Lightning Network} (a fast payment-channel layer built on top of Bitcoin) or hedged simultaneously. By contrast, \textbf{USDT} and \textbf{USDC} trade tightly near $1.00\text{ USD}$ (typically within $0.999$ to $1.001\text{ USD}$), so holding them for thirty minutes or a weekend carries almost zero exchange-rate swing against the dollar.
+  \item \textbf{Blockchain finality:} In crypto, \textbf{finality} (or \textbf{confirmations}) means waiting until enough new blocks are added that a transfer can never be reversed. Bitcoin's base layer mines one block roughly every $10\text{ minutes}$, so desks wait $30\text{ to }60\text{ minutes}$ for three to six confirmations. Fast stablecoin chains confirm in $5\text{ to }60\text{ seconds}$.
+  \item \textbf{Network gas fees:} Every blockchain charges a small processing fee called a \textbf{network gas fee} to include your transfer in a block. Crucially, sending \texttt{USDT} does \emph{not} charge the fee in \texttt{USDT}; you must pay gas in the host blockchain's native coin (\texttt{TRX} on Tron, \texttt{ETH} on Ethereum or Base, \texttt{SOL} on Solana).
+  \item \textbf{Issuer and freeze risk:} Nobody controls Bitcoin's base protocol, so no company can freeze an unencumbered Bitcoin wallet. By contrast, Tether and Circle hold off-chain bank and Treasury reserves and maintain smart-contract admin keys that can \textbf{freeze} \texttt{USDT} or \texttt{USDC} at addresses flagged by law enforcement or sanctions regulators.
+\end{enumerate}
 
 \begin{table}[htbp]
 \centering
-\caption{First-principles comparison of Bitcoin (\texttt{BTC}) and fiat-backed dollar stablecoins (\texttt{USDT} / \texttt{USDC}) as cross-border treasury rails.}
+\caption{Comparing Bitcoin (\texttt{BTC}) and dollar stablecoins (\texttt{USDT} / \texttt{USDC}) for cross-border treasury settlement.}
 \label{tab:btc-vs-stablecoin}
 \small
 \setlength{\tabcolsep}{4.5pt}
-\begin{tabular}{p{2.4cm}p{5.1cm}p{5.1cm}}
+\begin{tabular}{p{2.5cm}p{4.9cm}p{5.0cm}}
 \toprule
-\textbf{Dimension} & \textbf{Bitcoin (\texttt{BTC})} & \textbf{Dollar Stablecoins (\texttt{USDT} / \texttt{USDC})} \\
+\textbf{Property} & \textbf{Bitcoin (\texttt{BTC})} & \textbf{Dollar Stablecoins (\texttt{USDT} / \texttt{USDC})} \\
 \midrule
-\textbf{Ledger State Model} & \textbf{UTXO model:} transactions consume discrete prior outputs in full and mint new recipient and change outputs; requires coin selection and UTXO consolidation. & \textbf{Account / Token model:} smart contract maps addresses to integer token balances (e.g., $6$ decimals for \texttt{USDT}/\texttt{USDC}); simple balance increments. \\
+\textbf{Dollar Price Swing} & Swings $1\%$ to $4\%$ daily; risky to hold unhedged even for an hour. & Pegged near \$1.00 (usually within $\pm 0.05\%$ to $0.15\%$). \\
 \addlinespace
-\textbf{Settlement Finality} & \textbf{L1:} $\sim 10\text{ min}$ block target ($30\text{--}60\text{ min}$ for $3\text{--}6$ confirmations). \textbf{Lightning Network:} sub-second finality via pre-funded payment channels. & \textbf{Fast L1 / L2 chains:} $3\text{--}60\text{ seconds}$ (Tron, Solana, Base, Arbitrum, Polygon); $\sim 2\text{--}12\text{ min}$ on Ethereum L1 finalized epochs. \\
+\textbf{Confirmation Speed} & $30\text{--}60\text{ min}$ on base layer; under $2\text{ seconds}$ on Lightning Network. & $5\text{--}60\text{ seconds}$ on Tron, Solana, Base, or Arbitrum; $2\text{--}12\text{ min}$ on Ethereum L1. \\
 \addlinespace
-\textbf{Network Fee Asset} & Paid directly in \texttt{BTC} (\texttt{sat/vB}) as the difference between input UTXOs and output UTXOs. & Paid in the \emph{host chain's native token} (\texttt{TRX}, \texttt{ETH}, \texttt{SOL}, \texttt{POL}), \textbf{not} in \texttt{USDT}/\texttt{USDC}. \\
+\textbf{Network Fee Coin} & Paid directly in \texttt{BTC} (tiny on Lightning; variable on base layer). & Paid in the host chain's native coin (\texttt{TRX}, \texttt{ETH}, or \texttt{SOL}), not in \texttt{USDT}. \\
 \addlinespace
-\textbf{Issuer \& Freeze Risk} & \textbf{Zero issuer counterparty risk:} no central entity backs \texttt{BTC} or can freeze an L1 UTXO on protocol. & \textbf{Issuer \& reserve risk:} relies on off-chain Treasury/bank reserves; token contracts contain statutory \texttt{freeze}/\texttt{blacklist} admin keys. \\
-\addlinespace
-\textbf{Fiat Price Volatility} & \textbf{High:} $50\text{--}300\text{ bps}$ intraday swings against \texttt{USD} are routine. & \textbf{Pegged near \texttt{1.00 USD}:} secondary-market basis typically trades within \texttt{0.9985--1.0010 USD} ($\pm 10\text{--}15\text{ bps}$). \\
+\textbf{Counterparty Risk} & Zero central issuer; cannot be frozen on the base protocol. & Relies on issuer's T-bill reserves; issuer can freeze sanctioned addresses. \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Why Payment Treasuries Bridge Working Capital in Stablecoins}
+\begin{trapbox}
+\textbf{The Empty Gas Tank Outage on Saturday Night.} Here is a classic stablecoin bug. Savanna Pay's automated treasury wallet holds $150{,}000\text{ USDT}$ on Saturday at midnight and tries to refill Nairobi. Every transfer fails with an obscure node error because the wallet ran out of $2.00\text{ USD}$ worth of native \texttt{TRX} or \texttt{ETH} needed to pay network gas. Always track a dedicated \texttt{Crypto Gas Inventory} account on your ledger and alert on-call engineers whenever native gas drops below a week of transfers.
+\end{trapbox}
 
-Let us prove quantitatively why unhedged \texttt{BTC} cannot sit as overnight or multi-hour transit float in a standard fiat-to-fiat corridor, whereas \texttt{USDT} and \texttt{USDC} can:
-\begin{itemize}
-  \item Suppose your corridor earns a net contribution margin of $50\text{ bps}$ ($0.50\%$) on principal. If treasury buys \$100,000 of \texttt{BTC} on an origin exchange, waits $45\text{ minutes}$ for four L1 block confirmations before an OTC desk credits destination fiat, and \texttt{BTC} drops by a routine $1.2\%$ ($120\text{ bps}$) during those $45\text{ minutes}$, the company loses \$1,200 on the bridge -- wiping out the entire \$500 contribution margin and leaving a net $-$\$700 loss on the batch.
-  \item Consequently, when \texttt{BTC} is used in fiat-to-fiat payment plumbing, engineers restrict holding duration to \textbf{instant back-to-back execution} (either atomic Lightning swaps held for $< 5\text{ seconds}$ or simultaneous delta-hedging via an equal short position on a liquid perpetual/spot order book), or offer \texttt{BTC} where the customer explicitly denominates the pay-in or payout in \texttt{BTC}.
-  \item By contrast, holding \texttt{USDT} or \texttt{USDC} across a $3$-hour replenishment cycle or a $48$-hour weekend carries near-zero directional FX volatility against \texttt{USD}. The accountant still never assumes \texttt{1 USDT = 1.0000 USD} blindly: if an OTC desk charges \$1.0010 per \texttt{USDT} ($10\text{ bps}$ premium), that $10\text{ bps}$ cost is explicitly booked to \texttt{OTC Liquidity Fee Expense} (or \texttt{Stablecoin Basis Gain/Loss}).
-\end{itemize}
+\section{The Real Two-Provider Architecture}
 
-\subsection{Accounting for Native Blockchain Gas Inventory}
-
-A subtle operational bug catches teams building their first stablecoin treasury service: you hold \texttt{250,000.00 USDT} in your on-chain wallet, attempt to broadcast a replenishment transfer, and the RPC node rejects the transaction because the wallet holds \texttt{0.00 TRX} (on Tron) or \texttt{0.00 ETH} (on Ethereum/Arbitrum/Base).
-
-Because stablecoin transfers consume the host blockchain's native token rather than \texttt{USDT}, a production chart of accounts must maintain a dedicated asset sub-account -- \texttt{Crypto Gas Inventory (TRX/ETH/SOL)} -- carried at historical \texttt{USD} cost basis (FIFO or weighted-average cost). Every outbound on-chain transfer posts two credits:
-\begin{enumerate}
-  \item Credit \texttt{Treasury On-Chain Wallet (USDT)} for the stablecoin principal transferred.
-  \item Credit \texttt{Crypto Gas Inventory} (\texttt{TRX}/\texttt{ETH}) and debit \texttt{Blockchain Network Fee Expense} for the exact native gas burned by the transaction (\texttt{tx\_hash}).
-\end{enumerate}
-
-\section{Orchestrating Collection, Stablecoin Treasury, and HoneyCoin Payouts}
-
-Let us now instantiate the universal three-role architecture on a concrete, production-realistic multi-provider workflow.
-
-\subsection{Case Study Architecture: Origin Collection PSP + HoneyCoin Destination Orchestrator}
-
-Consider a cross-border remittance and SME payment operator moving funds from senders in the United States to mobile money and bank recipients across East and West Africa. Rather than stitching together brittle direct bilateral contracts with twenty telecom operators and local banks from scratch, the operator pairs two specialized providers:
+No single bank lets Savanna Pay charge debit cards in New York and pay out instant M-Pesa in Nairobi, MTN MoMo in Kampala, and Airtel Money in Accra. Instead, Savanna Pay connects three specialized partners into one clean pipeline (Figure~\ref{fig:four-ledger-settlement}):
 
 \begin{enumerate}
-  \item \textbf{Collection Provider A (Origin US Pay-In Processor):} Processes instant debit-card and bank-linked pay-ins from US senders, confirms authorization via synchronous webhook in seconds, charges a $0.80\%$ ($80\text{ bps}$) processing fee, and wires net settled \texttt{USD} on \texttt{T+1} into the operator's US \texttt{Settlement Bank (USD)}.
-  \item \textbf{HoneyCoin (Destination Multi-Country Payout \& Stablecoin Orchestrator):} Platforms in the \textbf{HoneyCoin} archetype provide unified treasury wallets and programmatic payout rails across emerging markets (including Kenya, Nigeria, Ghana, Uganda, and Tanzania). Within a single platform, the operator:
-  \begin{itemize}
-    \item maintains an on-chain-funded \textbf{\texttt{HoneyCoin USDT Treasury}} balance;
-    \item converts \texttt{USDT} via HoneyCoin's institutional OTC desk into ring-fenced local currency payout floats (\texttt{KES}, \texttt{NGN}, \texttt{GHS}, \texttt{UGX}, \texttt{TZS}); and
-    \item triggers instant API or bulk CSV disbursements directly to \textbf{Safaricom M-Pesa}, \textbf{Airtel Money}, \textbf{MTN MoMo}, and local commercial bank accounts (and, symmetrically, can collect local \texttt{KES}/\texttt{NGN} via STK push and named virtual bank accounts when running corridors in the opposite direction).
-  \end{itemize}
+  \item \textbf{Collection Partner (Origin PSP in the US or UK).} A \textbf{PSP} (\textbf{Payment Service Provider}: a regulated processor such as Stripe, Checkout, or an ACH bank gateway) collects card and bank payments from senders. The PSP deducts its fee and holds funds in a clearing bucket for \textbf{T+2} days before wiring cash to Savanna Pay's US bank. On card traffic, the PSP also holds a \textbf{rolling reserve} (a $5\%$ cash slice kept for $90$ days to cover \textbf{chargebacks}, when a cardholder disputes a charge and their bank pulls the money back).
+  \item \textbf{Treasury On-Ramp (Regulated US/UK OTC Desk).} An \textbf{OTC desk} (\textbf{over-the-counter desk}: a licensed institutional dealer trading large blocks at a locked quote) swaps Savanna Pay's USD wire into \texttt{USDT}. Converting bank cash into crypto tokens is called \textbf{on-ramping}, and converting tokens back into bank cash is called \textbf{off-ramping}.
+  \item \textbf{Payout Orchestrator (HoneyCoin).} A \textbf{payout orchestrator} is a regional payment hub wired directly into local mobile-money networks and banks across many countries. Platforms like \textbf{HoneyCoin} connect one API to M-Pesa in Kenya and MTN MoMo and Airtel Money across Uganda, Ghana, Tanzania, and Nigeria. Savanna Pay sends \texttt{USDT} on-chain to its treasury wallet at HoneyCoin. When a transfer passes compliance, Savanna Pay calls HoneyCoin's payout API, which debits Savanna Pay's float at an agreed shilling rate plus rail fee and delivers instant \texttt{KES} to the recipient's M-Pesa phone.
 \end{enumerate}
+
+\begin{happeningbox}
+Notice who touches crypto and who does not. A sender in New York pays $200\text{ USD}$ with an ordinary Visa debit card or bank transfer. Ten seconds later, Mary in Nairobi receives $25{,}532\text{ KES}$ in her ordinary M-Pesa wallet. Neither customer ever downloads a crypto wallet or reads a blockchain address. \texttt{USDT} sits strictly under the hood as a thirty-minute wholesale cargo ship refilling Savanna Pay's HoneyCoin float pool.
+\end{happeningbox}
 
 \begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[x=1cm,y=1cm,>=Latex,font=\scriptsize]
   % Lane backgrounds
   \draw[draw=sourceblue!50, fill=sourceblue!4, rounded corners=4pt] (0,2.55) rectangle (12.4,4.75);
-  \node[font=\bfseries\scriptsize, text=sourceblue!90!black, anchor=west] at (0.2,4.48) {Synchronous User Execution Path ($t = 0\text{ to }15\text{ seconds}$)};
+  \node[font=\bfseries\scriptsize, text=sourceblue!90!black, anchor=west] at (0.2,4.48) {1. Instant Customer Path ($t = 0\text{ to }10\text{ seconds}$)};
 
   \draw[draw=quotientorange!60, fill=quotientorange!5, rounded corners=4pt] (0,0.0) rectangle (12.4,2.25);
-  \node[font=\bfseries\scriptsize, text=quotientorange!85!black, anchor=west] at (0.2,1.98) {Asynchronous Wholesale Treasury Replenishment Path (\texttt{T+1} Fiat + $15\text{ min}$ On-Chain)};
+  \node[font=\bfseries\scriptsize, text=quotientorange!85!black, anchor=west] at (0.2,1.98) {2. Wholesale Book Settlement Path (\texttt{T+2} Card Clear + $30\text{ min}$ USDT Refill)};
 
   % Top lane nodes
-  \node[draw=gray!80!black, fill=white, rounded corners=3pt, minimum width=2.0cm, minimum height=0.95cm, align=center] (cust) at (1.25,3.45) {\textbf{US Senders}\\250 Transfers\\\$50,000 USD};
-  \node[draw=sourceblue!85!black, thick, fill=white, rounded corners=3pt, minimum width=2.3cm, minimum height=0.95cm, align=center] (pspa) at (4.3,3.45) {\textbf{Collection PSP A}\\Pay-In Webhook\\Fee: $80\text{ bps}$ (\$400)};
-  \node[draw=structurepurple!90!black, thick, fill=white, rounded corners=3pt, minimum width=2.3cm, minimum height=0.95cm, align=center] (hcapi) at (7.85,3.45) {\textbf{HoneyCoin KES}\\Pre-Funded Float\\(@ $129.00\text{ KES/USD}$)};
-  \node[draw=targetgreen!85!black, thick, fill=white, rounded corners=3pt, minimum width=2.1cm, minimum height=0.95cm, align=center] (mpesa) at (11.1,3.45) {\textbf{KE Recipients}\\250 M-Pesa\\$6.34\text{M KES}$};
+  \node[draw=gray!80!black, fill=white, rounded corners=3pt, minimum width=2.0cm, minimum height=0.95cm, align=center] (cust) at (1.25,3.45) {\textbf{US Sender}\\Marcus Pays\\\$200 / \$50k Batch};
+  \node[draw=sourceblue!85!black, thick, fill=white, rounded corners=3pt, minimum width=2.3cm, minimum height=0.95cm, align=center] (pspa) at (4.3,3.45) {\textbf{Collection PSP}\\Card / Bank Rail\\($80\text{ bps}$ Fee)};
+  \node[draw=structurepurple!90!black, thick, fill=white, rounded corners=3pt, minimum width=2.3cm, minimum height=0.95cm, align=center] (hcapi) at (7.85,3.45) {\textbf{HoneyCoin Float}\\Pre-Funded KES\\($40\text{ bps}$ Rail Fee)};
+  \node[draw=targetgreen!85!black, thick, fill=white, rounded corners=3pt, minimum width=2.1cm, minimum height=0.95cm, align=center] (mpesa) at (11.1,3.45) {\textbf{KE Recipient}\\Mary's M-Pesa\\Instant KES};
 
   \draw[->, thick, sourceblue] (cust) -- (pspa);
-  \draw[->, thick, dashed, structurepurple] (pspa) -- node[above, font=\tiny\bfseries] {Stage 1--2 API} (hcapi);
+  \draw[->, thick, dashed, structurepurple] (pspa) -- node[above, font=\tiny\bfseries] {Webhook $\to$ API} (hcapi);
   \draw[->, thick, targetgreen!80!black] (hcapi) -- (mpesa);
 
   % Bottom lane nodes
-  \node[draw=sourceblue!85!black, fill=white, rounded corners=3pt, minimum width=2.3cm, minimum height=0.95cm, align=center] (bank) at (2.2,0.92) {\textbf{US Settlement}\\Bank (USD)\\+\$49,600 Wire};
-  \node[draw=quotientorange!90!black, fill=white, rounded corners=3pt, minimum width=2.3cm, minimum height=0.95cm, align=center] (otc) at (5.35,0.92) {\textbf{Regulated OTC}\\On-Ramp Desk\\$10\text{ bps}$ Fee (\$49)};
-  \node[draw=quotientorange!90!black, thick, fill=white, rounded corners=3pt, minimum width=2.3cm, minimum height=0.95cm, align=center] (chain) at (8.5,0.92) {\textbf{On-Chain Wallet}\\$48{,}951\text{ USDT}$\\(\texttt{tx\_hash} + Gas)};
-  \node[draw=structurepurple!90!black, thick, fill=white, rounded corners=3pt, minimum width=2.05cm, minimum height=0.95cm, align=center] (hcusdt) at (11.2,0.92) {\textbf{HoneyCoin}\\USDT $\to$ KES\\OTC Refill};
+  \node[draw=sourceblue!85!black, fill=white, rounded corners=3pt, minimum width=2.3cm, minimum height=0.95cm, align=center] (bank) at (2.2,0.92) {\textbf{Savanna US Bank}\\Settled USD\\(Net of Reserve)};
+  \node[draw=quotientorange!90!black, fill=white, rounded corners=3pt, minimum width=2.3cm, minimum height=0.95cm, align=center] (otc) at (5.35,0.92) {\textbf{US OTC Desk}\\USD $\to$ USDT\\($14\text{ bps}$ On-Ramp)};
+  \node[draw=quotientorange!90!black, thick, fill=white, rounded corners=3pt, minimum width=2.3cm, minimum height=0.95cm, align=center] (chain) at (8.5,0.92) {\textbf{Blockchain Rail}\\USDT Transfer\\($1\text{ bp}$ Gas)};
+  \node[draw=structurepurple!90!black, thick, fill=white, rounded corners=3pt, minimum width=2.05cm, minimum height=0.95cm, align=center] (hcusdt) at (11.2,0.92) {\textbf{HoneyCoin}\\USDT Wallet $\to$\\KES Pool Refill};
 
-  \draw[->, thick, sourceblue!80!black] (pspa.south) .. controls (4.1,2.35) and (2.4,2.35) .. node[pos=0.45, fill=white, inner sep=1pt, font=\tiny] {\texttt{T+1} Net} (bank.north);
-  \draw[->, thick, quotientorange!85!black] (bank) -- node[above, font=\tiny] {\$49,000} (otc);
+  \draw[->, thick, sourceblue!80!black] (pspa.south) .. controls (4.1,2.35) and (2.4,2.35) .. node[pos=0.45, fill=white, inner sep=1pt, font=\tiny] {\texttt{T+2} Wire} (bank.north);
+  \draw[->, thick, quotientorange!85!black] (bank) -- (otc);
   \draw[->, thick, quotientorange!85!black] (otc) -- (chain);
   \draw[->, thick, quotientorange!85!black] (chain) -- (hcusdt);
-  \draw[->, thick, structurepurple] (hcusdt.north) .. controls (11.1,2.35) and (8.6,2.35) .. node[pos=0.5, fill=white, inner sep=1pt, font=\tiny\bfseries] {$+6{,}314{,}679\text{ KES}$} (hcapi.south);
+  \draw[->, thick, structurepurple] (hcusdt.north) .. controls (11.1,2.35) and (8.6,2.35) .. node[pos=0.5, fill=white, inner sep=1pt, font=\tiny\bfseries] {Restores KES Float} (hcapi.south);
 \end{tikzpicture}
-\caption{End-to-end multi-provider settlement topology. Stage 1 and Stage 2 deliver instant M-Pesa shillings out of pre-funded HoneyCoin float; Stage 3 and Stage 4 sweep \texttt{T+1} US bank funds through regulated on-chain \texttt{USDT} into HoneyCoin to replenish the destination pool.}
+\caption{Savanna Pay's four-ledger cross-border architecture. Top lane: Collection PSP captures dollars in New York while pre-funded HoneyCoin float pays M-Pesa shillings in ten seconds. Bottom lane: settled US bank cash converts via an OTC desk to \texttt{USDT} and refills HoneyCoin in thirty minutes.}
 \label{fig:four-ledger-settlement}
 \end{figure}
 
-\subsection{Complete Four-Stage Walkthrough and Double-Entry Ledger Reconciliation}
+\section{Settling One 200 USD Transfer Across All Four Ledgers}
 
-Let us trace one day's batch of \textbf{250 US-to-Kenya transfers} from customer click to completed float replenishment, verifying that every debit and credit reconciles to the exact cent and shilling in functional \texttt{USD}.
+Before looking at a busy day's batch, trace \textbf{one single transfer} from end to end so every debit and credit makes complete physical sense. Recall our sign rules from Chapter~1: Assets and Expenses increase on the \textbf{Debit} (left) side, while Liabilities and Revenue increase on the \textbf{Credit} (right) side.
 
-\paragraph{Scenario Parameters.}
+Grace's cousin Marcus lives in New York. On Monday morning, Marcus sends $200.00\text{ USD}$ on Savanna Pay to Mary's M-Pesa wallet in Nairobi. Here are the exact terms on Monday morning:
 \begin{itemize}
-  \item \textbf{Customer Volume:} $250$ US senders pay \$200.00 each (\textbf{GTV = \$50,000.00}), with \$0 upfront transfer fee and a locked retail FX quote of $\mathbf{1\text{ \textbf{USD}} = 126.80\text{ \textbf{KES}}}$. Total promised payout across all $250$ M-Pesa recipients is
-  \[
-    50{,}000.00 \times 126.80 = 6{,}340{,}000.00\text{ KES}.
-  \]
-  \item \textbf{Collection Provider A Terms:} Deducts $0.80\%$ ($80\text{ bps}$, or \$400.00) and settles net \textbf{\$49,600.00} via \texttt{T+1} bank wire.
-  \item \textbf{HoneyCoin Destination Float \& Tariff Terms:} Your pre-funded \texttt{HoneyCoin KES Float} carries a cost basis of $\mathbf{1\text{ \textbf{USD}} = 1\text{ \textbf{USDT}} = 129.00\text{ \textbf{KES}}}$ (from HoneyCoin's institutional \texttt{USDT -> KES} OTC conversion desk). HoneyCoin charges a mobile-money B2C disbursement tariff of $\mathbf{64.50\text{ \textbf{KES}}}$ per payout across $250$ transfers, totaling
-  \[
-    250 \times 64.50\text{ KES} = 16{,}125.00\text{ KES} \quad \left(\frac{16{,}125.00}{129.00} = \text{USD } 125.00\text{ exact}\right).
-  \]
-  \item \textbf{US On-Ramp \& On-Chain Terms:} Your regulated US OTC liquidity partner converts \texttt{USD} wire funds to \texttt{USDT} at a $10\text{ bps}$ ($0.10\%$) fee (carrying \texttt{1 USDT} at \$1.00 par), and transferring the \texttt{USDT} batch on-chain consumes native gas worth \textbf{\$1.50} from \texttt{Crypto Gas Inventory}.
+  \item \textbf{Wholesale mid-market rate.} In the wholesale market, $1\text{ USD} = 130.00\text{ KES}$.
+  \item \textbf{Marcus's locked customer quote.} Savanna Pay quotes $1\text{ USD} = 127.66\text{ KES}$ with $0\text{ USD}$ upfront fee. That rate is $1.80\%$ ($180\text{ bps}$, or $3.60\text{ USD}$) below mid-market. Mary is promised $200 \times 127.66 = 25{,}532.00\text{ KES}$, whose wholesale value at $130.00$ is $25{,}532 / 130.00 = 196.40\text{ USD}$.
+  \item \textbf{Collection PSP terms.} Blended bank and card fee of $0.80\%$ ($80\text{ bps}$, or $1.60\text{ USD}$). Cash settles on \texttt{T+2}, with $5\%$ ($10.00\text{ USD}$) held in a 90-day rolling reserve.
+  \item \textbf{OTC On-Ramp and Gas terms.} Conversion costs $14\text{ bps}$ ($0.28\text{ USD}$) at the OTC desk plus $0.02\text{ USD}$ ($1\text{ bp}$) in blockchain gas, totaling $0.30\text{ USD}$ ($15\text{ bps}$).
+  \item \textbf{HoneyCoin Payout terms.} HoneyCoin converts $1\text{ USDT} = 130.00\text{ KES}$ into Kenyan float and charges a $40\text{ bps}$ ($0.80\text{ USD} = 104.00\text{ KES}$) M-Pesa payout fee.
 \end{itemize}
 
-\paragraph{Stage 1 ($t = 0\text{--}3\text{ s}$) -- Customer Pay-In Confirmed by Collection Provider A.}
-When Collection Provider A's signed webhooks confirm capture of all \$50,000.00 from US senders, you recognize a net receivable of \$49,600.00 from Provider~A, record \$400.00 of collection rail cost, and establish a \$50,000.00 clearing liability representing unfulfilled customer remittance obligations:
+Watch all four ledgers move in sequence.
 
-\begin{center}
-\begin{tabular}{llrr}
-\toprule
-\textbf{Stage 1 Journal Entry} & \textbf{Account Type} & \textbf{Debit (USD)} & \textbf{Credit (USD)} \\
-\midrule
-Receivable from Collection PSP A & Asset ($\uparrow$) & \$49,600.00 & \\
-Collection Rail Fee Expense (COGS) & Expense ($\uparrow$) & \$400.00 & \\
-Customer Remittance Obligation Clearing & Liability ($\uparrow$) & & \$50,000.00 \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\paragraph{Stage 2 ($t = 3\text{--}15\text{ s}$) -- Instant M-Pesa Disbursement via HoneyCoin API.}
-Immediately upon Stage~1 confirmation, your payout worker calls the HoneyCoin disbursement API (with per-transfer idempotency keys) to deliver $6{,}340{,}000.00\text{ KES}$ across the $250$ Kenyan M-Pesa recipients, while HoneyCoin deducts $16{,}125.00\text{ KES}$ in B2C payout tariffs from your \texttt{HoneyCoin KES Float} (total float reduction $= 6{,}356{,}125.00\text{ KES}$).
-
-Let us compute the exact \texttt{USD} carrying cost of the shillings leaving \texttt{HoneyCoin KES Float} at its $129.00\text{ KES/USD}$ cost basis:
-\begin{itemize}
-  \item Cost basis of $6{,}340{,}000.00\text{ KES}$ principal delivered: $6{,}340{,}000.00 / 129.00$ equals \$49,147.29 (rounded to the cent from $49{,}147.2868\dots$).
-  \item Cost basis of $16{,}125.00\text{ KES}$ HoneyCoin B2C tariff: $16{,}125.00 / 129.00 = \text{USD } 125.00$.
-  \item Total credit to \texttt{HoneyCoin KES Float}: \$49,147.29 plus \$125.00 equals \$49,272.29 ($6{,}356{,}125.00\text{ KES}$).
-  \item Extinguishing the \$50,000.00 customer obligation against \$49,147.29 of principal cost crystallizes \textbf{\$852.71} ($170.54\text{ bps}$) of \texttt{Gross FX Spread Revenue}:
-\end{itemize}
-
-\begin{center}
-\begin{tabular}{llrr}
-\toprule
-\textbf{Stage 2 Journal Entry} & \textbf{Account Type} & \textbf{Debit (USD)} & \textbf{Credit (USD)} \\
-\midrule
-Customer Remittance Obligation Clearing & Liability ($\downarrow$) & \$50,000.00 & \\
-Payout Rail Fee Expense (COGS) & Expense ($\uparrow$) & \$125.00 & \\
-HoneyCoin KES Float ($6{,}356{,}125\text{ KES}$) & Asset ($\downarrow$) & & \$49,272.29 \\
-Gross FX Spread Revenue & Revenue ($\uparrow$) & & \$852.71 \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-Check the batch sum: $\text{Debits} = \text{USD } 50{,}125.00$ and $\text{Credits} = \text{USD } 49{,}272.29 + \text{USD } 852.71 = \text{USD } 50{,}125.00$. Fifteen seconds after clicking ``Send,'' all $250$ recipients hold spendable M-Pesa balances and the customer obligation clearing account sits back at \$0.00.
-
-\paragraph{Stage 3 (\texttt{T+1 Morning}) -- Fiat Settlement from PSP A and On-Ramp Swap to USDT.}
-On \texttt{T+1}, Collection Provider A wires \$49,600.00 into your US \texttt{Settlement Bank (USD)}, clearing the receivable. Keeping \$600.00 in the US bank account toward US corporate overhead and earned profit retention, treasury wires \textbf{\$49,000.00} to its regulated US OTC desk. Deducting its $10\text{ bps}$ ($0.10\%$, or \$49.00) execution fee, the OTC desk delivers $\mathbf{48{,}951.00\text{ \textbf{USDT}}}$ to your self-custodied corporate \texttt{Treasury On-Chain Wallet}:
+\paragraph{Ledger Step 1 ($t = 2\text{ seconds}$): Collection PSP Captures Marcus's $200.00\text{ USD}$}
+The US Collection PSP charges Marcus $200.00\text{ USD}$ and keeps its $1.60\text{ USD}$ fee. Savanna Pay does not have cash in its bank yet. Instead, the PSP owes Savanna Pay $198.40\text{ USD}$ (an Asset we debit), Savanna Pay incurs $1.60\text{ USD}$ of fee cost (an Expense we debit), and Savanna Pay now owes Marcus a $200.00\text{ USD}$ remittance delivery (a Liability we credit):
 
 \begin{center}
 \small
 \begin{tabular}{llrr}
 \toprule
-\textbf{Stage 3a \& 3b Journal Entries} & \textbf{Account Type} & \textbf{Debit (USD)} & \textbf{Credit (USD)} \\
+\textbf{Step 1 Entry (Single Transfer)} & \textbf{Type} & \textbf{Debit (USD)} & \textbf{Credit (USD)} \\
 \midrule
-Settlement Bank (USD) & Asset ($\uparrow$) & \$49,600.00 & \\
-Receivable from Collection PSP A & Asset ($\downarrow$) & & \$49,600.00 \\
-\midrule
-Treasury On-Chain Wallet ($48{,}951.00\text{ USDT}$) & Asset ($\uparrow$) & \$48,951.00 & \\
-OTC Liquidity Fee Expense (COGS) & Expense ($\uparrow$) & \$49.00 & \\
-Settlement Bank (USD) & Asset ($\downarrow$) & & \$49,000.00 \\
+PSP Clearing Receivable & Asset ($\uparrow$) & \$198.40 & \\
+Collection PSP Fee Expense & Expense ($\uparrow$) & \$1.60 & \\
+Customer Remittance Obligation & Liability ($\uparrow$) & & \$200.00 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\paragraph{Stage 4 (\texttt{T+1 + 15 Minutes}) -- On-Chain USDT Transfer to HoneyCoin and KES Float Refill.}
-Treasury broadcasts an on-chain transfer (\texttt{tx\_hash}) moving all $48{,}951.00\text{ USDT}$ into your dedicated \texttt{HoneyCoin USDT Treasury} deposit address, burning \$1.50 of native blockchain gas (\texttt{TRX} or \texttt{ETH}). Once HoneyCoin credits the on-chain deposit (typically within $1\text{--}3\text{ minutes}$), treasury executes an API/OTC swap inside HoneyCoin converting $48{,}951.00\text{ USDT}$ at $129.00\text{ KES/USDT}$ into $48{,}951.00 \times 129.00 = \mathbf{6{,}314{,}679.00\text{ \textbf{KES}}}$ of fresh M-Pesa payout float:
+\paragraph{Ledger Step 2 ($t = 8\text{ seconds}$): HoneyCoin Pays Mary's M-Pesa Instantly}
+Savanna Pay calls HoneyCoin's payout API. HoneyCoin sends $25{,}532.00\text{ KES}$ (worth $196.40\text{ USD}$) to Mary's M-Pesa phone and charges its $104.00\text{ KES}$ ($0.80\text{ USD}$) rail fee. In total, Savanna Pay's pre-funded \texttt{HoneyCoin KES Float} drops by $25{,}636.00\text{ KES}$ ($197.20\text{ USD}$ exact at $130.00\text{ KES/USD}$, credited to reduce the Asset).
+
+Why does Revenue appear right here? Because delivering Mary's shillings extinguishes our full $200.00\text{ USD}$ obligation to Marcus (debited to zero) using only $196.40\text{ USD}$ worth of shillings. That $3.60\text{ USD}$ gap is our earned FX spread (credited to Revenue), alongside the $0.80\text{ USD}$ HoneyCoin fee (debited to Expense):
 
 \begin{center}
 \small
 \begin{tabular}{llrr}
 \toprule
-\textbf{Stage 4a \& 4b Journal Entries} & \textbf{Account Type} & \textbf{Debit (USD)} & \textbf{Credit (USD)} \\
+\textbf{Step 2 Entry (Single Transfer)} & \textbf{Type} & \textbf{Debit (USD)} & \textbf{Credit (USD)} \\
 \midrule
-HoneyCoin USDT Treasury ($48{,}951.00\text{ USDT}$) & Asset ($\uparrow$) & \$48,951.00 & \\
-Blockchain Network Fee Expense (COGS) & Expense ($\uparrow$) & \$1.50 & \\
-Treasury On-Chain Wallet ($48{,}951.00\text{ USDT}$) & Asset ($\downarrow$) & & \$48,951.00 \\
-Crypto Gas Inventory (TRX / ETH) & Asset ($\downarrow$) & & \$1.50 \\
-\midrule
-HoneyCoin KES Float ($6{,}314{,}679\text{ KES}$) & Asset ($\uparrow$) & \$48,951.00 & \\
-HoneyCoin USDT Treasury ($48{,}951.00\text{ USDT}$) & Asset ($\downarrow$) & & \$48,951.00 \\
+Customer Remittance Obligation & Liability ($\downarrow$) & \$200.00 & \\
+HoneyCoin Payout Rail Expense & Expense ($\uparrow$) & \$0.80 & \\
+HoneyCoin KES Float ($25{,}636\text{ KES}$) & Asset ($\downarrow$) & & \$197.20 \\
+Gross FX Spread Revenue & Revenue ($\uparrow$) & & \$3.60 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\subsection{Verifying Full Conservation Across All Four Ledgers}
+Check both columns: Debits equal $200.80\text{ USD}$, and Credits equal $197.20 + 3.60 = 200.80\text{ USD}$. Eight seconds after Marcus tapped Send, Mary has her shillings and Marcus's obligation sits at zero.
 
-Let us verify the Fundamental Accounting Identity ($\Delta \text{Assets} - \Delta \text{Liabilities} = \text{Net Income}$) across the entire four-stage cycle:
+\paragraph{Ledger Step 3 (\texttt{T+2 Morning}): Collection PSP Wires Cash (Minus Rolling Reserve)}
+Two business days later, the Collection PSP settles the $198.40\text{ USD}$ it owed us. It holds $10.00\text{ USD}$ ($5\%$ of $200\text{ USD}$) inside a 90-day rolling reserve Asset and wires the remaining $188.40\text{ USD}$ into Savanna Pay's US bank account, clearing \texttt{PSP Clearing Receivable} down to zero:
 
-\begin{enumerate}
-  \item \textbf{Income Statement (Batch Unit Economics on \$50,000.00 GTV):}
-  \[
-    \begin{aligned}
-      \text{Gross FX Spread Revenue} &= +\text{USD } 852.71 \quad (+170.54\text{ bps}) \\
-      -\text{Collection PSP A Fee} &= -\text{USD } 400.00 \quad (-80.00\text{ bps}) \\
-      -\text{HoneyCoin B2C Payout Tariff} &= -\text{USD } 125.00 \quad (-25.00\text{ bps}) \\
-      -\text{US OTC On-Ramp Fee} &= -\text{USD } 49.00 \quad (-9.80\text{ bps}) \\
-      -\text{Blockchain Gas Fee} &= -\text{USD } 1.50 \quad (-0.30\text{ bps}) \\
-      \hline
-      \textbf{Net Batch Contribution Profit} &= \mathbf{+\text{\textbf{USD }} 277.21} \quad (\mathbf{+55.44\text{ \textbf{bps}}}).
-    \end{aligned}
-  \]
-  \item \textbf{Balance Sheet Asset Deltas After Stage 4:}
-  \begin{itemize}
-    \item \texttt{Receivable from PSP A}, \texttt{Customer Remittance Clearing}, \texttt{Treasury On-Chain USDT}, and \texttt{HoneyCoin USDT Treasury}: all returned to exactly \textbf{\$0.00} net change.
-    \item \texttt{Settlement Bank (USD)}: $+\text{USD } 49{,}600.00 - \text{USD } 49{,}000.00 = +$\textbf{\$600.00}.
-    \item \texttt{HoneyCoin KES Float}: $-\text{USD } 49{,}272.29 + \text{USD } 48{,}951.00 = -$\textbf{\$321.29} ($-41{,}446.00\text{ KES}$, because we retained \$600.00 in the US bank rather than wiring \$49,321.61).
-    \item \texttt{Crypto Gas Inventory}: $\mathbf{-}$\textbf{\$1.50}.
-  \end{itemize}
-  Summing the balance sheet asset deltas yields
-  \[
-    +\text{USD } 600.00 - \text{USD } 321.29 - \text{USD } 1.50 = \mathbf{+\text{\textbf{USD }} 277.21}.
-  \]
-\end{enumerate}
+\begin{center}
+\small
+\begin{tabular}{llrr}
+\toprule
+\textbf{Step 3 Entry (\texttt{T+2} Bank Clear)} & \textbf{Type} & \textbf{Debit (USD)} & \textbf{Credit (USD)} \\
+\midrule
+US Settlement Bank (USD) & Asset ($\uparrow$) & \$188.40 & \\
+PSP Rolling Reserve Receivable & Asset ($\uparrow$) & \$10.00 & \\
+PSP Clearing Receivable & Asset ($\downarrow$) & & \$198.40 \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-Every dollar, stablecoin token, gas unit, and Kenyan shilling across two continents, two fiat banks, one public blockchain, and two payment APIs reconciles to $0.00$ discrepancy.
+\begin{recoverybox}
+\textbf{Pause and think:} Look closely at that $10.00\text{ USD}$ rolling reserve in Step~3. Did the rolling reserve reduce Savanna Pay's profit? No: it moved $10.00\text{ USD}$ from one Asset (\texttt{PSP Clearing Receivable}) to another Asset (\texttt{PSP Rolling Reserve Receivable}), which releases in $90$ days. Yet look at the cash flow: Savanna Pay received $188.40\text{ USD}$ in bank cash today while it spent $197.20\text{ USD}$ of Nairobi float on Monday. Fast-growing card corridors need extra working capital to bridge that $90\text{-day}$ rolling reserve gap.
+\end{recoverybox}
+
+\paragraph{Ledger Step 4 (\texttt{T+2 + 30 Minutes}): OTC USDT On-Ramp and HoneyCoin Float Refill}
+To put back the exact $25{,}636.00\text{ KES}$ ($197.20\text{ USD}$) spent from Nairobi float, Savanna Pay wires $197.48\text{ USD}$ from its US bank to its US OTC desk. The OTC desk deducts $0.28\text{ USD}$ fee and sends $197.20\text{ USDT}$, which Savanna Pay transfers on-chain to HoneyCoin (burning $0.02\text{ USD}$ from \texttt{Crypto Gas Inventory}) and swaps into $25{,}636.00\text{ KES}$:
+
+\begin{center}
+\small
+\begin{tabular}{llrr}
+\toprule
+\textbf{Step 4 Entries (30-Min Refill)} & \textbf{Type} & \textbf{Debit (USD)} & \textbf{Credit (USD)} \\
+\midrule
+HoneyCoin KES Float ($25{,}636\text{ KES}$) & Asset ($\uparrow$) & \$197.20 & \\
+OTC On-Ramp \& Gas Expense & Expense ($\uparrow$) & \$0.30 & \\
+US Settlement Bank (USD) & Asset ($\downarrow$) & & \$197.48 \\
+Crypto Gas Inventory (TRX/ETH) & Asset ($\downarrow$) & & \$0.02 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Add up Revenue minus Expenses on Marcus's single $200.00\text{ USD}$ transfer:
+\[
+  +3.60\text{ (FX spread)} - 1.60\text{ (PSP)} - 0.80\text{ (HoneyCoin)} - 0.30\text{ (OTC + gas)} = +0.90\text{ USD } (+45\text{ bps}).
+\]
+Now add up Savanna Pay's net Asset changes across all four steps: $+188.40 - 197.48 = -9.08\text{ USD}$ in US Bank, $+10.00\text{ USD}$ in PSP Rolling Reserve, $0.00\text{ USD}$ net change in HoneyCoin KES float (fully refilled), and $-0.02\text{ USD}$ in Gas Inventory. Their sum is $-9.08 + 10.00 - 0.02 = +0.90\text{ USD}$. Income statement and balance sheet agree to the penny.
+
+\section{Scaling to a 50,000 USD Daily Batch and Breakeven Math}
+
+In real operations, Nia does not send tiny $197\text{ USD}$ wires one by one. Savanna Pay lets individual payouts fire every few seconds out of HoneyCoin's pre-funded float, and then settles the wholesale bank-to-\texttt{USDT}-to-HoneyCoin leg once or twice a day in batches.
+
+Let us scale Marcus's transfer by $250\times$ to trace a daily batch of $250$ US-to-Kenya transfers totaling $50{,}000.00\text{ USD}$.
+
+\paragraph{Scenario Parameters}
+\begin{itemize}
+  \item \textbf{Batch Volume.} Across Monday, $250$ US senders pay $200.00\text{ USD}$ each, giving $\text{GTV} = 50{,}000.00\text{ USD}$ at $127.66\text{ KES/USD}$. Relative to the $130.00$ mid-market rate, Savanna Pay delivers $6{,}383{,}000\text{ KES}$ (worth $49{,}100.00\text{ USD}$) and earns $900.00\text{ USD}$ ($180\text{ bps}$) in gross FX spread.
+  \item \textbf{Collection PSP Cost ($80\text{ bps}$).} The PSP deducts $400.00$ \texttt{USD} in fees and settles $49{,}600.00$ \texttt{USD} net value into Savanna Pay's US bank account.
+  \item \textbf{USDT Bridge and HoneyCoin Payout Cost ($55\text{ bps}$).} On-ramping costs $70.00\text{ USD}$ ($14\text{ bps}$), blockchain gas costs $5.00\text{ USD}$ ($1\text{ bp}$), and HoneyCoin payout fees cost $200.00\text{ USD}$ ($40\text{ bps}$, or $26{,}000\text{ KES}$). Combined bridge and payout costs total $275.00\text{ USD}$.
+  \item \textbf{Net Batch Profit ($+45\text{ bps}$).} Subtracting $400.00$ and $275.00$ from $900.00\text{ USD}$ leaves $+225.00\text{ USD}$ net profit after restoring all $49{,}300.00\text{ USD}$ ($6{,}409{,}000\text{ KES}$) spent from HoneyCoin float (Figure~\ref{fig:stage-balance-timeline}).
+\end{itemize}
 
 \begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[x=1cm,y=1cm,>=Latex,font=\scriptsize]
-  % Timeline header
   \draw[thick, ->] (2.8,4.15) -- (12.2,4.15);
   \node[font=\bfseries\scriptsize] at (4.0,4.42) {Stage 1 ($t=2\text{s}$)};
-  \node[font=\bfseries\scriptsize] at (6.4,4.42) {Stage 2 ($t=12\text{s}$)};
-  \node[font=\bfseries\scriptsize] at (8.9,4.42) {Stage 3 (\texttt{T+1})};
-  \node[font=\bfseries\scriptsize] at (11.3,4.42) {Stage 4 (\texttt{T+1}+15m)};
+  \node[font=\bfseries\scriptsize] at (6.4,4.42) {Stage 2 ($t=10\text{s}$)};
+  \node[font=\bfseries\scriptsize] at (8.9,4.42) {Stage 3 (Bank)};
+  \node[font=\bfseries\scriptsize] at (11.3,4.42) {Stage 4 (+30m)};
 
-  % Row labels
-  \node[anchor=east, font=\bfseries\scriptsize] at (2.65,3.45) {PSP A Receivable};
+  \node[anchor=east, font=\bfseries\scriptsize] at (2.65,3.45) {PSP Receivable};
   \node[anchor=east, font=\bfseries\scriptsize] at (2.65,2.60) {US Bank (USD)};
   \node[anchor=east, font=\bfseries\scriptsize] at (2.65,1.75) {USDT Transit};
   \node[anchor=east, font=\bfseries\scriptsize] at (2.65,0.90) {HoneyCoin KES};
-  \node[anchor=east, font=\bfseries\scriptsize, text=targetgreen!80!black] at (2.65,0.12) {Net Equity ($\Delta E$)};
+  \node[anchor=east, font=\bfseries\scriptsize, text=targetgreen!80!black] at (2.65,0.12) {Net Profit ($\Delta E$)};
 
-  % Grid lines
   \foreach \y in {0.50,1.32,2.17,3.02,3.88} {
     \draw[gray!25] (2.8,\y) -- (12.2,\y);
   }
 
-  % Row 1: PSP A Receivable
-  \node[fill=sourceblue!12, rounded corners=2pt, inner sep=2.5pt] at (4.0,3.45) {$+$\$49,600.00};
-  \node[text=gray] at (6.4,3.45) {$+$\$49,600.00};
-  \node[fill=gray!12, rounded corners=2pt, inner sep=2.5pt] at (8.9,3.45) {\$0.00};
-  \node[text=gray] at (11.3,3.45) {\$0.00};
+  \node[fill=sourceblue!12, rounded corners=2pt, inner sep=2.5pt] at (4.0,3.45) {$+$\$49,600};
+  \node[text=gray] at (6.4,3.45) {$+$\$49,600};
+  \node[fill=gray!12, rounded corners=2pt, inner sep=2.5pt] at (8.9,3.45) {\$0};
+  \node[text=gray] at (11.3,3.45) {\$0};
 
-  % Row 2: US Bank USD
-  \node[text=gray] at (4.0,2.60) {\$0.00};
-  \node[text=gray] at (6.4,2.60) {\$0.00};
-  \node[fill=sourceblue!12, rounded corners=2pt, inner sep=2.5pt] at (8.9,2.60) {$+$\$600.00};
-  \node[fill=sourceblue!12, rounded corners=2pt, inner sep=2.5pt] at (11.3,2.60) {$+$\$600.00};
+  \node[text=gray] at (4.0,2.60) {\$0};
+  \node[text=gray] at (6.4,2.60) {\$0};
+  \node[fill=sourceblue!12, rounded corners=2pt, inner sep=2.5pt] at (8.9,2.60) {$+$\$49,600};
+  \node[fill=sourceblue!12, rounded corners=2pt, inner sep=2.5pt] at (11.3,2.60) {$+$\$230};
 
-  % Row 3: USDT Transit
   \node[text=gray] at (4.0,1.75) {$0\text{ USDT}$};
   \node[text=gray] at (6.4,1.75) {$0\text{ USDT}$};
-  \node[fill=quotientorange!15, rounded corners=2pt, inner sep=2.5pt] at (8.9,1.75) {$+48{,}951\text{ USDT}$};
+  \node[fill=quotientorange!15, rounded corners=2pt, inner sep=2.5pt] at (8.9,1.75) {(Swap $49{,}300$)};
   \node[fill=gray!12, rounded corners=2pt, inner sep=2.5pt] at (11.3,1.75) {$0\text{ USDT}$};
 
-  % Row 4: HoneyCoin KES
-  \node[text=gray] at (4.0,0.90) {\$0.00};
-  \node[fill=trapred!12, rounded corners=2pt, inner sep=2.5pt] at (6.4,0.90) {$-$\$49,272.29};
-  \node[text=gray] at (8.9,0.90) {$-$\$49,272.29};
-  \node[fill=structurepurple!12, rounded corners=2pt, inner sep=2.5pt] at (11.3,0.90) {$-$\$321.29};
+  \node[text=gray] at (4.0,0.90) {\$0};
+  \node[fill=trapred!12, rounded corners=2pt, inner sep=2.5pt] at (6.4,0.90) {$-$\$49,300};
+  \node[text=gray] at (8.9,0.90) {$-$\$49,300};
+  \node[fill=structurepurple!12, rounded corners=2pt, inner sep=2.5pt] at (11.3,0.90) {\$0 (Refilled)};
 
-  % Row 5: Net Equity
-  \node[text=trapred!85!black] at (4.0,0.12) {$-$\$400.00};
-  \node[fill=targetgreen!14, rounded corners=2pt, inner sep=2.5pt, font=\bfseries\scriptsize] at (6.4,0.12) {$+$\$327.71};
-  \node[text=targetgreen!85!black, font=\bfseries\scriptsize] at (8.9,0.12) {$+$\$278.71};
-  \node[fill=targetgreen!18, rounded corners=2pt, inner sep=2.5pt, font=\bfseries\scriptsize, text=targetgreen!75!black] at (11.3,0.12) {$+$\$277.21};
+  \node[text=trapred!85!black] at (4.0,0.12) {$-$\$400};
+  \node[fill=targetgreen!14, rounded corners=2pt, inner sep=2.5pt, font=\bfseries\scriptsize] at (6.4,0.12) {$+$\$300};
+  \node[text=targetgreen!85!black, font=\bfseries\scriptsize] at (8.9,0.12) {$+$\$300};
+  \node[fill=targetgreen!18, rounded corners=2pt, inner sep=2.5pt, font=\bfseries\scriptsize, text=targetgreen!75!black] at (11.3,0.12) {$+$\$225};
 \end{tikzpicture}
-\caption{Cumulative balance-sheet and equity deltas across Stages 1--4 (excluding the $-$\$1.50 gas inventory row reflected in $\Delta E$ at Stage 4). Every intermediate clearing and transit account closes back to zero.}
+\caption{Cumulative balance-sheet changes across the $50{,}000\text{ USD}$ batch. Wiring $49{,}370\text{ USD}$ from US Bank swaps into $49{,}300\text{ USDT}$ and refills HoneyCoin KES float completely to zero delta, leaving $+230\text{ USD}$ in US Bank minus $5\text{ USD}$ gas $= +225\text{ USD}$ net profit.}
 \label{fig:stage-balance-timeline}
 \end{figure}
 
-\subsection{The Symmetric Reverse Corridor: Local Mobile Money Collection to Offshore USDT Settlement}
+\subsection{The Corridor Breakeven Formula (Including Chargebacks)}
 
-Now reverse the arrow. Suppose an African B2B marketplace, airline ticketing aggregator, or electronics distributor collects local payments from customers in Kenya (\texttt{KES} via M-Pesa STK push) and Nigeria (\texttt{NGN} via dynamic named virtual bank accounts) and needs to settle a weekly \textbf{\$100,000 USD} invoice to an international supplier in Europe or Asia:
+Every corridor Savanna Pay launches must pass one clear unit-economics test. Let $s_{\text{fx}}$ be the customer FX spread (plus any explicit fee) in basis points. Subtract the four basis-point cost layers: $c_{\text{collect}}$ (Collection PSP), $c_{\text{onramp}}$ (OTC on-ramp plus gas), $c_{\text{honeycoin}}$ (local payout rail), and $c_{\text{chargeback}}$ (expected card chargeback losses). Earning positive margin requires:
+\[
+  s_{\text{fx}} > c_{\text{collect}} + c_{\text{onramp}} + c_{\text{honeycoin}} + c_{\text{chargeback}}.
+\]
 
-\begin{enumerate}
-  \item \textbf{Local Collection via HoneyCoin:} Customers pay in \texttt{KES} or \texttt{NGN} through HoneyCoin's collection API. HoneyCoin credits your \texttt{HoneyCoin KES / NGN Collection Float} net of local collection rail tariffs (typically $0.50\%\text{--}1.50\%$ depending on bank transfer vs mobile-money STK push).
-  \item \textbf{Local Currency $\to$ USDT OTC Conversion:} Instead of queuing weeks in a commercial bank FX backlog for scarce wire allocations, treasury executes an OTC swap inside HoneyCoin selling accumulated \texttt{KES} or \texttt{NGN} to buy \texttt{USDT}. Notice the bid--ask asymmetry: because hard-currency demand in import-heavy corridors exceeds supply, buying $1\text{ USDT}$ with local currency costs the OTC \emph{ask} rate (for example, $130.20\text{ KES/USDT}$ when selling \texttt{USDT} yielded $129.00\text{ KES/USDT}$). Pricing your merchant or customer invoice must use that outbound OTC \emph{ask} rate plus collection and off-ramp fees, never the inbound remittance bid rate.
-  \item \textbf{On-Chain Payout or Offshore Off-Ramp:} Treasury withdraws \texttt{USDT} from HoneyCoin either directly to the supplier's verified institutional wallet or to a regulated US/EU off-ramp desk that wires \texttt{USD} (Fedwire) or \texttt{EUR} (SEPA) to the supplier's bank account.
-\end{enumerate}
+\begin{trapbox}
+\textbf{Reversible Card Inflows vs Irreversible Mobile-Money Payouts.} Never ignore $c_{\text{chargeback}}$ on debit or credit card corridors. Once Mary receives $25{,}532\text{ KES}$ on M-Pesa and cashes out at Joseph's kiosk, that payout can never be pulled back. Meanwhile, a thief in New York using a stolen debit card gives the real cardholder up to $120\text{ days}$ to file a bank chargeback. One disputed $200\text{ USD}$ card transfer claws back all $200\text{ USD}$ of principal plus a $15\text{ USD}$ penalty ($215\text{ USD}$ lost), erasing the $+0.90\text{ USD}$ profit from $239$ honest transfers. When card fees cost $145\text{ bps}$ and fraud costs $25\text{ bps}$, your breakeven spread starts at $145 + 15 + 40 + 25 = 225\text{ bps}$ before earning a cent.
+\end{trapbox}
 
-When an operator processes \emph{both} inbound diaspora remittances (\texttt{USD -> USDT -> KES}) and outbound B2B supplier settlements (\texttt{KES -> USDT -> USD}) on the same platform, the two flows naturally net inside \texttt{HoneyCoin KES Float} and \texttt{Settlement Bank (USD)} -- eliminating external OTC conversion spreads and on-chain gas on every matched dollar of two-way volume.
+\begin{intuitionbox}
+What if a Kenyan electronics importer wants to pay a supplier in New York or Shenzhen? The exact same HoneyCoin pipeline runs in reverse. HoneyCoin acts as the \textbf{Collection Partner} in Nairobi, collecting shillings via M-Pesa STK push or a local virtual bank account into Savanna Pay's Kenyan float. Savanna Pay swaps those shillings on HoneyCoin's OTC desk into \texttt{USDT} and off-ramps to \texttt{USD} for the supplier's bank. Better still, Savanna Pay can net those shillings directly against incoming US-to-Kenya remittances with zero blockchain or OTC fees.
+\end{intuitionbox}
 
-With transactions flowing across four external systems -- origin PSPs, fiat banks, public blockchains, and multi-country orchestrators -- how do you verify every morning at 08:00 that zero money leaked overnight, and how do you prove the legitimacy of every wire and \texttt{tx\_hash} to your partner banks? That is the subject of Chapter~\ref{ch:reconciliation-and-reporting}.
+\begin{walkbox}
+\textbf{Quick pricing check:} Savanna Pay opens a pure debit-card corridor to Uganda where card collection costs $c_{\text{collect}} = 150\text{ bps}$, on-ramp plus gas costs $c_{\text{onramp}} = 15\text{ bps}$, HoneyCoin MTN MoMo payout costs $c_{\text{honeycoin}} = 45\text{ bps}$, and expected card chargebacks cost $c_{\text{chargeback}} = 20\text{ bps}$. What customer FX spread $s_{\text{fx}}$ is needed to earn a $+50\text{ bps}$ net margin? Add the four cost layers ($150 + 15 + 45 + 20 = 230\text{ bps}$ breakeven) and add $50\text{ bps}$ target margin to get $s_{\text{fx}} = 280\text{ bps}$ ($2.80\%$).
+\end{walkbox}
+
+Savanna Pay now has money moving across four independent systems: a US Collection PSP, a US bank, a public blockchain, and HoneyCoin's mobile-money pools. At 08:00 AM tomorrow morning, how do Nia, Sam, and Tunde prove -- down to the exact cent and shilling -- that zero money leaked overnight, and what reports keep their partner banks happy? That is the story of Chapter~\ref{ch:reconciliation-and-reporting}.
 
 \section*{Exercises}
 \addcontentsline{toc}{section}{Exercises}
 
-\begin{exercise}[Exact Float-Neutral Replenishment Sizing]
-In the four-stage \$50,000 walkthrough, wiring \$49,000.00 to the $10\text{ bps}$ US OTC desk replenished $6{,}314{,}679.00\text{ KES}$ out of the $6{,}356{,}125.00\text{ KES}$ consumed in Stage~2, leaving the KES float lower by $41{,}446.00\text{ KES}$ while the US settlement bank rose by \$600.00.
+\begin{exercise}[Tracing a Single 100 USD Card-to-MoMo Remittance]
+A sender in Chicago pays $100.00\text{ USD}$ by debit card to send money to a relative's MTN MoMo wallet in Kampala. Wholesale mid-market is $\texttt{USD/UGX} = 3{,}700.00$, and Savanna Pay quotes $3{,}607.50\text{ UGX/USD}$ with $0\text{ USD}$ upfront fee. The Collection PSP charges $1.50\% + 0.30\text{ USD}$ and holds a $5\%$ rolling reserve at \texttt{T+2}. HoneyCoin converts $1\text{ USDT} = 3{,}700.00\text{ UGX}$ and charges a $1{,}850\text{ UGX}$ payout fee. OTC on-ramp plus blockchain gas costs $0.15\text{ USD}$ total.
 \begin{enumerate}
-  \item Compute the exact \texttt{USD} wire amount $X$ (to the cent) that treasury should send from \texttt{Settlement Bank (USD)} to the $10\text{ bps}$ OTC desk so that Stage~4 restores \texttt{HoneyCoin KES Float} to a net change of exactly $0.00\text{ KES}$ (returning all $6{,}356{,}125.00\text{ KES}$ at $129.00\text{ KES/USDT}$).
-  \item With that wire $X$, compute the ending cash delta in \texttt{Settlement Bank (USD)} and verify that $\Delta\text{Bank USD} - \text{USD } 1.50\text{ (gas)} = \text{Net Batch Profit}$ to the cent.
+  \item Write the four double-entry journal batches for this single $100.00\text{ USD}$ transfer across capture, instant MTN MoMo payout, \texttt{T+2} bank settlement, and 30-minute \texttt{USDT} float refill.
+  \item Compute Savanna Pay's exact net profit or loss on this transfer in both dollars and basis points. Is a $250\text{ bps}$ FX spread wide enough for a $100\text{ USD}$ debit-card ticket?
 \end{enumerate}
 \end{exercise}
 
-\begin{exercise}[BTC Transit Volatility vs Stablecoin Basis Cost]
-Treasury needs to move \$200,000 across borders to refill a payout pool on a corridor whose net commercial margin before treasury bridge costs is $55\text{ bps}$ (\$1,100).
+\begin{exercise}[Bitcoin Volatility vs USDT Stability in Transit]
+Savanna Pay needs to move a $100{,}000\text{ USD}$ wholesale batch to refill its HoneyCoin payout pool on a corridor earning $50\text{ bps}$ ($500\text{ USD}$) before bridge costs.
 \begin{enumerate}
-  \item \textbf{Option A (Unhedged L1 BTC Bridge):} Buy \texttt{BTC} at $8\text{ bps}$ fee, wait $40\text{ minutes}$ for $4$ confirmations (\$3.00 network fee), and sell \texttt{BTC} via local OTC at $10\text{ bps}$ fee. If $40$-minute \texttt{BTC} price changes have mean $0\%$ and standard deviation $\sigma = 0.70\%$ ($70\text{ bps}$), compute the expected net profit and the net profit/loss on a $1.5\sigma$ adverse price move during confirmation wait.
-  \item \textbf{Option B (USDT TRC-20 / L2 Bridge):} Swap \texttt{USD} to \texttt{USDT} at $1.0006\text{ USD/USDT}$ ($6\text{ bps}$ basis/fee), pay \$1.50 in native gas, settle in $45\text{ seconds}$, and swap \texttt{USDT} locally at $8\text{ bps}$ fee. Compute net profit in dollars and basis points, and explain how treasury would modify Option~A using a perpetual futures or margin short if a corridor required \texttt{BTC} rails without directional price exposure.
+  \item \textbf{Option A (Unhedged Base-Layer BTC):} Buy \texttt{BTC} at $10\text{ bps}$ fee, wait $45\text{ minutes}$ for confirmations ($4.00\text{ USD}$ miner fee), and sell \texttt{BTC} into local float at $10\text{ bps}$ fee. Compute Savanna Pay's net batch profit if \texttt{BTC} stays flat, and its net loss if \texttt{BTC} drops by $1.2\%$ during those $45\text{ minutes}$.
+  \item \textbf{Option B (USDT Bridge):} On-ramp \texttt{USD} to \texttt{USDT} at $12\text{ bps}$ fee, pay $1.50\text{ USD}$ in native \texttt{TRX} gas, confirm in $30\text{ seconds}$, and swap into local float at $0\text{ bps}$ par. Compute the exact net profit in dollars and basis points.
 \end{enumerate}
 \end{exercise}
 
-\begin{exercise}[Accounting for Secondary-Market USDT Basis Above and Below Par]
-Instead of assuming \texttt{1 USDT = 1.0000 USD}, a disciplined treasury tracks \texttt{USDT} inventory at actual \texttt{USD} cost basis.
+\begin{exercise}[Chargeback Breakeven Sensitivity]
+On Savanna Pay's $50{,}000\text{ USD}$ daily batch ($250$ transfers of $200\text{ USD}$), suppose $s_{\text{fx}} = 180\text{ bps}$, $c_{\text{collect}} = 80\text{ bps}$, $c_{\text{onramp}} = 15\text{ bps}$, and $c_{\text{honeycoin}} = 40\text{ bps}$, giving $+225.00\text{ USD}$ ($+45\text{ bps}$) before fraud.
 \begin{enumerate}
-  \item On Monday during high dollar demand, treasury wires \$100,120.00 to acquire $100{,}000.00\text{ USDT}$ at an all-in price of $1.0012\text{ USD/USDT}$. Write the journal entry separating par \texttt{USDT} inventory (or cost-basis inventory) from any fee/basis component.
-  \item On Wednesday, treasury liquidates $50{,}000.00\text{ USDT}$ for \texttt{USD} when secondary-market \texttt{USDT} trades at $0.9994\text{ USD/USDT}$, receiving \$49,970.00. Write the balanced journal entry closing half the inventory and recording exact \texttt{Realized Stablecoin Basis Loss}.
+  \item If each disputed $200\text{ USD}$ card transfer loses the full $200\text{ USD}$ payout plus a $15\text{ USD}$ PSP chargeback fee ($215\text{ USD}$ total loss), how many fraudulent transfers out of $250$ completely wipe out the day's $225.00\text{ USD}$ profit?
+  \item Express that critical fraud rate as a percentage of batch volume and in basis points $c_{\text{chargeback}}^*$.
 \end{enumerate}
 \end{exercise}
 
-\begin{exercise}[Reverse Flow Unit Economics: NGN Virtual Account Collection to USD Supplier Wire]
-A Lagos medical-equipment importer owes a US manufacturer \textbf{\$25,000.00} net delivered via Fedwire. Your B2B payment platform collects Nigerian naira (\texttt{NGN}) via a HoneyCoin named virtual bank account (collection tariff: $0.50\%$ capped at $5{,}000\text{ NGN}$), converts \texttt{NGN} to \texttt{USDT} on HoneyCoin's OTC desk at an ask rate of $1{,}616.00\text{ NGN/USDT}$ (when interbank mid-market is $1{,}596.00\text{ NGN/USD}$), transfers \texttt{USDT} on-chain (\$1.20 gas), and off-ramps \texttt{USDT} to Fedwire \texttt{USD} via a US liquidity partner charging $12\text{ bps}$ plus a \$15.00 wire fee.
-\begin{enumerate}
-  \item If you want to earn a net contribution margin of exactly $65\text{ bps}$ (\$162.50) after all rail, OTC, gas, and wire costs, calculate the exact \texttt{NGN/USD} all-in rate (or total \texttt{NGN} invoice amount) you must quote the Lagos importer.
-  \item Write the four double-entry journal batches from \texttt{NGN} virtual-account receipt to final \$25,000.00 supplier Fedwire settlement.
-\end{enumerate}
-\end{exercise}
-
-\begin{exercise}[Preventing Native Gas Starvation Outages]
-Your automated treasury daemon holds $320{,}000\text{ USDT}$ on Ethereum L2 and $180{,}000\text{ USDT}$ on Tron, executing roughly $40$ outbound replenishment transfers per day.
-\begin{enumerate}
-  \item Describe what happens to customer payout SLA and corridor runway if the wallet's native \texttt{ETH} or \texttt{TRX} balance hits zero on Saturday at 02:00 UTC while \texttt{USDT} balance is full.
-  \item Write the journal entries for purchasing $1{,}500\text{ TRX}$ for \$300.00 from \texttt{Corporate Operating Cash} into \texttt{Crypto Gas Inventory (TRX)} and subsequently consuming $7.5\text{ TRX}$ on a batch payout replenishment using weighted-average cost basis.
-\end{enumerate}
+\begin{exercise}[Reverse Corridor: Collecting KES via HoneyCoin to Pay a US Supplier]
+A Nairobi solar-panel distributor needs Savanna Pay Business to deliver $20{,}000.00\text{ USD}$ net via domestic US wire to a manufacturer in Texas. HoneyCoin charges $0.60\%$ to collect \texttt{KES} locally and quotes an outbound OTC ask rate of $130.65\text{ KES/USDT}$ when wholesale mid-market is $130.00\text{ KES/USD}$. On-chain gas costs $2.00\text{ USD}$, and Savanna Pay's US OTC off-ramp charges $10\text{ bps}$ plus a $15.00\text{ USD}$ wire fee. Compute the exact \texttt{KES} invoice total Savanna Pay must collect from the Nairobi distributor to earn a $+60\text{ bps}$ ($120.00\text{ USD}$) net profit.
 \end{exercise}
