@@ -882,8 +882,9 @@ function tikzHtml(key) {
     warn(`figure not rendered yet: ${key}`);
     return `<div class="tikz tikz-missing">Figure not rendered yet.</div>`;
   }
+  const scale = 1.32;
   return m.pages
-    .map((p) => `<img class="tikz" src="figures/${p.file}" width="${p.w}" height="${p.h}" alt="" loading="lazy" decoding="async">`)
+    .map((p) => `<img class="tikz" src="figures/${p.file}" width="${Math.round(p.w * scale)}" height="${Math.round(p.h * scale)}" alt="" loading="lazy" decoding="async">`)
     .join('');
 }
 
