@@ -104,7 +104,7 @@ Why is $\NPV > 0$ the master rule of corporate finance? Because present values o
 
 Executives and venture investors love quoting percentage returns rather than dollar figures. Test a tiny one-year case first: suppose you spend \$100 today ($C_0 = -100$) and collect \$115 in one year ($C_1 = +115$). Clearly your money earned $15\%$. Notice what happens if you plug $r = 15\%$ into our $\NPV$ formula: $-\$100 + \frac{\$115}{1.15} = -\$100 + \$100 = \$0$. At $r = 15\%$, the discounted inflows match the upfront cost to the penny.
 
-Now look at our multi-year \$100,000 server project: $\NPV$ was $+\$3{,}084$ at $r = 8\%$ and $-\$3{,}927$ at $r = 12\%$. Somewhere between $8\%$ and $12\%$, the curve $\NPV(r)$ crosses zero (Figure~\ref{fig:ch03-pv-and-dcf}(a)). That break-even crossover rate is the \textbf{Internal Rate of Return ($\IRR$)} (the discount rate at which a project's Net Present Value equals zero).
+Now look at our multi-year \$100,000 server project: $\NPV$ was $+\$3{,}084$ at $r = 8\%$ and $-\$3{,}927$ at $r = 12\%$. Somewhere between $8\%$ and $12\%$, the curve $\NPV(r)$ crosses zero (Figure~\ref{fig:ch03-pv-and-dcf}). That break-even crossover rate is the \textbf{Internal Rate of Return ($\IRR$)} (the discount rate at which a project's Net Present Value equals zero).
 
 \begin{definition}[Internal Rate of Return]
 The \textbf{Internal Rate of Return} ($\IRR$) of a cash-flow stream $C_0, C_1, \dots, C_n$ is any discount rate $\IRR > -1$ that solves
@@ -116,6 +116,46 @@ The \textbf{Internal Rate of Return} ($\IRR$) of a cash-flow stream $C_0, C_1, \
 For our server cluster, solving $-100{,}000 + \frac{40{,}000}{1+\IRR} + \frac{40{,}000}{(1+\IRR)^2} + \frac{40{,}000}{(1+\IRR)^3} = 0$ on a computer gives $\IRR = 9.70\%$. Think of $\IRR$ as the effective annual compound interest rate your money earns while locked inside the project.
 
 When does $\IRR$ work cleanly? Whenever a project has one upfront cash outflow ($C_0 < 0$) followed only by positive or zero cash inflows ($C_t \ge 0$ for $t \ge 1$). In that standard case, raising $r$ shrinks every future inflow, so $\NPV(r)$ slopes strictly downward everywhere. There is only one $\IRR$ crossover point, and $\IRR > r$ gives the exact same yes-or-no answer as $\NPV(r) > 0$.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[>=Stealth]
+  \begin{axis}[
+    width=11.0cm, height=5.8cm,
+    title={$\NPV(r)$ Profile of the \$100,000 Server Project and $\IRR = 9.7\%$ Crossover},
+    title style={font=\small\bfseries, text=sourceblue, yshift=2pt},
+    xlabel={Annual discount rate $r$ (\%)},
+    ylabel={Net Present Value (\$ thousands)},
+    label style={font=\footnotesize},
+    tick label style={font=\footnotesize},
+    xmin=0, xmax=20, ymin=-14, ymax=23,
+    axis lines=left,
+    samples=81, domain=0:20,
+    xtick={0,4,8,12,16,20},
+    ytick={-10,0,10,20},
+    yticklabels={$-\$10\text{k}$,\$0,$+\$10\text{k}$,$+\$20\text{k}$},
+    grid=major, grid style={gray!18},
+    enlargelimits=false, clip=false
+  ]
+    \draw[gray!75!black, dashed, thick] (axis cs:0,0) -- (axis cs:20,0);
+    \addplot[curveblue, line width=1.6pt] {-100 + 40*(1 + x/100)^(-1) + 40*(1 + x/100)^(-2) + 40*(1 + x/100)^(-3)};
+
+    \filldraw[targetgreen!85!black] (axis cs:8,3.084) circle (2.4pt);
+    \draw[<-, thick, targetgreen!85!black] (axis cs:8.22,3.55) -- (axis cs:9.6,10.2)
+      node[right, font=\footnotesize\bfseries, text=targetgreen!85!black, fill=white, inner sep=2pt] {$r = 8\%:\; +\$3.1\text{k}$ (accept)};
+
+    \filldraw[trapred] (axis cs:9.70,0) circle (2.6pt);
+    \draw[<-, thick, trapred] (axis cs:9.50,-0.45) -- (axis cs:7.2,-6.8)
+      node[left, font=\footnotesize\bfseries, text=trapred, fill=white, inner sep=2pt] {$\IRR = 9.7\%$ ($\NPV = \$0$)};
+
+    \filldraw[quotientorange!90!black] (axis cs:12,-3.927) circle (2.4pt);
+    \draw[<-, thick, quotientorange!90!black] (axis cs:12.25,-3.65) -- (axis cs:13.8,2.8)
+      node[right, font=\footnotesize\bfseries, text=quotientorange!90!black, fill=white, inner sep=2pt] {$r = 12\%:\; -\$3.9\text{k}$ (reject)};
+  \end{axis}
+\end{tikzpicture}
+\caption{The $\NPV(r)$ profile of the \$100,000 server project (Example~\ref{ex:ch03-automation}). Value is positive below $\IRR = 9.7\%$, crosses zero at $\IRR$, and turns negative above $9.7\%$.}
+\label{fig:ch03-pv-and-dcf}
+\end{figure}
 
 Whenever you compare mutually exclusive choices or deal with late-stage cleanup costs, however, ranking by $\IRR$ walks straight into two famous traps.
 
@@ -197,67 +237,58 @@ Adding Stage~1 and Stage~2 gives the workhorse \textbf{two-stage DCF formula}:
   V_0 = \underbrace{\sum_{t=1}^{T} \frac{\FCF_t}{(1+r)^t}}_{\text{PV of Years } 1 \text{ to } T} + \underbrace{\frac{1}{(1+r)^T} \cdot \frac{\FCF_T(1 + g_\infty)}{r - g_\infty}}_{\text{PV of Years } T+1 \text{ to } \infty}.
   \label{eq:two-stage-dcf}
 \end{equation}
+Figure~\ref{ch03:fig-two-stage-dcf} contrasts rising nominal cash flows against shrinking present-value bars once steady-state growth $g_\infty$ drops below $r$.
 
 \begin{figure}[htbp]
 \centering
-\begin{tikzpicture}
-  % Panel (a): NPV profile curve of the USD 100k automation project
-  \begin{scope}[shift={(0,0)}]
-    \begin{axis}[
-      width=5.7cm, height=5.1cm,
-      title={Panel (a): $\NPV(r)$ Profile of Server Project},
-      title style={font=\footnotesize\bfseries, text=sourceblue},
-      xlabel={discount rate $r$ (\%)},
-      ylabel={$\NPV$ (USD thousands)},
-      label style={font=\footnotesize},
-      tick label style={font=\scriptsize},
-      xmin=0, xmax=20, ymin=-14, ymax=22,
-      axis lines=left, samples=61, domain=0:20,
-      xtick={0,5,10,15,20}, ytick={-10,0,10,20},
-      enlargelimits=false, clip=false
-    ]
-      \draw[gray!65, dashed] (axis cs:0,0) -- (axis cs:20,0);
-      \addplot[curveblue, very thick] {-100 + 40*(1 + x/100)^(-1) + 40*(1 + x/100)^(-2) + 40*(1 + x/100)^(-3)};
-      \filldraw[targetgreen!85!black] (axis cs:8,3.084) circle (1.8pt);
-      \node[targetgreen!85!black, font=\tiny\bfseries, above right] at (axis cs:8.1,3.5) {$r=8\%:\;+\$3.1\text{k}$};
-      \filldraw[trapred] (axis cs:9.70,0) circle (2.0pt);
-      \node[trapred, font=\tiny\bfseries, below left] at (axis cs:9.5,-1.2) {$\IRR=9.7\%$};
-      \filldraw[quotientorange!90!black] (axis cs:12,-3.927) circle (1.8pt);
-      \node[quotientorange!90!black, font=\tiny, above right] at (axis cs:12.2,-4.0) {$r=12\%:\;-\$3.9\text{k}$};
-    \end{axis}
-  \end{scope}
-  % Panel (b): Two-stage DCF cash flows (Nominal vs PV)
-  \begin{scope}[shift={(6.4,0)}]
-    \begin{axis}[
-      width=5.8cm, height=5.1cm,
-      title={Panel (b): Two-Stage DCF Bars ($r=10\%$)},
-      title style={font=\footnotesize\bfseries, text=targetgreen},
-      xlabel={year $t$ (Stage 1: $1$--$5$, Stage 2: $6+$)},
-      ylabel={$\FCF$ (USD millions)},
-      label style={font=\footnotesize},
-      tick label style={font=\scriptsize},
-      xmin=0.4, xmax=12.6, ymin=0, ymax=150,
-      axis lines=left,
-      xtick={1,3,5,7,9,11}, ytick={0,50,100,150},
-      enlargelimits=false, clip=false
-    ]
-      \addplot[ybar, bar width=6pt, draw=quotientorange!80!black, fill=quotientorange!25] coordinates {
-        (1,59.0) (2,69.6) (3,82.2) (4,96.9) (5,114.4)
-        (6,117.8) (7,121.4) (8,125.0) (9,128.7) (10,132.6) (11,136.6) (12,140.7)
-      };
-      \addplot[ybar, bar width=3.5pt, draw=sourceblue!90!black, fill=sourceblue!70] coordinates {
-        (1,53.6) (2,57.5) (3,61.7) (4,66.2) (5,71.0)
-        (6,66.5) (7,62.3) (8,58.3) (9,54.6) (10,51.1) (11,47.9) (12,44.8)
-      };
-      \draw[gray!75!black, dashed, thick] (axis cs:5.5,0) -- (axis cs:5.5,145);
-      \node[quotientorange!85!black, font=\scriptsize, right] at (axis cs:0.7,134) {Nominal $\FCF_t$};
-      \node[sourceblue!90!black, font=\scriptsize, right] at (axis cs:0.7,117) {PV $\FCF_t/(1+r)^t$};
-      \node[gray!60!black, font=\tiny, right] at (axis cs:5.65,140) {$g_\infty=3\%$};
-    \end{axis}
-  \end{scope}
+\begin{tikzpicture}[>=Stealth]
+  \begin{axis}[
+    width=11.2cm, height=5.8cm,
+    title={Two-Stage DCF: Nominal $\FCF_t$ vs.\ Present Value $\FCF_t/(1+r)^t$ ($r = 10\%$)},
+    title style={font=\small\bfseries, text=targetgreen!85!black, yshift=2pt},
+    xlabel={Forecast year $t$},
+    ylabel={Free Cash Flow (\$ millions)},
+    label style={font=\footnotesize},
+    tick label style={font=\footnotesize},
+    xmin=0.3, xmax=12.7, ymin=0, ymax=185,
+    axis lines=left,
+    xtick={1,2,3,4,5,6,7,8,9,10,11,12},
+    ytick={0,50,100,150},
+    yticklabels={\$0,\$50M,\$100M,\$150M},
+    ymajorgrids=true, grid style={gray!20, dashed},
+    ybar=1.8pt,
+    bar width=6.2pt,
+    enlargelimits=false, clip=false,
+    legend style={
+      at={(0.02,0.97)},
+      anchor=north west,
+      font=\footnotesize,
+      draw=gray!45,
+      fill=white,
+      rounded corners=3pt,
+      inner xsep=6pt,
+      inner ysep=3pt
+    }
+  ]
+    \addplot[draw=quotientorange!85!black, fill=quotientorange!30, thick] coordinates {
+      (1,59.0) (2,69.6) (3,82.2) (4,96.9) (5,114.4)
+      (6,117.8) (7,121.4) (8,125.0) (9,128.7) (10,132.6) (11,136.6) (12,140.7)
+    };
+    \addlegendentry{Nominal $\FCF_t$}
+
+    \addplot[draw=sourceblue!95!black, fill=sourceblue!75, thick] coordinates {
+      (1,53.6) (2,57.5) (3,61.7) (4,66.2) (5,71.0)
+      (6,66.5) (7,62.3) (8,58.3) (9,54.6) (10,51.1) (11,47.9) (12,44.8)
+    };
+    \addlegendentry{Present Value $\FCF_t / (1+r)^t$}
+
+    \draw[gray!75!black, dashed, very thick] (axis cs:5.5,0) -- (axis cs:5.5,175);
+    \node[font=\footnotesize\bfseries, text=sourceblue!90!black] at (axis cs:2.65,112) {Stage 1 ($g=18\%$)};
+    \node[font=\footnotesize\bfseries, text=gray!75!black] at (axis cs:9.1,162) {Stage 2 ($g_\infty = 3\% < r$)};
+  \end{axis}
 \end{tikzpicture}
-\caption{Panel (a) plots the $\NPV(r)$ profile of Example~\ref{ex:ch03-automation}, crossing zero at $\IRR = 9.7\%$. Panel (b) plots a two-stage DCF starting at $\FCF_0 = \$50\text{M}$ with $18\%$ growth in Years $1$--$5$ and $3\%$ perpetual growth thereafter at $r = 10\%$; discounted blue bars peak at Year~5 and shrink once $g_\infty < r$.}
-\label{fig:ch03-pv-and-dcf}
+\caption{Two-stage DCF starting at $\FCF_0 = \$50\text{M}$ with $18\%$ growth in Years $1$--$5$ and $g_\infty = 3\%$ thereafter at $r = 10\%$. Present-value bars peak at Year~5 and taper once $g_\infty < r$.}
+\label{ch03:fig-two-stage-dcf}
 \end{figure}
 
 Look closely at the small denominator $r - g$ in $\frac{\FCF_1}{r - g}$. Table~\ref{tab:ch03-gordon-sensitivity} computes $V_0$ for a business generating $\FCF_1 = \$100$ million next year across three discount rates and three growth rates. Moving from $(r = 8\%, g = 4\%)$ to $(r = 9\%, g = 4\%)$ -- just a $1$ percentage-point rise in interest rates -- slashes the company's value from \$2,500 million to \$2,000 million, a $20\%$ drop overnight without next year's cash flow changing by a cent. That denominator is why growth stocks swing sharply whenever central banks raise or cut interest rates.
@@ -307,46 +338,50 @@ Check the logic of every plus and minus sign in Equation~\eqref{eq:enterprise-va
 
 \begin{figure}[htbp]
 \centering
-\begin{tikzpicture}[x=1.45cm, y=0.075cm]
-  \draw[gray!50] (0.3,0) -- (7.6,0);
-  \draw[->, >=stealth, thick, gray!80!black] (0.3,0) -- (0.3,58) node[above, font=\scriptsize\bfseries, text=black] {USD millions};
-  \foreach \y in {0,10,20,30,40,50} {
-    \draw[gray!25, dashed] (0.3,\y) -- (7.6,\y);
-    \node[left, font=\scriptsize, text=gray!80!black] at (0.28,\y) {\y0};
+\begin{tikzpicture}[x=1.55cm, y=0.082cm, >=Stealth]
+  \draw[gray!55] (0.35,0) -- (7.65,0);
+  \draw[->, thick, gray!80!black] (0.35,0) -- (0.35,60)
+    node[above, font=\footnotesize\bfseries, text=black] {\$ millions};
+
+  \foreach \y/\lbl in {0/0, 10/100, 20/200, 30/300, 40/400, 50/500} {
+    \draw[gray!22, dashed] (0.35,\y) -- (7.65,\y);
+    \node[left, font=\footnotesize, text=gray!85!black] at (0.30,\y) {\$\lbl};
   }
-  % Firm A (Cash-Rich Software): Market Cap 500, +Debt 40, -Cash 150 -> EV 390
-  \filldraw[fill=sourceblue!75, draw=sourceblue!95!black] (0.65,0) rectangle (1.35,50);
-  \node[above, font=\scriptsize\bfseries, text=sourceblue!95!black] at (1.00,50) {500};
-  \draw[gray!70, densely dotted] (1.35,50) -- (1.65,50);
-  \filldraw[fill=trapred!65, draw=trapred!90!black] (1.65,50) rectangle (2.35,54);
-  \node[above, font=\scriptsize, text=trapred!90!black] at (2.00,54) {$+40$};
-  \draw[gray!70, densely dotted] (2.35,54) -- (2.65,54);
-  \filldraw[fill=targetgreen!55, draw=targetgreen!85!black] (2.65,39) rectangle (3.35,54);
-  \node[below, font=\scriptsize, text=targetgreen!90!black] at (3.00,38.8) {$-150$};
-  \draw[gray!70, densely dotted] (3.35,39) -- (3.65,39);
-  \filldraw[fill=structurepurple!75, draw=structurepurple!95!black] (3.65,0) rectangle (4.35,39);
-  \node[above, font=\scriptsize\bfseries, text=structurepurple!95!black] at (4.00,39) {EV = 390};
 
-  % Divider
-  \draw[gray!60, thick, dashed] (4.85,-6) -- (4.85,56);
+  \filldraw[fill=sourceblue!75, draw=sourceblue!95!black, thick] (0.65,0) rectangle (1.35,50);
+  \node[above=1pt, font=\footnotesize\bfseries, text=sourceblue!95!black] at (1.00,50) {\$500M};
 
-  % Firm B (Debt-Heavy Industrial): Market Cap 100, +Debt 400 -> EV 500
-  \filldraw[fill=sourceblue!75, draw=sourceblue!95!black] (5.25,0) rectangle (5.95,10);
-  \node[above, font=\scriptsize\bfseries, text=sourceblue!95!black] at (5.60,10) {100};
-  \filldraw[fill=trapred!65, draw=trapred!90!black] (5.25,10) rectangle (5.95,50);
-  \node[font=\scriptsize\bfseries, text=white] at (5.60,30) {$+400$ Debt};
-  \draw[gray!70, densely dotted] (5.95,50) -- (6.35,50);
-  \filldraw[fill=structurepurple!75, draw=structurepurple!95!black] (6.35,0) rectangle (7.05,50);
-  \node[above, font=\scriptsize\bfseries, text=structurepurple!95!black] at (6.70,50) {EV = 500};
+  \draw[gray!70, densely dotted, thick] (1.35,50) -- (1.65,50);
+  \filldraw[fill=trapred!65, draw=trapred!90!black, thick] (1.65,50) rectangle (2.35,54);
+  \node[above=1pt, font=\footnotesize\bfseries, text=trapred!90!black] at (2.00,54) {$+\$40\text{M}$};
 
-  \node[below, align=center, font=\tiny\bfseries] at (1.00,-0.8) {Mkt\\Cap};
-  \node[below, align=center, font=\tiny] at (2.00,-0.8) {$+$Debt};
-  \node[below, align=center, font=\tiny] at (3.00,-0.8) {$-$Cash};
-  \node[below, align=center, font=\tiny\bfseries] at (4.00,-0.8) {Firm A\\ $\EV$};
-  \node[below, align=center, font=\tiny\bfseries] at (5.60,-0.8) {Cap$+$Debt};
-  \node[below, align=center, font=\tiny\bfseries] at (6.70,-0.8) {Firm B\\ $\EV$};
+  \draw[gray!70, densely dotted, thick] (2.35,54) -- (2.65,54);
+  \filldraw[fill=targetgreen!60, draw=targetgreen!88!black, thick] (2.65,39) rectangle (3.35,54);
+  \node[below=1pt, font=\footnotesize\bfseries, text=targetgreen!88!black] at (3.00,39) {$-\$150\text{M}$};
+
+  \draw[gray!70, densely dotted, thick] (3.35,39) -- (3.65,39);
+  \filldraw[fill=structurepurple!75, draw=structurepurple!95!black, thick] (3.65,0) rectangle (4.35,39);
+  \node[above=1pt, font=\footnotesize\bfseries, text=structurepurple!95!black] at (4.00,39) {$\EV = \$390\text{M}$};
+
+  \draw[gray!60, thick, dashed] (4.85,-9) -- (4.85,58);
+
+  \filldraw[fill=sourceblue!75, draw=sourceblue!95!black, thick] (5.30,0) rectangle (6.10,10);
+  \node[font=\scriptsize\bfseries, text=white] at (5.70,5) {\$100M};
+  \filldraw[fill=trapred!68, draw=trapred!92!black, thick] (5.30,10) rectangle (6.10,50);
+  \node[align=center, font=\footnotesize\bfseries, text=white] at (5.70,30) {$+\$400\text{M}$\\Debt};
+
+  \draw[gray!70, densely dotted, thick] (6.10,50) -- (6.50,50);
+  \filldraw[fill=structurepurple!75, draw=structurepurple!95!black, thick] (6.50,0) rectangle (7.30,50);
+  \node[above=1pt, font=\footnotesize\bfseries, text=structurepurple!95!black] at (6.90,50) {$\EV = \$500\text{M}$};
+
+  \node[below=3pt, align=center, font=\footnotesize\bfseries] at (1.00,0) {Market\\Cap};
+  \node[below=3pt, align=center, font=\footnotesize] at (2.00,0) {$+$Debt};
+  \node[below=3pt, align=center, font=\footnotesize] at (3.00,0) {$-$Cash};
+  \node[below=3pt, align=center, font=\footnotesize\bfseries] at (4.00,0) {Firm A\\$\EV$};
+  \node[below=3pt, align=center, font=\footnotesize\bfseries] at (5.70,0) {Cap $+$\\Debt};
+  \node[below=3pt, align=center, font=\footnotesize\bfseries] at (6.90,0) {Firm B\\$\EV$};
 \end{tikzpicture}
-\caption{Enterprise Value bridge (USD millions). Firm~A has a \$500M Market Cap, \$40M of debt, and \$150M of cash, so its operating business costs $\EV = \$390\text{M}$. Firm~B looks ``tiny'' at a \$100M Market Cap, yet \$400M of debt makes it a \$500M purchase.}
+\caption{Enterprise Value bridge (\$ millions). Firm~A has a \$500M Market Cap, \$40M of debt, and \$150M of cash, so its operating business costs $\EV = \$390\text{M}$. Firm~B looks ``tiny'' at a \$100M Market Cap, yet \$400M of debt makes it a \$500M purchase.}
 \label{fig:ch03-ev-bridge}
 \end{figure}
 
@@ -404,31 +439,39 @@ Look at Equation~\eqref{eq:justified-pe} when $\ROIC = r$: $\frac{1 - b}{r - br}
 
 \begin{figure}[htbp]
 \centering
-\begin{tikzpicture}
+\begin{tikzpicture}[>=Stealth]
   \begin{axis}[
-    width=10.4cm, height=5.7cm,
-    title={Justified Forward P/E $\dfrac{P_0}{E_1} = \dfrac{1 - g/\ROIC}{r - g}$ vs.\ Growth Rate $g$ (at $r = 10\%$)},
-    title style={font=\small\bfseries, text=sourceblue},
-    xlabel={perpetual earnings growth rate $g$ (\%)},
-    ylabel={justified forward P/E ($P_0 / E_1$)},
+    width=11.0cm, height=6.0cm,
+    title={Justified Forward P/E $\dfrac{P_0}{E_1} = \dfrac{1 - g/\ROIC}{r - g}$ vs.\ Growth $g$ (at $r = 10\%$)},
+    title style={font=\small\bfseries, text=sourceblue, yshift=3pt},
+    xlabel={Perpetual earnings growth rate $g$ (\%)},
+    ylabel={Justified forward P/E ($P_0 / E_1$)},
     label style={font=\footnotesize},
     tick label style={font=\footnotesize},
-    xmin=0, xmax=8.0, ymin=0, ymax=38,
+    xmin=0, xmax=8.0, ymin=0, ymax=39,
     axis lines=left, samples=100,
     xtick={0,1,2,3,4,5,6,7,8},
     ytick={0,10,20,30},
+    yticklabels={$0\times$,$10\times$,$20\times$,$30\times$},
     grid=major, grid style={gray!20},
     enlargelimits=false, clip=false
   ]
-    \addplot[targetgreen, very thick, domain=0:8.0] {(1 - x/30) / (0.10 - x/100)};
-    \addplot[curveblue, very thick, dashed, domain=0:8.0] {10};
-    \addplot[trapred, very thick, densely dotted, domain=0:6.0] {(1 - x/6) / (0.10 - x/100)};
+    \addplot[targetgreen, line width=1.6pt, domain=0:8.0] {(1 - x/30) / (0.10 - x/100)};
+    \addplot[curveblue, line width=1.6pt, dashed, domain=0:8.0] {10};
+    \addplot[trapred, line width=1.6pt, densely dotted, domain=0:6.0] {(1 - x/6) / (0.10 - x/100)};
 
-    \node[targetgreen!85!black, font=\footnotesize\bfseries, left] at (axis cs:7.5,33.5) {$\ROIC = 30\% > r$ (adds value)};
-    \node[curveblue, font=\footnotesize\bfseries, above right] at (axis cs:3.4,10.4) {$\ROIC = 10\% = r$ (flat at $10\times$)};
-    \node[trapred, font=\footnotesize\bfseries, below right] at (axis cs:1.7,5.8) {$\ROIC = 6\% < r$ (destroys value)};
-    \filldraw[sourceblue] (axis cs:0,10) circle (2pt);
-    \node[sourceblue, font=\scriptsize, right] at (axis cs:0.15,12.2) {$g=0 \implies 1/r = 10\times$};
+    \draw[<-, thick, targetgreen!85!black] (axis cs:6.85,24.4) -- (axis cs:5.45,30.5)
+      node[left, font=\footnotesize\bfseries, text=targetgreen!85!black, fill=white, inner sep=2pt] {$\ROIC = 30\% > r$ (adds value)};
+
+    \filldraw[sourceblue] (axis cs:0,10) circle (2.4pt);
+    \draw[<-, thick, sourceblue] (axis cs:0.10,10.6) -- (axis cs:0.85,20.5)
+      node[right, font=\footnotesize\bfseries, text=sourceblue, fill=white, inner sep=2pt] {$g = 0 \implies \text{P/E} = 10\times$};
+
+    \draw[<-, thick, curveblue] (axis cs:6.8,10.3) -- (axis cs:6.8,13.2)
+      node[above, font=\footnotesize\bfseries, text=curveblue, fill=white, inner sep=2pt] {$\ROIC = 10\% = r$ (flat $10\times$)};
+
+    \draw[<-, thick, trapred] (axis cs:3.4,6.55) -- (axis cs:2.50,4.35)
+      node[below, font=\footnotesize\bfseries, text=trapred, fill=white, inner sep=1pt] {$\ROIC = 6\% < r$ (destroys value)};
   \end{axis}
 \end{tikzpicture}
 \caption{Justified Forward P/E against perpetual growth $g$ at $r = 10\%$. Every curve starts at $1/r = 10\times$ when $g = 0$; faster growth lifts P/E only when $\ROIC > r$.}
