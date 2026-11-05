@@ -52,4 +52,14 @@ export const BOOKS = [
     common: ['books/finance/src/common.tex'],
     unit: 'chapter',
   },
+  {
+    id: 'music',
+    short: 'Music & piano',
+    title: 'Music and the Piano From the Ground Up',
+    subtitle: 'Keys, scales, chords, inversions, rhythm, and reading sheet music without memorization',
+    main: 'books/music/src/main.tex',
+    root: 'books/music',
+    common: ['books/music/src/common.tex'],
+    unit: 'chapter',
+  },
 ];
