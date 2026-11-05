@@ -9,7 +9,7 @@ for file in src/main-curriculum.tex src/start-here-reader.tex src/proof-reader-e
   rm -f "dist/$base.aux" "dist/$base.log" "dist/$base.out" "dist/$base.toc"
 done
 
-for book in books/calculus books/linear-algebra books/probability; do
+for book in books/calculus books/linear-algebra books/probability books/finance books/music; do
   if [ -x "$book/build.sh" ]; then
     echo "=== Building $book ==="
     (cd "$book" && ./build.sh)
