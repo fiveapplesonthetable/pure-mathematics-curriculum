@@ -1,0 +1,1397 @@
+\chapter{Simple Linear Regression}
+\label{ch:simple-linear-regression}
+
+Here are six file uploads. For each one we record the file size $x$ (in MB) and
+the upload time $y$ (in seconds).
+
+\begin{center}
+\begin{tabular}{lcccccc}
+\toprule
+upload $i$ & 1 & 2 & 3 & 4 & 5 & 6 \\
+\midrule
+size $x_i$ (MB) & 1 & 2 & 3 & 4 & 5 & 6 \\
+time $y_i$ (s) & 3 & 5 & 4 & 7 & 8 & 9 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Bigger files take longer, but not perfectly: the 3 MB file was faster than the
+2 MB file. Chapters~9 to~11 compared groups: version A against version B, one
+mean against another. Here $x$ is not a group label but a number that can take
+any value, and we want to know how $y$ changes as $x$ slides. Chapter~4
+measured the strength of such a relationship with the correlation $r$, a
+number between $-1$ and $1$ that says how tightly the points hug a line. This
+chapter goes further. We fit a line, use it to predict,
+say how much of the variation it explains, and put error bars on its slope.
+That is \textbf{simple linear regression}: one predictor $x$, one response $y$.
+
+\section{The model}
+\label{sec:slr-model}
+
+\begin{definition}[Simple linear regression model]
+The response is a straight-line function of $x$ plus noise:
+\[
+  y_i = \beta_0 + \beta_1 x_i + \eps_i, \qquad i = 1,\dots,n,
+\]
+where the errors $\eps_i$ are independent, have mean $0$, and have the same
+variance $\sigma^2$. Often we also assume $\eps_i \sim \Normal(0,\sigma^2)$.
+The unknown parameters are the \textbf{intercept} $\beta_0$, the \textbf{slope}
+$\beta_1$, and the \textbf{noise level} $\sigma$.
+\end{definition}
+
+The model says: at each fixed $x$, the response has a distribution. Its mean
+sits on the line $\beta_0+\beta_1 x$, and its spread is $\sigma$ no matter
+where you are. Figure~\ref{fig:slr-model} draws this picture. The line is the
+\emph{average} upload time for a file of a given size. Individual uploads
+scatter around it because of network jitter, server load, and everything else
+we did not measure.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.5cm, axis lines=left,
+  xmin=0, xmax=7.5, ymin=0, ymax=13,
+  xlabel={file size $x$ (MB)}, ylabel={upload time $y$ (s)},
+  clip=false,
+]
+\addplot[sourceblue, very thick, domain=0:7.2] {1.8+1.2*x};
+\node[sourceblue, anchor=west] at (axis cs:7.2,10.44) {$\E[y\given x]=\beta_0+\beta_1x$};
+\foreach \xo in {1.5,3.5,5.5} {
+  \addplot[densityred, thick, domain=-2.4:2.4, samples=60]
+    ({\xo+1.1*exp(-x^2/1.28)}, {1.8+1.2*\xo+x});
+  \addplot[densityred, dashed] coordinates {(\xo,{1.8+1.2*\xo-2.4}) (\xo,{1.8+1.2*\xo+2.4})};
+}
+\addplot[only marks, mark=*, mark size=1.8pt, black] coordinates {
+ (1.5,2.9) (1.5,4.4) (1.5,3.6) (3.5,6.9) (3.5,5.2) (3.5,6.3) (5.5,8.0) (5.5,9.6) (5.5,8.8)};
+\node[densityred, anchor=west, font=\small] at (axis cs:6.7,6.3) {same spread $\sigma$};
+\draw[densityred, -{Stealth}] (axis cs:6.7,6.3) -- (axis cs:6.4,7.6);
+\end{axis}
+\end{tikzpicture}
+\caption{The regression model. At every $x$ the response is a random variable
+centred on the line, with the same spread $\sigma$ (red bells). Observed points
+(black) are single draws from these bells.}
+\label{fig:slr-model}
+\end{figure}
+
+\begin{intuitionbox}
+Read $\beta_1$ as ``how much the \emph{average} $y$ moves when $x$ goes up by
+one unit.'' Read $\sigma$ as ``how far a typical point lands from that average.''
+Regression estimates both. A small slope with small $\sigma$ can be a clearer
+signal than a large slope buried in large $\sigma$.
+\end{intuitionbox}
+
+We never see $\beta_0,\beta_1,\sigma$. We see $n$ points. Our job is to compute
+estimates $b_0, b_1, s$ from the data and then say how far off they might be.
+(Many texts, and Chapters~13--15, write $\hat\beta_0, \hat\beta_1$ for $b_0, b_1$;
+the hat means ``estimated from data''.) The fitted line is written
+\[
+  \hat y = b_0 + b_1 x .
+\]
+The hat means ``predicted value.'' For the $i$-th point, $\hat y_i = b_0 + b_1 x_i$.
+
+\section{Residuals and the least squares criterion}
+\label{sec:slr-ls}
+
+\begin{definition}[Residual]
+The \textbf{residual} of point $i$ is the observed value minus the predicted value:
+\[
+  e_i = y_i - \hat y_i = y_i - (b_0 + b_1 x_i).
+\]
+Geometrically it is the signed \emph{vertical} distance from the point to the line.
+\end{definition}
+
+A positive residual means the point lies above the line (the model
+under-predicted). Negative means below. Figure~\ref{fig:slr-residuals} shows
+the residuals of our six uploads for the line we are about to derive.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.5cm, axis lines=left,
+  xmin=0, xmax=7, ymin=1, ymax=10.5,
+  xlabel={file size $x$ (MB)}, ylabel={upload time $y$ (s)},
+]
+\addplot[sourceblue, very thick, domain=0.3:6.7] {1.8+1.2*x};
+\addplot[residgray, thick] coordinates {(2,5) (2,4.2)};
+\addplot[residgray, thick] coordinates {(3,4) (3,5.4)};
+\addplot[residgray, thick] coordinates {(4,7) (4,6.6)};
+\addplot[residgray, thick] coordinates {(5,8) (5,7.8)};
+\addplot[only marks, mark=*, mark size=2.2pt, black] coordinates {(1,3) (2,5) (3,4) (4,7) (5,8) (6,9)};
+\node[anchor=east, font=\small] at (axis cs:1.95,4.6) {$e_2=+0.8$};
+\node[anchor=west, font=\small] at (axis cs:3.05,4.5) {$e_3=-1.4$};
+\node[anchor=east, font=\small] at (axis cs:3.95,7.3) {$e_4=+0.4$};
+\addplot[only marks, mark=square*, mark size=2.6pt, quotientorange] coordinates {(3.5,6)};
+\node[quotientorange, anchor=north west, font=\small] at (axis cs:3.55,5.95) {$(\xbar,\ybar)=(3.5,6)$};
+\node[sourceblue, anchor=south east, font=\small] at (axis cs:6.6,9.7) {$\hat y = 1.8+1.2x$};
+\end{axis}
+\end{tikzpicture}
+\caption{Residuals are vertical segments from each point to the fitted line.
+Points 1 and 6 sit exactly on the line ($e=0$). The orange square is the
+centroid $(\xbar,\ybar)$; the least squares line always passes through it.}
+\label{fig:slr-residuals}
+\end{figure}
+
+\begin{trapbox}
+Residuals are \emph{vertical}, not perpendicular. We are predicting $y$ from
+$x$, so the error that matters is the error in $y$ at the given $x$. Minimising
+perpendicular distances gives a different line (total least squares, or the
+first principal component), which answers a different question.
+\end{trapbox}
+
+Which line is ``best''? We want residuals small as a whole. Their plain sum is
+useless: big positive and big negative residuals cancel. The standard choice is
+to square them and add.
+
+\begin{definition}[Least squares]
+The \textbf{least squares} line is the choice of $(b_0,b_1)$ that minimises the
+sum of squared errors
+\[
+  \mathrm{SSE}(b_0,b_1) = \sum_{i=1}^n \bigl(y_i - b_0 - b_1 x_i\bigr)^2 .
+\]
+\end{definition}
+
+Squaring has a literal picture. Each squared residual is the area of a square
+whose side is the residual. Least squares finds the line with the smallest total
+square area (Figure~\ref{fig:slr-squares}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=left, width=6.4cm, height=6.4cm, axis lines=left,
+  axis equal image, xmin=0, xmax=9.5, ymin=1, ymax=10.5,
+  xlabel={$x$}, ylabel={$y$}, title style={font=\small}, title={\small flat line $\hat y=6$: $\mathrm{SSE}=28$},
+  xtick={0,2,4,6,8}, ytick={2,4,6,8,10},
+]
+\addplot[trapred, very thick, domain=0.3:9] {6};
+\draw[trapred, fill=trapred, fill opacity=0.18] (axis cs:1,3) rectangle (axis cs:4,6);
+\draw[trapred, fill=trapred, fill opacity=0.18] (axis cs:2,5) rectangle (axis cs:3,6);
+\draw[trapred, fill=trapred, fill opacity=0.18] (axis cs:3,4) rectangle (axis cs:5,6);
+\draw[trapred, fill=trapred, fill opacity=0.18] (axis cs:4,7) rectangle (axis cs:5,6);
+\draw[trapred, fill=trapred, fill opacity=0.18] (axis cs:5,8) rectangle (axis cs:7,6);
+\draw[trapred, fill=trapred, fill opacity=0.18] (axis cs:6,9) rectangle (axis cs:9,6);
+\addplot[only marks, mark=*, mark size=1.8pt, black] coordinates {(1,3) (2,5) (3,4) (4,7) (5,8) (6,9)};
+\end{axis}
+\begin{axis}[
+  at={(left.east)}, anchor=west, xshift=0.6cm,
+  width=6.4cm, height=6.4cm, axis lines=left,
+  axis equal image, xmin=0, xmax=9.5, ymin=1, ymax=10.5,
+  xlabel={$x$}, title style={font=\small}, title={\small least squares: $\mathrm{SSE}=2.8$},
+  xtick={0,2,4,6,8}, ytick={2,4,6,8,10},
+]
+\addplot[sourceblue, very thick, domain=0.3:7] {1.8+1.2*x};
+\draw[sourceblue, fill=sourceblue, fill opacity=0.25] (axis cs:2,5) rectangle (axis cs:2.8,4.2);
+\draw[sourceblue, fill=sourceblue, fill opacity=0.25] (axis cs:3,4) rectangle (axis cs:4.4,5.4);
+\draw[sourceblue, fill=sourceblue, fill opacity=0.25] (axis cs:4,7) rectangle (axis cs:4.4,6.6);
+\draw[sourceblue, fill=sourceblue, fill opacity=0.25] (axis cs:5,8) rectangle (axis cs:5.2,7.8);
+\addplot[only marks, mark=*, mark size=1.8pt, black] coordinates {(1,3) (2,5) (3,4) (4,7) (5,8) (6,9)};
+\end{axis}
+\end{tikzpicture}
+\caption{Squared residuals drawn as actual squares. The flat line at the mean
+has total square area $28$; the least squares line cuts it to $2.8$. No other
+line does better.}
+\label{fig:slr-squares}
+\end{figure}
+
+\begin{whybox}
+Why squares and not absolute values? Three reasons. (1) Squares make
+$\mathrm{SSE}$ a smooth bowl in $(b_0,b_1)$, so calculus gives a closed-form
+answer. (2) The answer is built from means, variances and covariances, the same
+quantities as Chapters~2 and~4. (3) If the noise is Gaussian, least squares is
+exactly maximum likelihood (Section~\ref{sec:slr-mle}). Minimising absolute
+residuals instead (least absolute deviations) is more robust to outliers, just
+as the median is more robust than the mean, but has no closed form.
+\end{whybox}
+
+\section{Deriving the least squares line}
+\label{sec:slr-derive}
+
+We need some shorthand. For data $(x_1,y_1),\dots,(x_n,y_n)$ define
+\begin{align*}
+  S_{xx} &= \sum_{i=1}^n (x_i-\xbar)^2, &
+  S_{yy} &= \sum_{i=1}^n (y_i-\ybar)^2, &
+  S_{xy} &= \sum_{i=1}^n (x_i-\xbar)(y_i-\ybar).
+\end{align*}
+These are the un-normalised versions of the variances and covariance:
+$s_x^2 = S_{xx}/(n-1)$, $s_y^2 = S_{yy}/(n-1)$, and the sample covariance is
+$S_{xy}/(n-1)$. The correlation from Chapter~4 is
+$r = S_{xy}/\sqrt{S_{xx}S_{yy}}$.
+
+\begin{theorem}[Least squares estimates]
+\label{thm:slr-ls}
+If the $x_i$ are not all equal, $\mathrm{SSE}(b_0,b_1)$ has a unique minimiser
+\[
+  b_1 = \frac{S_{xy}}{S_{xx}} = r\,\frac{s_y}{s_x},
+  \qquad
+  b_0 = \ybar - b_1\,\xbar .
+\]
+\end{theorem}
+
+\begin{proof}
+$\mathrm{SSE}$ is a quadratic in $b_0$ and $b_1$ that opens upward, so its
+minimum is where both partial derivatives vanish.
+
+\emph{Intercept.} Differentiate with respect to $b_0$:
+\[
+  \frac{\partial\,\mathrm{SSE}}{\partial b_0}
+  = -2\sum_{i=1}^n (y_i - b_0 - b_1 x_i) = 0
+  \quad\Longrightarrow\quad
+  \sum y_i = n b_0 + b_1 \sum x_i .
+\]
+Divide by $n$: $\ybar = b_0 + b_1\xbar$. So $b_0 = \ybar - b_1\xbar$.
+
+\emph{Slope.} Differentiate with respect to $b_1$:
+\[
+  \frac{\partial\,\mathrm{SSE}}{\partial b_1}
+  = -2\sum_{i=1}^n x_i (y_i - b_0 - b_1 x_i) = 0 .
+\]
+Substitute $b_0 = \ybar - b_1\xbar$, so that
+$y_i - b_0 - b_1x_i = (y_i-\ybar) - b_1(x_i-\xbar)$:
+\[
+  \sum_{i=1}^n x_i (y_i-\ybar) = b_1 \sum_{i=1}^n x_i (x_i-\xbar).
+\]
+Because $\sum (y_i-\ybar) = 0$ and $\sum(x_i-\xbar)=0$, we may replace the
+leading $x_i$ by $x_i-\xbar$ on both sides without changing either sum. That
+gives $S_{xy} = b_1 S_{xx}$, so $b_1 = S_{xy}/S_{xx}$. We need $S_{xx}>0$,
+which holds exactly when the $x_i$ are not all equal.
+
+\emph{The $r$ form.} Since $s_y/s_x = \sqrt{S_{yy}/S_{xx}}$,
+\[
+  r\,\frac{s_y}{s_x} = \frac{S_{xy}}{\sqrt{S_{xx}S_{yy}}}\cdot\frac{\sqrt{S_{yy}}}{\sqrt{S_{xx}}}
+  = \frac{S_{xy}}{S_{xx}} = b_1 .
+\]
+\end{proof}
+
+The two equations set to zero are called the \textbf{normal equations}. Written
+in terms of residuals they say
+\[
+  \sum_{i=1}^n e_i = 0, \qquad \sum_{i=1}^n x_i e_i = 0 .
+\]
+Residuals of a least squares fit always sum to zero and are uncorrelated with
+$x$. We will use both facts repeatedly.
+
+\begin{recoverybox}
+Pause and think: if every $y_i$ is shifted up by $10$, what happens to $b_1$
+and $b_0$? (Answer: $S_{xy}$ is unchanged, so $b_1$ is unchanged; $\ybar$ rises
+by $10$, so $b_0$ rises by $10$. The line just moves up.)
+\end{recoverybox}
+
+\begin{intuitionbox}
+The intercept equation $\ybar = b_0 + b_1\xbar$ says the point $(\xbar,\ybar)$
+lies on the fitted line. The least squares line always passes through the
+\textbf{centroid} of the data. So fitting reduces to one question: through the
+centroid, which way should the line tilt? The slope formula
+$b_1 = r\,s_y/s_x$ answers it: tilt by $r$ standard deviations of $y$ per
+standard deviation of $x$.
+\end{intuitionbox}
+
+Because the line pivots on the centroid, $\mathrm{SSE}$ as a function of slope
+alone is
+$\sum\bigl((y_i-\ybar)-b(x_i-\xbar)\bigr)^2 = S_{yy} - 2bS_{xy} + b^2S_{xx}$,
+a parabola with vertex at $b = S_{xy}/S_{xx}$. Figure~\ref{fig:slr-sse-bowl}
+plots it for the upload data.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=5.8cm, axis lines=left,
+  xmin=-0.1, xmax=2.6, ymin=0, ymax=32,
+  xlabel={candidate slope $b$ (line through the centroid)},
+  ylabel={$\mathrm{SSE}(b)$}, clip=false,
+]
+\addplot[structurepurple, very thick, domain=-0.05:2.5, samples=80] {28-42*x+17.5*x^2};
+\addplot[only marks, mark=*, mark size=2.2pt, black] coordinates {(0,28) (0.6,9.1) (1.2,2.8) (1.8,9.1) (2.4,28)};
+\draw[dashed, gray] (axis cs:1.2,0) -- (axis cs:1.2,2.8);
+\node[anchor=south, font=\small] (mn) at (axis cs:1.2,17) {minimum: $b_1=1.2$, $\mathrm{SSE}=2.8$};
+\draw[-{Stealth}] (mn.south) -- (axis cs:1.2,3.6);
+\node[anchor=west, font=\small] at (axis cs:0.16,28.5) {flat line, $\mathrm{SSE}=28=S_{yy}$};
+\end{axis}
+\end{tikzpicture}
+\caption{Sum of squared errors as a function of slope for the upload data,
+$\mathrm{SSE}(b) = 28 - 42b + 17.5b^2$. It is a parabola; the bottom is the
+least squares slope.}
+\label{fig:slr-sse-bowl}
+\end{figure}
+
+\section{A worked example by hand}
+\label{sec:slr-worked}
+
+\begin{walkbox}
+Fit the least squares line to the six uploads.
+
+\textbf{Step 1: means.} $\xbar = 21/6 = 3.5$ MB and $\ybar = 36/6 = 6$ s.
+
+\textbf{Step 2: deviations and products.}
+
+\begin{center}
+\begin{tabular}{ccccccc}
+\toprule
+$x_i$ & $y_i$ & $x_i-\xbar$ & $y_i-\ybar$ & $(x_i-\xbar)^2$ & $(x_i-\xbar)(y_i-\ybar)$ & $(y_i-\ybar)^2$ \\
+\midrule
+1 & 3 & $-2.5$ & $-3$ & 6.25 & 7.5 & 9 \\
+2 & 5 & $-1.5$ & $-1$ & 2.25 & 1.5 & 1 \\
+3 & 4 & $-0.5$ & $-2$ & 0.25 & 1.0 & 4 \\
+4 & 7 & $0.5$ & $1$ & 0.25 & 0.5 & 1 \\
+5 & 8 & $1.5$ & $2$ & 2.25 & 3.0 & 4 \\
+6 & 9 & $2.5$ & $3$ & 6.25 & 7.5 & 9 \\
+\midrule
+ & & 0 & 0 & $S_{xx}=17.5$ & $S_{xy}=21$ & $S_{yy}=28$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Step 3: slope and intercept.}
+\[
+  b_1 = \frac{S_{xy}}{S_{xx}} = \frac{21}{17.5} = 1.2,
+  \qquad
+  b_0 = \ybar - b_1\xbar = 6 - 1.2\times 3.5 = 1.8 .
+\]
+The fitted line is $\hat y = 1.8 + 1.2x$.
+
+\textbf{Step 4: check with $r$.} $s_x = \sqrt{17.5/5} = 1.871$,
+$s_y=\sqrt{28/5} = 2.366$, $r = 21/\sqrt{17.5\times 28} = 21/\sqrt{490} = 0.9487$.
+Then $r\,s_y/s_x = 0.9487\times 2.366/1.871 = 1.2$. Same slope.
+
+\textbf{Step 5: fitted values and residuals.}
+
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+$x_i$ & $y_i$ & $\hat y_i = 1.8+1.2x_i$ & $e_i = y_i-\hat y_i$ & $e_i^2$ \\
+\midrule
+1 & 3 & 3.0 & $0.0$ & 0.00 \\
+2 & 5 & 4.2 & $0.8$ & 0.64 \\
+3 & 4 & 5.4 & $-1.4$ & 1.96 \\
+4 & 7 & 6.6 & $0.4$ & 0.16 \\
+5 & 8 & 7.8 & $0.2$ & 0.04 \\
+6 & 9 & 9.0 & $0.0$ & 0.00 \\
+\midrule
+ & & & $\sum e_i = 0$ & $\mathrm{SSE}=2.80$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+The residuals sum to zero, as the normal equations promise. So does the
+second normal equation:
+\[
+  \textstyle\sum x_ie_i = 2(0.8) + 3(-1.4) + 4(0.4) + 5(0.2) = 0 .
+\]
+\end{walkbox}
+
+In practice one function call does all of this.
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+from scipy import stats
+x = np.array([1, 2, 3, 4, 5, 6]); y = np.array([3, 5, 4, 7, 8, 9])
+fit = stats.linregress(x, y)
+print(fit.slope, fit.intercept)   # 1.2  1.8
+print(fit.rvalue**2)              # 0.9  (R^2, Section 12.6)
+print(fit.stderr, fit.pvalue)     # 0.2  0.0039 (Section 12.9)
+\end{lstlisting}
+
+\section{Interpreting slope and intercept}
+\label{sec:slr-interpret}
+
+\textbf{Slope.} $b_1 = 1.2$ s/MB. Each extra megabyte is associated with
+$1.2$ more seconds of upload time \emph{on average}. The units of the slope are
+always (units of $y$) per (unit of $x$). Change $x$ from MB to KB and the slope
+becomes $0.0012$ s/KB. The fit is identical; only the units moved.
+
+\textbf{Intercept.} $b_0 = 1.8$ s is the predicted time at $x=0$: a zero-byte
+upload. Here that reading makes sense: it is fixed overhead (connection setup,
+handshake). Often it does not. Regress adult weight on height and the intercept
+is the predicted weight of a person 0 cm tall, which is meaningless. The
+intercept is still needed to place the line; just do not interpret it outside
+the range of the data.
+
+\begin{trapbox}
+``Associated with'' is not ``causes.'' A regression slope summarises how $y$
+and $x$ move together in \emph{these data}. If the data come from an
+observational study, a confounder could drive both (Chapter~5). Only a
+randomised experiment, where $x$ is set by the experimenter, licenses reading
+$b_1$ as ``if I increase $x$ by one, $y$ goes up by $b_1$.'' File size is a
+reasonable causal story here, but the regression alone does not prove it.
+\end{trapbox}
+
+\section{How good is the fit? \texorpdfstring{$R^2$}{R squared}}
+\label{sec:slr-r2}
+
+Before seeing $x$, the best constant prediction of $y$ is $\ybar$, with total
+squared error $S_{yy}$. After fitting the line, the squared error drops to
+$\mathrm{SSE}$. The fraction of the original squared error that the line
+removed measures how useful $x$ is.
+
+\begin{definition}[Sums of squares and $R^2$]
+\begin{align*}
+  \mathrm{SST} &= \sum (y_i-\ybar)^2 = S_{yy} && \text{(total)},\\
+  \mathrm{SSR} &= \sum (\hat y_i-\ybar)^2 && \text{(regression, ``explained'')},\\
+  \mathrm{SSE} &= \sum (y_i-\hat y_i)^2 && \text{(error, ``unexplained'')}.
+\end{align*}
+The \textbf{coefficient of determination} is
+$R^2 = \mathrm{SSR}/\mathrm{SST} = 1 - \mathrm{SSE}/\mathrm{SST}$.
+\end{definition}
+
+\begin{theorem}[Sum of squares decomposition]
+For a least squares fit with an intercept,
+$\mathrm{SST} = \mathrm{SSR} + \mathrm{SSE}$, and $R^2 = r^2$.
+\end{theorem}
+
+\begin{proof}
+Split each deviation: $y_i - \ybar = (\hat y_i - \ybar) + e_i$. Square and sum:
+\[
+  \mathrm{SST} = \mathrm{SSR} + \mathrm{SSE} + 2\sum_{i=1}^n (\hat y_i-\ybar)e_i .
+\]
+Since $\hat y_i - \ybar = b_1(x_i-\xbar)$, the cross term is
+$2b_1\bigl(\sum x_ie_i - \xbar\sum e_i\bigr)$, and both sums vanish by the
+normal equations. For the second claim,
+$\mathrm{SSR} = b_1^2 S_{xx} = S_{xy}^2/S_{xx}$, so
+\[
+  R^2 = \frac{S_{xy}^2}{S_{xx}S_{yy}} = r^2. \qedhere
+\]
+\end{proof}
+
+Figure~\ref{fig:slr-decomp} shows the split for a single point. The cross term
+vanishing is a Pythagorean theorem: the vector of residuals is perpendicular to
+the vector of fitted deviations.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.5cm, axis lines=left,
+  xmin=0, xmax=7.6, ymin=1, ymax=10.5,
+  xlabel={file size $x$ (MB)}, ylabel={upload time $y$ (s)}, clip=false,
+]
+\addplot[sourceblue, very thick, domain=0.3:6.7] {1.8+1.2*x};
+\addplot[gray, dashed, thick, domain=0.3:6.7] {6};
+\node[gray, anchor=west, font=\small] at (axis cs:6.7,6) {$\ybar=6$};
+\node[sourceblue, anchor=west, font=\small] at (axis cs:6.7,9.84) {$\hat y$};
+\addplot[only marks, mark=*, mark size=1.8pt, gray!60] coordinates {(1,3) (2,5) (3,4) (4,7) (6,9)};
+\addplot[only marks, mark=*, mark size=2.6pt, black] coordinates {(5,8)};
+\draw[decorate, decoration={brace, amplitude=5pt, mirror}, targetgreen, thick] (axis cs:5.12,6) -- (axis cs:5.12,7.8);
+\draw[decorate, decoration={brace, amplitude=3pt, mirror}, trapred, thick] (axis cs:5.12,7.82) -- (axis cs:5.12,8.0);
+\draw[decorate, decoration={brace, amplitude=6pt}, structurepurple, thick] (axis cs:4.85,6) -- (axis cs:4.85,8);
+\node[targetgreen, anchor=west, font=\small] (ex) at (axis cs:5.6,4.6) {$\hat y_5-\ybar = 1.8$ (explained)};
+\draw[targetgreen, -{Stealth}] (ex.north west) -- (axis cs:5.32,6.8);
+\node[trapred, anchor=east, font=\small] (re) at (axis cs:3.9,9.6) {$y_5-\hat y_5 = 0.2$ (residual)};
+\draw[trapred, -{Stealth}] (re.east) -- (axis cs:5.2,7.95);
+\node[structurepurple, anchor=east, font=\small] (to) at (axis cs:4.4,2.4) {$y_5-\ybar = 2$ (total)};
+\draw[structurepurple, -{Stealth}] (to.north east) -- (axis cs:4.68,6.9);
+\end{axis}
+\end{tikzpicture}
+\caption{For point $(5,8)$ the total deviation from the mean ($2$) splits into
+the part the line explains ($1.8$) and the residual ($0.2$). Summing the
+\emph{squares} of these pieces over all points gives
+$\mathrm{SST}=\mathrm{SSR}+\mathrm{SSE}$.}
+\label{fig:slr-decomp}
+\end{figure}
+
+For the uploads: $\mathrm{SST}=28$, $\mathrm{SSE}=2.8$, so
+$\mathrm{SSR}=25.2$ and
+\[
+  R^2 = \frac{25.2}{28} = 0.90 = (0.9487)^2 = r^2 .
+\]
+File size explains $90\%$ of the variation in upload time. The other $10\%$ is
+network noise and anything else we did not record.
+
+\begin{recoverybox}
+Pause and think: what is $R^2$ if the fitted slope is exactly $0$? And if every
+point lies on the line? (Answers: $0$, because then $\hat y_i = \ybar$ and
+$\mathrm{SSR}=0$; and $1$, because $\mathrm{SSE}=0$.)
+\end{recoverybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=left, width=6.3cm, height=5.6cm, axis lines=left,
+  xmin=0, xmax=10.8, ymin=-3, ymax=18, xlabel={$x$}, ylabel={$y$},
+  title style={font=\small}, title={\small $R^2 = 0.92$},
+]
+\addplot[sourceblue, very thick, domain=0.5:10.5] {1.357+1.120*x};
+\addplot[only marks, mark=*, mark size=1.5pt] coordinates {(1.00,0.81) (1.47,2.83) (1.95,4.13) (2.42,3.71) (2.89,4.57) (3.37,5.22) (3.84,5.89) (4.32,7.34) (4.79,6.76) (5.26,7.00) (5.74,8.28) (6.21,10.29) (6.68,8.34) (7.16,9.67) (7.63,8.05) (8.11,11.45) (8.58,11.24) (9.05,12.39) (9.53,11.47) (10.00,10.96)};
+\end{axis}
+\begin{axis}[
+  at={(left.east)}, anchor=west, xshift=0.5cm,
+  width=6.3cm, height=5.6cm, axis lines=left,
+  xmin=0, xmax=10.8, ymin=-3, ymax=18, xlabel={$x$},
+  title style={font=\small}, title={\small $R^2 = 0.26$},
+]
+\addplot[sourceblue, very thick, domain=0.5:10.5] {2.401+0.895*x};
+\addplot[only marks, mark=*, mark size=1.5pt] coordinates {(1.00,6.54) (1.47,6.49) (1.95,0.48) (2.42,-1.47) (2.89,6.69) (3.37,4.68) (3.84,16.29) (4.32,3.86) (4.79,4.68) (5.26,6.82) (5.74,1.08) (6.21,4.65) (6.68,15.26) (7.16,8.63) (7.63,7.20) (8.11,5.02) (8.58,12.90) (9.05,13.69) (9.53,12.55) (10.00,10.44)};
+\end{axis}
+\end{tikzpicture}
+\caption{Similar slopes, very different $R^2$. On the right the trend is real
+but most of the variation in $y$ comes from noise that $x$ does not explain.}
+\label{fig:slr-r2}
+\end{figure}
+
+\begin{trapbox}
+$R^2$ is not a grade for the model. A low $R^2$ can come with a precisely
+estimated, important slope (a drug that lowers blood pressure by 5 mmHg on
+average, in a population where blood pressure varies by 20). A high $R^2$ can
+come with a wrong model (a straight line through a curve, Section~\ref{sec:slr-diag}).
+$R^2$ also says nothing about causation, and it depends on the range of $x$:
+sample a wider range of $x$ and $R^2$ goes up even though $\sigma$ is unchanged.
+\end{trapbox}
+
+\section{Regression to the mean}
+\label{sec:slr-rtm}
+
+Write the fitted line in standard units. Let
+$z_x = (x-\xbar)/s_x$ and $z_y = (y-\ybar)/s_y$. Using $b_1 = r\,s_y/s_x$ and
+the fact that the line passes through the centroid,
+\[
+  \hat z_y = r\, z_x .
+\]
+Since $\abs{r}\le 1$, the prediction is always \emph{closer to the mean} (in SD
+units) than the input. A point $2$ SDs above average in $x$ is predicted to be
+only $2r$ SDs above average in $y$.
+
+\begin{example}[Parents and children]
+Fifty parent--adult child pairs (simulated, heights in cm) have
+$\xbar = 170.0$, $s_x = 6.16$ for parents, $\ybar=170.6$, $s_y = 6.09$ for
+children, and $r = 0.34$. The slope is $b_1 = r\,s_y/s_x = 0.339$, so the
+fitted line is $\hat y = 113.0 + 0.339x$. A parent at $182$ cm is
+$(182-170.0)/6.16 = 1.95$ SDs above average. Predicted child height:
+$170.6 + 0.339\times(182-170.0) \approx 174.6$ cm, only
+$0.34\times 1.95 = 0.67$ SDs above the children's average.
+\end{example}
+
+\begin{historybox}
+In 1805 Adrien-Marie Legendre was trying to pin down the orbits of comets from
+more observations than unknowns: the equations could not all hold at once
+because every measurement had error. He proposed choosing the answer that
+makes the sum of squared mismatches smallest, and called it the ``method of
+least squares.'' Carl Friedrich Gauss published it in 1809, claimed he had
+used it since 1795, and showed it is the best choice when errors follow the
+bell curve that now carries his name (Section~\ref{sec:slr-mle}). The word
+``regression'' came eighty years later. Francis Galton measured the heights of
+928 adult children and their parents and found in 1886 that children of
+unusually tall or short parents were, on average, closer to the middle. He
+called it ``regression towards mediocrity'' (``mediocrity'' meaning the
+average). The name stuck to the whole method of fitting lines, even though the
+effect it describes is a property of imperfect correlation, not of lines.
+\end{historybox}
+
+Nothing biological pulls children toward the average. Tall parents are tall partly because of genes they pass on and partly
+because of luck that they do not. The luck does not repeat, so on average the
+children are less extreme.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=9cm, axis lines=left,
+  xmin=152, xmax=190, ymin=152, ymax=190,
+  xlabel={parent height $x$ (cm)}, ylabel={child height $y$ (cm)},
+  legend pos=north west, legend style={font=\small, cells={anchor=west}},
+]
+\addplot[only marks, mark=*, mark size=1.4pt, gray] coordinates {
+(170.0,167.7) (177.3,176.3) (175.2,178.5) (175.1,169.2) (181.3,183.1) (161.6,175.6) (165.6,174.3) (160.8,172.4) (169.2,176.3) (177.0,187.2) (169.8,171.0) (173.5,171.7) (156.6,167.0) (171.0,165.0) (163.7,157.4) (182.4,170.9) (176.2,175.4) (176.6,176.2) (169.6,160.5) (174.3,160.7) (174.6,170.4) (167.6,167.7) (166.5,168.0) (169.2,173.7) (165.8,175.3) (165.8,169.3) (168.0,172.7) (164.9,160.8) (175.4,165.6) (158.8,165.8) (175.8,176.9) (165.6,172.2) (166.2,171.7) (160.5,170.0) (169.0,174.4) (168.3,158.5) (171.3,166.2) (166.3,170.9) (170.7,173.9) (182.7,167.2) (172.9,178.5) (166.0,165.3) (176.7,171.9) (169.1,171.2) (174.2,176.6) (174.3,163.5) (167.3,174.6) (156.5,163.7) (167.6,164.1) (173.9,170.3)};
+\addlegendentry{data}
+\addplot[sourceblue, very thick, domain=152:190] {113.011+0.33851*x};
+\addlegendentry{$y$ on $x$ (slope $0.34$)}
+\addplot[trapred, very thick, domain=165.4:175.7] {-319.16+2.8812*x};
+\addlegendentry{$x$ on $y$ (slope $1/0.35$)}
+\addplot[black, dashed, thick, domain=152:190] {170.552+0.98768*(x-169.961)};
+\addlegendentry{SD line (slope $s_y/s_x$)}
+\addplot[only marks, mark=square*, mark size=2.5pt, quotientorange] coordinates {(169.96,170.55)};
+\end{axis}
+\end{tikzpicture}
+\caption{Two regression lines for the same data. Blue predicts child from
+parent; red predicts parent from child (redrawn in these axes). Both pass
+through the centroid (orange) and both are flatter, \emph{in their own
+direction}, than the dashed SD line. That flattening is regression to the mean.}
+\label{fig:slr-two-lines}
+\end{figure}
+
+\paragraph{Why $y$ on $x$ differs from $x$ on $y$.}
+Regressing $x$ on $y$ minimises \emph{horizontal} residuals and gives
+$x = c_0 + c_1 y$ with $c_1 = r\,s_x/s_y$. If you solve this for $y$, its slope
+in the $(x,y)$ plane is $1/c_1 = s_y/(r\,s_x)$. The $y$-on-$x$ slope is
+$r\,s_y/s_x$. These agree only when $r=\pm1$. For $\abs{r}<1$ the two lines
+sit on either side of the SD line (Figure~\ref{fig:slr-two-lines}). For the
+uploads, $x$ on $y$ gives $\hat x = -1 + 0.75y$, i.e.\ $y = 1.33 + 1.33x$ when
+rearranged, steeper than $1.8+1.2x$.
+
+\begin{trapbox}
+Do not invert a regression line to predict $x$ from $y$. If you want to predict
+parent height from child height, fit the regression of $x$ on $y$. Each line is
+the best predictor in one direction only.
+\end{trapbox}
+
+\begin{happeningbox}
+Chapter~11 showed the practical cost: whenever units are selected for being
+extreme (the worst-performing servers this week, the lowest pretest scores),
+they drift back toward average with no intervention at all, and a slope of
+$r<1$ is the reason. The fix is a control group selected the same way
+(Chapter~5).
+\end{happeningbox}
+
+\section{Residual plots and diagnostics}
+\label{sec:slr-diag}
+
+$b_0$, $b_1$ and $R^2$ can be computed for any cloud of points. Whether a
+straight line is a sensible summary is a separate question, and the residuals
+answer it. The basic tool is the \textbf{residual plot}: residuals $e_i$ on the
+vertical axis against fitted values $\hat y_i$ (or against $x_i$; for one
+predictor $\hat y_i$ is a linear function of $x_i$, so the two plots have the
+same pattern).
+
+If the model is right, the residuals are just noise: a horizontal band centred
+on $0$, with no pattern and constant width.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=left, width=6.3cm, height=5.2cm, axis lines=left,
+  xmin=0, xmax=10.5, ymin=0, ymax=15, xlabel={$x$}, ylabel={$y$},
+  title style={font=\small}, title={\small data and fitted line},
+]
+\addplot[sourceblue, very thick, domain=0.3:10.3] {2.798+1.0074*x};
+\addplot[only marks, mark=*, mark size=1.5pt] coordinates {(0.50,3.81) (0.90,4.28) (1.29,3.61) (1.69,5.31) (2.08,2.97) (2.48,4.19) (2.88,5.57) (3.27,6.16) (3.67,5.50) (4.06,7.39) (4.46,8.51) (4.85,8.31) (5.25,8.47) (5.65,9.47) (6.04,9.45) (6.44,8.30) (6.83,9.63) (7.23,11.52) (7.62,9.49) (8.02,11.08) (8.42,11.03) (8.81,10.91) (9.21,11.20) (9.60,12.71) (10.00,13.32)};
+\end{axis}
+\begin{axis}[
+  at={(left.east)}, anchor=west, xshift=0.7cm,
+  width=6.3cm, height=5.2cm, axis lines=left,
+  xmin=2.5, xmax=13.5, ymin=-3, ymax=3, xlabel={fitted $\hat y$}, ylabel={residual $e$},
+  title style={font=\small}, title={\small residual plot: healthy},
+]
+\addplot[gray, dashed, domain=2.5:13.5] {0};
+\addplot[only marks, mark=*, mark size=1.5pt, targetgreen] coordinates {(3.30,0.50) (3.70,0.58) (4.10,-0.49) (4.50,0.81) (4.90,-1.93) (5.30,-1.11) (5.69,-0.12) (6.09,0.07) (6.49,-0.99) (6.89,0.50) (7.29,1.22) (7.69,0.62) (8.09,0.39) (8.49,0.99) (8.88,0.56) (9.28,-0.99) (9.68,-0.05) (10.08,1.44) (10.48,-0.99) (10.88,0.20) (11.28,-0.25) (11.68,-0.76) (12.07,-0.88) (12.47,0.23) (12.87,0.44)};
+\end{axis}
+\end{tikzpicture}
+\caption{A model that fits. The residual plot is a patternless horizontal band
+around zero with roughly constant width.}
+\label{fig:slr-resid-good}
+\end{figure}
+
+Three patterns signal trouble.
+
+\textbf{Curvature.} A U or arch in the residuals means the true relationship is
+not a line. The line is too high in the middle and too low at the ends (or the
+reverse). Figure~\ref{fig:slr-resid-curve} shows a quadratic relationship fit
+by a line. The fit has $R^2 = 0.92$, which looks excellent, yet the residuals
+reveal the model is wrong. Fix: transform $x$ or $y$, or add an $x^2$ term
+(Chapter~13).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=left, width=6.3cm, height=5.2cm, axis lines=left,
+  xmin=0, xmax=10.5, ymin=-5, ymax=28, xlabel={$x$}, ylabel={$y$},
+  title style={font=\small}, title={\small line through a curve},
+]
+\addplot[sourceblue, very thick, domain=0.3:10.3] {-3.939+2.6382*x};
+\addplot[only marks, mark=*, mark size=1.5pt] coordinates {(0.50,1.31) (0.90,0.04) (1.29,1.19) (1.69,1.99) (2.08,2.84) (2.48,3.07) (2.88,3.73) (3.27,4.55) (3.67,5.02) (4.06,4.47) (4.46,6.02) (4.85,6.32) (5.25,5.99) (5.65,7.62) (6.04,11.80) (6.44,10.47) (6.83,10.88) (7.23,13.60) (7.62,16.75) (8.02,17.05) (8.42,19.04) (8.81,20.20) (9.21,22.13) (9.60,25.07) (10.00,26.64)};
+\end{axis}
+\begin{axis}[
+  at={(left.east)}, anchor=west, xshift=0.7cm,
+  width=6.3cm, height=5.2cm, axis lines=left,
+  xmin=-3.5, xmax=23.5, ymin=-5, ymax=5, xlabel={fitted $\hat y$}, ylabel={residual $e$},
+  title style={font=\small}, title={\small residuals: U shape},
+]
+\addplot[gray, dashed, domain=-3.5:23.5] {0};
+\addplot[only marks, mark=*, mark size=1.5pt, trapred] coordinates {(-2.62,3.93) (-1.58,1.62) (-0.53,1.72) (0.51,1.48) (1.56,1.29) (2.60,0.47) (3.65,0.09) (4.69,-0.14) (5.73,-0.71) (6.78,-2.30) (7.82,-1.81) (8.87,-2.55) (9.91,-3.93) (10.96,-3.33) (12.00,-0.20) (13.04,-2.58) (14.09,-3.21) (15.13,-1.54) (16.18,0.57) (17.22,-0.17) (18.27,0.77) (19.31,0.89) (20.35,1.78) (21.40,3.67) (22.44,4.19)};
+\end{axis}
+\end{tikzpicture}
+\caption{Curvature. The scatter plot hides it (the line ``looks fine'' and
+$R^2=0.92$), but the residual plot shows a clear U: positive, then negative,
+then positive.}
+\label{fig:slr-resid-curve}
+\end{figure}
+
+\textbf{Fan shape (heteroscedasticity).} Residuals spread out as $\hat y$
+grows. The noise is not constant: big files have more variable upload times
+than small ones. The line itself may be fine, but $\SE(b_1)$ and every interval
+in Section~\ref{sec:slr-inference} assume constant $\sigma$ and will be wrong.
+Fix: model $\log y$, use weighted least squares, or use robust
+(``sandwich'') standard errors.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=left, width=6.3cm, height=5.2cm, axis lines=left,
+  xmin=0, xmax=10.5, ymin=0, ymax=16, xlabel={$x$}, ylabel={$y$},
+  title style={font=\small}, title={\small spread grows with $x$},
+]
+\addplot[sourceblue, very thick, domain=0.3:10.3] {2.874+1.0132*x};
+\addplot[only marks, mark=*, mark size=1.5pt] coordinates {(0.50,3.49) (0.90,4.10) (1.29,4.64) (1.69,4.60) (2.08,5.22) (2.48,5.64) (2.88,5.39) (3.27,7.21) (3.67,6.51) (4.06,6.43) (4.46,5.59) (4.85,6.32) (5.25,10.25) (5.65,7.04) (6.04,9.69) (6.44,8.85) (6.83,10.71) (7.23,11.32) (7.62,9.15) (8.02,10.44) (8.42,11.63) (8.81,12.06) (9.21,12.14) (9.60,11.85) (10.00,14.57)};
+\end{axis}
+\begin{axis}[
+  at={(left.east)}, anchor=west, xshift=0.7cm,
+  width=6.3cm, height=5.2cm, axis lines=left,
+  xmin=2.5, xmax=13.5, ymin=-3, ymax=3, xlabel={fitted $\hat y$}, ylabel={residual $e$},
+  title style={font=\small}, title={\small residuals: fan},
+]
+\addplot[gray, dashed, domain=2.5:13.5] {0};
+\addplot[quotientorange, dashed, domain=3:13.3] {0.2*x};
+\addplot[quotientorange, dashed, domain=3:13.3] {-0.2*x};
+\addplot[only marks, mark=*, mark size=1.5pt, trapred] coordinates {(3.38,0.11) (3.78,0.31) (4.18,0.46) (4.58,0.01) (4.98,0.24) (5.39,0.25) (5.79,-0.39) (6.19,1.02) (6.59,-0.08) (6.99,-0.56) (7.39,-1.80) (7.79,-1.47) (8.19,2.06) (8.59,-1.56) (9.00,0.70) (9.40,-0.55) (9.80,0.91) (10.20,1.12) (10.60,-1.45) (11.00,-0.57) (11.40,0.22) (11.80,0.26) (12.20,-0.06) (12.60,-0.75) (13.01,1.57)};
+\end{axis}
+\end{tikzpicture}
+\caption{Fan shape. Residuals are tight for small fitted values and wide for
+large ones (orange guides). The constant-variance assumption fails.}
+\label{fig:slr-resid-fan}
+\end{figure}
+
+\textbf{Outliers, leverage, and influence.} These are three different things.
+
+\begin{definition}[Outlier, leverage, influence]
+An \textbf{outlier} is a point with a large residual: its $y$ is far from the
+line. A point has high \textbf{leverage} if its $x$ is far from $\xbar$; the
+leverage of point $i$ is
+\[
+  h_i = \frac{1}{n} + \frac{(x_i-\xbar)^2}{S_{xx}} .
+\]
+A point is \textbf{influential} if deleting it changes the fitted line a lot.
+Influence needs both: high leverage \emph{and} a $y$ value off the line the
+other points suggest.
+\end{definition}
+
+Figure~\ref{fig:slr-influence} adds one extra point to ten well-behaved points
+(base fit $\hat y = 1.49 + 0.741x$) in three ways.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\pgfplotsset{inflpanel/.style={width=4.75cm, height=4.6cm, axis lines=left,
+  xmin=0, xmax=21, ymin=0, ymax=18, xtick={0,10,20}, ytick={0,5,10,15},
+  title style={font=\small, align=center}, tick label style={font=\footnotesize}}}
+\begin{axis}[inflpanel, title style={font=\small}, name=p1, title={A: outlier,\\ low leverage}, ylabel={$y$}, xlabel={$x$}]
+\addplot[gray, thick, dashed, domain=0:21] {1.4925+0.74066*x};
+\addplot[trapred, thick, domain=0:21] {2.0774+0.74066*x};
+\addplot[only marks, mark=*, mark size=1.3pt] coordinates {(1.00,2.59) (2.00,2.92) (3.00,2.96) (4.00,4.44) (5.00,5.04) (6.00,6.08) (7.00,7.71) (8.00,7.27) (9.00,8.19) (10.00,8.47)};
+\addplot[only marks, mark=triangle*, mark size=3pt, trapred] coordinates {(5.5,12)};
+\end{axis}
+\begin{axis}[inflpanel, title style={font=\small}, name=p2, at={(p1.east)}, anchor=west, xshift=0.3cm, yticklabels={}, title={B: high leverage,\\ on trend}, xlabel={$x$}]
+\addplot[gray, thick, dashed, domain=0:21] {1.4925+0.74066*x};
+\addplot[trapred, thick, domain=0:21] {1.3276+0.77411*x};
+\addplot[only marks, mark=*, mark size=1.3pt] coordinates {(1.00,2.59) (2.00,2.92) (3.00,2.96) (4.00,4.44) (5.00,5.04) (6.00,6.08) (7.00,7.71) (8.00,7.27) (9.00,8.19) (10.00,8.47)};
+\addplot[only marks, mark=triangle*, mark size=3pt, trapred] coordinates {(20,17)};
+\end{axis}
+\begin{axis}[inflpanel, title style={font=\small}, name=p3, at={(p2.east)}, anchor=west, xshift=0.3cm, yticklabels={}, title={C: high leverage,\\ off trend}, xlabel={$x$}]
+\addplot[gray, thick, dashed, domain=0:21] {1.4925+0.74066*x};
+\addplot[trapred, thick, domain=0:21] {4.4156+0.14786*x};
+\addplot[only marks, mark=*, mark size=1.3pt] coordinates {(1.00,2.59) (2.00,2.92) (3.00,2.96) (4.00,4.44) (5.00,5.04) (6.00,6.08) (7.00,7.71) (8.00,7.27) (9.00,8.19) (10.00,8.47)};
+\addplot[only marks, mark=triangle*, mark size=3pt, trapred] coordinates {(20,4)};
+\end{axis}
+\end{tikzpicture}
+\caption{Dashed grey: fit to the ten black points. Red: fit after adding the
+red triangle. A (outlier near $\xbar$) only lifts the line; slope stays
+$0.741$. B (far in $x$ but on trend) barely moves it; slope $0.774$. C (far in
+$x$ and off trend) drags the slope from $0.741$ to $0.148$. Only C is
+influential.}
+\label{fig:slr-influence}
+\end{figure}
+
+\begin{whybox}
+Why does a far-out $x$ give a point so much pull? The slope is a weighted
+average of the points' individual slopes from the centroid:
+\[
+  b_1 = \sum_{i=1}^n \frac{(x_i-\xbar)^2}{S_{xx}}\cdot\frac{y_i-\ybar}{x_i-\xbar},
+\]
+with weight proportional to $(x_i-\xbar)^2$ (a point with $x_i=\xbar$ gets
+weight $0$ and is left out of the sum). A point ten units from $\xbar$
+gets a hundred times the weight of a point one unit away. It acts like a long
+lever arm on a seesaw pivoting at the centroid.
+\end{whybox}
+
+A standard numerical summary of influence is \textbf{Cook's distance}, which
+measures how much all fitted values move when point $i$ is deleted; values
+near or above $1$ deserve a look. Never delete a point just because it is
+influential. Find out why it is different: a data-entry error, a different
+population, or the most informative observation you have.
+
+\section{Inference for the slope}
+\label{sec:slr-inference}
+
+The slope $b_1 = 1.2$ came from six uploads. Six different uploads would give a
+different slope. Just as $\xbar$ has a sampling distribution (Chapter~6), so
+does $b_1$. Figure~\ref{fig:slr-many-lines} simulates it: twenty samples of six
+uploads at the same file sizes, from a true line $y = 2 + 1.2x$ with
+$\sigma = 0.8$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10.5cm, height=6.5cm, axis lines=left,
+  xmin=0, xmax=7, ymin=0, ymax=13,
+  xlabel={file size $x$ (MB)}, ylabel={upload time $y$ (s)},
+]
+\foreach \a/\b in {1.537/1.424, 1.923/1.250, 1.725/1.171, 0.654/1.564, 0.469/1.623, 4.088/0.689, 3.028/0.994, 3.251/0.865, 1.727/1.233, 2.769/1.127, 1.567/1.352, 1.413/1.371, 3.135/0.870, 2.628/1.179, 3.129/0.894, 0.623/1.569, 2.818/0.943, 2.428/1.180, 2.457/0.963, 1.070/1.491} {
+  \addplot[sourceblue, opacity=0.45, domain=0.5:6.5] {\a+\b*x};
+}
+\addplot[black, ultra thick, domain=0.5:6.5] {2+1.2*x};
+\addplot[only marks, mark=square*, mark size=2.3pt, quotientorange] coordinates {(3.5,6.2)};
+\node[anchor=north west, font=\small] at (axis cs:0.6,12.5) {black: true line $y=2+1.2x$};
+\node[anchor=north west, font=\small, sourceblue] at (axis cs:0.6,11.4) {blue: 20 fitted lines};
+\end{axis}
+\end{tikzpicture}
+\caption{Twenty least squares lines, each fitted to a fresh sample of six
+points from the same model. The lines wobble around the truth. They pinch
+together near $\xbar=3.5$ (orange) and fan out at the ends, because a slope
+error matters more far from the pivot.}
+\label{fig:slr-many-lines}
+\end{figure}
+
+\begin{theorem}[Sampling distribution of $b_1$]
+\label{thm:slr-b1}
+Treat the $x_i$ as fixed and assume the model of Section~\ref{sec:slr-model}.
+Then
+\[
+  \E[b_1] = \beta_1, \qquad \SD(b_1) = \frac{\sigma}{\sqrt{S_{xx}}} .
+\]
+If the errors are Normal, $b_1$ is exactly Normal.
+\end{theorem}
+
+\begin{proof}
+Because $\sum(x_i-\xbar)\ybar = 0$, we can write
+$b_1 = \sum_{i} w_i y_i$ with weights $w_i = (x_i-\xbar)/S_{xx}$. These weights
+satisfy $\sum w_i = 0$, $\sum w_i x_i = 1$, and $\sum w_i^2 = 1/S_{xx}$.
+Substituting $y_i = \beta_0+\beta_1x_i+\eps_i$,
+\[
+  b_1 = \beta_0\sum w_i + \beta_1 \sum w_i x_i + \sum w_i\eps_i
+      = \beta_1 + \sum w_i \eps_i .
+\]
+The noise term has mean $0$, so $\E[b_1]=\beta_1$. Independent errors with
+variance $\sigma^2$ give $\Var(b_1) = \sigma^2\sum w_i^2 = \sigma^2/S_{xx}$. A
+linear combination of independent Normals is Normal.
+\end{proof}
+
+The formula $\sigma/\sqrt{S_{xx}}$ tells you how to design an experiment.
+The slope is pinned down better when the noise $\sigma$ is small, when there
+are more points (each adds to $S_{xx}$), and when the $x$ values are spread out.
+Testing upload time only on files between 3.4 and 3.6 MB would tell you almost
+nothing about the slope. Note $S_{xx} = (n-1)s_x^2$, so
+$\SD(b_1) = \sigma/(s_x\sqrt{n-1})$: the familiar $1/\sqrt n$ again.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=5.6cm, axis lines=left,
+  xmin=0.35, xmax=2.05, ymin=0, ymax=2.8,
+  xlabel={fitted slope $b_1$}, ylabel={density},
+]
+\addplot[ybar interval, fill=histfill, draw=white] coordinates {(0.40,0.000) (0.50,0.015) (0.60,0.055) (0.70,0.150) (0.80,0.415) (0.90,0.880) (1.00,1.411) (1.10,2.146) (1.20,2.121) (1.30,1.531) (1.40,0.780) (1.50,0.360) (1.60,0.115) (1.70,0.015) (1.80,0.005) (1.90,0.000) (2.00,0.000)};
+\addplot[densityred, very thick, domain=0.4:2.0, samples=100] {1/(0.19124*2.50663)*exp(-(x-1.2)^2/(2*0.036573))};
+\draw[dashed] (axis cs:1.2,0) -- (axis cs:1.2,2.45);
+\node[anchor=south, font=\small] at (axis cs:1.2,2.45) {$\beta_1=1.2$};
+\node[densityred, anchor=west, font=\small] at (axis cs:1.45,1.6) {$\Normal\bigl(1.2,\ 0.191^2\bigr)$};
+\end{axis}
+\end{tikzpicture}
+\caption{Histogram of $b_1$ over $2000$ simulated samples of six uploads. It
+matches the Normal curve with mean $\beta_1=1.2$ and SD
+$\sigma/\sqrt{S_{xx}} = 0.8/\sqrt{17.5} = 0.191$ predicted by
+Theorem~\ref{thm:slr-b1}.}
+\label{fig:slr-b1-hist}
+\end{figure}
+
+\subsection{Estimating \texorpdfstring{$\sigma$}{sigma} and the standard error}
+
+We do not know $\sigma$. Estimate it from the residuals:
+\[
+  s = \sqrt{\frac{\mathrm{SSE}}{n-2}} = \sqrt{\frac{\sum e_i^2}{n-2}} .
+\]
+This is called the \textbf{residual standard error}. We divide by $n-2$, not
+$n$, for the same reason the sample variance divides by $n-1$ (Chapter~2): the
+residuals are measured from a line fitted to the same data, so they are too
+small on average. Fitting used up two degrees of freedom (one each for $b_0$
+and $b_1$); the residuals satisfy two linear constraints (the normal
+equations), leaving $n-2$ free. With this divisor, $\E[s^2] = \sigma^2$.
+
+Plugging in gives the standard error:
+\[
+  \SE(b_1) = \frac{s}{\sqrt{S_{xx}}} .
+\]
+
+\begin{theorem}[$t$ statistic for the slope]
+Under the Normal-error model,
+\[
+  T = \frac{b_1 - \beta_1}{\SE(b_1)} \sim t_{n-2} .
+\]
+\end{theorem}
+
+This is the same move as the one-sample $t$ test of Chapter~9: replace the
+unknown $\sigma$ by $s$ and pay for it with a $t$ distribution, here with $n-2$
+degrees of freedom. A $100(1-\alpha)\%$ confidence interval for the slope is
+\[
+  b_1 \pm t^*_{n-2}\,\SE(b_1),
+\]
+where $t^*_{n-2}$ is the $t_{n-2}$ critical value ($t_{\alpha/2,\,n-2}$ in the notation of Chapter~7),
+and the test of $H_0\colon \beta_1 = 0$ (``$x$ has no linear association with
+$y$'') uses $t = b_1/\SE(b_1)$.
+
+\begin{walkbox}
+Is upload time really related to file size, and how precisely do we know the
+slope?
+
+\textbf{Residual SE.} $s = \sqrt{2.8/4} = \sqrt{0.7} = 0.837$ s.
+
+\textbf{SE of slope.} $\SE(b_1) = 0.837/\sqrt{17.5} = 0.837/4.183 = 0.200$ s/MB.
+
+\textbf{Test.} $t = 1.2/0.2 = 6.0$ on $n-2 = 4$ degrees of freedom. The
+two-sided $p$-value is $2\P(t_4 > 6.0) = 0.0039$. Reject $H_0\colon\beta_1=0$
+at any conventional level.
+
+\textbf{95\% CI.} $t^*_4 = 2.776$. The interval is
+$1.2 \pm 2.776\times 0.2 = 1.2\pm 0.555 = [0.645,\ 1.755]$ s/MB.
+
+\textbf{Reading.} Each extra MB adds between about $0.65$ and $1.76$ seconds on
+average. With only six points the interval is wide, but it excludes $0$.
+\end{walkbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5.4cm, axis lines=left,
+  xmin=-7, xmax=7, ymin=0, ymax=0.45,
+  xlabel={$t$}, ylabel={density of $t_4$}, clip=false,
+  xtick={-6,-2.776,0,2.776,6}, xticklabels={$-6$,$-2.78$,$0$,$2.78$,$6$},
+]
+\addplot[name path=f, distblue, very thick, domain=-7:7, samples=200] {0.375*(1+x^2/4)^(-2.5)};
+\addplot[draw=none, fill=trapred, fill opacity=0.35, domain=2.776:7, samples=60] {0.375*(1+x^2/4)^(-2.5)} \closedcycle;
+\addplot[draw=none, fill=trapred, fill opacity=0.35, domain=-7:-2.776, samples=60] {0.375*(1+x^2/4)^(-2.5)} \closedcycle;
+\draw[targetgreen, very thick] (axis cs:6,0) -- (axis cs:6,0.12);
+\node[targetgreen, anchor=south, font=\small, align=center] at (axis cs:6,0.12) {observed\\$t=6.0$};
+\node[trapred, anchor=south, font=\small] at (axis cs:-4.6,0.05) {2.5\%};
+\node[trapred, anchor=south, font=\small] at (axis cs:4.0,0.05) {2.5\%};
+\end{axis}
+\end{tikzpicture}
+\caption{The $t_4$ distribution under $H_0\colon\beta_1=0$. The red tails
+(beyond $\pm2.776$) hold $5\%$ of the probability. The observed $t=6$ lies far
+in the tail; the area beyond $\pm 6$ is $p=0.0039$.}
+\label{fig:slr-t-test}
+\end{figure}
+
+\begin{trapbox}
+Testing $\beta_1 = 0$ is the same as testing $\rho = 0$ (zero population
+correlation): $t = b_1/\SE(b_1) = r\sqrt{n-2}/\sqrt{1-r^2}$. Check:
+$0.9487\times 2/\sqrt{0.1} = 6.0$. A tiny $p$-value says the slope is not zero.
+It does not say the slope is large, that the line fits well, or that $x$
+causes $y$.
+\end{trapbox}
+
+\section{Predicting: mean response vs.\ a new observation}
+\label{sec:slr-predict}
+
+Suppose a 4 MB file is about to be uploaded. The point prediction is
+$\hat y_0 = 1.8 + 1.2\times 4 = 6.6$ s. Two different questions have this
+same point estimate but different error bars.
+
+\begin{enumerate}
+  \item \textbf{Mean response.} What is the \emph{average} upload time of all
+  4 MB files, $\beta_0+\beta_1\cdot 4$? Uncertainty comes only from not
+  knowing the true line.
+  \item \textbf{Prediction.} How long will \emph{this one} 4 MB upload take?
+  Now add the noise $\eps$ of the single new upload on top.
+\end{enumerate}
+
+Write $\hat y_0 = \ybar + b_1(x_0-\xbar)$. The two pieces $\ybar$ and $b_1$ are
+uncorrelated (because $\sum w_i = 0$), so
+\[
+  \Var(\hat y_0) = \frac{\sigma^2}{n} + (x_0-\xbar)^2\frac{\sigma^2}{S_{xx}} .
+\]
+A new observation is $y_0 = \beta_0+\beta_1x_0+\eps_0$ with fresh noise
+independent of the data, so $\Var(y_0 - \hat y_0) = \sigma^2 + \Var(\hat y_0)$.
+Replacing $\sigma$ by $s$:
+
+\begin{definition}[Confidence and prediction intervals]
+At a new $x_0$, with $\hat y_0 = b_0 + b_1x_0$ and $t^* = t^*_{n-2}$:
+\begin{align*}
+  \text{CI for the mean response:}\quad &
+  \hat y_0 \pm t^*\, s\sqrt{\frac1n + \frac{(x_0-\xbar)^2}{S_{xx}}},\\
+  \text{Prediction interval for a new $y$:}\quad &
+  \hat y_0 \pm t^*\, s\sqrt{1 + \frac1n + \frac{(x_0-\xbar)^2}{S_{xx}}}.
+\end{align*}
+\end{definition}
+
+For $x_0=4$: $(x_0-\xbar)^2/S_{xx} = 0.25/17.5 = 0.0143$, and $1/n = 0.1667$.
+\begin{align*}
+  \text{mean:}\quad & 6.6 \pm 2.776\times 0.837\sqrt{0.1810}
+     = 6.6 \pm 0.99 = [5.61,\ 7.59],\\
+  \text{new upload:}\quad & 6.6 \pm 2.776\times 0.837\sqrt{1.1810}
+     = 6.6 \pm 2.52 = [4.08,\ 9.12].
+\end{align*}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=7cm, axis lines=left,
+  xmin=0, xmax=7.6, ymin=-1, ymax=16,
+  xlabel={file size $x$ (MB)}, ylabel={upload time $y$ (s)},
+  legend pos=north west, legend style={font=\small, cells={anchor=west}},
+]
+\addplot[name path=pu, draw=quotientorange, thick, dashed, domain=0.5:7.5, samples=60] {1.8+1.2*x+2.7764*0.83666*sqrt(1+1/6+(x-3.5)^2/17.5)};
+\addlegendentry{95\% prediction band}
+\addplot[name path=pl, draw=quotientorange, thick, dashed, domain=0.5:7.5, samples=60, forget plot] {1.8+1.2*x-2.7764*0.83666*sqrt(1+1/6+(x-3.5)^2/17.5)};
+\addplot[name path=cu, draw=sourceblue, thick, domain=0.5:7.5, samples=60] {1.8+1.2*x+2.7764*0.83666*sqrt(1/6+(x-3.5)^2/17.5)};
+\addlegendentry{95\% confidence band (mean)}
+\addplot[name path=cl, draw=sourceblue, thick, domain=0.5:7.5, samples=60, forget plot] {1.8+1.2*x-2.7764*0.83666*sqrt(1/6+(x-3.5)^2/17.5)};
+\addplot[quotientorange, fill opacity=0.12, forget plot] fill between[of=pu and pl];
+\addplot[sourceblue, fill opacity=0.25, forget plot] fill between[of=cu and cl];
+\addplot[black, very thick, domain=0.5:7.5, forget plot] {1.8+1.2*x};
+\addplot[only marks, mark=*, mark size=2pt, black, forget plot] coordinates {(1,3) (2,5) (3,4) (4,7) (5,8) (6,9)};
+\draw[dotted, gray] (axis cs:3.5,-1) -- (axis cs:3.5,6);
+\node[gray, anchor=south west, font=\small] at (axis cs:3.5,-1) {$\xbar$};
+\end{axis}
+\end{tikzpicture}
+\caption{Confidence band for the mean response (blue) and prediction band for a
+single new upload (orange). Both are narrowest at $\xbar=3.5$ and widen with
+distance from it. The prediction band is much wider because it includes the
+noise of one upload.}
+\label{fig:slr-bands}
+\end{figure}
+
+\begin{intuitionbox}
+As $n\to\infty$ the confidence band shrinks to the true line: with enough data
+you know the average exactly. The prediction band does not shrink below
+$\pm t^* \sigma$: no amount of data predicts the jitter of one specific upload.
+Dashboards that show a ``confidence band'' around a forecast are usually
+showing the narrow one. If you want to know where tomorrow's single value will
+land, you need the wide one.
+\end{intuitionbox}
+
+\begin{lstlisting}[language=Python]
+n, x0 = len(x), 4.0
+yhat = fit.intercept + fit.slope * x
+s = np.sqrt(np.sum((y - yhat)**2) / (n - 2))      # 0.837
+Sxx = np.sum((x - x.mean())**2)                   # 17.5
+y0 = fit.intercept + fit.slope * x0               # 6.6
+tc = stats.t.ppf(0.975, n - 2)                    # 2.776
+se_mean = s * np.sqrt(1/n + (x0 - x.mean())**2 / Sxx)
+se_pred = s * np.sqrt(1 + 1/n + (x0 - x.mean())**2 / Sxx)
+print(y0 - tc*se_mean, y0 + tc*se_mean)           # 5.61 7.59
+print(y0 - tc*se_pred, y0 + tc*se_pred)           # 4.08 9.12
+\end{lstlisting}
+
+\section{The assumptions: LINE}
+\label{sec:slr-line}
+
+The least squares line can always be computed. Its standard errors,
+$p$-values and intervals rest on four assumptions, remembered as LINE.
+Figure~\ref{fig:slr-line} lists each one, what breaks without it, and how to
+check it.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, thick, minimum height=1.25cm,
+    text width=2.8cm, align=center, font=\small},
+  note/.style={text width=2.9cm, align=center, font=\footnotesize},
+]
+\node[box, draw=sourceblue, fill=sourceblue!8] (L) at (0,0) {\textbf{L}inearity\\$\E[y\given x]$ is a line};
+\node[box, draw=targetgreen, fill=targetgreen!8] (I) at (3.2,0) {\textbf{I}ndependence\\each $\eps_i$ separate};
+\node[box, draw=quotientorange, fill=quotientorange!8] (N) at (6.4,0) {\textbf{N}ormality\\$\eps\sim$ Normal};
+\node[box, draw=structurepurple, fill=structurepurple!8] (E) at (9.6,0) {\textbf{E}qual variance\\same $\sigma$ for all $x$};
+\node[note, below=0.25cm of L] (L2) {check: residual plot, no curve\\[2pt] fails $\Rightarrow$ slope is biased, predictions wrong};
+\node[note, below=0.25cm of I] (I2) {check: study design; residuals vs.\ time\\[2pt] fails $\Rightarrow$ SEs too small};
+\node[note, below=0.25cm of N] (N2) {check: histogram or QQ plot of residuals\\[2pt] fails $\Rightarrow$ matters for small $n$ and for PIs};
+\node[note, below=0.25cm of E] (E2) {check: residual plot, no fan\\[2pt] fails $\Rightarrow$ SEs and intervals wrong};
+\end{tikzpicture}
+\caption{The four LINE assumptions, how to check each, and the cost of
+violating it. Linearity is about the fit; the other three are about the error
+bars.}
+\label{fig:slr-line}
+\end{figure}
+
+The assumptions are not equally important.
+\begin{itemize}
+  \item \textbf{Linearity} matters most. If the mean is not a line, $b_1$
+  estimates nothing meaningful.
+  \item \textbf{Independence} is the one you cannot check from a scatter plot.
+  Repeated measurements on the same user, or a time series where today
+  resembles yesterday, make the effective sample size smaller than $n$ and the
+  reported standard errors too small.
+  \item \textbf{Normality} matters least for the slope. By the Central Limit
+  Theorem $b_1 = \beta_1 + \sum w_i\eps_i$ is close to Normal for moderate $n$
+  even when $\eps$ is not. It matters more for prediction intervals, which are
+  about a single $\eps$.
+  \item \textbf{Equal variance} affects every standard error. A fan-shaped
+  residual plot means the intervals are too narrow in some places and too wide
+  in others.
+\end{itemize}
+
+\section{Transformations and extrapolation}
+\label{sec:slr-transform}
+
+Many relationships are straight only on a log scale. Figure~\ref{fig:slr-loglog}
+shows thirty animals' body mass and resting metabolic rate (simulated from
+Kleiber's law). On the raw scale the points crowd into the corner and bend. On
+log-log axes they fall on a line.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=left, width=6.3cm, height=5.6cm, axis lines=left,
+  xmin=0, xmax=900, ymin=0, ymax=600,
+  xlabel={body mass (kg)}, ylabel={metabolic rate (W)},
+  title style={font=\small}, title={\small raw scale}, tick label style={font=\footnotesize},
+  scaled ticks=false,
+]
+\addplot[sourceblue, thick, domain=0.1:880, samples=100] {2.9168*x^0.74695};
+\addplot[only marks, mark=*, mark size=1.4pt] coordinates {(0.33,1.48) (102.01,98.42) (237.01,152.89) (189.28,195.67) (281.33,199.31) (32.88,32.23) (6.40,10.47) (318.33,228.03) (5.20,7.11) (1.79,6.40) (14.71,23.63) (8.34,15.69) (0.51,2.16) (600.62,231.09) (224.98,162.30) (579.30,530.58) (12.31,27.51) (9.59,13.55) (704.03,528.53) (2.16,5.90) (32.72,28.92) (5.82,8.74) (403.11,253.59) (90.71,65.52) (51.22,40.70) (31.95,28.76) (827.78,545.85) (1.12,2.29) (0.64,1.52) (1.52,7.53)};
+\end{axis}
+\begin{axis}[
+  at={(left.east)}, anchor=west, xshift=0.6cm,
+  width=6.3cm, height=5.6cm, axis lines=left,
+  xmin=-0.7, xmax=3.1, ymin=0, ymax=3,
+  xlabel={$\log_{10}$ mass}, ylabel={$\log_{10}$ rate},
+  title style={font=\small}, title={\small log-log scale}, tick label style={font=\footnotesize},
+]
+\addplot[sourceblue, thick, domain=-0.6:3] {0.46490+0.74695*x};
+\addplot[only marks, mark=*, mark size=1.4pt] coordinates {(-0.487,0.170) (2.009,1.993) (2.375,2.184) (2.277,2.292) (2.449,2.300) (1.517,1.508) (0.806,1.020) (2.503,2.358) (0.716,0.852) (0.252,0.806) (1.168,1.374) (0.921,1.196) (-0.291,0.334) (2.779,2.364) (2.352,2.210) (2.763,2.725) (1.090,1.440) (0.982,1.132) (2.848,2.723) (0.335,0.771) (1.515,1.461) (0.765,0.942) (2.605,2.404) (1.958,1.816) (1.709,1.610) (1.505,1.459) (2.918,2.737) (0.050,0.359) (-0.196,0.182) (0.181,0.877)};
+\node[anchor=north west, font=\footnotesize, sourceblue] at (axis cs:-0.6,2.9) {slope $0.747$};
+\end{axis}
+\end{tikzpicture}
+\caption{Left: a power law on raw axes is curved, and its noise fans out. Right:
+on log-log axes it is a straight line with even scatter. The fitted log-log
+slope $0.747$ is the exponent; the blue curve on the left is
+$\hat y = 2.92\,x^{0.747}$.}
+\label{fig:slr-loglog}
+\end{figure}
+
+If $y = a x^{b}$ times multiplicative noise, then
+\[
+  \log y = \log a + b\log x + \text{noise},
+\]
+which is the simple linear regression model in the variables $(\log x,\log y)$.
+The fit gives $\log_{10} \hat y = 0.465 + 0.747\log_{10} x$, so
+$\hat y = 10^{0.465}x^{0.747} = 2.92\,x^{0.747}$.
+
+\textbf{Interpreting log-log slopes.} The slope is an \emph{elasticity}: a
+$1\%$ increase in $x$ goes with about a $b\%$ increase in $y$. Doubling body mass
+multiplies metabolic rate by $2^{0.747} \approx 1.68$. Other common forms:
+\begin{itemize}
+  \item $\log y$ on $x$ (log-linear): one unit of $x$ multiplies $y$ by
+  $e^{b_1}$; for small $b_1$, that is about a $100b_1\%$ change. Natural for
+  growth and for latencies, which are right-skewed.
+  \item $y$ on $\log x$ (linear-log): multiplying $x$ by $10$ adds
+  $b_1$ to $y$ (for $\log_{10}$). Natural for diminishing returns.
+\end{itemize}
+A log transform often fixes curvature and a fan shape at the same time, as
+here. Use it when $y$ is positive and its spread grows with its level.
+
+\begin{trapbox}
+A line fitted to $\log y$ predicts the mean of $\log y$. Back-transforming
+gives $10^{\widehat{\log y}}$, which estimates the \emph{median} of $y$ (if the
+log-scale noise is symmetric), not the mean. The mean of $y$ is larger.
+\end{trapbox}
+
+\textbf{Extrapolation.} A regression line describes the data inside the range
+of $x$ you observed. Outside that range you have no evidence the line
+continues. Figure~\ref{fig:slr-extrap} shows eight measurements for
+$x\in[0.5,4]$ that a line fits beautifully ($R^2 = 0.96$). The true curve
+levels off. At $x=12$ the line predicts $21.3$; the truth is $9.9$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.2cm, axis lines=left,
+  xmin=0, xmax=13, ymin=0, ymax=24,
+  xlabel={$x$}, ylabel={$y$}, clip=false,
+  legend pos=north west, legend style={font=\small, cells={anchor=west}},
+]
+\fill[gray!12] (axis cs:0.5,0) rectangle (axis cs:4,24);
+\addplot[sourceblue, very thick, domain=0:4] {1.3582+1.66054*x};
+\addlegendentry{fitted line (data range)}
+\addplot[sourceblue, very thick, dashed, domain=4:12] {1.3582+1.66054*x};
+\addlegendentry{line extrapolated}
+\addplot[targetgreen, very thick, domain=0:12, samples=80] {10*(1-exp(-0.35*x))};
+\addlegendentry{true mean curve}
+\addplot[only marks, mark=*, mark size=2pt, black, forget plot] coordinates {(0.50,1.81) (1.00,2.65) (1.50,4.18) (2.00,5.28) (2.50,5.63) (3.00,6.65) (3.50,6.96) (4.00,7.58)};
+\node[font=\small, anchor=south] at (axis cs:2.25,0.4) {observed};
+\addplot[only marks, mark=*, mark size=2pt, trapred, forget plot] coordinates {(12,21.28) (12,9.85)};
+\node[trapred, anchor=west, font=\small] at (axis cs:12.15,21.28) {21.3};
+\node[trapred, anchor=west, font=\small] at (axis cs:12.15,9.85) {9.9};
+\end{axis}
+\end{tikzpicture}
+\caption{Extrapolation. Inside the shaded data range the line is an excellent
+approximation. Beyond it the line and the truth diverge, and nothing in the
+data could have warned you.}
+\label{fig:slr-extrap}
+\end{figure}
+
+The prediction interval formula grows with $(x_0-\xbar)^2$, so it does widen
+outside the data. But it only accounts for uncertainty in the slope and
+intercept \emph{assuming the line is right}. It cannot account for the line
+being wrong, which is the bigger risk far from the data. Capacity planning
+(``latency grows linearly with load, so at $3\times$ load\ldots'') is the classic
+victim: queues are linear at low utilisation and explode near saturation.
+
+\section{Least squares is maximum likelihood}
+\label{sec:slr-mle}
+
+Section~\ref{sec:slr-ls} chose least squares because it is convenient. There
+is a better reason. Assume the Normal-error model, $y_i \sim \Normal(\beta_0+\beta_1x_i,\
+\sigma^2)$ independently. The probability density of the observed data, viewed
+as a function of the parameters, is the \textbf{likelihood}:
+\[
+  L(\beta_0,\beta_1,\sigma)
+  = \prod_{i=1}^n \frac{1}{\sqrt{2\pi}\,\sigma}
+    \exp\!\left(-\frac{(y_i-\beta_0-\beta_1x_i)^2}{2\sigma^2}\right).
+\]
+Take logs:
+\[
+  \log L = -\frac{n}{2}\log(2\pi\sigma^2)
+           - \frac{1}{2\sigma^2}\sum_{i=1}^n (y_i-\beta_0-\beta_1x_i)^2 .
+\]
+For any fixed $\sigma$, the only term involving $\beta_0,\beta_1$ is
+$-\mathrm{SSE}/(2\sigma^2)$. Maximising $\log L$ is therefore the same as
+minimising $\mathrm{SSE}$. The maximum likelihood estimates of slope and
+intercept are exactly the least squares estimates.
+
+Maximising over $\sigma$ as well gives $\hat\sigma^2_{\text{MLE}} =
+\mathrm{SSE}/n$. That is biased low; the unbiased version divides by $n-2$, the
+$s^2$ of Section~\ref{sec:slr-inference}. Same story as $n$ versus $n-1$ for
+the sample variance.
+
+\begin{connectionbox}
+This equivalence is why ``mean squared error loss'' is the default in machine
+learning regression. Training a neural network with MSE loss is maximum
+likelihood under the assumption that targets are the network's output plus
+Gaussian noise. Swap the noise model and the loss changes: Laplace noise gives
+absolute error (L1) loss; Bernoulli outcomes give cross-entropy, which is
+logistic regression (Chapter~13). Chapter~14 develops maximum likelihood in
+general, and Chapter~15 returns to the loss-function view.
+\end{connectionbox}
+
+Upload time surely depends on more than file size: network type, server
+region, time of day. Chapter~13 puts several predictors into one regression
+and asks what each slope means when the others are held fixed.
+
+\section{Summary}
+\label{sec:slr-summary}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{p{4.1cm}p{8.4cm}}
+\toprule
+Model & $y_i = \beta_0+\beta_1x_i+\eps_i$, errors independent, mean $0$, variance $\sigma^2$ \\
+Residual & $e_i = y_i-\hat y_i$, the vertical distance to the line \\
+Least squares slope & $b_1 = S_{xy}/S_{xx} = r\,s_y/s_x$ \\
+Least squares intercept & $b_0 = \ybar - b_1\xbar$; line passes through $(\xbar,\ybar)$ \\
+Normal equations & $\sum e_i = 0$, $\sum x_ie_i = 0$ \\
+Decomposition & $\mathrm{SST} = \mathrm{SSR}+\mathrm{SSE}$; $R^2 = \mathrm{SSR}/\mathrm{SST} = r^2$ \\
+Regression to the mean & $\hat z_y = r\,z_x$; $y$-on-$x$ and $x$-on-$y$ lines differ unless $\abs{r}=1$ \\
+Residual SE & $s = \sqrt{\mathrm{SSE}/(n-2)}$ \\
+Slope inference & $\SE(b_1)=s/\sqrt{S_{xx}}$; $(b_1-\beta_1)/\SE(b_1)\sim t_{n-2}$ \\
+Mean response CI & $\hat y_0\pm t^*s\sqrt{1/n+(x_0-\xbar)^2/S_{xx}}$ \\
+Prediction interval & $\hat y_0\pm t^*s\sqrt{1+1/n+(x_0-\xbar)^2/S_{xx}}$ \\
+Diagnostics & residual plot: curve $\Rightarrow$ nonlinearity; fan $\Rightarrow$ unequal variance; high leverage $+$ off trend $\Rightarrow$ influential \\
+Assumptions & LINE: Linearity, Independence, Normality, Equal variance \\
+Log-log slope & elasticity: $1\%$ more $x$ $\approx$ $b_1\%$ more $y$ \\
+Likelihood view & Gaussian noise $\Rightarrow$ least squares $=$ maximum likelihood \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Exercises}
+\label{sec:slr-exercises}
+
+\begin{exercise}
+Five points: $x = 0,1,2,3,4$ and $y = 1,3,2,5,4$. Compute $\xbar$, $\ybar$,
+$S_{xx}$, $S_{xy}$, $S_{yy}$, the least squares line, $r$ and $R^2$.
+\end{exercise}
+
+\begin{exercise}
+For the data in Exercise 1, compute $\mathrm{SSE}$, $s$, $\SE(b_1)$ and the
+$t$ statistic for $H_0\colon\beta_1=0$. With $t^*_3 = 3.182$, is the slope
+significant at the $5\%$ level? What is the 95\% CI for $\beta_1$?
+\end{exercise}
+
+\begin{exercise}
+A study reports $\xbar = 50$, $s_x = 10$, $\ybar = 20$, $s_y = 5$, $r = 0.6$.
+Find the regression line of $y$ on $x$ and the regression line of $x$ on $y$.
+Predict $y$ when $x = 70$.
+\end{exercise}
+
+\begin{exercise}
+Midterm and final exam scores have correlation $r=0.5$. A student scores
+$2$ SDs above the mean on the midterm. Predict how many SDs above the mean she
+will score on the final. A student who scored $2$ SDs above the mean on the
+final: predict her midterm in SD units. Why is neither answer $2$?
+\end{exercise}
+
+\begin{exercise}
+Prove from the normal equations that the residuals of a least squares fit with
+an intercept satisfy $\sum_i \hat y_i e_i = 0$.
+\end{exercise}
+
+\begin{exercise}
+In the upload example, $x$ is converted from MB to KB ($1$ MB $=1000$ KB) and
+$y$ from seconds to milliseconds. What happens to $b_1$, $b_0$, $R^2$ and the
+$t$ statistic for the slope?
+\end{exercise}
+
+\begin{exercise}
+For the upload data, compute the 95\% confidence interval for the mean response
+and the 95\% prediction interval at $x_0 = 7$ MB. Why are both wider than at
+$x_0 = 4$? What extra caveat applies at $x_0=7$?
+\end{exercise}
+
+\begin{exercise}
+A log-log regression of house price on floor area gives slope $0.8$. By what
+factor does the predicted price change when floor area doubles? When it grows
+by $10\%$?
+\end{exercise}
+
+\begin{exercise}
+You want to estimate how request latency depends on payload size, and you can
+choose $20$ payload sizes in the range $1$ to $100$ KB. Using
+$\SD(b_1) = \sigma/\sqrt{S_{xx}}$, which choice of sizes gives the most precise
+slope? Why might you not use that choice in practice?
+\end{exercise}
+
+\begin{exercise}
+Show that under Gaussian errors, maximising the log-likelihood over $\sigma^2$
+(with $\beta_0,\beta_1$ at their least squares values) gives
+$\hat\sigma^2 = \mathrm{SSE}/n$.
+\end{exercise}
+
+\subsection*{Answers}
+
+\begin{enumerate}[leftmargin=*]
+  \item $\xbar=2$, $\ybar=3$, $S_{xx}=10$, $S_{xy}=8$, $S_{yy}=10$.
+  $b_1=0.8$, $b_0=3-0.8\times2=1.4$, so $\hat y = 1.4+0.8x$.
+  $r = 8/\sqrt{100}=0.8$, $R^2=0.64$.
+  \item $\mathrm{SSE} = S_{yy}-b_1S_{xy} = 10-6.4=3.6$; $s=\sqrt{3.6/3}=1.095$;
+  $\SE(b_1)=1.095/\sqrt{10}=0.346$; $t=0.8/0.346=2.31<3.182$. Not significant
+  ($p=0.10$). CI: $0.8\pm3.182\times0.346 = [-0.30,\ 1.90]$, which contains $0$.
+  \item $y$ on $x$: $b_1 = 0.6\times5/10=0.3$, $b_0=20-0.3\times50=5$, so
+  $\hat y=5+0.3x$. $x$ on $y$: $c_1=0.6\times10/5=1.2$, $c_0=50-1.2\times20=26$,
+  so $\hat x=26+1.2y$. At $x=70$: $\hat y = 26$.
+  \item Final: $0.5\times2 = 1$ SD above. Midterm given final: also $1$ SD
+  above. Each prediction regresses toward the mean because $\abs{r}<1$; the
+  extreme score is partly luck, which does not carry over.
+  \item $\hat y_i = b_0+b_1x_i$, so
+  $\sum\hat y_ie_i = b_0\sum e_i + b_1\sum x_ie_i = 0+0$.
+  \item $b_1$ becomes $1.2\times1000/1000=1.2$ ms/KB (unchanged numerically
+  here, since both scales changed by $1000$). $b_0$ becomes $1800$ ms. $R^2$
+  and $t$ are unchanged: they are unit-free.
+  \item $\hat y_0=10.2$. $(7-3.5)^2/17.5=0.7$. Mean CI:
+  $10.2\pm2.776\times0.837\sqrt{0.8667} = [8.04,\ 12.36]$. PI:
+  $10.2\pm2.776\times0.837\sqrt{1.8667}=[7.03,\ 13.37]$. Wider because $x_0$ is
+  farther from $\xbar$. And $x_0=7$ is outside the observed range $[1,6]$, so it
+  is an extrapolation: the intervals assume the line still holds there.
+  \item Doubling: $2^{0.8}\approx1.74$, a $74\%$ increase. $10\%$ more area:
+  $1.1^{0.8}\approx1.079$, about $7.9\%$ more.
+  \item Put $10$ sizes at $1$ KB and $10$ at $100$ KB; this maximises
+  $S_{xx}$. But with only two distinct $x$ values you cannot see curvature, so
+  you cannot check linearity. Spreading some points across the range is safer.
+  \item $\partial\log L/\partial\sigma^2 = -n/(2\sigma^2) +
+  \mathrm{SSE}/(2\sigma^4)=0$ gives $\sigma^2 = \mathrm{SSE}/n$.
+\end{enumerate}

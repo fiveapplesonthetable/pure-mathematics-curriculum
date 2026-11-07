@@ -1,0 +1,1254 @@
+\chapter{Comparing Groups and Categorical Data}
+\label{ch:comparing-groups}
+
+Chapter 9 built the machinery of a test: a null hypothesis, a test statistic,
+its null distribution, and a p-value. It applied that machinery to means with
+the $z$- and $t$-tests. Real questions come in more shapes. Did the new
+checkout page convert better? Is this die fair? Does conversion depend on
+device? Do three server configurations have the same mean latency? What if
+the data are skewed and $n=6$? This chapter gives one tool for each shape and
+ends with a flowchart for choosing among them.
+
+Every test here follows the same recipe:
+\begin{enumerate}
+  \item Compute what you would \emph{expect} to see if nothing were going on.
+  \item Measure how far the data sit from that expectation, in units of noise.
+  \item Compare the distance to its null distribution to get a p-value.
+\end{enumerate}
+
+\section{Two proportions: the A/B conversion test}
+\label{sec:cg-two-prop}
+
+\subsection{A worked example}
+
+An online shop shows its old checkout page (control, A) to $10{,}000$ randomly
+chosen users and a new page (treatment, B) to another $10{,}000$.
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+ & Users & Conversions & Rate \\
+\midrule
+A (control) & $10{,}000$ & $1{,}000$ & $\hat p_A = 0.100$ \\
+B (treatment) & $10{,}000$ & $1{,}100$ & $\hat p_B = 0.110$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The observed lift is $\hat p_B - \hat p_A = 0.010$, one percentage point. Is
+that a real effect, or could two identical pages produce a gap this big by
+chance?
+
+Each user converts or not, so each arm is a sample of Bernoulli trials. A
+sample proportion is a sample mean of 0s and 1s, so Chapter 6 gives its
+standard error: $\SE(\hat p) = \sqrt{p(1-p)/n}$. The two arms are independent,
+so variances add:
+\[
+  \Var(\hat p_B - \hat p_A) = \frac{p_A(1-p_A)}{n_A} + \frac{p_B(1-p_B)}{n_B}.
+\]
+
+Under the null hypothesis $H_0\colon p_A = p_B = p$, both arms share one rate.
+The best estimate of that common rate pools all users:
+\[
+  \hat p = \frac{1000 + 1100}{10000 + 10000} = \frac{2100}{20000} = 0.105.
+\]
+Plug it into the variance formula. The subscript $0$ marks a standard error
+computed as if $H_0$ were true:
+\[
+  \SE_0 = \sqrt{\hat p(1-\hat p)\left(\frac{1}{n_A}+\frac{1}{n_B}\right)}
+        = \sqrt{0.105 \times 0.895 \times \frac{2}{10000}}
+        = \sqrt{1.8795\times 10^{-5}} \approx 0.004335.
+\]
+The test statistic counts how many null standard errors the observed gap is:
+\[
+  z = \frac{\hat p_B - \hat p_A}{\SE_0} = \frac{0.010}{0.004335} \approx 2.31.
+\]
+By the CLT the statistic is close to $\Normal(0,1)$ under $H_0$. The two-sided
+p-value is $2\,\P(Z > 2.31) \approx 0.021$. At $\alpha = 0.05$ we reject $H_0$.
+
+\begin{recoverybox}
+Keep the same rates ($10\%$ and $11\%$) but use only $1000$
+users per arm. Does $z$ grow or shrink, and by how much? (Answer: the SE grows
+by $\sqrt{10}$, so $z$ falls to about $0.73$ and $p \approx 0.47$. Same lift, no
+evidence.)
+\end{recoverybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=11cm,height=5cm,domain=-4:4,samples=120,
+  axis lines=left,xlabel={$z$},ylabel={density},ymin=0,ymax=0.45,
+  xtick={-2.31,-1,0,1,2.31},xticklabels={$-2.31$,$-1$,$0$,$1$,$2.31$},
+  ytick=\empty,clip=false]
+  \addplot[draw=none,fill=trapred!45,domain=2.31:4] {exp(-x^2/2)/sqrt(2*pi)} \closedcycle;
+  \addplot[draw=none,fill=trapred!45,domain=-4:-2.31] {exp(-x^2/2)/sqrt(2*pi)} \closedcycle;
+  \addplot[thick,distblue] {exp(-x^2/2)/sqrt(2*pi)};
+  \draw[thick,densityred] (axis cs:2.31,0) -- (axis cs:2.31,0.2);
+  \node[anchor=south,font=\small,densityred] at (axis cs:2.31,0.2) {observed $z$};
+  \node[anchor=west,font=\small] at (axis cs:2.6,0.08) {$0.0105$};
+  \node[anchor=east,font=\small] at (axis cs:-2.6,0.08) {$0.0105$};
+  \node[font=\small,distblue] at (axis cs:0,0.43) {null: $\Normal(0,1)$};
+\end{axis}
+\end{tikzpicture}
+\caption{Null distribution of the two-proportion $z$ statistic. The observed
+$z=2.31$ leaves $0.0105$ in each tail, so the two-sided p-value is $0.021$: a
+gap this large would be rare if the pages were identical.}
+\label{fig:cg-abz}
+\end{figure}
+
+\subsection{Pooled for the test, unpooled for the interval}
+
+The test assumes $H_0$ is true, so it uses the pooled $\hat p$. A confidence
+interval for the lift makes no such assumption, so it uses each arm's own rate:
+\[
+  \SE = \sqrt{\frac{0.10\times 0.90}{10000} + \frac{0.11\times 0.89}{10000}}
+      = \sqrt{9.00\times10^{-6} + 9.79\times10^{-6}} \approx 0.004335.
+\]
+The 95\% interval is $0.010 \pm 1.96 \times 0.004335 = [0.0015,\ 0.0185]$.
+The lift is somewhere between $0.15$ and $1.85$ percentage points. The interval
+excludes 0, which agrees with the test. Here the two standard errors match to
+four digits because the rates are close; they differ when the rates are far
+apart.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=9cm,height=5cm,ymin=0.09,ymax=0.12,xmin=0.4,xmax=2.6,
+  xtick={1,2},xticklabels={A (control),B (treatment)},
+  ylabel={conversion rate},axis lines=left,
+  yticklabel style={/pgf/number format/fixed,/pgf/number format/precision=3}]
+  \addplot[only marks,mark=*,mark size=2.5pt,sourceblue,
+    error bars/.cd,y dir=both,y explicit]
+    coordinates {(1,0.100) +- (0,0.00588) (2,0.110) +- (0,0.00613)};
+  \node[anchor=west,font=\small] at (axis cs:1.08,0.100) {$0.100$};
+  \node[anchor=west,font=\small] at (axis cs:2.08,0.110) {$0.110$};
+\end{axis}
+\end{tikzpicture}
+\caption{Each arm's conversion rate with its own 95\% interval
+($\pm 1.96\sqrt{\hat p(1-\hat p)/n}$). The two bars overlap slightly, yet the
+test on the \emph{difference} rejects. Overlapping individual intervals do not
+imply a non-significant difference.}
+\label{fig:cg-ab-bars}
+\end{figure}
+
+\begin{trapbox}
+Do not compare two groups by checking whether their separate confidence
+intervals overlap. The SE of a difference is
+$\sqrt{\SE_A^2 + \SE_B^2}$, which is smaller than $\SE_A + \SE_B$. Two
+intervals can overlap while the interval for the difference excludes zero, as in
+Figure~\ref{fig:cg-ab-bars}. Always build the interval for the difference itself.
+\end{trapbox}
+
+\begin{whybox}
+Why is the $z$ approximation good here? Each arm's count of conversions is a
+sum of $10{,}000$ independent Bernoulli variables, so the CLT applies to each
+proportion. A common rule of thumb: you want at least about 10 successes and 10
+failures in each arm. With $1000$ and $9000$ we are far past that. With 4
+conversions in 40 users you are not, and Fisher's exact test
+(Section~\ref{sec:cg-fisher}) is the safer choice.
+\end{whybox}
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+from scipy import stats
+xA, nA, xB, nB = 1000, 10000, 1100, 10000
+p = (xA + xB) / (nA + nB)                      # pooled rate 0.105
+se0 = np.sqrt(p*(1-p)*(1/nA + 1/nB))
+z = (xB/nB - xA/nA) / se0                      # 2.31
+print(z, 2*stats.norm.sf(abs(z)))              # p = 0.021
+\end{lstlisting}
+
+\section{Chi-square goodness of fit}
+\label{sec:cg-gof}
+
+\subsection{Is this die fair?}
+
+You roll a die 120 times. A fair die should give each face $120/6 = 20$
+times on average. You observe:
+
+\begin{center}
+\begin{tabular}{lrrrrrr|r}
+\toprule
+Face & 1 & 2 & 3 & 4 & 5 & 6 & Total \\
+\midrule
+Observed $O$ & 15 & 22 & 18 & 25 & 16 & 24 & 120 \\
+Expected $E$ & 20 & 20 & 20 & 20 & 20 & 20 & 120 \\
+$O - E$ & $-5$ & $2$ & $-2$ & $5$ & $-4$ & $4$ & 0 \\
+$(O-E)^2/E$ & 1.25 & 0.20 & 0.20 & 1.25 & 0.80 & 0.80 & 4.50 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=10cm,height=5cm,ybar,bar width=14pt,ymin=0,ymax=30,
+  xtick={1,2,3,4,5,6},xlabel={face},ylabel={count},axis lines=left,
+  enlarge x limits=0.12,legend columns=2,
+  legend style={at={(0.5,1.03)},anchor=south,font=\small,/tikz/every even column/.append style={column sep=8pt}}]
+  \addplot[fill=histfill,draw=distblue] coordinates {(1,15) (2,22) (3,18) (4,25) (5,16) (6,24)};
+  \addlegendentry{observed}
+  \addplot[sharp plot,ultra thick,densityred,dashed,mark=none,forget plot] coordinates {(0.5,20) (6.5,20)};
+  \addlegendimage{ultra thick,densityred,dashed}
+  \addlegendentry{expected $=20$}
+\end{axis}
+\end{tikzpicture}
+\caption{Observed die counts against the fair expectation. The bars wobble
+around 20 by up to 5. The chi-square statistic decides whether that wobble is
+more than chance.}
+\label{fig:cg-die}
+\end{figure}
+
+\begin{definition}[Pearson chi-square statistic]
+For $k$ categories with observed counts $O_i$ and expected counts $E_i$ under
+$H_0$,
+\[
+  X^2 = \sum_{i=1}^{k} \frac{(O_i - E_i)^2}{E_i}.
+\]
+For a goodness-of-fit test with fully specified probabilities, $X^2$ is
+approximately $\chi^2_{k-1}$ under $H_0$.
+\end{definition}
+
+The subscript $k-1$ is the \emph{degrees of freedom}: the number of counts
+that are free to vary once the total is fixed. The chi-square distribution
+$\chi^2_m$ is the distribution of a sum of $m$ squared independent standard
+normal variables, so it describes ``total squared surprise'' from $m$ free
+pieces.
+
+For the die, $X^2 = 4.50$ with $k - 1 = 5$ degrees of freedom. The 95th
+percentile of $\chi^2_5$ is $11.07$, and $\P(\chi^2_5 > 4.5) \approx 0.48$.
+We have no evidence against fairness. Wobbles of this size happen about half
+the time with a fair die.
+
+\begin{whybox}
+Why divide by $E_i$? A count's natural wobble grows with its size: a cell
+expecting 1000 can easily miss by 30, a cell expecting 10 cannot. Each count
+$O_i$ has variance $E_i(1-p_i)$, close to $E_i$, so $(O_i - E_i)/\sqrt{E_i}$ is
+roughly a standardised deviation and $X^2$ adds up squared standardised
+deviations. A sum of $m$ independent squared standard normals is the
+definition of $\chi^2_m$. Why $k-1$ and not $k$? The counts must add to $n$,
+so once five deviations are known the sixth is fixed: $\sum (O_i - E_i) = 0$.
+The deviations are not independent; that one constraint (together with the
+$1-p_i$ factors left out of the denominators) removes exactly one degree of
+freedom. (See Probability From the Ground Up
+for the chi-square distribution itself.)
+\end{whybox}
+
+\subsection{The chi-square family}
+
+The chi-square distribution with $m$ degrees of freedom has mean $m$ and
+variance $2m$. Its shape depends only on $m$. Small $m$ gives a right-skewed
+curve piled near zero; large $m$ looks more and more normal.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=11.5cm,height=5.5cm,xmin=0,xmax=20,ymin=0,ymax=0.5,
+  axis lines=left,xlabel={$x$},ylabel={density},samples=150,
+  legend style={at={(0.98,0.98)},anchor=north east,font=\small},
+  restrict y to domain=0:0.6]
+  \addplot[thick,distblue,domain=0.03:20] {exp(-x/2)/sqrt(2*pi*x)};
+  \addlegendentry{$m=1$}
+  \addplot[thick,targetgreen,domain=0:20] {0.5*exp(-x/2)};
+  \addlegendentry{$m=2$}
+  \addplot[thick,quotientorange,domain=0:20] {x*exp(-x/2)/4};
+  \addlegendentry{$m=4$}
+  \addplot[thick,structurepurple,domain=0:20] {x^2*exp(-x/2)/16};
+  \addlegendentry{$m=6$}
+  \addplot[thick,densityred,domain=0:20] {x^4*exp(-x/2)/768};
+  \addlegendentry{$m=10$}
+\end{axis}
+\end{tikzpicture}
+\caption{Chi-square densities for several degrees of freedom $m$. Each has
+mean $m$ (and, for $m \ge 2$, its peak at $m-2$), so the same $X^2$ value means very different
+things at different $m$: $X^2 = 8$ is extreme for $m=1$ and ordinary for
+$m=10$.}
+\label{fig:cg-chisq-family}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=11cm,height=5cm,xmin=0,xmax=20,ymin=0,ymax=0.18,
+  axis lines=left,xlabel={$X^2$},ylabel={density},samples=150,ytick=\empty,
+  xtick={0,4.5,11.07,15,20},xticklabels={$0$,$4.5$,$11.07$,$15$,$20$},clip=false]
+  \addplot[draw=none,fill=histfill!60,domain=4.5:20] {x^1.5*exp(-x/2)/7.5199} \closedcycle;
+  \addplot[draw=none,fill=trapred!50,domain=11.07:20] {x^1.5*exp(-x/2)/7.5199} \closedcycle;
+  \addplot[thick,distblue,domain=0.001:20] {x^1.5*exp(-x/2)/7.5199};
+  \draw[thick,densityred] (axis cs:4.5,0) -- (axis cs:4.5,0.16);
+  \node[anchor=south west,font=\small] at (axis cs:4.6,0.155) {observed $4.5$: $p=0.48$};
+  \draw[->] (axis cs:13.5,0.06) -- (axis cs:12.2,0.012);
+  \node[anchor=south,font=\small,trapred] at (axis cs:13.5,0.06) {rejection region, 5\%};
+\end{axis}
+\end{tikzpicture}
+\caption{The $\chi^2_5$ null distribution for the die. The blue area to the
+right of the observed $4.5$ is the p-value, $0.48$. To reject at 5\% we would
+need $X^2 > 11.07$.}
+\label{fig:cg-die-tail}
+\end{figure}
+
+\begin{trapbox}
+Chi-square tests work on \emph{counts}, never on percentages or rates. If you
+feed in $12.5\%, 18.3\%, \dots$ instead of the counts, $X^2$ changes with the
+units and the p-value is meaningless. Also check that every expected count is
+at least about 5. If not, merge sparse categories or use an exact test.
+\end{trapbox}
+
+\begin{historybox}
+Karl Pearson, working in London in 1900, wanted to test whether data fitted a
+proposed curve: did a set of dice throws, or measured traits, match the
+frequencies a theory predicted? Earlier methods judged fit by eye. Pearson
+introduced $X^2 = \sum (O-E)^2/E$ and worked out its large-sample distribution,
+the chi-square distribution. He got the degrees of freedom wrong for tables
+whose expected counts are estimated from the data; Ronald Fisher corrected this
+in 1922, giving the $(r-1)(c-1)$ rule. Fisher went on, at the Rothamsted
+agricultural station in the 1920s, to compare crop yields across many
+fertiliser treatments at once. He split total variation into between-plot and
+within-plot pieces, which became the analysis of variance; the $F$ distribution
+is named in his honour. Together these gave the first general tools for
+comparing more than two groups.
+\end{historybox}
+
+\section{Chi-square test of independence}
+\label{sec:cg-indep}
+
+\subsection{Does conversion depend on device?}
+
+A site records 1000 visits by device and whether the visit converted.
+
+\begin{center}
+\begin{tabular}{lrr|r}
+\toprule
+ & Converted & Not converted & Row total \\
+\midrule
+Desktop & 60 & 340 & 400 \\
+Mobile & 50 & 450 & 500 \\
+Tablet & 10 & 90 & 100 \\
+\midrule
+Column total & 120 & 880 & 1000 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Desktop converts at $60/400 = 15\%$; mobile and tablet at $10\%$. The null
+hypothesis is that device and conversion are \emph{independent}: every device
+has the same conversion rate, which must then be the overall
+$120/1000 = 12\%$.
+
+\textbf{Expected counts.} If independent, desktop should have $12\%$ of its 400
+visits converting: $0.12 \times 400 = 48$. In general,
+\[
+  E_{ij} = \frac{(\text{row } i \text{ total}) \times (\text{column } j \text{ total})}{\text{grand total}}
+         = \frac{R_i\, C_j}{N},
+\]
+where $R_i$ is the row total, $C_j$ the column total and $N$ the grand total.
+For desktop and converted: $400 \times 120 / 1000 = 48$.
+
+\begin{recoverybox}
+Why must the expected table have the same row and column
+totals as the observed table? (Because $\sum_j E_{ij} = R_i \sum_j C_j / N =
+R_i$. Independence only reshuffles counts inside the margins.)
+\end{recoverybox}
+
+The full expected
+table and each cell's contribution $(O-E)^2/E$:
+
+\begin{center}
+\begin{tabular}{lrr|rr}
+\toprule
+ & $E$: Conv. & $E$: Not & $\frac{(O-E)^2}{E}$: Conv. & $\frac{(O-E)^2}{E}$: Not \\
+\midrule
+Desktop & 48 & 352 & $144/48 = 3.000$ & $144/352 = 0.409$ \\
+Mobile & 60 & 440 & $100/60 = 1.667$ & $100/440 = 0.227$ \\
+Tablet & 12 & 88 & $4/12 = 0.333$ & $4/88 = 0.045$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Adding the six contributions gives $X^2 \approx 5.68$.
+
+\textbf{Degrees of freedom.} For an $r\times c$ table, $\text{df} = (r-1)(c-1)$.
+Here $(3-1)(2-1) = 2$. The reason: once the row and column totals are fixed,
+you can fill only $(r-1)(c-1)$ cells freely; the rest are forced by the totals.
+
+\textbf{Conclusion.} The 95th percentile of $\chi^2_2$ is $5.99$, and
+$\P(\chi^2_2 > 5.68) \approx 0.058$. The data hint that desktop converts
+better, but at $\alpha = 0.05$ the evidence falls just short. The cell
+contributions show where the signal is: desktop-converted contributes $3.0$ of
+the $5.68$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=10cm,height=5.2cm,ybar,bar width=16pt,ymin=0,ymax=110,
+  symbolic x coords={Desktop,Mobile,Tablet},xtick=data,
+  ylabel={conversions},axis lines=left,enlarge x limits=0.25,
+  legend style={at={(0.98,0.98)},anchor=north east,font=\small},
+  nodes near coords,nodes near coords style={font=\scriptsize}]
+  \addplot[fill=histfill,draw=distblue] coordinates {(Desktop,60) (Mobile,50) (Tablet,10)};
+  \addlegendentry{observed $O$}
+  \addplot[fill=quotientorange!50,draw=quotientorange] coordinates {(Desktop,48) (Mobile,60) (Tablet,12)};
+  \addlegendentry{expected $E$ if independent}
+\end{axis}
+\end{tikzpicture}
+\caption{Observed versus expected conversions per device. Desktop has 12 more
+conversions than independence predicts and mobile has 10 fewer. Desktop's cell
+contributes most to $X^2$: its gap is the largest and its expected count (48)
+is smaller than mobile's (60), so $12^2/48 = 3.0$ beats $10^2/60 = 1.7$.}
+\label{fig:cg-device}
+\end{figure}
+
+\begin{connectionbox}
+A $2\times 2$ table is the A/B test in disguise. Put the checkout data in a
+table (rows A and B; columns converted, not converted) and run the chi-square
+test without continuity correction: $X^2 = 5.32$. That equals
+$z^2 = 2.3066^2 = 5.32$, and the p-values are identical ($0.021$). The
+two-proportion $z$-test and the $2\times 2$ chi-square test are the same test.
+The $z$ form has one advantage: it tells you the \emph{direction} and gives a
+confidence interval for the lift.
+\end{connectionbox}
+
+\begin{trapbox}
+Independence tests detect association, not causation. If desktop users are
+mostly office workers buying on lunch break, device may be a proxy for intent.
+Only randomisation (Chapter 5) licenses a causal reading. The checkout A/B test
+is causal; the device table is not.
+\end{trapbox}
+
+\section{Fisher's exact test}
+\label{sec:cg-fisher}
+
+When counts are small, the chi-square approximation breaks down. Fisher's exact
+test computes the p-value directly from the hypergeometric distribution, with no
+large-sample approximation.
+
+A pilot gives a new onboarding flow to 10 users and the old one to 10. Results:
+
+\begin{center}
+\begin{tabular}{lrr|r}
+\toprule
+ & Retained & Churned & Total \\
+\midrule
+New flow & 7 & 3 & 10 \\
+Old flow & 2 & 8 & 10 \\
+\midrule
+Total & 9 & 11 & 20 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{The idea.} Fix the margins: 9 retained users among 20, 10 of whom got the
+new flow. If the flow has no effect, which 10 users received it is a random
+draw, and the number of retained users in the new-flow group $X$ follows a
+hypergeometric distribution: draw 10 from an urn of 20 containing 9 ``retained''
+balls. Then
+\[
+  \P(X = k) = \frac{\binom{9}{k}\binom{11}{10-k}}{\binom{20}{10}}.
+\]
+Observing $X = 7$ or more has probability
+$0.0322 + 0.0027 + 0.0001 = 0.035$. The distribution is symmetric here, so the
+two-sided p-value is about $0.070$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=10.5cm,height=5cm,ybar,bar width=12pt,ymin=0,ymax=0.36,
+  xtick={0,...,9},xlabel={retained users in new-flow group, $X$},
+  ylabel={$\P(X=k)$},axis lines=left,enlarge x limits=0.06,clip=false]
+  \addplot[fill=histfill,draw=distblue,bar shift=0pt] coordinates
+    {(3,0.1500) (4,0.3151) (5,0.3151) (6,0.1500)};
+  \addplot[fill=trapred!60,draw=trapred,bar shift=0pt] coordinates
+    {(0,0.0001) (1,0.0027) (2,0.0322) (7,0.0322) (8,0.0027) (9,0.0001)};
+  \draw[->] (axis cs:8.2,0.14) -- (axis cs:7.1,0.045);
+  \node[anchor=south,font=\small] at (axis cs:8.2,0.14) {observed $X=7$};
+\end{axis}
+\end{tikzpicture}
+\caption{Null distribution of $X$ for Fisher's exact test with margins 9/11
+and 10/10. Values $X \ge 7$ have total probability $0.035$. Adding the equally
+extreme lower tail $X \le 2$ (also red) gives a two-sided p-value of $0.070$.}
+\label{fig:cg-fisher}
+\end{figure}
+
+The chi-square test on the same table gives $X^2 = 5.05$ and $p = 0.025$. That
+is too optimistic: two of the expected counts are $4.5$, below the rule of
+thumb. With small counts, trust Fisher. With large counts the two agree and
+the chi-square test is faster.
+
+\section{One-way ANOVA: comparing several means}
+\label{sec:cg-anova}
+
+\subsection{Three server configurations}
+
+You measure p50 latency (ms) on 5 runs each for three server configurations:
+
+\begin{center}
+\begin{tabular}{lccccc|c}
+\toprule
+Config & \multicolumn{5}{c|}{Runs} & Mean \\
+\midrule
+A & 12 & 14 & 11 & 13 & 15 & 13 \\
+B & 16 & 18 & 15 & 17 & 19 & 17 \\
+C & 13 & 15 & 14 & 12 & 16 & 14 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The grand mean of all 15 runs is $220/15 \approx 14.667$. Are the three
+population means equal? You could run three pairwise $t$-tests, but each has a
+5\% false alarm rate, so the chance of at least one false alarm is about
+$1 - 0.95^3 \approx 14\%$ (Chapter 11 treats this properly). ANOVA asks
+one question: $H_0\colon \mu_A = \mu_B = \mu_C$. ANOVA stands for
+\emph{analysis of variance}: it decides whether means differ by comparing two
+kinds of spread, the spread of the group means and the spread inside groups.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[name=left,width=6.3cm,height=6cm,xmin=0.4,xmax=3.6,ymin=4,ymax=25,
+  xtick={1,2,3},xticklabels={A,B,C},ylabel={latency (ms)},axis lines=left,
+  title={\small small within-group spread},clip=false]
+  \addplot[only marks,mark=*,mark size=1.8pt,sourceblue] coordinates
+   {(1,12) (1,14) (1,11) (1,13) (1,15) (2,16) (2,18) (2,15) (2,17) (2,19) (3,13) (3,15) (3,14) (3,12) (3,16)};
+  \draw[very thick,densityred] (axis cs:0.75,13) -- (axis cs:1.25,13);
+  \draw[very thick,densityred] (axis cs:1.75,17) -- (axis cs:2.25,17);
+  \draw[very thick,densityred] (axis cs:2.75,14) -- (axis cs:3.25,14);
+  \draw[dashed,residgray] (axis cs:0.4,14.667) -- (axis cs:3.6,14.667);
+  \node[font=\scriptsize,anchor=north] at (axis cs:2,6) {$F = 8.67$, $p = 0.005$};
+\end{axis}
+\begin{axis}[at={(left.east)},anchor=west,xshift=1.2cm,width=6.3cm,height=6cm,
+  xmin=0.4,xmax=3.6,ymin=4,ymax=25,
+  xtick={1,2,3},xticklabels={A$'$,B$'$,C$'$},axis lines=left,
+  title={\small large within-group spread},clip=false]
+  \addplot[only marks,mark=*,mark size=1.8pt,sourceblue] coordinates
+   {(1,10) (1,16) (1,7) (1,13) (1,19) (2,14) (2,20) (2,11) (2,17) (2,23) (3,11) (3,17) (3,8) (3,14) (3,20)};
+  \draw[very thick,densityred] (axis cs:0.75,13) -- (axis cs:1.25,13);
+  \draw[very thick,densityred] (axis cs:1.75,17) -- (axis cs:2.25,17);
+  \draw[very thick,densityred] (axis cs:2.75,14) -- (axis cs:3.25,14);
+  \draw[dashed,residgray] (axis cs:0.4,14.667) -- (axis cs:3.6,14.667);
+  \node[font=\scriptsize,anchor=north] at (axis cs:2,6) {$F = 0.96$, $p = 0.41$};
+\end{axis}
+\end{tikzpicture}
+\caption{Both panels have the same group means (red bars: 13, 17, 14) and the
+same grand mean (dashed). On the left the groups barely overlap, so the gaps
+between means stand out. On the right each point is three times farther from
+its group mean, and the same gaps are lost in the noise. ANOVA measures exactly
+this ratio.}
+\label{fig:cg-anova-dots}
+\end{figure}
+
+\subsection{Splitting the variation}
+
+Take any single observation $x_{ij}$ (run $j$ in group $i$). Its distance from
+the grand mean $\bar x$ splits into two pieces:
+\[
+  \underbrace{x_{ij} - \bar x}_{\text{total}}
+  = \underbrace{(\bar x_i - \bar x)}_{\text{between: group mean vs grand mean}}
+  + \underbrace{(x_{ij} - \bar x_i)}_{\text{within: point vs its group mean}}.
+\]
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1cm,y=0.55cm]
+  \draw[->] (0,9.5) -- (0,20.5) node[above,font=\small] {ms};
+  \foreach \v in {10,12,...,20} \draw (-0.1,\v) -- (0.1,\v) node[left=3pt,font=\scriptsize] {\v};
+  \draw[dashed,residgray] (0,14.667) -- (10,14.667);
+  \node[anchor=north east,font=\small,residgray] at (10,14.5) {grand mean $14.67$};
+  \draw[very thick,densityred] (2.5,17) -- (4.5,17) node[right,font=\small] {group B mean $17$};
+  \fill[sourceblue] (3.5,19) circle (3pt) node[right=4pt,font=\small] {run $x_{B5} = 19$};
+  \draw[very thick,quotientorange,-{Stealth}] (2.2,14.667) -- (2.2,17);
+  \node[anchor=east,font=\small,quotientorange,align=right] at (2.1,15.8) {between\\$+2.33$};
+  \draw[very thick,sourceblue,-{Stealth}] (2.2,17) -- (2.2,19);
+  \node[anchor=east,font=\small,sourceblue,align=right] at (2.1,18.1) {within\\$+2$};
+  \draw[thick,structurepurple,-{Stealth}] (9.2,14.667) -- (9.2,19);
+  \node[anchor=west,font=\small,structurepurple] at (9.3,17.3) {total $+4.33$};
+\end{tikzpicture}
+\caption{The deviation of one observation from the grand mean is the sum of a
+between-group piece (orange, how far its group mean sits from the grand mean)
+and a within-group piece (blue, how far the point sits from its own group
+mean).}
+\label{fig:cg-decomp}
+\end{figure}
+
+Square both sides and sum over all observations. The cross term vanishes,
+because within each group the deviations $x_{ij} - \bar x_i$ sum to zero. What
+remains is the ANOVA identity:
+\[
+  \underbrace{\sum_{i,j}(x_{ij}-\bar x)^2}_{\text{SST}}
+  = \underbrace{\sum_{i} n_i(\bar x_i - \bar x)^2}_{\text{SSB}}
+  + \underbrace{\sum_{i,j}(x_{ij}-\bar x_i)^2}_{\text{SSW}}.
+\]
+
+For the latency data:
+\begin{align*}
+  \text{SSB} &= 5\left[(13-14.667)^2 + (17-14.667)^2 + (14-14.667)^2\right]
+             = 5(2.778 + 5.444 + 0.444) = 43.33,\\
+  \text{SSW} &= \underbrace{(1+1+4+0+4)}_{A} + \underbrace{(1+1+4+0+4)}_{B}
+             + \underbrace{(1+1+0+4+4)}_{C} = 30,\\
+  \text{SST} &= 43.33 + 30 = 73.33.
+\end{align*}
+
+\subsection{The F statistic}
+
+Sums of squares grow with the number of terms, so divide each by its degrees of
+freedom to get a \emph{mean square}. With $k$ groups and $N$ observations in
+total:
+\[
+  \text{MSB} = \frac{\text{SSB}}{k-1}, \qquad
+  \text{MSW} = \frac{\text{SSW}}{N-k}, \qquad
+  F = \frac{\text{MSB}}{\text{MSW}}.
+\]
+Here $\text{MSB} = 43.33/2 = 21.67$ and $\text{MSW} = 30/12 = 2.5$, so
+$F = 21.67 / 2.5 = 8.67$.
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+Source & SS & df & MS & $F$ \\
+\midrule
+Between groups & 43.33 & 2 & 21.67 & 8.67 \\
+Within groups & 30.00 & 12 & 2.50 & \\
+\midrule
+Total & 73.33 & 14 & & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{whybox}
+Why is this ratio the right statistic? MSW is a pooled sample variance: it
+estimates the noise variance $\sigma^2$ whether or not $H_0$ holds, since it
+only looks inside groups. MSB estimates $\sigma^2$ too \emph{if} $H_0$ is true:
+the group means are then sample means of size $n$ from one population, so they
+vary with variance $\sigma^2/n$, and multiplying their spread by $n$ recovers
+$\sigma^2$. If the true means differ, MSB picks up that extra spread and grows.
+So $F \approx 1$ under $H_0$ and $F \gg 1$ when means differ. The degrees of
+freedom follow the usual rule: $k$ group means minus 1 for the grand mean, and
+$N$ observations minus $k$ estimated group means.
+\end{whybox}
+
+\subsection{The F distribution}
+
+If the groups are independent, normal, and share one variance, then under
+$H_0$ the statistic follows an $F$ distribution with $(k-1, N-k)$ degrees of
+freedom. Formally, $F_{d_1,d_2}$ is the distribution of
+$(U_1/d_1)/(U_2/d_2)$ for independent $U_1\sim\chi^2_{d_1}$ and
+$U_2\sim\chi^2_{d_2}$: a ratio of two variance estimates.
+
+For our data, $F_{2,12}$ has 95th percentile $3.89$, and
+$\P(F_{2,12} > 8.67) \approx 0.0047$. We reject equal means.
+
+\begin{recoverybox}
+What value of $F$ do you expect if the null hypothesis is
+true? Could $F$ ever be below 1? (About 1, since both mean squares estimate
+$\sigma^2$. Yes: if group means happen to be closer together than noise alone
+predicts, MSB $<$ MSW.)
+\end{recoverybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=11.5cm,height=5.5cm,xmin=0,xmax=10,ymin=0,ymax=1.05,
+  axis lines=left,xlabel={$F$},ylabel={density},samples=150,
+  legend style={at={(0.98,0.98)},anchor=north east,font=\small},clip=false]
+  \addplot[draw=none,fill=trapred!40,domain=3.89:10,forget plot] {(1+x/6)^(-7)} \closedcycle;
+  \addplot[thick,distblue,domain=0:10] {(1+x/6)^(-7)};
+  \addlegendentry{$F_{2,12}$}
+  \addplot[thick,quotientorange,dashed] coordinates {(0.00,0.0000) (0.10,0.2059) (0.20,0.4309) (0.30,0.5899) (0.40,0.6813) (0.50,0.7190) (0.60,0.7181) (0.70,0.6916) (0.80,0.6494) (0.90,0.5989) (1.00,0.5449) (1.10,0.4908) (1.20,0.4387) (1.30,0.3898) (1.40,0.3449) (1.50,0.3041) (1.60,0.2675) (1.70,0.2348) (1.80,0.2058) (1.90,0.1803) (2.00,0.1578) (2.20,0.1208) (2.40,0.0926) (2.60,0.0711) (2.80,0.0547) (3.00,0.0422) (3.30,0.0288) (3.60,0.0198) (4.00,0.0122) (4.50,0.0068) (5.00,0.0039) (5.50,0.0023) (6.00,0.0014) (7.00,0.0005) (8.00,0.0002) (10.0,0.0000)};
+  \addlegendentry{$F_{5,20}$}
+  \draw[thick,densityred] (axis cs:8.67,0) -- (axis cs:8.67,0.3);
+  \node[anchor=south,font=\small,densityred] at (axis cs:8.67,0.3) {observed $8.67$};
+  \node[anchor=south,font=\small,trapred] at (axis cs:5.2,0.12) {5\% beyond $3.89$};
+  \draw[->,trapred] (axis cs:5.2,0.12) -- (axis cs:4.3,0.03);
+\end{axis}
+\end{tikzpicture}
+\caption{Two $F$ densities. Both are right-skewed with mean near 1, since
+under $H_0$ both mean squares estimate the same $\sigma^2$. For our test,
+$F_{2,12}$ puts 5\% of its mass beyond $3.89$; the observed $8.67$ is far in
+the tail ($p = 0.0047$).}
+\label{fig:cg-fdist}
+\end{figure}
+
+\subsection{ANOVA with two groups is the t-test}
+
+Run ANOVA on groups A and C only. The means are 13 and 14; each group has
+within sum of squares 10. Then $\text{SSB} = 5(0.5^2) + 5(0.5^2) = 2.5$ with
+1 df, and $\text{MSW} = 20/8 = 2.5$, so $F = 1$. The pooled two-sample $t$
+statistic (Chapter 9) is
+\[
+  t = \frac{14 - 13}{\sqrt{2.5\,(1/5 + 1/5)}} = \frac{1}{1} = 1.
+\]
+And $t^2 = 1 = F$. For A versus B, $t = 4$ and $F = 16$, both with
+$p = 0.0039$. This holds in general: with $k=2$, $F = t^2$ and $F_{1,d}$ is the
+distribution of the square of a $t_d$ variable. One-way ANOVA is the pooled
+$t$-test extended to many groups.
+
+\begin{trapbox}
+ANOVA assumes equal variances across groups. If one group is much noisier
+(a common situation with latencies), use Welch's ANOVA, the many-group cousin
+of Welch's $t$-test, or a rank-based test (Section~\ref{sec:cg-nonpar}).
+Moderate non-normality is fine with a few dozen points per group, by the CLT
+acting on the group means.
+\end{trapbox}
+
+\subsection{Post-hoc comparisons}
+
+A significant $F$ says ``not all means are equal''. It does not say which ones
+differ. \emph{Post-hoc} tests (Latin for ``after this'': tests run after the
+overall $F$ test) compare pairs while keeping the overall false alarm rate
+at $\alpha$.
+
+\begin{itemize}
+  \item \textbf{Tukey's HSD} (``honestly significant difference'') compares
+  every pair, using a critical value from the distribution of the
+  \emph{largest} gap among all the group means, so the number of pairs is
+  built in. For the latency data: B vs A,
+  difference $4$, $p = 0.005$; B vs C, difference $3$, $p = 0.028$; C vs A,
+  difference $1$, $p = 0.59$. Config B is slower than both others; A and C are
+  indistinguishable.
+  \item \textbf{Bonferroni} runs ordinary pairwise tests at level
+  $\alpha/m$ for $m$ comparisons. It is simple and conservative.
+\end{itemize}
+
+Chapter 11 explains multiple-comparison corrections in depth.
+
+\begin{lstlisting}[language=Python]
+from scipy import stats
+A = [12,14,11,13,15]; B = [16,18,15,17,19]; C = [13,15,14,12,16]
+print(stats.f_oneway(A, B, C))     # F = 8.67, p = 0.0047
+print(stats.tukey_hsd(A, B, C))    # pairwise CIs and p-values
+print(stats.kruskal(A, B, C))      # rank-based alternative
+\end{lstlisting}
+
+\section{Nonparametric alternatives: tests on ranks}
+\label{sec:cg-nonpar}
+
+The $t$-test and ANOVA compare means and lean on normality for small samples.
+Latencies, incomes and session lengths are skewed and have outliers. Rank
+tests replace each value by its position in the sorted data. A 10-second
+outlier becomes ``rank 11'', no more influential than a value just above the
+rest.
+
+\subsection{Mann--Whitney / Wilcoxon rank-sum test}
+
+Page load times (ms) for two CDNs:
+\[
+  \text{A: } 12,\ 15,\ 19,\ 22,\ 30 \qquad
+  \text{B: } 18,\ 25,\ 28,\ 35,\ 40,\ 41.
+\]
+Pool the 11 values, sort, and rank them 1 to 11:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.28cm]
+  \draw[->] (9,0) -- (44,0) node[right,font=\small] {ms};
+  \foreach \v in {10,20,30,40} \draw (\v,0.1) -- (\v,-0.1) node[below,font=\scriptsize] {\v};
+  \foreach \v/\r in {12/1,15/2,19/4,22/5,30/8} {
+    \fill[sourceblue] (\v,0.6) circle (4pt);
+    \node[font=\scriptsize,sourceblue,above] at (\v,0.75) {\r};
+  }
+  \foreach \v/\r/\o in {18/3/0,25/6/0,28/7/0,35/9/0,40/10/-0.7,41/11/0.7} {
+    \fill[densityred] (\v-0.25,-1.05) rectangle (\v+0.25,-0.65);
+    \node[font=\scriptsize,densityred,below] at (\v+\o,-1.1) {\r};
+  }
+  \node[anchor=east,font=\small,sourceblue] at (8.5,0.6) {A};
+  \node[anchor=east,font=\small,densityred] at (8.5,-0.85) {B};
+\end{tikzpicture}
+\caption{Pooled ranks for the two CDNs (A above the axis, B below; numbers are
+ranks). A's ranks $1,2,4,5,8$ cluster at the low end, so A tends to be faster.
+The rank-sum test asks whether such clustering is surprising if both CDNs
+had the same distribution.}
+\label{fig:cg-ranks}
+\end{figure}
+
+A's rank sum is $R_A = 1 + 2 + 4 + 5 + 8 = 20$. The Mann--Whitney statistic
+subtracts the smallest possible rank sum, $n_A(n_A+1)/2 = 15$:
+\[
+  U_A = R_A - \frac{n_A(n_A+1)}{2} = 20 - 15 = 5.
+\]
+$U_A$ has a direct meaning: it counts the pairs (one from A, one from B) in
+which the A value is larger. Check: 19 and 22 each beat 18; 30 beats 18, 25,
+28. That is $1+1+3 = 5$ of the $5 \times 6 = 30$ pairs. So an A load beats a
+B load only $5/30 \approx 17\%$ of the time.
+
+Under $H_0$ (same distribution), every assignment of the 11 ranks to the two
+groups is equally likely. That gives an exact null distribution for $U$ with
+mean $n_A n_B / 2 = 15$. The exact two-sided p-value is $0.082$. The normal
+approximation, with $\SD(U) = \sqrt{n_An_B(n_A+n_B+1)/12} = \sqrt{30} = 5.48$,
+gives $z = (5 - 15)/5.48 = -1.83$ and $p = 0.068$. With $n = 5$ and $6$ we
+lack evidence at 5\%, though the direction is suggestive.
+
+\begin{intuitionbox}
+The Mann--Whitney test estimates $\P(X_A > X_B)$, the chance that a random A
+value exceeds a random B value. If both groups come from the same
+distribution this probability is $1/2$, and the test asks whether the data are
+far from that. It is not a test
+of medians unless the two distributions have the same shape. That probability
+is often what a product manager actually wants: ``how often is the new page
+faster?''
+\end{intuitionbox}
+
+\subsection{Wilcoxon signed-rank test}
+
+For \emph{paired} data use differences. Eight servers have latency measured
+before and after a kernel patch:
+
+\begin{center}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+Server & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 \\
+\midrule
+Before & 120 & 135 & 128 & 150 & 142 & 138 & 160 & 131 \\
+After & 112 & 130 & 129 & 138 & 135 & 131 & 149 & 127 \\
+$d$ = Before $-$ After & 8 & 5 & $-1$ & 12 & 7 & 7 & 11 & 4 \\
+Rank of $|d|$ & 6 & 3 & 1 & 8 & 4.5 & 4.5 & 7 & 2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Rank the absolute differences (ties share the average rank, so the two 7s get
+4.5 each). Then add the ranks of the positive and negative differences
+separately:
+\[
+  W_+ = 6 + 3 + 8 + 4.5 + 4.5 + 7 + 2 = 35, \qquad W_- = 1.
+\]
+The ranks total $1 + 2 + \dots + 8 = 36$. Under $H_0$ (differences symmetric
+around zero), each rank is equally likely to carry either sign, giving
+$2^8 = 256$ equally likely sign patterns. Only 2 patterns have $W_- \le 1$
+(all positive, or only rank 1 negative). The two-sided p-value is
+$2 \times 2/256 = 0.0156$. The patch reduced latency.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.75cm]
+  \draw[->] (-2.5,0) -- (13.5,0) node[right,font=\small] {$d$ (ms)};
+  \foreach \v in {-2,0,2,4,6,8,10,12} \draw (\v,0.1) -- (\v,-0.1) node[below,font=\scriptsize] {\v};
+  \draw[dashed,residgray] (0,-0.2) -- (0,2.2);
+  \foreach \v/\r/\h in {8/6/0.5,5/3/0.5,12/8/0.5,7/{4.5}/0.5,7/{4.5}/1.25,11/7/0.5,4/2/0.5} {
+    \fill[targetgreen] (\v,\h) circle (3.5pt);
+    \node[font=\scriptsize,anchor=west] at (\v+0.15,\h+0.15) {\r};
+  }
+  \fill[trapred] (-1,0.5) circle (3.5pt);
+  \node[font=\scriptsize,anchor=east,trapred] at (-1.15,0.65) {1};
+  \node[font=\small,targetgreen,anchor=west] at (3.5,2) {$W_+ = 35$};
+  \node[font=\small,trapred,anchor=east] at (-0.3,2) {$W_- = 1$};
+\end{tikzpicture}
+\caption{Paired differences with the rank of $|d|$ beside each point. Only one
+difference is negative, and it has the smallest magnitude (rank 1). If the
+patch did nothing, signs would be scattered at random across ranks.}
+\label{fig:cg-signedrank}
+\end{figure}
+
+\subsection{The sign test}
+
+The crudest paired test throws away magnitudes and keeps only signs. If the
+patch did nothing, each difference is positive with probability $1/2$, so the
+number of positive differences is $\Bin(8, 1/2)$. We saw 7 positives. The
+two-sided p-value is
+\[
+  2\,\P(\text{Bin}(8,\tfrac12) \ge 7) = 2 \cdot \frac{\binom{8}{7}+\binom{8}{8}}{256}
+  = 2\cdot\frac{9}{256} \approx 0.070.
+\]
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=10cm,height=4.8cm,ybar,bar width=12pt,ymin=0,ymax=0.3,
+  xtick={0,...,8},xlabel={number of positive differences},
+  ylabel={probability},axis lines=left,enlarge x limits=0.07]
+  \addplot[fill=trapred!60,draw=trapred,bar shift=0pt] coordinates
+    {(0,0.0039) (1,0.03125) (7,0.03125) (8,0.0039)};
+  \addplot[fill=histfill,draw=distblue,bar shift=0pt] coordinates
+    {(2,0.1094) (3,0.2188) (4,0.2734) (5,0.2188) (6,0.1094)};
+\end{axis}
+\end{tikzpicture}
+\caption{The $\Bin(8,1/2)$ null distribution of the sign test. Outcomes at
+least as extreme as 7 positives (red, both tails) have total probability
+$18/256 \approx 0.070$.}
+\label{fig:cg-signtest}
+\end{figure}
+
+\begin{happeningbox}
+Three tests on the same eight differences:
+paired $t$-test $p = 0.0026$; signed-rank $p = 0.016$; sign test $p = 0.070$.
+Each discards more information than the one before. The $t$-test uses the
+values, the signed-rank test uses only their order, and the sign test uses only
+their signs. Less information means less power. The trade is robustness: an
+outlier of $+500$ ms would wreck the $t$-test and leave the other two untouched.
+Use the most informative test whose assumptions you believe.
+\end{happeningbox}
+
+The rank-based cousin of one-way ANOVA is the \textbf{Kruskal--Wallis} test.
+It ranks all $N$ values together and runs the ANOVA idea on the ranks: its
+statistic $H$ measures how far each group's average rank sits from the overall
+average rank $(N+1)/2$, and under $H_0$ it is approximately $\chi^2_{k-1}$.
+On the three server configurations it gives $H = 8.26$, $p = 0.016$, compared
+with ANOVA's $p = 0.0047$.
+
+\begin{lstlisting}[language=Python]
+from scipy import stats
+a = [12,15,19,22,30]; b = [18,25,28,35,40,41]
+print(stats.mannwhitneyu(a, b, method='exact'))   # U = 5, p = 0.082
+before = [120,135,128,150,142,138,160,131]
+after  = [112,130,129,138,135,131,149,127]
+print(stats.wilcoxon(before, after))              # p = 0.0156
+print(stats.binomtest(7, 8))                      # sign test, p = 0.070
+\end{lstlisting}
+
+\section{A/B testing in practice}
+\label{sec:cg-ab-practice}
+
+The two-proportion test of Section~\ref{sec:cg-two-prop} is the arithmetic of
+an A/B test. Getting a trustworthy answer takes more care than the arithmetic.
+
+\subsection{The randomisation unit}
+
+Every test so far assumes independent observations. In an A/B test, the
+independent unit is whatever you randomised. If you assign by \emph{user}, the
+same user stays in one arm for every visit, and users are the independent
+units. If you assign by \emph{pageview}, one user can see both versions.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[pv/.style={minimum size=0.42cm,draw,inner sep=0pt},
+  ua/.style={pv,fill=sourceblue!45},ub/.style={pv,fill=quotientorange!55}]
+  \node[font=\small\bfseries] at (2.2,2.7) {randomise by user};
+  \foreach \y/\s/\lab in {2/ua/1,1.3/ub/2,0.6/ua/3,-0.1/ub/4} {
+    \node[font=\scriptsize,anchor=east] at (0.2,\y) {user \lab};
+    \foreach \x in {0.6,1.1,1.6,2.1,2.6,3.1} \node[\s] at (\x,\y) {};
+  }
+  \begin{scope}[xshift=6.8cm]
+  \node[font=\small\bfseries] at (2.2,2.7) {randomise by pageview};
+  \foreach \y/\lab/\seq in {2/1/{0,1,1,0,1,0},1.3/2/{1,0,0,1,0,1},0.6/3/{0,0,1,1,0,1},-0.1/4/{1,1,0,0,1,0}} {
+    \node[font=\scriptsize,anchor=east] at (0.2,\y) {user \lab};
+    \foreach \c [count=\i] in \seq {
+      \pgfmathsetmacro{\xx}{0.1+0.5*\i}
+      \ifnum\c=0 \node[ua] at (\xx,\y) {}; \else \node[ub] at (\xx,\y) {}; \fi
+    }
+  }
+  \end{scope}
+  \node[pv,fill=sourceblue!45,label={[font=\scriptsize]right:A}] at (3.5,-0.9) {};
+  \node[pv,fill=quotientorange!55,label={[font=\scriptsize]right:B}] at (5.0,-0.9) {};
+\end{tikzpicture}
+\caption{Left: each user sees one version on every visit; users are
+independent units. Right: versions are mixed within a user, so one user's
+experience of B can affect their behaviour on A, and their pageviews are not
+independent.}
+\label{fig:cg-unit}
+\end{figure}
+
+\begin{trapbox}
+Analyse at the level you randomised. If you randomise users but compute the
+standard error as if every pageview were independent, you pretend to have far
+more data than you do. Pageviews from one user are correlated: a heavy user
+contributes 200 similar pageviews. The SE comes out too small and false
+positives multiply.
+\end{trapbox}
+
+\subsection{Ratio metrics and the delta method}
+
+Many metrics are ratios of two per-user sums: clicks per session, revenue per
+order, errors per request. Let user $i$ have $Y_i$ clicks and $X_i$ sessions.
+The metric is
+\[
+  R = \frac{\sum_i Y_i}{\sum_i X_i} = \frac{\bar Y}{\bar X}.
+\]
+Both numerator and denominator are random, and they are correlated (users with
+more sessions click more). The \emph{delta method} linearises the ratio around
+the true means $\mu_Y, \mu_X$ with a first-order Taylor expansion, $r = \mu_Y/\mu_X$:
+\[
+  \frac{\bar Y}{\bar X} - r \approx \frac{1}{\mu_X}\left[(\bar Y - \mu_Y) - r(\bar X - \mu_X)\right].
+\]
+The right side is an average of the per-user quantities $(Y_i - rX_i)/\mu_X$,
+so its variance is
+\[
+  \Var(R) \approx \frac{1}{n\,\mu_X^2}\left[\Var(Y) - 2r\Cov(X,Y) + r^2\Var(X)\right].
+\]
+
+\textbf{Numbers.} Suppose $n = 1000$ users per arm, $\mu_X = 4$ sessions,
+$\mu_Y = 2$ clicks, so $r = 0.5$. Take $\SD(Y) = 3$, $\SD(X) = 5$, correlation
+$0.8$, so $\Cov(X,Y) = 0.8 \times 3 \times 5 = 12$. Then
+\[
+  \Var(R) \approx \frac{9 - 2(0.5)(12) + 0.25(25)}{1000 \times 16}
+  = \frac{3.25}{16000}, \qquad \SE(R) \approx 0.0143.
+\]
+The naive approach treats the $4000$ sessions as independent Bernoulli trials
+with rate $0.5$: $\SE = \sqrt{0.25/4000} \approx 0.0079$. The naive SE is
+too small by a factor of $1.8$. A test using it would declare far too many
+false wins.
+
+\begin{intuitionbox}
+The delta method says: a smooth function of averages behaves like an average
+of a linearised per-unit quantity. Compute that per-user quantity, take its
+variance, divide by $n$. It is the same $\sigma/\sqrt n$ logic as Chapter 6,
+applied after a Taylor step. When in doubt, the bootstrap over users
+(Chapter 8) gives the same answer with no algebra.
+\end{intuitionbox}
+
+\subsection{Novelty and primacy effects}
+
+Users react to change itself. A new button colour gets curious clicks in week
+one and fades to its true effect later (novelty). Or users dislike any change
+at first and warm up (primacy). Either way, the first days mislead.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=11cm,height=5cm,xmin=0,xmax=29,ymin=0,ymax=4.6,
+  axis lines=left,xlabel={day of experiment},ylabel={daily lift (\%)},
+  xtick={1,7,14,21,28}]
+  \addplot[only marks,mark=*,mark size=1.6pt,sourceblue,domain=1:28,samples=28]
+    {1 + 3*exp(-(x-1)/4)};
+  \addplot[thick,sourceblue,domain=1:28,samples=100] {1 + 3*exp(-(x-1)/4)};
+  \addplot[dashed,densityred,thick,domain=0:29] {1};
+  \node[anchor=south east,font=\small,densityred] at (axis cs:28,1.05) {long-run lift $1\%$};
+  \node[anchor=west,font=\small,sourceblue] at (axis cs:2.5,3.6) {novelty: early users click out of curiosity};
+\end{axis}
+\end{tikzpicture}
+\caption{An illustrative novelty effect. Daily lift starts at $4\%$ and decays
+to its long-run value of $1\%$. A test stopped after three days would report an
+average lift of about $3.4\%$, more than three times the true value.}
+\label{fig:cg-novelty}
+\end{figure}
+
+Defences: run for at least one or two full weekly cycles; plot the daily lift
+and check that it has stabilised; compare new users (who never saw the old
+version) with returning users.
+
+\subsection{Sample ratio mismatch}
+
+An experiment designed as a 50/50 split ends with $50{,}600$ users in A and
+$49{,}400$ in B. That looks close. Is it? Run a chi-square goodness-of-fit
+test against the designed split, expected $50{,}000$ each:
+\[
+  X^2 = \frac{600^2}{50000} + \frac{(-600)^2}{50000} = 7.2 + 7.2 = 14.4,
+  \qquad \text{df} = 1, \qquad p \approx 0.00015.
+\]
+A split this uneven happens about once in 7000 experiments by chance. This is a
+\textbf{sample ratio mismatch} (SRM). It means something in the pipeline is
+dropping or duplicating users in one arm: a redirect that loses slow clients,
+a bot filter that reacts to the new page, a crash in B that prevents logging.
+
+\begin{trapbox}
+If the SRM check fails, do not interpret the metrics. The users who
+disappeared were not removed at random, so the arms are no longer comparable
+and the randomisation that justified a causal claim is broken. Find the bug
+first. Run the SRM check on every experiment before looking at any metric; it
+costs one line of code.
+\end{trapbox}
+
+\begin{recoverybox}
+Suppose the same $1.2\%$ imbalance ($50.6\%$ vs $49.4\%$) appears in an
+experiment with only $1000$ users. Is that an SRM? (No. $X^2 = 6^2/500 \times 2 =
+0.144$, $p \approx 0.70$. SRM tests become sharper as $n$ grows, which is why
+large experiments catch small pipeline bugs.)
+\end{recoverybox}
+
+\subsection{CUPED: variance reduction with pre-experiment data}
+
+Much of the variation in a user's spending this month is explained by their
+spending last month. That variation is noise for the experiment, since it
+existed before the treatment. CUPED (Controlled-experiment Using Pre-Experiment
+Data) removes it.
+
+Let $Y$ be the experiment metric and $X$ the same metric in the weeks before the
+experiment. Define the adjusted metric
+\[
+  Y^{\text{adj}} = Y - \theta\,(X - \bar X), \qquad \theta = \frac{\Cov(X,Y)}{\Var(X)}.
+\]
+Since $X$ was measured before randomisation, its mean is the same in both arms
+in expectation, so the adjustment does not bias the treatment effect. But it
+shrinks the variance:
+\[
+  \Var(Y^{\text{adj}}) = \Var(Y)\,(1 - \rho^2),
+\]
+where $\rho$ is the correlation between $X$ and $Y$. The choice of $\theta$ is
+the regression slope of $Y$ on $X$ (Chapter 12), which is exactly the value that
+minimises this variance.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=8.5cm,height=6.5cm,xmin=28,xmax=68,ymin=28,ymax=72,
+  axis lines=left,xlabel={pre-period metric $X$},ylabel={experiment metric $Y$}]
+  \addplot[only marks,mark=*,mark size=1.6pt,sourceblue!80] coordinates
+  {(39.0,47.5) (42.7,49.7) (42.2,60.0) (52.7,65.5) (47.5,54.8) (51.3,69.1) (58.4,67.2) (58.6,56.4) (54.8,67.7) (45.5,55.8) (42.5,45.2) (41.9,58.0) (46.6,55.1) (49.5,56.8) (40.3,57.4) (38.7,36.4) (53.1,53.0) (31.5,44.0) (48.2,60.5) (54.3,58.2) (40.1,46.0) (38.9,44.7) (42.4,53.8) (56.5,69.4) (48.7,48.7) (31.3,32.1) (45.8,54.9) (60.1,64.4) (59.8,60.4) (56.3,68.8) (47.6,64.1) (31.6,43.1) (51.7,58.7) (48.2,62.8) (50.8,57.5) (65.4,60.8) (51.8,60.8) (52.8,55.5) (56.1,66.6) (47.4,54.6)};
+  \addplot[thick,densityred,domain=29:67] {15.889 + 0.8376*x};
+  \draw[residgray,thick] (axis cs:31.3,32.1) -- (axis cs:31.3,42.11);
+  \draw[residgray,thick] (axis cs:51.3,69.1) -- (axis cs:51.3,58.86);
+  \node[anchor=west,font=\small,densityred] at (axis cs:50,38) {slope $\theta = 0.84$};
+\end{axis}
+\end{tikzpicture}
+\caption{Forty users' pre-period and experiment-period values ($\rho = 0.77$).
+CUPED keeps only each user's vertical distance from the red line (two shown in
+grey). Those residuals vary much less than $Y$ itself: in this sample the
+variance drops from $79.0$ to $32.4$, a factor of $0.41 = 1 - 0.77^2$.}
+\label{fig:cg-cuped-scatter}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=10.5cm,height=5cm,domain=-1:3,samples=150,
+  axis lines=left,xlabel={estimated lift},ylabel={density},ytick=\empty,
+  ymin=0,ymax=1.9,clip=false,legend style={at={(0.98,0.98)},anchor=north east,font=\small}]
+  \addplot[thick,residgray] {exp(-(x-1)^2/(2*0.25))/sqrt(2*pi*0.25)};
+  \addlegendentry{raw $Y$: SE $=0.50$}
+  \addplot[thick,targetgreen] {exp(-(x-1)^2/(2*0.1025))/sqrt(2*pi*0.1025)};
+  \addlegendentry{CUPED: SE $=0.32$}
+  \draw[dashed] (axis cs:0,0) -- (axis cs:0,1.3);
+  \node[anchor=south,font=\scriptsize] at (axis cs:0,1.3) {no effect};
+\end{axis}
+\end{tikzpicture}
+\caption{Sampling distributions of the estimated lift (true lift 1) without and
+with CUPED, for $\rho = 0.77$. The SE shrinks by $\sqrt{0.41} \approx 0.64$. The
+CUPED estimate is far less likely to land near zero, so the same experiment has
+much more power.}
+\label{fig:cg-cuped-density}
+\end{figure}
+
+\begin{whybox}
+Why $1 - \rho^2$? $\Var(Y - \theta X) = \Var(Y) - 2\theta\Cov(X,Y) +
+\theta^2\Var(X)$. This is a quadratic in $\theta$, minimised at
+$\theta = \Cov(X,Y)/\Var(X)$. Plugging that in gives
+$\Var(Y) - \Cov(X,Y)^2/\Var(X) = \Var(Y)(1-\rho^2)$. Since required sample size
+scales with variance, $\rho = 0.7$ cuts the users needed by half
+($1 - 0.49 = 0.51$). CUPED is regression adjustment; it is the ``control for a
+pre-treatment covariate'' idea of Chapter 13 applied to experiments.
+\end{whybox}
+
+\section{Which test when}
+\label{sec:cg-which}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\scriptsize,
+  q/.style={draw,rounded corners,fill=structurepurple!10,align=center,text width=#1,inner sep=3pt},
+  q/.default=1.9cm,
+  leaf/.style={draw,fill=targetgreen!12,align=left,text width=4.1cm,inner sep=3pt},
+  ar/.style={-{Stealth},thick,gray!70!black}]
+  \node[q=1.4cm] (root) at (0.8,0) {What is the outcome?};
+  \node[q=1.7cm] (cat) at (3.3,2.6) {Categorical (counts)};
+  \node[q=1.7cm] (num) at (3.3,-2.6) {Numeric};
+  \node[q=2.1cm] (c1) at (5.9,4.4) {One variable\\vs.\ claimed shares};
+  \node[q=2.1cm] (c2) at (5.9,2.6) {Two groups, yes/no outcome};
+  \node[q=2.1cm] (c3) at (5.9,0.8) {Two categorical variables ($r\times c$)};
+  \node[q=2.1cm] (n1) at (5.9,-0.8) {Paired / before--after};
+  \node[q=2.1cm] (n2) at (5.9,-2.6) {Two\\independent groups};
+  \node[q=2.1cm] (n3) at (5.9,-4.4) {Three or more groups};
+  \node[leaf] (l1) at (10.3,4.4) {Chi-square goodness of fit};
+  \node[leaf] (l2) at (10.3,2.6) {Two-proportion $z$ ($=2\times2$ $\chi^2$)\\Fisher if any $E<5$};
+  \node[leaf] (l3) at (10.3,0.8) {Chi-square independence\\Fisher if any $E<5$};
+  \node[leaf] (l4) at (10.3,-0.8) {Normal-ish $d$: paired $t$\\Skewed: signed-rank, sign test};
+  \node[leaf] (l5) at (10.3,-2.6) {Normal-ish: Welch $t$\\Skewed: Mann--Whitney};
+  \node[leaf] (l6) at (10.3,-4.4) {Normal-ish: ANOVA + Tukey\\Skewed: Kruskal--Wallis};
+  \draw[ar] (root) -- (cat); \draw[ar] (root) -- (num);
+  \foreach \c in {c1,c2,c3} \draw[ar] (cat.east) -- (\c.west);
+  \foreach \c in {n1,n2,n3} \draw[ar] (num.east) -- (\c.west);
+  \draw[ar] (c1) -- (l1); \draw[ar] (c2) -- (l2); \draw[ar] (c3) -- (l3);
+  \draw[ar] (n1) -- (l4); \draw[ar] (n2) -- (l5); \draw[ar] (n3) -- (l6);
+\end{tikzpicture}
+\caption{Choosing a test. First ask what kind of outcome you have, then how the
+data are structured, then whether normal-theory assumptions are plausible. In
+every A/B setting, also check the randomisation unit and run the SRM test
+first.}
+\label{fig:cg-flowchart}
+\end{figure}
+
+\begin{trapbox}
+Running several tests and reporting the one with the smallest p-value is
+p-hacking. Choose the test before seeing the data, from the structure of the
+design, using a chart like Figure~\ref{fig:cg-flowchart}. Chapter 11 covers
+why this matters and how badly it inflates false positives.
+\end{trapbox}
+
+A p-value from any of these tests answers ``is there a difference?'' It does
+not answer ``how big, and does it matter?'' Chapter 11 turns to effect sizes,
+to what happens when you run many tests at once, and to the common ways a
+correct test still produces a misleading conclusion.
+
+\section{Summary}
+
+\begin{center}
+\begin{tabular}{p{3.3cm}p{4.6cm}p{4.6cm}}
+\toprule
+Test & Statistic & Null distribution \\
+\midrule
+Two proportions & $z = (\hat p_B - \hat p_A)/\SE_0$, pooled $\hat p$ & $\Normal(0,1)$ \\
+Goodness of fit & $X^2 = \sum (O-E)^2/E$ & $\chi^2_{k-1}$ \\
+Independence & same, $E_{ij} = R_iC_j/N$ & $\chi^2_{(r-1)(c-1)}$ \\
+Fisher exact & count in one cell, margins fixed & hypergeometric \\
+One-way ANOVA & $F = \text{MSB}/\text{MSW}$ & $F_{k-1,\,N-k}$ \\
+Mann--Whitney & $U$ = pairs with A $>$ B & exact / normal \\
+Signed-rank & $W_+$ = sum of positive ranks & exact / normal \\
+Sign test & number of positive differences & $\Bin(n, 1/2)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+  \item Every test compares observed data with what $H_0$ predicts, scaled by noise.
+  \item Pooled SE for the test of two proportions, unpooled SE for the interval.
+    The $2\times 2$ chi-square statistic equals $z^2$.
+  \item Chi-square tests need counts and expected counts of at least about 5;
+    otherwise use Fisher's exact test.
+  \item ANOVA splits $\text{SST} = \text{SSB} + \text{SSW}$; $F$ compares
+    between-group to within-group variance. With two groups, $F = t^2$.
+    A significant $F$ needs post-hoc tests to say which groups differ.
+  \item Rank tests trade some power for robustness to skew and outliers.
+  \item In A/B tests: analyse at the randomisation unit, use the delta method
+    (or bootstrap) for ratio metrics, watch for novelty, check SRM before
+    anything else, and use CUPED to cut variance by $1-\rho^2$.
+\end{itemize}
+
+\section{Exercises}
+
+\begin{enumerate}
+  \item A sign-up page converts 200 of 2000 visitors in A and 250 of 2000 in B.
+  Compute the pooled rate, the null SE, $z$, and the two-sided p-value.
+  \item A coin lands heads 60 times in 100 flips. Compute the chi-square
+  goodness-of-fit statistic against a fair coin and its p-value. Compare with
+  the one-proportion $z$ statistic.
+  \item A $2\times 2$ table has row totals 30 and 70, column totals 40 and 60,
+  grand total 100. Find all four expected counts under independence. How many
+  degrees of freedom does the test have?
+  \item An ANOVA with $k = 4$ groups and $N = 24$ observations has
+  $\text{SSB} = 24$ and $\text{SSW} = 60$. Complete the ANOVA table. Is the
+  result significant at 5\%? (The 95th percentile of $F_{3,20}$ is $3.10$.)
+  \item A two-group ANOVA gives $F = 6.25$. What is $|t|$ for the pooled
+  two-sample $t$-test on the same data?
+  \item Samples A: $3, 8, 10$ and B: $5, 12, 14, 20$. Compute the rank sum of A
+  and $U_A$. What fraction of (A, B) pairs have A larger?
+  \item In 10 paired comparisons, 9 differences are positive. Compute the
+  two-sided sign test p-value.
+  \item A 50/50 experiment ends with $10{,}300$ users in A and $9{,}700$ in B.
+  Run the SRM check. What should you do next?
+  \item Pre-period and experiment metrics have correlation $\rho = 0.5$. By
+  what factor does CUPED reduce the variance? Repeat for $\rho = 0.9$.
+  \item Why should you not run three pairwise $t$-tests at $\alpha = 0.05$ to
+  compare three groups? Estimate the chance of at least one false positive if
+  the tests were independent.
+\end{enumerate}
+
+\subsection*{Answers}
+
+\begin{enumerate}
+  \item $\hat p = 450/4000 = 0.1125$;
+  $\SE_0 = \sqrt{0.1125 \times 0.8875 \times 2/2000} \approx 0.00999$;
+  $z = 0.025/0.00999 \approx 2.50$; $p \approx 0.012$.
+  \item $X^2 = 10^2/50 + 10^2/50 = 4$, df $= 1$, $p \approx 0.046$.
+  $z = (0.6 - 0.5)/\sqrt{0.25/100} = 2$ and $z^2 = 4$.
+  \item $E = 30\cdot40/100 = 12$, $30\cdot60/100 = 18$, $70\cdot40/100 = 28$,
+  $70\cdot60/100 = 42$. df $= 1$.
+  \item MSB $= 24/3 = 8$, MSW $= 60/20 = 3$, $F = 2.67 < 3.10$: not
+  significant ($p \approx 0.076$).
+  \item $|t| = \sqrt{6.25} = 2.5$.
+  \item Pooled order: 3, 5, 8, 10, 12, 14, 20. A has ranks 1, 3, 4, so
+  $R_A = 8$ and $U_A = 8 - 6 = 2$. A is larger in $2/12 \approx 17\%$ of pairs
+  (8 > 5 and 10 > 5).
+  \item $2(\binom{10}{9} + \binom{10}{10})/1024 = 22/1024 \approx 0.021$.
+  \item $X^2 = 300^2/10000 \times 2 = 18$, $p \approx 0.00002$. SRM detected:
+  do not read the metrics; find the logging or assignment bug first.
+  \item $1 - 0.25 = 0.75$ (25\% less variance); $1 - 0.81 = 0.19$ (81\% less,
+  about 5 times fewer users needed).
+  \item The familywise false positive rate inflates: $1 - 0.95^3 \approx 0.14$.
+  Use ANOVA, then a post-hoc procedure such as Tukey's HSD.
+\end{enumerate}

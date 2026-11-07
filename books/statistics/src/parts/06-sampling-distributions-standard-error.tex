@@ -1,0 +1,1009 @@
+\chapter{Sampling Distributions and Standard Error}
+\label{ch:sampling-distributions}
+
+Chapter 5 showed how to draw a sample that is random, so that it is
+representative on average. Random has a price: a different random sample gives
+a different answer. You measured the mean latency of 64 requests and got
+48.7 ms. Run the same measurement tomorrow on 64 different requests and you will
+get a different number. How different? That question has a precise answer: the
+\textbf{standard error}, the typical size of the gap between your estimate and
+the truth. Every confidence interval and test later in the book is built from it.
+
+We need three facts about expectation and variance, one change of viewpoint (a
+statistic is a random variable), and one simulation. Chapters 7 to 11 rest on
+what follows.
+
+\section{Three tools: expectation and variance rules}
+\label{sec:sd-tools}
+
+A \textbf{random variable} $X$ is a number whose value is decided by chance: the
+roll of a die, the latency of the next request, the height of a randomly chosen
+person. Its \textbf{expectation} $\E[X]$ is the long-run average value, and its
+\textbf{variance} $\Var(X)=\E[(X-\E[X])^2]$ is the long-run average squared distance
+from that centre. The \textbf{standard deviation} $\SD(X)=\sqrt{\Var(X)}$ puts
+that spread back in the original units. Two random variables are
+\textbf{independent} if knowing the value of one tells you nothing about the
+other, like two separate dice. The proofs of the rules below are in
+\emph{Probability From the Ground Up}; here we use them as tools.
+
+\begin{example}[One fair die]
+$X\in\{1,\dots,6\}$, each with probability $1/6$.
+\[
+\E[X]=\frac{1+2+3+4+5+6}{6}=3.5,\qquad
+\Var(X)=\frac{(2.5^2+1.5^2+0.5^2)\cdot 2}{6}=\frac{17.5}{6}=\frac{35}{12}\approx 2.917.
+\]
+\end{example}
+
+\begin{theorem}[The three rules]
+\label{thm:sd-rules}
+For random variables $X,Y$ and constants $a,b$:
+\begin{enumerate}
+  \item \textbf{Expectation is linear:} $\E[aX+bY]=a\E[X]+b\E[Y]$. This holds
+  \emph{always}, independent or not.
+  \item \textbf{Scaling squares the variance:} $\Var(aX+b)=a^2\Var(X)$, so
+  $\SD(aX+b)=\abs{a}\SD(X)$. Adding a constant shifts but does not spread.
+  \item \textbf{Variances of independent variables add:} if $X$ and $Y$ are
+  independent, $\Var(X+Y)=\Var(X)+\Var(Y)$ and also
+  $\Var(X-Y)=\Var(X)+\Var(Y)$.
+\end{enumerate}
+\end{theorem}
+
+Tiny checks. Converting latency from ms to seconds is $Y=X/1000$. If
+$\SD(X)=30$ ms then $\SD(Y)=0.03$ s and $\Var(Y)=900/10^6=0.0009$ s$^2$. Adding a
+fixed 5 ms network overhead changes the mean by 5 and the SD by nothing.
+
+Now roll two independent dice $X_1,X_2$. Rule 3 gives
+$\Var(X_1+X_2)=35/12+35/12=35/6\approx 5.833$. Compare that with doubling a single
+roll, $2X_1$. Rule 2 gives $\Var(2X_1)=4\cdot 35/12=35/3\approx 11.667$. Same
+mean (7), twice the variance. Figure~\ref{fig:sd-dice} shows why: two independent
+dice partly cancel each other's extremes; one die doubled never cancels.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[at={(0,0)}, width=4.6cm, height=4cm, ybar, bar width=4pt,
+  ymin=0, ymax=0.2, ytick={0,0.1,0.2}, yticklabel style={/pgf/number format/fixed}, xmin=0.5, xmax=6.5, xtick={1,...,6},
+  title={one die $X$}, ylabel={\small probability}, title style={font=\small},
+  tick label style={font=\scriptsize}, axis lines=left]
+\addplot[fill=histfill, draw=distblue] coordinates {(1,0.1667)(2,0.1667)(3,0.1667)(4,0.1667)(5,0.1667)(6,0.1667)};
+\end{axis}
+\begin{axis}[at={(4.3cm,0)}, width=4.6cm, height=4cm, ybar, bar width=3pt,
+  ymin=0, ymax=0.2, ytick={0,0.1,0.2}, yticklabel style={/pgf/number format/fixed}, xmin=1, xmax=13, xtick={2,7,12},
+  title={$X_1+X_2$: Var $5.83$}, title style={font=\small},
+  tick label style={font=\scriptsize}, axis lines=left]
+\addplot[fill=targetgreen!60, draw=targetgreen] coordinates {(2,0.0278)(3,0.0556)(4,0.0833)(5,0.1111)(6,0.1389)(7,0.1667)(8,0.1389)(9,0.1111)(10,0.0833)(11,0.0556)(12,0.0278)};
+\end{axis}
+\begin{axis}[at={(8.6cm,0)}, width=4.6cm, height=4cm, ybar, bar width=3pt,
+  ymin=0, ymax=0.2, ytick={0,0.1,0.2}, yticklabel style={/pgf/number format/fixed}, xmin=1, xmax=13, xtick={2,7,12},
+  title={$2X_1$: Var $11.67$}, title style={font=\small},
+  tick label style={font=\scriptsize}, axis lines=left]
+\addplot[fill=trapred!50, draw=trapred] coordinates {(2,0.1667)(4,0.1667)(6,0.1667)(8,0.1667)(10,0.1667)(12,0.1667)};
+\end{axis}
+\end{tikzpicture}
+\caption{Both $X_1+X_2$ and $2X_1$ have mean 7. The sum of two independent dice
+piles up in the middle because highs and lows tend to offset. Doubling one die
+keeps every extreme, so its variance is twice as large.}
+\label{fig:sd-dice}
+\end{figure}
+
+\begin{trapbox}
+Variances add; standard deviations do not. For two independent dice,
+$\SD(X_1+X_2)=\sqrt{5.833}=2.415$, not $1.708+1.708=3.416$. And for
+\emph{dependent} variables even variances do not simply add: a covariance term
+appears (Chapter 4). Every SE formula in this chapter assumes independent
+observations.
+\end{trapbox}
+
+\section{A statistic is a random variable}
+\label{sec:sd-statistic}
+
+A \textbf{statistic} is any number computed from a sample: the mean, the median,
+the proportion of conversions, the p99 latency, the slope of a regression line.
+Once you have your data, a statistic is just a number, $\xbar=48.7$. Before you
+collect the data, the sample $X_1,\dots,X_n$ is random, so the statistic
+computed from it is random too. We write it with capital letters, $\Xbar$, to mark
+that.
+
+\begin{definition}[Sampling distribution]
+The \textbf{sampling distribution} of a statistic is its probability distribution
+over all the random samples of size $n$ that could have been drawn. The
+\textbf{standard error} of the statistic is the standard deviation of its sampling
+distribution.
+\end{definition}
+
+Figure~\ref{fig:sd-flow} shows the thought experiment: draw a sample, compute
+the statistic, put the sample back, repeat many times, and histogram the results.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, align=center, font=\small, minimum height=0.8cm},
+  arr/.style={-{Stealth}, thick, gray}]
+\node[box, fill=histfill!30, minimum width=2.4cm, minimum height=2.6cm] (pop) at (0,0)
+  {population\\[2pt] mean $\mu$\\ SD $\sigma$};
+\node[box, fill=white] (s1) at (3.6,1.3) {sample 1 ($n$)};
+\node[box, fill=white] (s2) at (3.6,0) {sample 2 ($n$)};
+\node[box, fill=white] (s3) at (3.6,-1.3) {sample 3 ($n$)};
+\node[font=\small] at (3.6,-2.05) {$\vdots$};
+\node[box, fill=quotientorange!15] (m1) at (6.5,1.3) {$\xbar_1=52.1$};
+\node[box, fill=quotientorange!15] (m2) at (6.5,0) {$\xbar_2=46.8$};
+\node[box, fill=quotientorange!15] (m3) at (6.5,-1.3) {$\xbar_3=49.9$};
+\node[font=\small] at (6.5,-2.05) {$\vdots$};
+\foreach \i in {1,2,3} {\draw[arr] (pop.east) -- (s\i.west); \draw[arr] (s\i) -- (m\i);}
+\begin{scope}[shift={(8.4,-1.2)}]
+  \foreach \x/\h in {0/0.3,0.4/0.9,0.8/1.8,1.2/2.3,1.6/1.6,2.0/0.8,2.4/0.3}
+    \draw[fill=quotientorange!60, draw=white] (\x,0) rectangle (\x+0.4,\h);
+  \draw[thick] (0,0) -- (2.8,0);
+  \node[font=\small, align=center] at (1.4,-0.45) {histogram of $\xbar$};
+\end{scope}
+\draw[arr] (m2.east) -- (8.3,0);
+\end{tikzpicture}
+\caption{The sampling distribution is the histogram you would get from repeating
+the whole study many times. In practice you run it once; theory (or
+simulation) tells you what the histogram would look like.}
+\label{fig:sd-flow}
+\end{figure}
+
+\subsection{A sampling distribution you can list by hand}
+
+Take a population of three numbers, $\{2,4,9\}$. Its mean is $\mu=5$ and its
+variance (dividing by the population size 3) is
+\[
+\sigma^2=\frac{(2-5)^2+(4-5)^2+(9-5)^2}{3}=\frac{9+1+16}{3}=\frac{26}{3}\approx 8.667.
+\]
+Draw a sample of $n=2$ \emph{with replacement}, so the two draws are independent.
+There are $3\times 3=9$ equally likely ordered samples:
+
+\begin{center}
+\begin{tabular}{lccccccccc}
+\toprule
+sample & (2,2) & (2,4) & (4,2) & (2,9) & (9,2) & (4,4) & (4,9) & (9,4) & (9,9)\\
+$\xbar$ & 2 & 3 & 3 & 5.5 & 5.5 & 4 & 6.5 & 6.5 & 9\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The average of the nine means is $45/9=5=\mu$. Their variance is
+\[
+\frac{(-3)^2+2(-2)^2+(-1)^2+2(0.5)^2+2(1.5)^2+4^2}{9}
+=\frac{9+8+1+0.5+4.5+16}{9}=\frac{39}{9}\approx 4.333=\frac{\sigma^2}{2}.
+\]
+The mean of $\Xbar$ equals $\mu$ and its variance is half the population variance.
+Section~\ref{sec:sd-derive} shows this is no coincidence.
+
+\begin{recoverybox}
+Pause and think: if you drew samples of size $n=3$ from $\{2,4,9\}$ instead, what
+would you guess the variance of $\Xbar$ to be? (Answer at the end of
+Section~\ref{sec:sd-derive}.)
+\end{recoverybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1.15cm]
+\draw[densityred, dashed, thick] (5,0.9) -- (5,-1.6);
+\node[densityred, font=\small, anchor=south] at (5,0.9) {$\mu=5$};
+\draw[-{Stealth}] (1.3,0) -- (9.8,0);
+\foreach \t in {2,...,9} \draw (\t,0.08) -- (\t,-0.08) node[below, font=\scriptsize, fill=white, inner sep=1pt] {\t};
+\node[anchor=west, font=\small] at (-0.6,0.45) {population};
+\foreach \x in {2,4,9} \fill[distblue] (\x,0.45) circle (3pt);
+\begin{scope}[yshift=-1.6cm]
+\draw[-{Stealth}] (1.3,0) -- (9.8,0);
+\foreach \t in {2,...,9} \draw (\t,0.08) -- (\t,-0.08) node[below, font=\scriptsize] {\t};
+\node[anchor=west, font=\small] at (-0.6,0.45) {9 sample means};
+\foreach \x/\y in {2/1,3/1,3/2,4/1,5.5/1,5.5/2,6.5/1,6.5/2,9/1}
+  \fill[quotientorange] (\x,0.3*\y+0.12) circle (3pt);
+\end{scope}
+\end{tikzpicture}
+\caption{Every possible mean of two draws from $\{2,4,9\}$. The means are centred
+on the same value as the population but are less spread out: variance $4.33$
+instead of $8.67$.}
+\label{fig:sd-tiny}
+\end{figure}
+
+\section{The sampling distribution of the mean, by simulation}
+\label{sec:sd-sim}
+
+Real populations are too large to list. We simulate instead. Our population is
+request latency, modelled as a fixed 20 ms floor plus an exponential delay with
+mean 30 ms. This population is strongly right-skewed: a long tail of slow
+requests stretches to the right. Its \textbf{skewness}, a unitless measure of
+that lopsidedness (0 for a symmetric shape, positive for a long right tail;
+Chapter 3), is 2. It has
+\[
+\mu=50\text{ ms},\qquad \sigma=30\text{ ms},\qquad \text{median}=20+30\ln 2\approx 40.8\text{ ms}.
+\]
+For each $n\in\{1,4,16,64\}$ we drew $10{,}000$ samples of size $n$, computed each
+sample's mean, and histogrammed the $10{,}000$ means (\texttt{numpy} seed 6).
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+rng = np.random.default_rng(6)
+for n in [1, 4, 16, 64]:
+    samples = 20 + rng.exponential(30, size=(10_000, n))
+    means = samples.mean(axis=1)          # one mean per simulated study
+    print(n, means.mean().round(2), means.std(ddof=1).round(2))
+\end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\pgfplotsset{sdpanel/.style={width=6.6cm, height=4.4cm, ymin=0, axis lines=left,
+  tick label style={font=\scriptsize}, title style={font=\small},
+  xlabel style={font=\scriptsize}, xlabel={mean latency (ms)}}}
+\begin{axis}[sdpanel, at={(0,0)}, xmin=20, xmax=200, ymax=0.034,
+  title={$n=1$ (the population)}, title style={font=\small}, scaled y ticks=false,
+  yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2}]
+\addplot[ybar interval, fill=histfill, draw=white] coordinates {(20,0.02843) (30,0.02067) (40,0.01476) (50,0.01040) (60,0.00697) (70,0.00581) (80,0.00366) (90,0.00271) (100,0.00182) (110,0.00137) (120,0.00110) (130,0.00071) (140,0.00053) (150,0.00028) (160,0.00025) (170,0.00010) (180,0.00010) (190,0.00011) (200,0)};
+\addplot[densityred, thick, domain=20:200, samples=80] {exp(-((x-50)^2)/(2*900))/(30*2.5066)};
+\draw[black, dashed] (axis cs:50,0) -- (axis cs:50,0.034);
+\end{axis}
+\begin{axis}[sdpanel, at={(6.3cm,0)}, xmin=20, xmax=120, ymax=0.034,
+  title={$n=4$}, title style={font=\small}, scaled y ticks=false,
+  yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2}]
+\addplot[ybar interval, fill=histfill, draw=white] coordinates {(20,0.00082) (25,0.00852) (30,0.01884) (35,0.02718) (40,0.02882) (45,0.02766) (50,0.02462) (55,0.01912) (60,0.01420) (65,0.01082) (70,0.00676) (75,0.00418) (80,0.00300) (85,0.00166) (90,0.00130) (95,0.00074) (100,0.00062) (105,0.00052) (110,0.00034) (115,0.00012) (120,0)};
+\addplot[densityred, thick, domain=20:120, samples=80] {exp(-((x-50)^2)/(2*225))/(15*2.5066)};
+\draw[black, dashed] (axis cs:50,0) -- (axis cs:50,0.034);
+\end{axis}
+\begin{axis}[sdpanel, at={(0,-5.1cm)}, xmin=25, xmax=85, ymax=0.06,
+  title={$n=16$}, title style={font=\small}, scaled y ticks=false,
+  yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2}]
+\addplot[ybar interval, fill=histfill, draw=white] coordinates {(25,0.00000) (28,0.00010) (31,0.00157) (34,0.00703) (37,0.01530) (40,0.03363) (43,0.04880) (46,0.05337) (49,0.05207) (52,0.04167) (55,0.03217) (58,0.02087) (61,0.01303) (64,0.00707) (67,0.00357) (70,0.00173) (73,0.00053) (76,0.00057) (79,0.00013) (82,0.00013) (85,0)};
+\addplot[densityred, thick, domain=25:85, samples=80] {exp(-((x-50)^2)/(2*56.25))/(7.5*2.5066)};
+\draw[black, dashed] (axis cs:50,0) -- (axis cs:50,0.06);
+\end{axis}
+\begin{axis}[sdpanel, at={(6.3cm,-5.1cm)}, xmin=35, xmax=65, ymax=0.115,
+  title={$n=64$}, title style={font=\small}, scaled y ticks=false,
+  yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2}]
+\addplot[ybar interval, fill=histfill, draw=white] coordinates {(35,0.00000) (36.5,0.00013) (38,0.00013) (39.5,0.00213) (41,0.00773) (42.5,0.01867) (44,0.04607) (45.5,0.07187) (47,0.09820) (48.5,0.10347) (50,0.09860) (51.5,0.08180) (53,0.05773) (54.5,0.03880) (56,0.02193) (57.5,0.01100) (59,0.00480) (60.5,0.00213) (62,0.00080) (63.5,0.00047) (65,0)};
+\addplot[densityred, thick, domain=35:65, samples=80] {exp(-((x-50)^2)/(2*14.0625))/(3.75*2.5066)};
+\draw[black, dashed] (axis cs:50,0) -- (axis cs:50,0.115);
+\end{axis}
+\end{tikzpicture}
+\caption{Histograms of $10{,}000$ simulated sample means from the skewed latency
+population, for four sample sizes. Note the shrinking $x$-ranges. The red curve
+is $\Normal(50, 30^2/n)$. As $n$ grows the histogram narrows around $\mu=50$
+(dashed) and its skew fades until the Normal curve fits well.}
+\label{fig:sd-grid}
+\end{figure}
+
+The simulation output:
+
+\begin{center}
+\begin{tabular}{rcccc}
+\toprule
+$n$ & mean of the $\xbar$'s & SD of the $\xbar$'s & $30/\sqrt n$ & skewness of the $\xbar$'s\\
+\midrule
+1  & 49.56 & 29.38 & 30.00 & 1.98\\
+4  & 50.12 & 15.08 & 15.00 & 1.04\\
+16 & 50.02 & 7.47  & 7.50  & 0.48\\
+64 & 49.98 & 3.76  & 3.75  & 0.29\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Three patterns stand out. The centre stays at $\mu=50$. The spread follows
+$30/\sqrt n$ almost exactly: quadrupling $n$ halves it. The shape becomes more
+symmetric; the skewness falls roughly like $2/\sqrt n$ (theory gives
+$2,1,0.5,0.25$). The next three sections explain each pattern.
+
+\section{Deriving the centre and the spread}
+\label{sec:sd-derive}
+
+Let $X_1,\dots,X_n\iid$ some population with mean $\mu$ and variance $\sigma^2$.
+``iid'' means independent and identically distributed: each draw comes from the
+same population and does not influence the others. The sample mean is
+$\Xbar=\frac1n(X_1+\dots+X_n)$.
+
+\begin{theorem}[Mean and variance of the sample mean]
+\label{thm:sd-xbar}
+\[
+\E[\Xbar]=\mu,\qquad \Var(\Xbar)=\frac{\sigma^2}{n},\qquad
+\SE(\Xbar)=\SD(\Xbar)=\frac{\sigma}{\sqrt n}.
+\]
+\end{theorem}
+
+\begin{whybox}
+\textbf{Centre.} By linearity (rule 1),
+\[
+\E[\Xbar]=\frac1n\bigl(\E[X_1]+\dots+\E[X_n]\bigr)=\frac1n\cdot n\mu=\mu.
+\]
+No independence was needed. $\Xbar$ is \emph{unbiased}: on average it hits the
+target.
+
+\textbf{Spread.} Variances of independent variables add (rule 3), so the
+\emph{sum} has variance
+\[
+\Var(X_1+\dots+X_n)=n\sigma^2 .
+\]
+Dividing by $n$ multiplies variance by $1/n^2$ (rule 2):
+\[
+\Var(\Xbar)=\frac{1}{n^2}\cdot n\sigma^2=\frac{\sigma^2}{n}.
+\]
+The sum's variance grows like $n$, but the division shrinks it by $n^2$. The net
+effect is $1/n$ on the variance, hence $1/\sqrt n$ on the SD.
+\end{whybox}
+
+Check with the tiny population: $\sigma^2/n=(26/3)/2=13/3\approx 4.333$. Check with
+the simulation: $30/\sqrt{16}=7.5$, observed $7.47$. (The pause question: with
+$n=3$ the variance would be $(26/3)/3=26/9\approx 2.889$.)
+
+\subsection{Why $\sqrt n$, and what it costs you}
+
+The standard error falls like $1/\sqrt n$, not $1/n$. To halve the error you need
+four times the data. To cut it by 10 you need 100 times the data.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=11cm, height=5.6cm, xmin=0, xmax=100, ymin=0, ymax=32,
+  xlabel={sample size $n$}, ylabel={$\SE=30/\sqrt n$ (ms)}, axis lines=left,
+  xtick={4,16,36,64,100}, ytick={0,3.75,7.5,15,30},
+  yticklabel style={/pgf/number format/fixed}]
+\addplot[distblue, very thick, domain=1:100, samples=120] {30/sqrt(x)};
+\foreach \n/\s in {4/15, 16/7.5, 64/3.75} {
+  \edef\temp{\noexpand\draw[gray, dashed] (axis cs:\n,0) -- (axis cs:\n,\s) -- (axis cs:0,\s);
+    \noexpand\fill[quotientorange] (axis cs:\n,\s) circle (2.5pt);}
+  \temp
+}
+\fill[quotientorange] (axis cs:1,30) circle (2.5pt);
+\node[anchor=west, font=\small] at (axis cs:6,16) {$n=4$: 15 ms};
+\node[anchor=west, font=\small] at (axis cs:18,9.5) {$\times 4$ data: 7.5 ms};
+\node[anchor=west, font=\small] at (axis cs:66,6) {$\times 4$ again: 3.75 ms};
+\end{axis}
+\end{tikzpicture}
+\caption{Standard error of the mean against $n$ for $\sigma=30$ ms. Each
+quadrupling of the sample size halves the error. The curve flattens fast:
+the first few observations buy a lot of precision, later ones buy little.}
+\label{fig:sd-sqrtn}
+\end{figure}
+
+\begin{intuitionbox}
+Why not $1/n$? Errors in independent observations point in random directions.
+Adding $n$ of them is like a random walk: the total drifts about $\sqrt n$ steps
+from zero, not $n$ steps, because many errors cancel. Dividing that $\sqrt n$
+drift by $n$ leaves $1/\sqrt n$.
+\end{intuitionbox}
+
+\begin{recoverybox}
+Pause and think: an A/B dashboard shows a conversion-rate SE of 0.4 points after
+one week. Roughly what will it show after four weeks of the same traffic?
+(Half: 0.2 points, since four times the data halves the SE.)
+\end{recoverybox}
+
+\begin{example}[Planning a sample size]
+A benchmark of 25 runs gives SE $=\sigma/5$. The team wants the SE cut to a third.
+They need $n=25\times 3^2=225$ runs. Generally, $n_{\text{new}}=n_{\text{old}}\cdot
+(\SE_{\text{old}}/\SE_{\text{new}})^2$.
+\end{example}
+
+\section{Standard deviation versus standard error}
+\label{sec:sd-sdvsse}
+
+These two numbers sound alike and answer different questions.
+
+\begin{itemize}
+  \item \textbf{SD} ($\sigma$, estimated by $s$): how much \emph{individual
+  observations} vary. A property of the population. Does not shrink with $n$.
+  \item \textbf{SE} ($\sigma/\sqrt n$): how much the \emph{statistic} would vary
+  across repeated studies. A property of your estimation procedure. Shrinks with
+  $n$.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=12cm, height=5.6cm, xmin=0, xmax=160, ymin=0, ymax=0.068,
+  xlabel={latency (ms)}, ylabel={density}, axis lines=left,
+  scaled y ticks=false, yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2},
+  legend style={font=\small, at={(0.98,0.95)}, anchor=north east}]
+\addplot[distblue, very thick, domain=20:160, samples=100] {exp(-(x-20)/30)/30};
+\addlegendentry{one request: SD $=30$ ms}
+\addplot[densityred, very thick, domain=20:80, samples=100] {exp(-((x-50)^2)/(2*56.25))/(7.5*2.5066)};
+\addlegendentry{mean of 16 requests: SE $=7.5$ ms}
+\draw[distblue, thick] (axis cs:20,0) -- (axis cs:20,0.0333);
+\draw[gray, dashed] (axis cs:50,0) -- (axis cs:50,0.056);
+\node[font=\small, anchor=south] at (axis cs:50,0.056) {$\mu=50$};
+\end{axis}
+\end{tikzpicture}
+\caption{The population of single latencies (blue) and the sampling distribution
+of the mean of 16 of them (red, Normal approximation). Collecting more data
+does not change the blue curve. It only squeezes the red one.}
+\label{fig:sd-sdse}
+\end{figure}
+
+\begin{trapbox}
+\textbf{Error bars of $\pm$SE presented as if they described individuals.} A paper
+reports ``mean recovery time $12.0 \pm 0.4$ days (SE), $n=400$.'' The SD is
+$0.4\sqrt{400}=8$ days. Individual patients vary by about 8 days, not 0.4. Always
+check which one a $\pm$ means. Rule of thumb: if you want to predict \emph{one
+new observation}, use SD; if you want to know \emph{how well you pinned down the
+mean}, use SE.
+
+The reverse mistake also happens: reporting SD bars on a comparison of two means
+makes a solid difference look like noise.
+\end{trapbox}
+
+\section{The sampling distribution of a proportion}
+\label{sec:sd-prop}
+
+A proportion is a mean in disguise. Code each visitor as $X_i=1$ if they convert
+and $0$ otherwise. Then the sample proportion is
+\[
+\hat p=\frac{\text{number of 1s}}{n}=\frac{X_1+\dots+X_n}{n}=\Xbar .
+\]
+Each $X_i$ is Bernoulli with $\E[X_i]=p$ and
+\[
+\Var(X_i)=\E[X_i^2]-p^2=p-p^2=p(1-p),
+\]
+using $X_i^2=X_i$ for a 0/1 variable. Theorem~\ref{thm:sd-xbar} then gives
+everything for free.
+
+\begin{theorem}[Sample proportion]
+For $n$ independent 0/1 observations with success probability $p$,
+\[
+\E[\hat p]=p,\qquad \SE(\hat p)=\sqrt{\frac{p(1-p)}{n}}.
+\]
+\end{theorem}
+
+\begin{example}[Conversion rate]
+A landing page converts at $p=0.10$. With $n=400$ visitors,
+$\SE(\hat p)=\sqrt{0.1\cdot 0.9/400}=\sqrt{0.000225}=0.015$, i.e.\ 1.5 percentage
+points. Observed rates of 8.5\% or 11.5\% are one SE from the truth and entirely
+routine.
+\end{example}
+
+The numerator $p(1-p)$ is largest at $p=0.5$, where it equals $0.25$
+(Figure~\ref{fig:sd-pq}). So $\SE(\hat p)\le 0.5/\sqrt n$ for every $p$. A poll of
+$n=1000$ has $\SE\le 0.5/\sqrt{1000}=0.0158$, and twice that, $0.032$, is the
+``$\pm 3$ points'' margin printed under news polls (Chapter 7 explains the factor
+of about 2).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=10cm, height=5.2cm, xmin=0, xmax=1, ymin=0, ymax=0.58,
+  xlabel={true proportion $p$}, ylabel={$\sqrt{p(1-p)}$}, axis lines=left,
+  xtick={0,0.1,0.25,0.5,0.75,0.9,1}, ytick={0,0.3,0.433,0.5}]
+\addplot[structurepurple, very thick, domain=0:1, samples=200] {sqrt(x*(1-x))};
+\draw[gray, dashed] (axis cs:0.5,0) -- (axis cs:0.5,0.5) -- (axis cs:0,0.5);
+\draw[gray, dashed] (axis cs:0.1,0) -- (axis cs:0.1,0.3) -- (axis cs:0,0.3);
+\fill[quotientorange] (axis cs:0.5,0.5) circle (2.5pt);
+\fill[quotientorange] (axis cs:0.1,0.3) circle (2.5pt);
+\node[anchor=south, font=\small] at (axis cs:0.5,0.51) {worst case $0.5$};
+\node[anchor=west, font=\small] at (axis cs:0.12,0.25) {$p=0.1$: $0.3$};
+\end{axis}
+\end{tikzpicture}
+\caption{The per-observation SD of a 0/1 variable, $\sqrt{p(1-p)}$. It peaks at
+$p=0.5$ and is symmetric. Divide by $\sqrt n$ to get $\SE(\hat p)$. Using $0.5$
+gives a conservative SE when $p$ is unknown.}
+\label{fig:sd-pq}
+\end{figure}
+
+When $p$ is near 0 or 1 the sampling distribution of $\hat p$ is lopsided for small
+$n$, because $\hat p$ cannot go below 0. Figure~\ref{fig:sd-phat} shows $p=0.05$.
+The usual rule is that the Normal approximation is fine when both $np\ge 10$ and
+$n(1-p)\ge 10$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[at={(0,0)}, width=6.6cm, height=4.6cm, ybar, bar width=5pt,
+  xmin=-0.02, xmax=0.3, ymin=0, ymax=0.45, axis lines=left,
+  title={$n=20$, $np=1$}, title style={font=\small}, xlabel={\small $\hat p$}, ylabel={\small probability},
+  tick label style={font=\scriptsize}, xtick={0,0.05,0.1,0.2,0.3},
+  xticklabel style={/pgf/number format/fixed}]
+\addplot[fill=histfill, draw=distblue] coordinates {(0.000,0.3585) (0.050,0.3774) (0.100,0.1887) (0.150,0.0596) (0.200,0.0133) (0.250,0.0022)};
+\addplot[densityred, thick, sharp plot, domain=-0.02:0.3, samples=100] {0.05*exp(-((x-0.05)^2)/(2*0.002375))/(0.04873*2.5066)};
+\end{axis}
+\begin{axis}[at={(6.4cm,0)}, width=6.6cm, height=4.6cm, ybar, bar width=1.2pt,
+  xmin=-0.02, xmax=0.3, ymin=0, ymax=0.15, axis lines=left,
+  title={$n=200$, $np=10$}, title style={font=\small}, xlabel={\small $\hat p$},
+  tick label style={font=\scriptsize}, xtick={0,0.05,0.1,0.2,0.3},
+  xticklabel style={/pgf/number format/fixed}, scaled y ticks=false,
+  yticklabel style={/pgf/number format/fixed}]
+\addplot[fill=histfill, draw=distblue] coordinates {(0.010,0.0019) (0.015,0.0067) (0.020,0.0174) (0.025,0.0359) (0.030,0.0614) (0.035,0.0896) (0.040,0.1137) (0.045,0.1277) (0.050,0.1284) (0.055,0.1167) (0.060,0.0967) (0.065,0.0736) (0.070,0.0518) (0.075,0.0338) (0.080,0.0206) (0.085,0.0117) (0.090,0.0063) (0.095,0.0032) (0.100,0.0015) (0.105,0.0007)};
+\addplot[densityred, thick, sharp plot, domain=-0.02:0.3, samples=150] {0.005*exp(-((x-0.05)^2)/(2*0.0002375))/(0.01541*2.5066)};
+\end{axis}
+\end{tikzpicture}
+\caption{Exact (binomial) sampling distributions of $\hat p$ when $p=0.05$, with
+the Normal approximation in red. At $n=20$ the Normal curve puts real
+probability on impossible negative proportions. At $n=200$ it fits.}
+\label{fig:sd-phat}
+\end{figure}
+
+\section{The shape: Central Limit Theorem and Law of Large Numbers}
+\label{sec:sd-clt}
+
+Theorem~\ref{thm:sd-xbar} gives the centre and spread of $\Xbar$ for any
+population. The shape comes from the Central Limit Theorem (CLT).
+
+\begin{theorem}[Central Limit Theorem]
+\label{thm:sd-clt}
+If $X_1,\dots,X_n\iid$ a population with mean $\mu$ and finite variance
+$\sigma^2$, then for large $n$
+\[
+\Xbar\ \overset{\text{approx}}{\sim}\ \Normal\!\left(\mu,\ \frac{\sigma^2}{n}\right),
+\qquad\text{equivalently}\qquad
+Z=\frac{\Xbar-\mu}{\sigma/\sqrt n}\ \overset{\text{approx}}{\sim}\ \Normal(0,1).
+\]
+\end{theorem}
+
+The proof is in \emph{Probability From the Ground Up}. What matters here is what it
+buys: once you know $\mu$ and $\SE$, you know the whole sampling distribution, so
+you know, for example, that $\Xbar$ lands within $2\SE$ of $\mu$ about 95\% of the
+time. Chapter 7 turns this sentence into confidence intervals.
+
+\begin{historybox}
+Abraham de Moivre, a French mathematician working in London, was stuck in 1733 on
+a gambler's computation: the probability of, say, between 3400 and 3600 heads in
+6000 coin tosses needs a sum of thousands of enormous binomial coefficients. He
+found that the binomial probabilities trace out a bell-shaped curve, the curve we
+now call the Normal density, so the sum could be replaced by an area under it.
+Pierre-Simon Laplace extended the result around 1810 from coin tosses to sums of
+almost any independent quantities, and used it to put error bars on astronomical
+averages. That generalisation is the Central Limit Theorem. It is the reason one
+bell curve and one number, the standard error, are enough to describe the
+uncertainty of almost any average.
+\end{historybox}
+
+\subsection{When is $n$ ``large enough''?}
+
+There is no universal number. ``$n\ge 30$'' is folklore that works for mildly
+skewed data and fails for heavily skewed data. The governing quantity is the
+population's skewness $\gamma$. The skewness of $\Xbar$ is exactly
+\[
+\gamma_{\Xbar}=\frac{\gamma}{\sqrt n}.
+\]
+(Our latency population has $\gamma=2$; the simulated skewness of the means was
+$1.98, 1.04, 0.48, 0.29$ against theory $2, 1, 0.5, 0.25$.) A skewness below about
+$0.3$ is usually close enough to Normal for intervals and tests, which needs
+$n\ge(\gamma/0.3)^2$: at least 45 for $\gamma=2$, but about 1100 for $\gamma=10$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\pgfplotsset{cltpanel/.style={width=4.8cm, height=4.2cm, ymin=0, axis lines=left,
+  tick label style={font=\scriptsize}, title style={font=\small}}}
+\begin{axis}[cltpanel, at={(0,0)}, xmin=-1, xmax=3, ymax=0.85, title={$n=2$}, title style={font=\small}]
+\addplot[distblue, thick, smooth] coordinates {(0,0) (0.05,0.1810) (0.1,0.3275) (0.2,0.5363) (0.3,0.6586) (0.4,0.7189) (0.5,0.7358) (0.6,0.7229) (0.7,0.6905) (0.8,0.6461) (0.9,0.5951) (1.0,0.5413) (1.1,0.4875) (1.2,0.4354) (1.3,0.3862) (1.4,0.3405) (1.5,0.2987) (1.6,0.2609) (1.7,0.2269) (1.8,0.1967) (1.9,0.1700) (2.0,0.1465) (2.2,0.1080) (2.4,0.0790) (2.6,0.0574) (2.8,0.0414) (3.0,0.0297)};
+\addplot[densityred, thick, dashed, domain=-1:3, samples=80] {exp(-((x-1)^2)/(2*0.5))/(0.7071*2.5066)};
+\end{axis}
+\begin{axis}[cltpanel, at={(4.25cm,0)}, xmin=0, xmax=2.4, ymax=1.5, title={$n=10$}, title style={font=\small}]
+\addplot[distblue, thick, smooth] coordinates {(0.2,0.0019) (0.3,0.0270) (0.4,0.1323) (0.5,0.3627) (0.6,0.6884) (0.7,1.0140) (0.8,1.2408) (0.9,1.3176) (1.0,1.2511) (1.1,1.0853) (1.2,0.8736) (1.3,0.6605) (1.4,0.4734) (1.5,0.3241) (1.6,0.2131) (1.7,0.1353) (1.8,0.0833) (1.9,0.0498) (2.0,0.0291) (2.2,0.0093) (2.4,0.0027)};
+\addplot[densityred, thick, dashed, domain=0:2.4, samples=80] {exp(-((x-1)^2)/(2*0.1))/(0.3162*2.5066)};
+\end{axis}
+\begin{axis}[cltpanel, at={(8.5cm,0)}, xmin=0.5, xmax=1.6, ymax=2.9, title={$n=40$}, title style={font=\small}]
+\addplot[distblue, thick, smooth] coordinates {(0.5,0.0022) (0.55,0.0124) (0.6,0.0498) (0.65,0.1530) (0.7,0.3727) (0.75,0.7437) (0.8,1.2471) (0.85,1.7953) (0.9,2.2577) (0.95,2.5168) (0.975,2.5498) (1.0,2.5179) (1.05,2.2847) (1.1,1.8975) (1.15,1.4537) (1.2,1.0345) (1.25,0.6880) (1.3,0.4298) (1.35,0.2535) (1.4,0.1417) (1.45,0.0754) (1.5,0.0383) (1.55,0.0186) (1.6,0.0087)};
+\addplot[densityred, thick, dashed, domain=0.5:1.6, samples=80] {exp(-((x-1)^2)/(2*0.025))/(0.1581*2.5066)};
+\end{axis}
+\end{tikzpicture}
+\caption{Exact density of the mean of $n$ exponential observations with mean 1
+(blue; skewness $2/\sqrt n$) against the CLT's Normal approximation (red, dashed).
+At $n=2$ the Normal curve even puts mass below zero. At $n=10$ the peak is
+visibly off-centre. At $n=40$ the two nearly coincide.}
+\label{fig:sd-clt}
+\end{figure}
+
+\begin{trapbox}
+The CLT needs a finite variance. For extremely heavy-tailed data (some file
+sizes, some incomes; mathematically, Pareto or ``power-law'' tails, where the
+chance of exceeding $x$ falls only like $1/x^{\alpha}$ with $\alpha<2$) the
+sample mean converges
+painfully slowly or not at all, and a few huge values dominate every sample. For
+such data report medians or quantiles (Chapter 3), or use the bootstrap
+(Chapter 8) with care.
+\end{trapbox}
+
+\subsection{The Law of Large Numbers}
+
+The CLT describes the \emph{fluctuations} of $\Xbar$. The Law of Large Numbers
+(LLN) is the cruder statement that those fluctuations vanish:
+\[
+\Xbar_n\to\mu\quad\text{as } n\to\infty .
+\]
+It follows directly from $\Var(\Xbar)=\sigma^2/n\to 0$: a quantity whose spread
+around $\mu$ shrinks to zero must end up at $\mu$. (The formal step is Chebyshev's
+inequality, which bounds the chance of landing $k$ SDs away by $1/k^2$; see
+\emph{Probability From the Ground Up}.) Figure~\ref{fig:sd-lln} shows a single
+running average of latency draws settling down inside the funnel
+$\mu\pm 2\sigma/\sqrt n$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=12cm, height=5.6cm, xmin=0, xmax=500, ymin=20, ymax=90,
+  xlabel={number of requests $n$}, ylabel={running mean $\xbar_n$ (ms)}, axis lines=left,
+  legend style={font=\small, at={(0.98,0.97)}, anchor=north east}]
+\addplot[name path=up, gray, thin, domain=4:500, samples=150, forget plot] {50+60/sqrt(x)};
+\addplot[name path=lo, gray, thin, domain=4:500, samples=150, forget plot] {50-60/sqrt(x)};
+\addplot[gray!20, area legend] fill between[of=up and lo];
+\addlegendentry{$\mu\pm 2\sigma/\sqrt n$}
+\addplot[distblue, thick] coordinates {(1,59.47) (2,69.93) (3,65.73) (4,60.63) (5,56.03) (6,50.48) (7,55.16) (8,53.33) (9,51.26) (10,57.25) (11,55.82) (12,54.95) (13,57.45) (14,58.21) (15,56.41) (16,56.21) (17,54.53) (18,54.77) (19,53.96) (20,52.52) (30,47.80) (40,48.84) (50,50.27) (60,48.26) (70,49.04) (80,49.16) (90,50.58) (100,50.83) (110,49.59) (120,49.32) (130,48.99) (140,48.74) (150,48.46) (160,48.44) (170,48.57) (180,49.01) (190,48.22) (200,48.00) (210,47.93) (220,47.45) (230,48.04) (240,47.65) (250,47.75) (260,47.74) (270,48.31) (280,48.26) (290,48.43) (300,47.96) (310,48.41) (320,48.30) (330,48.35) (340,48.81) (350,48.56) (360,48.67) (370,48.88) (380,48.69) (390,48.87) (400,48.71) (410,48.69) (420,48.46) (430,48.27) (440,48.05) (450,48.51) (460,48.61) (470,48.51) (480,48.43) (490,48.48) (500,48.72)};
+\addlegendentry{running mean}
+\addplot[densityred, dashed, domain=0:500] {50};
+\addlegendentry{$\mu=50$}
+\end{axis}
+\end{tikzpicture}
+\caption{One stream of 500 simulated latencies. The running mean wanders early
+(it is 69.9 ms after two requests) and then settles near $\mu=50$, ending at
+48.7 ms. The shaded funnel narrows like $1/\sqrt n$: the LLN says the mean
+converges, and the SE says how fast.}
+\label{fig:sd-lln}
+\end{figure}
+
+\begin{trapbox}
+The LLN does not say that luck ``evens out'' by compensation. After a run of slow
+requests, the next request is no more likely to be fast. The early excess is not
+cancelled; it is \emph{diluted} by the growing denominator.
+\end{trapbox}
+
+\section{Estimated standard error}
+\label{sec:sd-estse}
+
+The formula $\sigma/\sqrt n$ contains $\sigma$, the population SD, which you do not
+know. Replace it with the sample SD $s$ (Chapter 2, with the $n-1$ divisor):
+\[
+\widehat{\SE}(\Xbar)=\frac{s}{\sqrt n},\qquad
+\widehat{\SE}(\hat p)=\sqrt{\frac{\hat p(1-\hat p)}{n}} .
+\]
+In practice ``the SE'' almost always means this estimated version.
+
+\begin{example}[Eight latencies]
+Measured latencies (ms): $42, 35, 61, 48, 120, 39, 55, 44$. The sum is 444, so
+$\xbar=55.5$. The squared deviations sum to $5254$, so
+$s=\sqrt{5254/7}=\sqrt{750.57}\approx 27.40$ ms and
+\[
+\widehat{\SE}=\frac{27.40}{\sqrt 8}=\frac{27.40}{2.828}\approx 9.69\text{ ms}.
+\]
+Report: mean latency $55.5$ ms, SE $9.7$ ms. With only 8 skewed observations, the
+Normal shape for $\Xbar$ is doubtful and the plug-in $s$ is itself noisy;
+Chapter 7 handles the second issue with the $t$ distribution.
+\end{example}
+
+\begin{example}[Estimated SE of a proportion]
+48 of 400 visitors converted: $\hat p=0.12$ and
+$\widehat{\SE}=\sqrt{0.12\cdot 0.88/400}=\sqrt{0.000264}\approx 0.0162$.
+\end{example}
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+from scipy import stats
+x = np.array([42, 35, 61, 48, 120, 39, 55, 44])
+print(x.std(ddof=1) / np.sqrt(len(x)))   # 9.686
+print(stats.sem(x))                       # same: scipy uses ddof=1
+\end{lstlisting}
+
+\section{Standard error of a difference}
+\label{sec:sd-diff}
+
+A/B tests, before/after comparisons and treatment/control studies all estimate a
+\emph{difference} $\Xbar_A-\Xbar_B$. If the two groups are independent, rule 3
+(variances add, even for a difference) gives
+\[
+\Var(\Xbar_A-\Xbar_B)=\Var(\Xbar_A)+\Var(\Xbar_B),
+\qquad
+\SE(\Xbar_A-\Xbar_B)=\sqrt{\SE_A^2+\SE_B^2}=\sqrt{\frac{\sigma_A^2}{n_A}+\frac{\sigma_B^2}{n_B}} .
+\]
+
+\begin{example}[A/B latency test]
+Variant A: $n_A=100$, $s_A=30$ ms, so $\SE_A=3.00$. Variant B: $n_B=150$, $s_B=40$
+ms, so $\SE_B=40/\sqrt{150}\approx 3.27$.
+\[
+\SE(\xbar_A-\xbar_B)=\sqrt{\frac{900}{100}+\frac{1600}{150}}=\sqrt{9+10.67}=\sqrt{19.67}\approx 4.43\text{ ms}.
+\]
+Adding the SEs would give $6.27$ ms, an overstatement of 41\%.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0]
+\coordinate (O) at (0,0); \coordinate (A) at (3.0,0); \coordinate (B) at (3.0,3.27);
+\draw[very thick, distblue] (O) -- (A) node[midway, below, font=\small] {$\SE_A=3.00$};
+\draw[very thick, targetgreen] (A) -- (B) node[midway, right, font=\small] {$\SE_B=3.27$};
+\draw[very thick, densityred] (O) -- (B) node[midway, above left, font=\small] {$\SE_{A-B}=4.43$};
+\draw (2.75,0) -- (2.75,0.25) -- (3.0,0.25);
+\begin{scope}[xshift=6cm]
+\draw[very thick, distblue] (0,0) -- (3.0,0);
+\draw[very thick, targetgreen] (3.0,0) -- (6.27,0);
+\draw[trapred, thick, decorate, decoration={brace, amplitude=6pt, mirror}] (0,-0.15) -- (6.27,-0.15)
+  node[midway, below=7pt, font=\small, trapred] {wrong: $3.00+3.27=6.27$};
+\end{scope}
+\end{tikzpicture}
+\caption{Standard errors of independent estimates combine like the sides of a
+right triangle (Pythagoras), not like segments laid end to end. The hypotenuse
+is always shorter than the sum of the legs.}
+\label{fig:sd-pythag}
+\end{figure}
+
+\begin{whybox}
+Why does the difference not have a \emph{smaller} variance? Subtracting $\Xbar_B$
+means multiplying it by $a=-1$, and rule 2 says that multiplies its variance by
+$a^2=+1$. Noise in B pushes the difference around just as much whichever sign it
+carries. Independence then makes the two variances add.
+\end{whybox}
+
+\begin{trapbox}
+The formula needs independent groups. In a paired design (the same 50 servers
+measured before and after a patch) compute the 50 differences first and use
+$s_{\text{diff}}/\sqrt{50}$. Treating paired data as independent usually
+\emph{overstates} the SE because it ignores the positive correlation between the
+two measurements on the same server (Chapter 9).
+\end{trapbox}
+
+\section{Statistics beyond the mean: the median}
+\label{sec:sd-median}
+
+Every statistic has a sampling distribution and an SE, not only the mean. The
+median is the natural next case. We simulated $10{,}000$ samples of $n=25$ heights
+from $\Normal(170, 10^2)$ and recorded both the mean and the median of each.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=11.5cm, height=5.6cm, xmin=162, xmax=178, ymin=0, ymax=0.28,
+  xlabel={statistic (cm)}, ylabel={density}, axis lines=left,
+  scaled y ticks=false, yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2},
+  legend style={font=\small, at={(0.98,0.97)}, anchor=north east}]
+\addplot[ybar interval, fill=histfill, draw=white] coordinates {(162,0.00025) (162.8,0.00087) (163.6,0.00287) (164.4,0.00662) (165.2,0.02050) (166,0.03925) (166.8,0.07862) (167.6,0.12037) (168.4,0.16625) (169.2,0.19837) (170,0.19087) (170.8,0.16200) (171.6,0.12050) (172.4,0.07112) (173.2,0.04250) (174,0.01762) (174.8,0.00750) (175.6,0.00300) (176.4,0.00087) (177.2,0.00000) (178,0)};
+\addlegendentry{sample means (SD $2.02$)}
+\addplot[const plot mark left, bootorange, very thick] coordinates {(162,0.00137) (162.8,0.00512) (163.6,0.00900) (164.4,0.01675) (165.2,0.03675) (166,0.05837) (166.8,0.08537) (167.6,0.11512) (168.4,0.14512) (169.2,0.16425) (170,0.15500) (170.8,0.13637) (171.6,0.11212) (172.4,0.08400) (173.2,0.05725) (174,0.03275) (174.8,0.01950) (175.6,0.00800) (176.4,0.00400) (177.2,0.00162) (178,0.00162)};
+\addlegendentry{sample medians (SD $2.50$)}
+\end{axis}
+\end{tikzpicture}
+\caption{Sampling distributions of the mean and median for $n=25$ draws from
+$\Normal(170,10^2)$. Both are centred on 170. The median's histogram is lower and
+wider: for Normal data the median is a noisier estimate of the centre than the
+mean.}
+\label{fig:sd-medmean}
+\end{figure}
+
+The mean's SD matches $10/\sqrt{25}=2$. The median's SD, $2.50$, matches the
+large-sample formula below: $1.2533\times 2=2.51$.
+
+\begin{theorem}[Large-sample SE of the median]
+\label{thm:sd-median}
+If the population has density $f$ and median $m$ with $f(m)>0$, then for large
+$n$ the sample median is approximately Normal with mean $m$ and
+\[
+\SE(\text{median})\approx\frac{1}{2f(m)\sqrt n}.
+\]
+For a Normal population $f(m)=1/(\sigma\sqrt{2\pi})$, which gives
+\[
+\SE(\text{median})\approx\frac{\sigma\sqrt{2\pi}}{2\sqrt n}=\sqrt{\frac{\pi}{2}}\,\frac{\sigma}{\sqrt n}\approx 1.2533\,\frac{\sigma}{\sqrt n}.
+\]
+\end{theorem}
+
+\begin{whybox}
+The median is the point with half the sample below it. Count how many
+observations fall below the true median $m$. That count is binomial with $p=1/2$,
+so the \emph{fraction} below $m$ has SE $\sqrt{0.25/n}=0.5/\sqrt n$. This wobble
+lives on the vertical (probability) axis of the CDF. To turn it into a horizontal
+wobble in the median, divide by the slope of the CDF at $m$, which is the density
+$f(m)$. Result: $0.5/(f(m)\sqrt n)=1/(2f(m)\sqrt n)$. A steep CDF (lots of data
+near the median) pins the median down; a flat one lets it slide
+(Figure~\ref{fig:sd-cdfmed}).
+\end{whybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=11cm, height=6cm, xmin=-4, xmax=4, ymin=0, ymax=1,
+  xlabel={value}, ylabel={CDF $F$}, axis lines=left, xtick={0}, xticklabels={$m$},
+  ytick={0.3,0.5,0.7}, yticklabels={$\frac12-\delta$, $\frac12$, $\frac12+\delta$},
+  legend style={font=\small, at={(0.03,0.97)}, anchor=north west}]
+\fill[quotientorange!20] (axis cs:-4,0.3) rectangle (axis cs:4,0.7);
+\addplot[distblue, very thick, domain=-4:4, samples=100] {1/(1+exp(-2*x))};
+\addlegendentry{steep CDF (large $f(m)$)}
+\addplot[densityred, very thick, domain=-4:4, samples=100] {1/(1+exp(-0.6*x))};
+\addlegendentry{flat CDF (small $f(m)$)}
+\fill[distblue, opacity=0.35] (axis cs:-0.424,0) rectangle (axis cs:0.424,0.04);
+\fill[densityred, opacity=0.35] (axis cs:-1.412,0.045) rectangle (axis cs:1.412,0.085);
+\draw[distblue, dashed] (axis cs:-0.424,0.3) -- (axis cs:-0.424,0);
+\draw[distblue, dashed] (axis cs:0.424,0.7) -- (axis cs:0.424,0);
+\draw[densityred, dashed] (axis cs:-1.412,0.3) -- (axis cs:-1.412,0.045);
+\draw[densityred, dashed] (axis cs:1.412,0.7) -- (axis cs:1.412,0.045);
+\end{axis}
+\end{tikzpicture}
+\caption{Why $\SE(\text{median})\propto 1/f(m)$. The fraction of the sample below
+any point wobbles by about $\delta=0.5/\sqrt n$ (orange band). Reading that band through
+a steep CDF gives a narrow range of medians (blue); through a flat CDF a wide
+one (red). The CDF's slope at $m$ is the density $f(m)$.}
+\label{fig:sd-cdfmed}
+\end{figure}
+
+\begin{example}[How much data does the median cost?]
+Normal data, $\sigma=20$, $n=400$: $\SE(\Xbar)=20/20=1.00$, while
+$\SE(\text{median})\approx 1.2533$. Since SE scales as $1/\sqrt n$, the median needs
+$1.2533^2=\pi/2\approx 1.571$ times as much data to match the mean: about 628
+observations instead of 400.
+\end{example}
+
+That is the price for Normal data. For skewed or outlier-prone data the
+comparison can flip. In our latency population, $m\approx 40.8$ ms and
+$f(m)=\tfrac{1}{30}e^{-\ln 2}=1/60$, so $\SE(\text{median})\approx 60/(2\sqrt n)=30/\sqrt n$,
+exactly the same as the mean's $\sigma/\sqrt n$. With a single wild outlier
+($120$ ms in the eight latencies above) the median barely moves while the mean
+and $s$ both jump. Robustness is often worth the efficiency cost.
+
+\begin{trapbox}
+The median formula needs $f(m)$, which you do not know and which is hard to
+estimate from a small sample. For discrete or heavily tied data (ratings 1 to 5,
+latencies rounded to 10 ms) the formula can be badly off. This is exactly the
+situation the bootstrap was invented for.
+\end{trapbox}
+
+\subsection{Most statistics have no tidy formula}
+
+The mean, a proportion, and a difference of means have exact, simple SEs. The
+median has only an approximate one that depends on an unknown density. For the
+p99 latency, a trimmed mean, a correlation, a ratio of two means, or the AUC of a
+classifier (the area under its ROC curve, a ranking-quality score between 0.5
+and 1), a usable closed form is rare or messy. Chapter 8 gives a single
+recipe that works for nearly all of them: approximate the sampling distribution by
+resampling your own data (the bootstrap).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  q/.style={draw, rounded corners, fill=histfill!25, align=center, font=\small, minimum height=0.75cm},
+  a/.style={draw, rounded corners, fill=targetgreen!15, align=center, font=\small, minimum height=0.75cm},
+  b/.style={draw, rounded corners, fill=bootorange!25, align=center, font=\small, minimum height=0.75cm},
+  arr/.style={-{Stealth}, thick}]
+\node[q] (s) at (0,0) {Which statistic?};
+\node[a] (m) at (-4.5,-1.6) {mean\\$s/\sqrt n$};
+\node[a] (p) at (-1.5,-1.6) {proportion\\$\sqrt{\hat p(1-\hat p)/n}$};
+\node[a] (d) at (1.7,-1.6) {difference\\$\sqrt{\SE_A^2+\SE_B^2}$};
+\node[a] (md) at (4.8,-1.6) {median\\$1/(2\hat f(m)\sqrt n)$};
+\node[b] (o) at (0,-3.3) {anything else (p99, ratio, correlation, AUC)\\or a formula you do not trust: bootstrap (Chapter 8)};
+\foreach \t in {m,p,d,md} \draw[arr] (s) -- (\t);
+\draw[arr] (s.south) -- (o.north);
+\draw[arr, dashed, gray] (md) |- (o.east);
+\end{tikzpicture}
+\caption{Choosing a standard error. Closed forms exist for a handful of
+statistics; everything else, and any case where the formula's assumptions look
+shaky, goes to the bootstrap.}
+\label{fig:sd-choose}
+\end{figure}
+
+\section{Finite population correction}
+\label{sec:sd-fpc}
+
+All formulas so far assume independent draws: sampling with replacement, or from a
+population so large that it makes no difference. When you sample \emph{without}
+replacement a large fraction $n/N$ of a finite population of size $N$, each draw
+removes a unit and the sample covers more of the population than independent draws
+would. The SE shrinks by the \textbf{finite population correction}:
+\[
+\SE(\Xbar)=\frac{\sigma}{\sqrt n}\sqrt{\frac{N-n}{N-1}}\approx\frac{\sigma}{\sqrt n}\sqrt{1-\frac nN}.
+\]
+
+\begin{example}[Surveying a company]
+A company has $N=2000$ employees; you survey $n=500$ chosen at random without
+replacement. The correction is $\sqrt{1500/1999}\approx 0.866$, so the SE is
+13\% smaller than the textbook formula. Survey all 2000 and the correction is 0:
+there is no sampling error left, only measurement error.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=10cm, height=5cm, xmin=0, xmax=1, ymin=0, ymax=1.08,
+  xlabel={sampling fraction $n/N$}, ylabel={correction factor}, axis lines=left,
+  xtick={0,0.25,0.5,0.75,1}, ytick={0,0.5,0.866,1},
+  xticklabel style={/pgf/number format/fixed}]
+\addplot[structurepurple, very thick, domain=0:1, samples=150] {sqrt(1-x)};
+\fill[targetgreen!25, opacity=0.6] (axis cs:0,0) rectangle (axis cs:0.05,1.08);
+\draw[gray, dashed] (axis cs:0.25,0) -- (axis cs:0.25,0.866) -- (axis cs:0,0.866);
+\fill[quotientorange] (axis cs:0.25,0.866) circle (2.5pt);
+\node[anchor=west, font=\small] at (axis cs:0.27,0.9) {survey 500 of 2000};
+\node[anchor=west, font=\small] (ign) at (axis cs:0.32,0.3) {below 5\%: ignore it};
+\draw[-{Stealth}, gray] (ign.west) -- (axis cs:0.055,0.3);
+\end{axis}
+\end{tikzpicture}
+\caption{The finite population correction $\sqrt{1-n/N}$. It stays above $0.97$
+while you sample less than 5\% of the population (green), which covers almost all
+practical cases. It only matters when you sample a large share.}
+\label{fig:sd-fpc}
+\end{figure}
+
+\begin{connectionbox}
+In machine learning, training usually computes the gradient (the direction
+that most reduces the loss) on a minibatch, a small random subset of the
+training examples. The minibatch gradient is an average of per-example
+gradients, so it is a sample mean. Theorem~\ref{thm:sd-xbar}
+is why gradient noise has SD proportional to $1/\sqrt{B}$ for batch size $B$, and
+why quadrupling the batch only halves the noise. The same $\sigma/\sqrt n$ governs the
+error bars on a test-set accuracy: a classifier scored on 1000 examples at 90\%
+accuracy has $\SE=\sqrt{0.9\cdot 0.1/1000}\approx 0.0095$, so a 0.5-point
+``improvement'' between two models is well inside the noise.
+\end{connectionbox}
+
+\section{Summary}
+\label{sec:sd-summary}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{lll}
+\toprule
+Statistic & Standard error & Notes\\
+\midrule
+mean $\Xbar$ & $\sigma/\sqrt n$, estimated by $s/\sqrt n$ & exact for iid data\\
+proportion $\hat p$ & $\sqrt{p(1-p)/n}$ & at most $0.5/\sqrt n$\\
+difference $\Xbar_A-\Xbar_B$ & $\sqrt{\SE_A^2+\SE_B^2}$ & independent groups only\\
+median & $1/(2f(m)\sqrt n)$; Normal: $1.2533\,\sigma/\sqrt n$ & large $n$\\
+other (p99, ratios, \dots) & no simple formula & bootstrap, Chapter 8\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+  \item $\E$ is linear; $\Var(aX+b)=a^2\Var(X)$; variances of independent variables
+  add (for sums and differences). SDs do not add.
+  \item A statistic is a random variable. Its distribution over repeated samples is
+  the sampling distribution; its SD is the standard error.
+  \item $\E[\Xbar]=\mu$ and $\Var(\Xbar)=\sigma^2/n$. Four times the data halves the
+  SE.
+  \item SD describes individuals and does not shrink with $n$. SE describes an
+  estimate and does.
+  \item CLT: $\Xbar$ is approximately $\Normal(\mu,\sigma^2/n)$ for large $n$. Skewness of
+  $\Xbar$ is $\gamma/\sqrt n$, so skewed data need larger $n$. For proportions,
+  want $np\ge 10$ and $n(1-p)\ge 10$.
+  \item LLN: $\Xbar\to\mu$. Early deviations are diluted, not compensated.
+  \item Sampling more than about 5\% of a finite population without replacement:
+  multiply the SE by $\sqrt{1-n/N}$.
+\end{itemize}
+
+Chapter 7 takes the next step: an estimate plus or minus about two standard
+errors becomes a confidence interval, with a precise statement of how often such
+intervals catch the truth.
+
+\section{Exercises}
+\label{sec:sd-exercises}
+
+\begin{enumerate}
+  \item $\Var(X)=4$. Find $\Var(3X+2)$ and $\SD(3X+2)$. If $Y$ is independent of
+  $X$ with $\Var(Y)=5$, find $\Var(X-Y)$.
+  \item A population has $\sigma=12$. What is the SE of the mean for $n=36$? What
+  $n$ gives an SE of 1?
+  \item A feature is used by 20\% of users. What is $\SE(\hat p)$ from a random
+  sample of 100 users? Without knowing $p$, how large must $n$ be to guarantee
+  $\SE(\hat p)\le 0.01$?
+  \item Two independent estimates have $\SE_A=0.8$ and $\SE_B=0.6$. What is the SE
+  of their difference? What answer does the common mistake give?
+  \item From the data $4, 8, 6, 5, 7$ compute $\xbar$, $s$ and the estimated SE of
+  the mean.
+  \item A report says ``mean session length $6.2\pm 0.1$ min (SE), $n=2500$.''
+  Estimate the SD of session length. Would a session of 9 minutes be unusual?
+  \item For Normal data with $\sigma=20$ and $n=400$, find the SE of the mean and of
+  the median. How many observations would the median need to match the mean's
+  SE?
+  \item A population has skewness 3. Using $\gamma/\sqrt n\le 0.3$ as the criterion,
+  how large must $n$ be for the CLT approximation to be adequate?
+  \item You survey $n=100$ of the $N=500$ members of a club, without replacement.
+  The population SD is 10. Compute the SE of the mean with and without the finite
+  population correction.
+  \item Explain in two sentences why $\Var(X_1+X_2)\neq\Var(2X_1)$ for two
+  independent dice, though both have mean 7.
+\end{enumerate}
+
+\subsection*{Answers}
+
+\begin{enumerate}
+  \item $\Var(3X+2)=9\cdot 4=36$, $\SD=6$. $\Var(X-Y)=4+5=9$.
+  \item $12/\sqrt{36}=2$. Need $12/\sqrt n=1$, so $n=144$.
+  \item $\sqrt{0.2\cdot 0.8/100}=0.04$. Worst case $0.5/\sqrt n\le 0.01$ gives
+  $n\ge 2500$.
+  \item $\sqrt{0.64+0.36}=1.0$. The mistake (adding SEs) gives $1.4$.
+  \item $\xbar=6$; deviations $-2,2,0,-1,1$, squares sum to 10; $s=\sqrt{10/4}\approx 1.581$;
+  $\widehat{\SE}=1.581/\sqrt 5\approx 0.707$.
+  \item $\SD\approx 0.1\sqrt{2500}=5$ min. A 9-minute session is only $(9-6.2)/5\approx 0.56$
+  SDs above the mean: perfectly ordinary. (It would be wildly unusual only if you
+  wrongly used the SE.)
+  \item $\SE(\Xbar)=1$, $\SE(\text{median})\approx 1.2533$. Need $400\cdot\pi/2\approx 628$
+  observations.
+  \item $3/\sqrt n\le 0.3$ gives $\sqrt n\ge 10$, so $n\ge 100$.
+  \item Without: $10/\sqrt{100}=1$. With: $1\cdot\sqrt{400/499}\approx 0.895$.
+  \item Independent dice often offset each other, so the sum's variance is
+  $35/12+35/12=35/6$. Doubling one die copies its deviation exactly, so the variance
+  is $2^2\cdot 35/12=35/3$, twice as large.
+\end{enumerate}

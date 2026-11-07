@@ -1,0 +1,1331 @@
+\chapter{Statistics for Machine Learning}
+\label{ch:stats-for-ml}
+
+Chapter 14 turned data into estimates: maximise a likelihood, or combine it with a prior.
+Machine learning does the same thing at a larger scale, with its own notation and its own
+habits. Open a paper and you meet $\E_{x\sim p}[\ell(f_\theta(x),y)]$, $\hat\theta$,
+$\argmin$, ``validation AUC $0.91$''. Every one of those symbols is a statistical idea you
+already own. This chapter is the decoder ring, plus the handful of statistical tools that ML
+practice leans on daily: honest error estimates, the bias--variance tradeoff, regularisation,
+classifier evaluation, and error bars on the metrics themselves.
+
+\section{A notation decoder}
+\label{sec:ml-notation}
+
+Here is a sentence lifted from the style of a typical paper:
+\[
+  \hat\theta \;=\; \argmin_{\theta}\; \frac1n\sum_{i=1}^n \ell\big(f_\theta(x_i),\,y_i\big),
+  \qquad (x_i,y_i)\iid p .
+\]
+Read aloud: ``theta-hat is the parameter value that makes the average loss on the $n$
+training examples as small as possible, where the examples were drawn independently from the
+same distribution $p$.'' Each piece deserves a picture.
+
+\begin{itemize}
+  \item A \textbf{loss} $\ell(\hat y, y)$ is a number that says how bad a prediction $\hat y$
+  is when the truth is $y$. Squared loss $(\hat y-y)^2$ is the one from regression (Chapter 12).
+  \item $f_\theta$ is a \textbf{model}: a formula with adjustable knobs $\theta$ (the
+  \textbf{parameters}) that turns an input $x$ into a prediction.
+  \item The hat on $\hat\theta$ means ``computed from data''. It is an estimate, and it would
+  come out differently on a different sample. Same convention as $\hat p$ and $\hat\beta$ in
+  earlier chapters.
+  \item $\argmin_\theta g(\theta)$ is the \emph{location} of the minimum, not the minimum
+  value. If $g(\theta)=(\theta-3)^2+5$ then $\min g = 5$ but $\argmin g = 3$.
+\end{itemize}
+
+Table~\ref{tab:ml-decoder} collects the symbols you will meet most often.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{p{3.3cm} p{3.5cm} p{6.4cm}}
+\toprule
+\textbf{Symbol} & \textbf{Read it as} & \textbf{What it means} \\
+\midrule
+$x\sim p$ & ``$x$ drawn from $p$'' & $x$ is a random draw from the distribution $p$. \\
+$(x_i,y_i)\iid p$ & ``i.i.d.\ from $p$'' & Independent draws, all from the same $p$. Each example tells you nothing about the next. \\
+$\E_{x\sim p}[f(x)]$ & ``expected $f$ under $p$'' & The long-run average of $f(x)$ if you kept drawing $x$ from $p$. \\
+$\frac1n\sum_i f(x_i)$ & ``sample average'' & The data's estimate of $\E_{x\sim p}[f(x)]$. \\
+$\hat p$ or $\hat p_n$ & ``empirical distribution'' & Put weight $1/n$ on each observed point. Averages under $\hat p$ are sample averages. \\
+$p(y\given x;\theta)$ & ``prob.\ of $y$ given $x$, at $\theta$'' & A model's predicted distribution for the label. The semicolon separates data from parameters. \\
+$\hat\theta$, $\hat y$ & ``theta-hat'', ``y-hat'' & Quantities estimated or predicted from data. \\
+$\theta^\star$ & ``theta-star'' & The best possible parameter value (usually unknowable). \\
+$\argmin_\theta L(\theta)$ & ``the $\theta$ minimising $L$'' & Where the minimum occurs, not its value. \\
+$\nabla_\theta L$ & ``gradient of $L$'' & Vector of slopes of $L$ in each parameter direction. \\
+$\Sigma$ & ``covariance matrix'' & Variances on the diagonal, covariances off it (Section~\ref{sec:ml-cov}). \\
+\bottomrule
+\end{tabular}
+\caption{Decoder for common ML notation. Nearly every entry is an expectation, a sample
+average, or an estimate of one.}
+\label{tab:ml-decoder}
+\end{table}
+
+\subsection{True distribution versus empirical distribution}
+
+The distinction that matters most in the table is $p$ versus $\hat p$. The \textbf{true
+distribution} $p$ is the process that generates data: every email that will ever arrive,
+every future house sale. You never see it. The \textbf{empirical distribution} $\hat p_n$ is
+the data you actually hold, viewed as a distribution that puts probability $1/n$ on each
+point.
+
+Take $n=12$ draws from a standard Normal:
+\[
+-1.95,\ -1.69,\ -1.41,\ -0.30,\ -0.08,\ -0.04,\ 0.06,\ 0.21,\ 0.39,\ 0.50,\ 0.59,\ 1.87.
+\]
+The empirical CDF climbs by $1/12$ at each point. Figure~\ref{fig:ml-ecdf} lays it over the
+true CDF. The staircase tracks the smooth curve, imperfectly. With more data the steps get
+finer and the fit tightens. This is the Glivenko--Cantelli theorem that justified the
+bootstrap in Chapter 8; Probability From the Ground Up has the proof.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5.6cm,
+  xmin=-3, xmax=3, ymin=0, ymax=1.08,
+  xlabel={$x$}, ylabel={cumulative probability},
+  axis lines=left, legend pos=north west, legend style={font=\small},
+]
+\addplot[densityred, thick, domain=-3:3, samples=120] {1/(1+exp(-1.702*x))};
+\addlegendentry{true CDF of $p=\Normal(0,1)$}
+\addplot[sourceblue, thick, const plot] coordinates {
+(-3,0) (-1.95,0.083) (-1.69,0.167) (-1.41,0.25) (-0.30,0.333) (-0.08,0.417)
+(-0.04,0.5) (0.06,0.583) (0.21,0.667) (0.39,0.75) (0.50,0.833) (0.59,0.917)
+(1.87,1) (3,1)};
+\addlegendentry{empirical CDF of $\hat p_{12}$}
+\addplot[only marks, mark=|, mark size=4pt, sourceblue] coordinates {
+(-1.95,0) (-1.69,0) (-1.41,0) (-0.30,0) (-0.08,0) (-0.04,0) (0.06,0) (0.21,0) (0.39,0)
+(0.50,0) (0.59,0) (1.87,0)};
+\end{axis}
+\end{tikzpicture}
+\caption{The empirical distribution $\hat p_{12}$ (staircase) is the data's stand-in for the
+unknown true distribution $p$ (smooth curve). Training a model on data means optimising under
+$\hat p$ while hoping to do well under $p$.}
+\label{fig:ml-ecdf}
+\end{figure}
+
+\begin{intuitionbox}
+Any expectation under $\hat p_n$ is just a sample average:
+$\E_{x\sim\hat p_n}[f(x)] = \frac1n\sum_i f(x_i)$. So when a paper switches between
+$\E_{x\sim p}$ and $\E_{x\sim\hat p}$, it is switching between ``the average over the whole
+world'' and ``the average over my dataset''. The gap between the two is what the rest of this
+chapter is about.
+\end{intuitionbox}
+
+\section{Expected risk, empirical risk, and the generalisation gap}
+\label{sec:ml-risk}
+
+\subsection{A tiny regression, by hand}
+
+Five houses: floor area $x$ (hundreds of m$^2$) and price $y$ (hundreds of thousands).
+\[
+x = (1,2,3,4,5),\qquad y = (2.5,\ 3.5,\ 6.5,\ 8.0,\ 9.5).
+\]
+Try the model $f_\theta(x)=\theta x$ with $\theta=2$. Predictions are $2,4,6,8,10$; residuals
+$y-\hat y$ are $0.5$, $-0.5$, $0.5$, $0$, $-0.5$; squared losses are $0.25$, $0.25$, $0.25$, $0$, $0.25$.
+Their average is
+\[
+\hat R(2) = \frac{0.25+0.25+0.25+0+0.25}{5} = 0.20 .
+\]
+That number is the \textbf{empirical risk}: the average loss on the data you have.
+
+\begin{definition}[Expected and empirical risk]
+For a model $f$ and loss $\ell$, the \textbf{expected risk} (also called true risk or
+population risk) is the average loss on a fresh example from the true distribution:
+\[
+R(f) = \E_{(x,y)\sim p}\big[\ell(f(x),y)\big].
+\]
+The \textbf{empirical risk} is the same average over the $n$ training examples:
+\[
+\hat R_n(f) = \frac1n\sum_{i=1}^n \ell(f(x_i),y_i) = \E_{(x,y)\sim\hat p_n}\big[\ell(f(x),y)\big].
+\]
+\end{definition}
+
+For any \emph{fixed} model chosen before seeing the data, $\hat R_n(f)$ is a sample mean of
+i.i.d.\ losses. So it is unbiased for $R(f)$, and its standard error is
+$\SD(\ell)/\sqrt n$ (Chapter 6). The trouble starts when the model is \emph{chosen using} the
+same data.
+
+\subsection{Empirical risk minimisation}
+
+\textbf{Empirical risk minimisation} (ERM) picks the model with the smallest training loss:
+\[
+\hat f = \argmin_{f\in\mathcal F} \hat R_n(f),
+\]
+where $\mathcal F$ is the family of models you allow (all lines, all depth-5 trees, all
+networks of a given shape). For our houses and $f_\theta(x)=\theta x$, setting the derivative
+of $\sum(y_i-\theta x_i)^2$ to zero gives
+\[
+\hat\theta = \frac{\sum x_iy_i}{\sum x_i^2} = \frac{108.5}{55} \approx 1.973,
+\qquad \hat R_5(\hat\theta)\approx 0.192 .
+\]
+ERM found a slightly better $\theta$ than our guess of 2, and its training loss dropped from
+$0.200$ to $0.192$. Least squares (Chapter 12) and maximum likelihood (Chapter 14) are both
+ERM: least squares with squared loss, maximum likelihood with loss $-\log p(y\given x;\theta)$.
+
+\begin{whybox}
+Why is the training loss of $\hat f$ optimistic? Because $\hat f$ was picked to make
+$\hat R_n$ small. Some of the small value is real skill and some is luck: the chosen model
+happens to fit the particular noise in this sample. A fresh sample has different noise, so on
+average over samples $\E[\hat R_n(\hat f)] \le \E[R(\hat f)]$. The same thing
+happened with $s^2$ in Chapter 2: measuring spread around $\bar x$, a point fitted to the
+data, underestimates spread around $\mu$, and the $n-1$ corrects for it.
+\end{whybox}
+
+\begin{definition}[Generalisation gap]
+The \textbf{generalisation gap} of a fitted model is $R(\hat f) - \hat R_n(\hat f)$: how much
+worse it does on new data than on the data it was trained on.
+\end{definition}
+
+A flexible model can drive the training loss to zero by memorising. A polynomial of degree
+$n-1$ passes through all $n$ points exactly. Its training loss is $0$ and its gap is
+everything. Figure~\ref{fig:ml-gap} shows the typical pattern as the model gets more
+flexible.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6cm,
+  xmin=1, xmax=12, ymin=0, ymax=1.1,
+  xlabel={model flexibility (e.g.\ polynomial degree)}, ylabel={mean squared error},
+  axis lines=left, legend pos=north east, legend style={font=\small},
+  xtick={1,3,5,7,9,11},
+]
+\addplot[sourceblue, thick, domain=1:12, samples=100] {0.9*exp(-0.55*(x-1)) + 0.09*exp(-0.15*(x-1))};
+\addlegendentry{training error $\hat R_n(\hat f)$}
+\addplot[densityred, thick, domain=1:12, samples=100] {0.9*exp(-0.55*(x-1)) + 0.02*exp(0.3*(x-1)) + 0.09};
+\addlegendentry{test error $\approx R(\hat f)$}
+\draw[<->, structurepurple, thick] (axis cs:10,0.0297) -- (axis cs:10,0.394);
+\node[structurepurple, anchor=west, font=\small] at (axis cs:10.1,0.21) {gap};
+\draw[dashed, gray] (axis cs:6.2,0) -- (axis cs:6.2,0.237);
+\node[gray, anchor=north, font=\small, fill=white, inner sep=1pt] at (axis cs:6.2,0.55) {best test error};
+\draw[gray, ->] (axis cs:6.2,0.47) -- (axis cs:6.2,0.26);
+\end{axis}
+\end{tikzpicture}
+\caption{Training error keeps falling as flexibility grows; test error falls, bottoms out,
+then climbs. The vertical distance between them is the generalisation gap. Training error
+alone always says ``more flexible is better''.}
+\label{fig:ml-gap}
+\end{figure}
+
+\begin{recoverybox}
+Pause and think: a model scores $0.0$ training error on $1000$ examples. What, if anything,
+does that tell you about its test error? (Almost nothing. It tells you the model is flexible
+enough to memorise $1000$ examples.)
+\end{recoverybox}
+
+\section{Honest error estimates: splits and cross-validation}
+\label{sec:ml-splits}
+
+\subsection{Train, validation, test}
+
+The fix for optimistic training error is the same idea as an experiment's control group: score
+the model on data it has never touched. Standard practice cuts the data into three parts
+(Figure~\ref{fig:ml-split}).
+
+\begin{itemize}
+  \item \textbf{Training set}: used to fit the parameters $\theta$.
+  \item \textbf{Validation set}: used to choose among models and \textbf{hyperparameters}
+  (settings you pick rather than fit, such as polynomial degree or regularisation strength).
+  \item \textbf{Test set}: touched once, at the end, to report performance.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+\fill[sourceblue!30] (0,0) rectangle (7.2,1);
+\fill[quotientorange!35] (7.2,0) rectangle (9.6,1);
+\fill[targetgreen!35] (9.6,0) rectangle (12,1);
+\draw[thick] (0,0) rectangle (12,1);
+\draw[thick] (7.2,0) -- (7.2,1); \draw[thick] (9.6,0) -- (9.6,1);
+\node[font=\small] at (3.6,0.5) {training $60\%$};
+\node[font=\small, align=center] at (8.4,0.5) {validation\\$20\%$};
+\node[font=\small, align=center] at (10.8,0.5) {test\\$20\%$};
+\node[font=\small, align=center] at (3.6,-0.6) {fit $\theta$};
+\node[font=\small, align=center] at (8.4,-0.6) {pick degree, $\lambda$, \ldots};
+\node[font=\small, align=center] at (10.8,-0.6) {report once};
+\draw[->, thick, gray] (3.6,1.15) to[bend left=25] node[above, font=\small, black] {fitted models} (8.4,1.15);
+\draw[->, thick, gray] (8.4,1.15) to[bend left=25] node[above, font=\small, black] {chosen model} (10.8,1.15);
+\end{tikzpicture}
+\caption{A three-way split. Each part answers one question. The test score is honest only if
+nothing about the model was chosen by looking at the test set.}
+\label{fig:ml-split}
+\end{figure}
+
+Why does the validation set not suffice for reporting? Because you used it to choose. If you
+try $50$ hyperparameter settings and report the best validation score, you have run ERM over
+those $50$ settings on the validation set, and the winner's score is optimistic for the same
+reason training error is. This is the multiple-comparisons problem of Chapter 11 again.
+
+\subsection{$k$-fold cross-validation}
+
+With $500$ examples, holding out $20\%$ for validation wastes data and gives a noisy score.
+\textbf{$k$-fold cross-validation} reuses every example for both jobs. Cut the data into $k$
+equal \textbf{folds}. For each fold in turn, train on the other $k-1$ folds and score on the
+held-out fold. Average the $k$ scores (Figure~\ref{fig:ml-kfold}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1cm,y=0.62cm]
+\foreach \r in {1,...,5} {
+  \foreach \c in {1,...,5} {
+    \ifnum\r=\c
+      \fill[quotientorange!45] (1.6*\c,-\r) rectangle (1.6*\c+1.6,-\r+0.8);
+    \else
+      \fill[sourceblue!25] (1.6*\c,-\r) rectangle (1.6*\c+1.6,-\r+0.8);
+    \fi
+    \draw (1.6*\c,-\r) rectangle (1.6*\c+1.6,-\r+0.8);
+  }
+  \node[anchor=east, font=\small] at (1.5,-\r+0.4) {round \r};
+}
+\foreach \c in {1,...,5} { \node[font=\small] at (1.6*\c+0.8,0.4) {fold \c}; }
+\node[anchor=west, font=\small] at (9.8,-0.6) {$0.21$};
+\node[anchor=west, font=\small] at (9.8,-1.6) {$0.25$};
+\node[anchor=west, font=\small] at (9.8,-2.6) {$0.19$};
+\node[anchor=west, font=\small] at (9.8,-3.6) {$0.23$};
+\node[anchor=west, font=\small] at (9.8,-4.6) {$0.22$};
+\node[anchor=west, font=\small] at (9.8,0.4) {error};
+\draw (9.8,-5.1) -- (11,-5.1);
+\node[anchor=west, font=\small] at (9.8,-5.6) {mean $0.22$};
+\end{tikzpicture}
+\caption{Five-fold cross-validation. Orange is the held-out fold, blue is training data. Each
+example is held out exactly once, so every example contributes one honest prediction.}
+\label{fig:ml-kfold}
+\end{figure}
+
+With the five fold errors $0.21, 0.25, 0.19, 0.23, 0.22$, the CV estimate is their mean,
+$0.22$. Their standard deviation is $0.022$. The naive standard error $0.022/\sqrt5=0.010$ is
+too small: the five training sets overlap by $75\%$, so the fold scores are positively
+correlated, and the averaging buys less than independence would. Treat the fold-to-fold spread
+as a rough guide to stability, not as a valid confidence interval.
+
+Common choices are $k=5$ or $k=10$. $k=n$ is \textbf{leave-one-out} CV: nearly unbiased but
+slow and high-variance. In all cases the final model is refit on all the data after CV has
+chosen its settings.
+
+\subsection{Data leakage}
+
+\textbf{Data leakage} is any route by which information from the held-out data reaches the
+model during training. It makes held-out scores optimistic, sometimes wildly so. Classic
+leaks:
+
+\begin{itemize}
+  \item Standardising features (subtracting the mean, dividing by the SD) using \emph{all}
+  the data, then splitting. The training set has now seen the test set's mean.
+  \item Selecting the ``$20$ most predictive features'' on all the data, then cross-validating
+  a model on those features.
+  \item Random splits of time-series data, so the model trains on Thursday and is tested on
+  Wednesday.
+  \item Duplicate or near-duplicate rows (the same patient twice, the same image resized)
+  landing on both sides of the split.
+  \item A feature that is a consequence of the label, such as ``refund issued'' when
+  predicting fraud.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, minimum height=0.8cm, align=center, font=\small, inner sep=3pt},
+  arr/.style={->, thick}]
+\node[box, fill=trapred!12] (a1) at (0,0) {all data};
+\node[box, fill=trapred!12] (a2) at (3.0,0) {fit scaler /\\select features};
+\node[box, fill=trapred!12] (a3) at (6.2,0) {split};
+\node[box, fill=trapred!12] (a4) at (9.4,0) {train, test\\(optimistic)};
+\draw[arr] (a1) -- (a2); \draw[arr] (a2) -- (a3); \draw[arr] (a3) -- (a4);
+\node[anchor=east, trapred, font=\small\bfseries] at (-0.9,0) {leaky};
+\node[box, fill=targetgreen!12] (b1) at (0,-2) {all data};
+\node[box, fill=targetgreen!12] (b2) at (3.0,-2) {split};
+\node[box, fill=targetgreen!12] (b3) at (6.2,-2) {fit scaler /\\select on train};
+\node[box, fill=targetgreen!12] (b4) at (9.4,-2) {apply to test,\\score (honest)};
+\draw[arr] (b1) -- (b2); \draw[arr] (b2) -- (b3); \draw[arr] (b3) -- (b4);
+\node[anchor=east, targetgreen, font=\small\bfseries] at (-0.9,-2) {clean};
+\end{tikzpicture}
+\caption{The order of operations decides whether the test score is honest. Anything that
+learns from data (scaling, imputation, feature selection) belongs inside the training side of
+the split, and inside each CV fold.}
+\label{fig:ml-leak}
+\end{figure}
+
+\begin{trapbox}
+Feature selection before cross-validation is the most damaging leak because it looks
+innocent. With $5000$ pure-noise features and $50$ examples, picking the $20$ features most
+correlated with the label on all the data and then cross-validating can report accuracy far
+above chance on labels that are coin flips. The selection already saw every fold.
+\end{trapbox}
+
+\section{The bias--variance tradeoff for models}
+\label{sec:ml-biasvar}
+
+Chapter 14 split the error of an estimator into bias and variance:
+$\MSE = \Bias^2 + \Var$. Bias is how far the estimator's average lands from the target;
+variance is how much it scatters from sample to sample. A fitted model is an estimator too.
+It estimates the true regression function $f(x)=\E[y\given x]$, the average $y$ at input $x$,
+and the same split applies at every $x$.
+
+\subsection{Many fits, one picture}
+
+Take the true curve $f(x)=\sin(2\pi x)$ on $[0,1]$. At $15$ evenly spaced inputs
+$x=\tfrac1{30},\tfrac3{30},\dots,\tfrac{29}{30}$, draw noisy values $y=f(x)+\eps$ with noise
+SD $\sigma=0.3$, fit a model, and repeat on fresh datasets. Each dataset gives a different
+fitted curve. Figure~\ref{fig:ml-manyfits} fits a straight line and a degree-9 polynomial to
+the same six datasets.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=left, width=6.6cm, height=5.4cm,
+  xmin=0, xmax=1, ymin=-2.5, ymax=2.5,
+  xlabel={$x$}, ylabel={$y$},
+  title={degree 1: high bias, low variance}, title style={font=\small},
+  axis lines=left, clip=true, xtick={0,0.5,1},
+]
+\addplot[sourceblue!80, thin] coordinates {(0.000,0.88) (0.025,0.84) (0.050,0.79) (0.075,0.75) (0.100,0.70) (0.125,0.66) (0.150,0.62) (0.175,0.57) (0.200,0.53) (0.225,0.48) (0.250,0.44) (0.275,0.40) (0.300,0.35) (0.325,0.31) (0.350,0.26) (0.375,0.22) (0.400,0.18) (0.425,0.13) (0.450,0.09) (0.475,0.04) (0.500,0.00) (0.525,-0.04) (0.550,-0.09) (0.575,-0.13) (0.600,-0.18) (0.625,-0.22) (0.650,-0.26) (0.675,-0.31) (0.700,-0.35) (0.725,-0.40) (0.750,-0.44) (0.775,-0.48) (0.800,-0.53) (0.825,-0.57) (0.850,-0.61) (0.875,-0.66) (0.900,-0.70) (0.925,-0.75) (0.950,-0.79) (0.975,-0.83) (1.000,-0.88)};
+\addplot[sourceblue!80, thin] coordinates {(0.000,0.86) (0.025,0.81) (0.050,0.77) (0.075,0.73) (0.100,0.69) (0.125,0.64) (0.150,0.60) (0.175,0.56) (0.200,0.51) (0.225,0.47) (0.250,0.43) (0.275,0.38) (0.300,0.34) (0.325,0.30) (0.350,0.26) (0.375,0.21) (0.400,0.17) (0.425,0.13) (0.450,0.08) (0.475,0.04) (0.500,-0.00) (0.525,-0.05) (0.550,-0.09) (0.575,-0.13) (0.600,-0.17) (0.625,-0.22) (0.650,-0.26) (0.675,-0.30) (0.700,-0.35) (0.725,-0.39) (0.750,-0.43) (0.775,-0.48) (0.800,-0.52) (0.825,-0.56) (0.850,-0.60) (0.875,-0.65) (0.900,-0.69) (0.925,-0.73) (0.950,-0.78) (0.975,-0.82) (1.000,-0.86)};
+\addplot[sourceblue!80, thin] coordinates {(0.000,1.01) (0.025,0.96) (0.050,0.92) (0.075,0.87) (0.100,0.82) (0.125,0.77) (0.150,0.73) (0.175,0.68) (0.200,0.63) (0.225,0.58) (0.250,0.54) (0.275,0.49) (0.300,0.44) (0.325,0.39) (0.350,0.35) (0.375,0.30) (0.400,0.25) (0.425,0.21) (0.450,0.16) (0.475,0.11) (0.500,0.06) (0.525,0.02) (0.550,-0.03) (0.575,-0.08) (0.600,-0.13) (0.625,-0.17) (0.650,-0.22) (0.675,-0.27) (0.700,-0.32) (0.725,-0.36) (0.750,-0.41) (0.775,-0.46) (0.800,-0.51) (0.825,-0.55) (0.850,-0.60) (0.875,-0.65) (0.900,-0.70) (0.925,-0.74) (0.950,-0.79) (0.975,-0.84) (1.000,-0.89)};
+\addplot[sourceblue!80, thin] coordinates {(0.000,1.45) (0.025,1.39) (0.050,1.33) (0.075,1.27) (0.100,1.21) (0.125,1.14) (0.150,1.08) (0.175,1.02) (0.200,0.96) (0.225,0.90) (0.250,0.84) (0.275,0.77) (0.300,0.71) (0.325,0.65) (0.350,0.59) (0.375,0.53) (0.400,0.46) (0.425,0.40) (0.450,0.34) (0.475,0.28) (0.500,0.22) (0.525,0.15) (0.550,0.09) (0.575,0.03) (0.600,-0.03) (0.625,-0.09) (0.650,-0.15) (0.675,-0.22) (0.700,-0.28) (0.725,-0.34) (0.750,-0.40) (0.775,-0.46) (0.800,-0.53) (0.825,-0.59) (0.850,-0.65) (0.875,-0.71) (0.900,-0.77) (0.925,-0.83) (0.950,-0.90) (0.975,-0.96) (1.000,-1.02)};
+\addplot[sourceblue!80, thin] coordinates {(0.000,0.62) (0.025,0.58) (0.050,0.55) (0.075,0.51) (0.100,0.47) (0.125,0.44) (0.150,0.40) (0.175,0.37) (0.200,0.33) (0.225,0.29) (0.250,0.26) (0.275,0.22) (0.300,0.19) (0.325,0.15) (0.350,0.11) (0.375,0.08) (0.400,0.04) (0.425,0.01) (0.450,-0.03) (0.475,-0.06) (0.500,-0.10) (0.525,-0.14) (0.550,-0.17) (0.575,-0.21) (0.600,-0.24) (0.625,-0.28) (0.650,-0.32) (0.675,-0.35) (0.700,-0.39) (0.725,-0.42) (0.750,-0.46) (0.775,-0.50) (0.800,-0.53) (0.825,-0.57) (0.850,-0.60) (0.875,-0.64) (0.900,-0.67) (0.925,-0.71) (0.950,-0.75) (0.975,-0.78) (1.000,-0.82)};
+\addplot[sourceblue!80, thin] coordinates {(0.000,1.07) (0.025,1.02) (0.050,0.96) (0.075,0.91) (0.100,0.86) (0.125,0.80) (0.150,0.75) (0.175,0.70) (0.200,0.64) (0.225,0.59) (0.250,0.54) (0.275,0.48) (0.300,0.43) (0.325,0.38) (0.350,0.32) (0.375,0.27) (0.400,0.22) (0.425,0.16) (0.450,0.11) (0.475,0.06) (0.500,0.00) (0.525,-0.05) (0.550,-0.10) (0.575,-0.16) (0.600,-0.21) (0.625,-0.26) (0.650,-0.32) (0.675,-0.37) (0.700,-0.42) (0.725,-0.48) (0.750,-0.53) (0.775,-0.58) (0.800,-0.64) (0.825,-0.69) (0.850,-0.74) (0.875,-0.80) (0.900,-0.85) (0.925,-0.90) (0.950,-0.96) (0.975,-1.01) (1.000,-1.06)};
+\addplot[black, very thick, dashed, domain=0:1, samples=80] {sin(360*x)};
+\end{axis}
+\begin{axis}[
+  at={(left.east)}, anchor=west, xshift=1.2cm,
+  width=6.6cm, height=5.4cm,
+  xmin=0, xmax=1, ymin=-2.5, ymax=2.5,
+  xlabel={$x$},
+  title={degree 9: low bias, high variance}, title style={font=\small},
+  axis lines=left, clip=true, xtick={0,0.5,1},
+]
+\addplot[trapred!85, thin] coordinates {(0.000,-3.26) (0.025,-0.48) (0.050,0.50) (0.075,0.66) (0.100,0.56) (0.125,0.47) (0.150,0.49) (0.175,0.62) (0.200,0.82) (0.225,1.01) (0.250,1.17) (0.275,1.24) (0.300,1.23) (0.325,1.14) (0.350,0.97) (0.375,0.77) (0.400,0.55) (0.425,0.34) (0.450,0.15) (0.475,-0.01) (0.500,-0.14) (0.525,-0.25) (0.550,-0.33) (0.575,-0.42) (0.600,-0.50) (0.625,-0.60) (0.650,-0.69) (0.675,-0.79) (0.700,-0.87) (0.725,-0.92) (0.750,-0.94) (0.775,-0.91) (0.800,-0.85) (0.825,-0.78) (0.850,-0.71) (0.875,-0.67) (0.900,-0.67) (0.925,-0.66) (0.950,-0.50) (0.975,0.15) (1.000,1.85)};
+\addplot[trapred!85, thin] coordinates {(0.000,1.40) (0.025,0.17) (0.050,-0.05) (0.075,0.16) (0.100,0.49) (0.125,0.77) (0.150,0.95) (0.175,1.02) (0.200,1.00) (0.225,0.93) (0.250,0.84) (0.275,0.76) (0.300,0.69) (0.325,0.63) (0.350,0.59) (0.375,0.55) (0.400,0.50) (0.425,0.43) (0.450,0.34) (0.475,0.22) (0.500,0.08) (0.525,-0.07) (0.550,-0.23) (0.575,-0.37) (0.600,-0.50) (0.625,-0.60) (0.650,-0.67) (0.675,-0.71) (0.700,-0.72) (0.725,-0.71) (0.750,-0.71) (0.775,-0.71) (0.800,-0.73) (0.825,-0.78) (0.850,-0.83) (0.875,-0.86) (0.900,-0.85) (0.925,-0.73) (0.950,-0.46) (0.975,0.01) (1.000,0.69)};
+\addplot[trapred!85, thin] coordinates {(0.000,-1.39) (0.025,-0.40) (0.050,0.28) (0.075,0.72) (0.100,0.98) (0.125,1.12) (0.150,1.18) (0.175,1.19) (0.200,1.18) (0.225,1.15) (0.250,1.11) (0.275,1.06) (0.300,0.99) (0.325,0.89) (0.350,0.78) (0.375,0.65) (0.400,0.51) (0.425,0.36) (0.450,0.21) (0.475,0.07) (0.500,-0.05) (0.525,-0.16) (0.550,-0.25) (0.575,-0.33) (0.600,-0.41) (0.625,-0.49) (0.650,-0.59) (0.675,-0.70) (0.700,-0.84) (0.725,-0.98) (0.750,-1.12) (0.775,-1.22) (0.800,-1.26) (0.825,-1.18) (0.850,-0.96) (0.875,-0.60) (0.900,-0.15) (0.925,0.25) (0.950,0.33) (0.975,-0.41) (1.000,-2.73)};
+\addplot[trapred!85, thin] coordinates {(0.000,-6.01) (0.025,-0.48) (0.050,1.39) (0.075,1.56) (0.100,1.19) (0.125,0.83) (0.150,0.71) (0.175,0.84) (0.200,1.13) (0.225,1.47) (0.250,1.76) (0.275,1.93) (0.300,1.95) (0.325,1.82) (0.350,1.58) (0.375,1.26) (0.400,0.92) (0.425,0.59) (0.450,0.31) (0.475,0.09) (0.500,-0.07) (0.525,-0.18) (0.550,-0.27) (0.575,-0.35) (0.600,-0.45) (0.625,-0.58) (0.650,-0.73) (0.675,-0.89) (0.700,-1.05) (0.725,-1.16) (0.750,-1.19) (0.775,-1.14) (0.800,-0.99) (0.825,-0.76) (0.850,-0.52) (0.875,-0.32) (0.900,-0.24) (0.925,-0.30) (0.950,-0.41) (0.975,-0.25) (1.000,0.86)};
+\addplot[trapred!85, thin] coordinates {(0.000,-2.48) (0.025,-0.44) (0.050,0.28) (0.075,0.42) (0.100,0.37) (0.125,0.32) (0.150,0.33) (0.175,0.42) (0.200,0.54) (0.225,0.67) (0.250,0.78) (0.275,0.84) (0.300,0.86) (0.325,0.83) (0.350,0.77) (0.375,0.69) (0.400,0.59) (0.425,0.48) (0.450,0.36) (0.475,0.21) (0.500,0.05) (0.525,-0.14) (0.550,-0.36) (0.575,-0.59) (0.600,-0.83) (0.625,-1.04) (0.650,-1.22) (0.675,-1.33) (0.700,-1.36) (0.725,-1.29) (0.750,-1.13) (0.775,-0.90) (0.800,-0.66) (0.825,-0.47) (0.850,-0.39) (0.875,-0.46) (0.900,-0.67) (0.925,-0.85) (0.950,-0.62) (0.975,0.77) (1.000,4.59)};
+\addplot[trapred!85, thin] coordinates {(0.000,-1.86) (0.025,0.06) (0.050,0.62) (0.075,0.63) (0.100,0.54) (0.125,0.51) (0.150,0.60) (0.175,0.78) (0.200,0.98) (0.225,1.16) (0.250,1.27) (0.275,1.30) (0.300,1.24) (0.325,1.12) (0.350,0.95) (0.375,0.76) (0.400,0.58) (0.425,0.41) (0.450,0.27) (0.475,0.15) (0.500,0.04) (0.525,-0.06) (0.550,-0.18) (0.575,-0.33) (0.600,-0.49) (0.625,-0.68) (0.650,-0.87) (0.675,-1.05) (0.700,-1.19) (0.725,-1.27) (0.750,-1.28) (0.775,-1.22) (0.800,-1.10) (0.825,-0.96) (0.850,-0.86) (0.875,-0.81) (0.900,-0.84) (0.925,-0.84) (0.950,-0.58) (0.975,0.48) (1.000,3.29)};
+\addplot[black, very thick, dashed, domain=0:1, samples=80] {sin(360*x)};
+\end{axis}
+\end{tikzpicture}
+\caption{The same six datasets of $15$ noisy points, fitted two ways; dashed black is the
+truth. Left: the lines agree with each other but all miss the wave (bias). Right: the
+polynomials follow the wave on average but disagree wildly with each other, especially near
+the edges, where some shoot off the plot (variance).}
+\label{fig:ml-manyfits}
+\end{figure}
+
+Repeat this on $20{,}000$ simulated datasets. At each $x$, the average of the fitted curves
+gives the bias (its distance from the truth) and their spread gives the variance. Averaging
+both over $x\in[0,1]$, with $\sigma^2=0.09$:
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+model & bias$^2$ & variance & bias$^2$ + variance + $\sigma^2$ \\
+\midrule
+degree 1 & $0.200$ & $0.012$ & $0.302$ \\
+degree 3 & $0.005$ & $0.025$ & $0.120$ \\
+degree 9 & $0.000$ & $0.209$ & $0.299$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Degree 3 wins. It has enough flexibility to bend once up and once down, and not enough to chase
+noise. Degrees 1 and 9 score about the same, for opposite reasons.
+
+\begin{theorem}[Bias--variance decomposition]
+Let $y=f(x)+\eps$ with $\E[\eps]=0$, $\Var(\eps)=\sigma^2$, and let $\hat f$ be fitted on a
+random training set independent of the new noise $\eps$. At a fixed input $x$,
+\[
+\E\big[(y-\hat f(x))^2\big]
+= \underbrace{\sigma^2}_{\text{noise}}
++ \underbrace{\big(\E[\hat f(x)]-f(x)\big)^2}_{\text{bias}^2}
++ \underbrace{\Var\big(\hat f(x)\big)}_{\text{variance}} ,
+\]
+where the expectation is over both the training set and the new noise.
+\end{theorem}
+
+\begin{whybox}
+Write $y-\hat f = \eps + (f-\E\hat f) + (\E\hat f-\hat f)$. The three pieces are: fresh noise,
+a constant offset, and the fit's wobble around its own average. Square and take expectations.
+The cross terms vanish: $\eps$ is independent of the fit and has mean zero, and
+$\E\hat f-\hat f$ has mean zero by construction. What remains is the sum of the three squared
+pieces. No model can beat the noise term $\sigma^2$; it is the floor.
+\end{whybox}
+
+Plotted against flexibility, bias$^2$ falls, variance rises, and their sum with the noise floor
+traces the U of Figure~\ref{fig:ml-biasvar}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6cm,
+  xmin=1, xmax=12, ymin=0, ymax=1.1,
+  xlabel={model flexibility}, ylabel={expected squared error},
+  axis lines=left, legend style={at={(0.5,0.98)}, anchor=north, font=\small},
+  xtick={1,3,5,7,9,11},
+]
+\addplot[densityred, very thick, domain=1:12, samples=100] {0.9*exp(-0.55*(x-1)) + 0.02*exp(0.3*(x-1)) + 0.09};
+\addlegendentry{test error (sum)}
+\addplot[sourceblue, thick, domain=1:12, samples=100] {0.9*exp(-0.55*(x-1))};
+\addlegendentry{bias$^2$}
+\addplot[quotientorange, thick, domain=1:12, samples=100] {0.02*exp(0.3*(x-1))};
+\addlegendentry{variance}
+\addplot[gray, dashed, thick, domain=1:12] {0.09};
+\addlegendentry{noise $\sigma^2$}
+\addplot[only marks, mark=*, densityred] coordinates {(6.2,0.237)};
+\node[anchor=south, font=\small] at (axis cs:6.2,0.27) {sweet spot};
+\node[anchor=west, font=\small] at (axis cs:2.3,0.78) {underfitting};
+\node[anchor=east, font=\small] at (axis cs:11.8,0.78) {overfitting};
+\end{axis}
+\end{tikzpicture}
+\caption{The U-shaped test error is the sum of a falling bias$^2$ curve, a rising variance
+curve, and a constant noise floor. Cross-validation is a way of locating the bottom of the U
+from data.}
+\label{fig:ml-biasvar}
+\end{figure}
+
+\begin{connectionbox}
+Very large neural networks sometimes show \emph{double descent}: test error rises near the
+point where the model can just barely interpolate the data, then falls again as the model
+grows further. It does not contradict the decomposition above, which always holds. It says the
+variance curve need not keep rising forever once training finds the smoothest of the many
+interpolating solutions. Goodfellow et al.\ Ch.~5 discusses capacity in the classical picture.
+\end{connectionbox}
+
+\section{Regularisation: ridge and lasso}
+\label{sec:ml-reg}
+
+If variance is the problem, add bias on purpose. \textbf{Regularisation} adds a penalty to the
+training loss that discourages large coefficients:
+\begin{align*}
+\text{ridge:}\quad \hat\beta^{\text{ridge}} &= \argmin_\beta\; \textstyle\sum_i (y_i - x_i^\top\beta)^2 + \lambda\sum_j \beta_j^2,\\
+\text{lasso:}\quad \hat\beta^{\text{lasso}} &= \argmin_\beta\; \textstyle\sum_i (y_i - x_i^\top\beta)^2 + \lambda\sum_j |\beta_j|.
+\end{align*}
+Here $\lambda\ge0$ is a hyperparameter: the price per unit of coefficient size. $\lambda=0$
+gives ordinary least squares. Large $\lambda$ pushes every coefficient toward $0$. The
+features should be standardised first so that ``size'' means the same thing for each.
+
+\subsection{Shrinkage by hand}
+
+In the simplest case, where the features are uncorrelated and scaled to unit length
+(an orthonormal design), both penalties act on each least-squares coefficient
+$\hat\beta_j$ separately:
+\[
+\hat\beta_j^{\text{ridge}} = \frac{\hat\beta_j}{1+\lambda},
+\qquad
+\hat\beta_j^{\text{lasso}} = \operatorname{sign}(\hat\beta_j)\,\max\!\big(|\hat\beta_j| - \tfrac{\lambda}{2},\,0\big).
+\]
+Ridge shrinks every coefficient by the same factor. Lasso subtracts a fixed amount and stops at
+zero (\textbf{soft thresholding}). Take least-squares coefficients $(3.0,\ 1.0,\ -0.4)$ and
+$\lambda=1$:
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+& $\beta_1$ & $\beta_2$ & $\beta_3$ \\
+\midrule
+least squares & $3.0$ & $1.0$ & $-0.4$ \\
+ridge, $\lambda=1$ (divide by 2) & $1.5$ & $0.5$ & $-0.2$ \\
+lasso, $\lambda=1$ (subtract 0.5, floor at 0) & $2.5$ & $0.5$ & $0$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Lasso removed the small coefficient entirely. That is \textbf{variable selection} for free.
+Figure~\ref{fig:ml-shrink} draws both rules as functions.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=8.5cm, height=6.5cm,
+  xmin=-3, xmax=3, ymin=-3, ymax=3,
+  xlabel={least-squares coefficient $\hat\beta_j$}, ylabel={regularised coefficient},
+  axis lines=middle, legend pos=south east, legend style={font=\small},
+  xlabel style={at={(axis description cs:0.5,-0.08)}, anchor=north},
+  ylabel style={at={(axis description cs:-0.08,0.5)}, anchor=south, rotate=90},
+  xtick={-2,-1,1,2}, ytick={-2,-1,1,2},
+  xticklabels={$-2$,,,$2$}, yticklabels={$-2$,,,$2$},
+  ticklabel style={font=\small, fill=white, inner sep=1pt},
+]
+\addplot[gray, dashed, domain=-3:3] {x};
+\addlegendentry{no penalty}
+\addplot[sourceblue, thick, domain=-3:3] {x/2};
+\addlegendentry{ridge}
+\addplot[densityred, thick] coordinates {(-3,-2.5) (-0.5,0) (0.5,0) (3,2.5)};
+\addlegendentry{lasso}
+\end{axis}
+\end{tikzpicture}
+\caption{Shrinkage rules for $\lambda=1$ with an orthonormal design. Ridge (blue) scales every
+coefficient toward zero but never reaches it. Lasso (red) moves every coefficient by $0.5$
+and sets anything in $[-0.5,0.5]$ exactly to zero.}
+\label{fig:ml-shrink}
+\end{figure}
+
+\subsection{Why lasso gives exact zeros: the geometry}
+
+Each penalised problem is equivalent to a constrained one: minimise the squared error subject
+to $\sum\beta_j^2\le t$ (ridge) or $\sum|\beta_j|\le t$ (lasso), for some budget $t$ that
+shrinks as $\lambda$ grows. In two dimensions the ridge budget is a disc and the lasso budget
+is a diamond. The squared-error loss has elliptical contours centred on the least-squares
+solution. The answer is the first point where a growing ellipse touches the budget region.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.35]
+\begin{scope}
+\clip (-1.5,-1.4) rectangle (3.5,3.4);
+\draw[->, gray] (-1.4,0) -- (3.4,0) node[anchor=north east, black, font=\small] {$\beta_1$};
+\draw[->, gray] (0,-1.3) -- (0,3.3) node[anchor=north west, black, font=\small] {$\beta_2$};
+\fill[sourceblue!25] (0,0) circle (1);
+\draw[sourceblue, thick] (0,0) circle (1);
+\foreach \s in {0.35,0.7,1} {
+  \draw[densityred, rotate around={-30:(2,1.4)}] (2,1.4) ellipse ({0.819*\s} and {1.638*\s});
+}
+\fill (2,1.4) circle (1.3pt) node[anchor=south west, font=\small] {$\hat\beta^{\text{LS}}$};
+\fill[structurepurple] (0.957,0.289) circle (1.6pt);
+\draw[structurepurple, ->] (0.35,0.62) -- (0.9,0.32);
+\node[structurepurple, anchor=east, font=\small] at (0.4,0.65) {ridge};
+\end{scope}
+\node[font=\small] at (1,-1.65) {ridge: both coefficients shrink, neither is zero};
+\begin{scope}[xshift=5.4cm]
+\clip (-1.5,-1.4) rectangle (3.5,3.4);
+\draw[->, gray] (-1.4,0) -- (3.4,0) node[anchor=north east, black, font=\small] {$\beta_1$};
+\draw[->, gray] (0,-1.3) -- (0,3.3) node[anchor=north west, black, font=\small] {$\beta_2$};
+\fill[targetgreen!25] (1,0) -- (0,1) -- (-1,0) -- (0,-1) -- cycle;
+\draw[targetgreen!70!black, thick] (1,0) -- (0,1) -- (-1,0) -- (0,-1) -- cycle;
+\foreach \s in {0.35,0.7,1} {
+  \draw[densityred, rotate around={-30:(2,1.4)}] (2,1.4) ellipse ({0.872*\s} and {1.744*\s});
+}
+\fill (2,1.4) circle (1.3pt) node[anchor=south west, font=\small] {$\hat\beta^{\text{LS}}$};
+\fill[structurepurple] (1,0) circle (1.6pt);
+\node[structurepurple, anchor=north west, font=\small] at (1.1,-0.12) {lasso: $\beta_2=0$};
+\end{scope}
+\node[font=\small] at (6.4,-1.65) {lasso: the contour hits a corner};
+\end{tikzpicture}
+\caption{Constraint geometry. Red ellipses are contours of the squared error around the
+least-squares fit $\hat\beta^{\text{LS}}=(2,1.4)$. Left: the smallest contour touching the
+disc meets it at $(0.96,0.29)$. Right: it meets the diamond at the corner $(1,0)$. Corners sit
+on the axes, so lasso solutions often have exact zeros.}
+\label{fig:ml-constraint}
+\end{figure}
+
+\begin{intuitionbox}
+A disc has no corners, so the touching point can be anywhere on its rim and will almost never
+land exactly on an axis. A diamond is all corners and flat edges, and in high dimensions the
+corners and low-dimensional edges stick out. Expanding ellipses tend to hit them first. Each
+corner is a point where some coefficients are zero.
+\end{intuitionbox}
+
+\begin{connectionbox}
+Regularisation is a prior in disguise (Chapter 14). With Normal errors, ridge is the MAP
+estimate under independent Normal priors $\beta_j\sim\Normal(0,\tau^2)$, and $\lambda$ is the
+ratio $\sigma^2/\tau^2$. Lasso is the MAP estimate under Laplace priors, with density
+proportional to $e^{-|\beta_j|/b}$: two exponential tails glued back to back, with a sharp peak
+at zero. That peak plays the role of the diamond's corner.
+Weight decay in neural networks is ridge applied to every weight.
+\end{connectionbox}
+
+\section{Evaluating classifiers}
+\label{sec:ml-classify}
+
+\subsection{The confusion matrix}
+
+A spam filter scores $1000$ emails. $100$ are spam (the \textbf{positive} class) and $900$
+are not. It flags $110$ emails: $80$ spam and $30$ legitimate. Every prediction falls in one
+of four cells (Figure~\ref{fig:ml-confusion}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=2.6cm, y=1.3cm]
+\fill[targetgreen!25] (0,1) rectangle (1,2);
+\fill[trapred!18] (1,1) rectangle (2,2);
+\fill[trapred!18] (0,0) rectangle (1,1);
+\fill[targetgreen!25] (1,0) rectangle (2,1);
+\draw[thick] (0,0) rectangle (2,2); \draw[thick] (1,0) -- (1,2); \draw[thick] (0,1) -- (2,1);
+\node[align=center, font=\small] at (0.5,1.5) {TP $=80$\\true positive};
+\node[align=center, font=\small] at (1.5,1.5) {FP $=30$\\false positive};
+\node[align=center, font=\small] at (0.5,0.5) {FN $=20$\\false negative};
+\node[align=center, font=\small] at (1.5,0.5) {TN $=870$\\true negative};
+\node[font=\small] at (0.5,2.25) {actually spam};
+\node[font=\small] at (1.5,2.25) {actually not};
+\node[font=\small, anchor=east] at (-0.05,1.5) {flagged};
+\node[font=\small, anchor=east] at (-0.05,0.5) {not flagged};
+\node[font=\small, anchor=west] at (2.05,1.5) {$110$ flagged};
+\node[font=\small, anchor=west] at (2.05,0.5) {$890$ passed};
+\node[font=\small] at (0.5,-0.3) {$100$ spam};
+\node[font=\small] at (1.5,-0.3) {$900$ not spam};
+\end{tikzpicture}
+\caption{Confusion matrix for the spam filter. Green cells are correct, red cells are errors.
+Every classification metric is a ratio of these four counts.}
+\label{fig:ml-confusion}
+\end{figure}
+
+From the four counts:
+\begin{align*}
+\text{accuracy} &= \frac{TP+TN}{\text{all}} = \frac{80+870}{1000} = 0.95,\\
+\text{precision} &= \frac{TP}{TP+FP} = \frac{80}{110} \approx 0.727 \quad\text{(of the flagged, how many are spam)},\\
+\text{recall} = \text{TPR} &= \frac{TP}{TP+FN} = \frac{80}{100} = 0.80 \quad\text{(of the spam, how much was caught)},\\
+\text{FPR} &= \frac{FP}{FP+TN} = \frac{30}{900} \approx 0.033 \quad\text{(of the good mail, how much was flagged)}.
+\end{align*}
+Recall is also called \textbf{sensitivity} or \textbf{true positive rate} (TPR).
+$1-\text{FPR}=0.967$ is the \textbf{specificity}. The \textbf{F1 score} combines precision $P$
+and recall $R$ through their harmonic mean:
+\[
+F_1 = \frac{2PR}{P+R} = \frac{2(0.727)(0.80)}{0.727+0.80} \approx 0.762 .
+\]
+The harmonic mean is dragged toward the smaller of the two, so $F_1$ is high only when both
+are.
+
+\begin{trapbox}
+Accuracy $0.95$ sounds good until you notice that a filter that flags nothing scores
+$900/1000=0.90$. When classes are imbalanced, always compare against the ``predict the
+majority class'' baseline, and prefer precision and recall.
+\end{trapbox}
+
+\subsection{Scores, thresholds, and the ROC curve}
+
+Most classifiers output a \textbf{score} (often a predicted probability) and flag an example
+when the score exceeds a \textbf{threshold}. Moving the threshold trades one error for the
+other (Figure~\ref{fig:ml-scores}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=5.6cm,
+  xmin=-3.5, xmax=4.5, ymin=0, ymax=0.64,
+  xlabel={classifier score}, ylabel={density},
+  axis lines=left, legend pos=north east, legend style={font=\small},
+  ytick=\empty,
+]
+\addplot[area legend, fill=trapred!25, draw=none, domain=0.8:4.5, samples=60] {0.39894*exp(-x^2/2)} \closedcycle;
+\addlegendentry{false positives}
+\addplot[area legend, fill=quotientorange!35, draw=none, domain=-3.5:0.8, samples=60] {0.39894*exp(-(x-1.2)^2/2)} \closedcycle;
+\addlegendentry{false negatives}
+\addplot[sourceblue, thick, domain=-3.5:4.5, samples=120] {0.39894*exp(-x^2/2)};
+\addlegendentry{negatives}
+\addplot[densityred, thick, domain=-3.5:4.5, samples=120] {0.39894*exp(-(x-1.2)^2/2)};
+\addlegendentry{positives}
+\draw[very thick, black] (axis cs:0.8,0) -- (axis cs:0.8,0.47);
+\node[anchor=south east, font=\small] at (axis cs:0.78,0.44) {threshold};
+\end{axis}
+\end{tikzpicture}
+\caption{Score distributions for negatives and positives that overlap. Everything right of the
+threshold is flagged. Sliding it right shrinks the false positives (red) and grows the false
+negatives (orange). No threshold removes both.}
+\label{fig:ml-scores}
+\end{figure}
+
+The \textbf{ROC curve} (receiver operating characteristic) plots TPR against FPR for every
+possible threshold. Here are $10$ test examples sorted by score, with true labels ($+$ = positive):
+
+\begin{center}
+\begin{tabular}{l*{10}{c}}
+\toprule
+score & $0.95$ & $0.90$ & $0.80$ & $0.70$ & $0.60$ & $0.55$ & $0.45$ & $0.40$ & $0.30$ & $0.20$\\
+label & $+$ & $+$ & $-$ & $+$ & $+$ & $-$ & $-$ & $+$ & $-$ & $-$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+There are $5$ positives and $5$ negatives. Start with the threshold above every score: nothing
+flagged, $(\text{FPR},\text{TPR})=(0,0)$. Lower the threshold past one example at a time. Each
+positive moves the point up by $1/5$; each negative moves it right by $1/5$. The path is
+\[
+\begin{gathered}
+(0,0)\to(0,0.2)\to(0,0.4)\to(0.2,0.4)\to(0.2,0.6)\to(0.2,0.8)\\
+\to(0.4,0.8)\to(0.6,0.8)\to(0.6,1)\to(0.8,1)\to(1,1).
+\end{gathered}
+\]
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=7.5cm, height=7.5cm,
+  xmin=0, xmax=1, ymin=0, ymax=1.02,
+  xlabel={false positive rate}, ylabel={true positive rate},
+  axis lines=left, xtick={0,0.2,0.4,0.6,0.8,1}, ytick={0,0.2,0.4,0.6,0.8,1},
+  grid=major, grid style={gray!20},
+]
+\addplot[fill=histfill!45, draw=none] coordinates {
+(0,0) (0,0.4) (0.2,0.4) (0.2,0.8) (0.6,0.8) (0.6,1) (1,1) (1,0)} -- cycle;
+\addplot[distblue, very thick, mark=*, mark size=1.6pt] coordinates {
+(0,0) (0,0.2) (0,0.4) (0.2,0.4) (0.2,0.6) (0.2,0.8) (0.4,0.8) (0.6,0.8) (0.6,1) (0.8,1) (1,1)};
+\addplot[gray, dashed, domain=0:1] {x};
+\node[font=\small, fill=white, inner sep=1pt] at (axis cs:0.62,0.42) {AUC $=0.80$};
+\node[font=\small, gray, rotate=45] at (axis cs:0.8,0.7) {random};
+\end{axis}
+\end{tikzpicture}
+\caption{ROC curve for the $10$ scored examples. Each up-step is a positive, each right-step a
+negative, taken in score order. The shaded area is $0.80$. The dashed diagonal is a classifier
+that guesses at random.}
+\label{fig:ml-roc}
+\end{figure}
+
+\begin{definition}[AUC]
+The \textbf{AUC} is the area under the ROC curve. Equivalently, it is the probability that a
+randomly chosen positive gets a higher score than a randomly chosen negative (ties count
+one half).
+\end{definition}
+
+Check the equivalence on our data. There are $5\times5=25$ positive--negative pairs. Count the
+pairs in which the positive outscores the negative: the positive at $0.95$ beats all $5$
+negatives, $0.90$ beats $5$, $0.70$ beats $4$, $0.60$ beats $4$, and $0.40$ beats $2$. Total
+$20$, and $20/25 = 0.80$, matching the area. The area interpretation is a picture; the pairs
+interpretation is the one to remember. It is the Mann--Whitney $U$ statistic of Chapter 10
+divided by the number of pairs.
+
+\begin{recoverybox}
+Pause and think: what AUC does a classifier get if it outputs the same score for every
+example? (One half. Every pair is a tie.) What if you flip the sign of every score of a model
+with AUC $0.80$? ($0.20$.)
+\end{recoverybox}
+
+\begin{historybox}
+ROC curves come from radar. During the Second World War, operators watched noisy screens and
+had to call each blip ``aircraft'' or ``noise''. A jumpy operator caught every plane and raised
+many false alarms; a cautious one missed planes. Engineers wanted to compare the
+\emph{receivers} (the radar sets) without mixing in each operator's caution. Their answer was to
+plot hit rate against false-alarm rate across all levels of caution. In 1954 Peterson, Birdsall
+and Fox turned this into signal detection theory, and psychologists Green and Swets used it in
+the 1960s to separate what a listener can hear from how willing they are to say ``yes''.
+Hanley and McNeil (1982) showed medical researchers that the area under the curve equals the
+probability of ranking a random sick patient above a random healthy one. That is the AUC every
+ML dashboard now reports.
+\end{historybox}
+
+\subsection{Precision--recall curves and base rates}
+
+ROC curves ignore how common positives are: TPR is computed within positives, FPR within
+negatives. Precision mixes the two, so it depends on the \textbf{base rate} (the fraction of
+examples that are positive). The \textbf{precision--recall (PR) curve} plots precision against
+recall across thresholds. For our $10$ examples, flagging the top $k$ for $k=1,\dots,10$ gives
+recall $=(\text{positives flagged})/5$ and precision $=(\text{positives flagged})/k$:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=8cm, height=6.2cm,
+  xmin=0, xmax=1.05, ymin=0, ymax=1.08,
+  xlabel={recall}, ylabel={precision},
+  axis lines=left, grid=major, grid style={gray!20},
+]
+\addplot[densityred, very thick, mark=*, mark size=1.6pt] coordinates {
+(0.2,1.0) (0.4,1.0) (0.4,0.667) (0.6,0.75) (0.8,0.8) (0.8,0.667) (0.8,0.571) (1.0,0.625) (1.0,0.556) (1.0,0.5)};
+\addplot[gray, dashed, domain=0:1.05] {0.5};
+\node[gray, font=\small, anchor=north west] at (axis cs:0.03,0.48) {base rate $0.5$ (random)};
+\node[font=\small, anchor=south west] at (axis cs:0.21,1.0) {$k=1$};
+\node[font=\small, anchor=north east] at (axis cs:0.98,0.48) {$k=10$};
+\end{axis}
+\end{tikzpicture}
+\caption{Precision--recall curve for the same $10$ examples. It zigzags: each negative crossed
+drops precision. A random classifier's precision equals the base rate, so the floor of this
+plot moves with how rare positives are.}
+\label{fig:ml-pr}
+\end{figure}
+
+Base rates can turn a good classifier into a disappointing one. Keep the spam filter's
+$\text{TPR}=0.8$ and $\text{FPR}=1/30$, and deploy it where only $1\%$ of $100{,}000$ emails
+are spam. It catches $0.8\times1000 = 800$ spam and flags $99{,}000/30 = 3300$ good emails.
+Precision is
+\[
+\frac{800}{800+3300} \approx 0.195 .
+\]
+Four out of five flags are now wrong, with the same ROC point. In general
+\[
+\text{precision} = \frac{\text{TPR}\cdot\pi}{\text{TPR}\cdot\pi + \text{FPR}\cdot(1-\pi)},
+\]
+where $\pi$ is the base rate. This is Bayes' rule (Chapter 14) with the classifier as the test.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10.5cm, height=5.8cm,
+  xmode=log, xmin=0.001, xmax=0.5, ymin=0, ymax=1,
+  xlabel={base rate $\pi$ (fraction positive, log scale)}, ylabel={precision},
+  axis lines=left, grid=major, grid style={gray!20},
+  xtick={0.001,0.01,0.1,0.5}, xticklabels={$0.001$,$0.01$,$0.1$,$0.5$},
+]
+\addplot[structurepurple, very thick, domain=0.001:0.5, samples=120] {0.8*x/(0.8*x + (1-x)/30)};
+\addplot[only marks, mark=*, densityred] coordinates {(0.1,0.727) (0.01,0.195)};
+\node[font=\small, anchor=east] at (axis cs:0.09,0.75) {test set: $0.727$};
+\node[font=\small, anchor=west] at (axis cs:0.011,0.17) {deployment: $0.195$};
+\end{axis}
+\end{tikzpicture}
+\caption{Precision of a fixed classifier ($\text{TPR}=0.8$, $\text{FPR}=1/30$) as the base rate
+changes. Same model, same ROC point, wildly different precision. Report the base rate with
+every precision number.}
+\label{fig:ml-baserate}
+\end{figure}
+
+Use ROC/AUC when you care about ranking quality independent of class balance. Use PR curves
+when positives are rare and the cost of a false alarm matters, as in fraud, search, and
+medical screening.
+
+\subsection{Calibration}
+
+A weather forecaster who says ``$70\%$ chance of rain'' is \textbf{calibrated} if it rains on
+about $70\%$ of such days. A classifier is calibrated if, among examples it scores near $0.7$,
+about $70\%$ are positive. AUC cannot see calibration: squaring every score leaves the ranking,
+and hence the AUC, unchanged, while wrecking the probabilities.
+
+To check, sort $1000$ test predictions into ten bins by predicted probability and compare each
+bin's mean prediction with the fraction of positives in it. The result is a
+\textbf{reliability diagram} (Figure~\ref{fig:ml-calib}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=7.8cm, height=7.8cm,
+  xmin=0, xmax=1, ymin=0, ymax=1,
+  xlabel={mean predicted probability in bin}, ylabel={observed fraction positive},
+  axis lines=left, grid=major, grid style={gray!20},
+  legend pos=north west, legend style={font=\small},
+  xtick={0,0.2,0.4,0.6,0.8,1}, ytick={0,0.2,0.4,0.6,0.8,1},
+]
+\addplot[gray, dashed, domain=0:1] {x};
+\addlegendentry{perfect calibration}
+\addplot[ybar, area legend, bar width=0.07, fill=histfill!70, draw=distblue] coordinates {
+(0.05,0.12) (0.15,0.20) (0.25,0.31) (0.35,0.39) (0.45,0.47) (0.55,0.53) (0.65,0.59) (0.75,0.66) (0.85,0.72) (0.95,0.80)};
+\addlegendentry{model}
+\end{axis}
+\end{tikzpicture}
+\caption{Reliability diagram for an overconfident model. Bars below the diagonal on the right
+mean that predictions of $0.95$ come true only $80\%$ of the time; bars above it on the left
+mean predictions of $0.05$ come true $12\%$ of the time.}
+\label{fig:ml-calib}
+\end{figure}
+
+A one-number summary is the \textbf{expected calibration error} (ECE): the bin-size-weighted
+average of $|\text{mean prediction}-\text{observed fraction}|$. With bin sizes
+$300,120,80,60,50,50,60,80,100,100$ for the ten bins above, the gaps are
+$0.07,0.05,0.06,0.04,0.02,0.02,0.06,0.09,0.13,0.15$, and
+\[
+\text{ECE} = \frac{300(0.07)+120(0.05)+\cdots+100(0.15)}{1000} = \frac{75}{1000} = 0.075 .
+\]
+Overconfidence of this shape is common in large neural networks. A cheap fix is to refit a
+one-parameter rescaling of the scores on the validation set (temperature scaling, a close cousin
+of logistic regression from Chapter 13).
+
+\section{Uncertainty in ML metrics}
+\label{sec:ml-uncertainty}
+
+A test-set metric is a statistic computed from a sample. It has a standard error. A
+leaderboard that reports ``$87.0\%$ vs $86.4\%$'' without one is reporting noise as often as
+signal.
+
+\subsection{A confidence interval for accuracy}
+
+Each test example is a Bernoulli trial: right ($1$) or wrong ($0$). If the test examples are
+i.i.d., the number correct is Binomial, and accuracy is a sample proportion. Chapter 7's
+interval applies directly. With $435$ correct out of $n=500$, $\hat a = 0.87$:
+\[
+\SE = \sqrt{\frac{\hat a(1-\hat a)}{n}} = \sqrt{\frac{0.87\times0.13}{500}} \approx 0.0150,
+\qquad
+0.87 \pm 1.96\times0.0150 = [0.841,\ 0.899].
+\]
+The true accuracy could plausibly be anywhere from $84\%$ to $90\%$. To pin accuracy near
+$0.9$ to $\pm1$ point at $95\%$ confidence you need
+$n\approx 1.96^2(0.9)(0.1)/0.01^2\approx 3460$ test examples. For accuracies near $0$ or $1$
+or small $n$, use the Wilson interval instead (second line of output below).
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+from scipy import stats
+k, n = 435, 500
+a = k / n; se = np.sqrt(a * (1 - a) / n)
+print(a - 1.96 * se, a + 1.96 * se)          # Wald: 0.841, 0.899
+print(stats.binomtest(k, n).proportion_ci(method="wilson"))  # 0.838, 0.897
+\end{lstlisting}
+
+\subsection{A bootstrap interval for AUC}
+
+AUC has no simple standard-error formula worth memorising. The bootstrap (Chapter 8) handles
+it: resample the test set with replacement, recompute AUC, repeat, and read off percentiles.
+Resample positives and negatives separately so every replicate keeps the same class balance.
+
+On a test set of $60$ positives and $60$ negatives, a model scores AUC $=0.769$. Two thousand
+stratified bootstrap replicates give the histogram in Figure~\ref{fig:ml-bootauc}. The middle
+$95\%$ runs from $0.680$ to $0.852$, and the bootstrap SE is $0.043$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5.6cm,
+  xmin=0.6, xmax=0.95, ymin=0, ymax=470, clip=false,
+  xlabel={bootstrap AUC}, ylabel={count (of 2000)},
+  axis lines=left, xtick={0.60,0.65,0.70,0.75,0.80,0.85,0.90},
+  xticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2},
+]
+\addplot[ybar interval, fill=bootorange!55, draw=bootorange!80!black] coordinates {
+(0.60,2) (0.62,2) (0.64,16) (0.66,31) (0.68,63) (0.70,133) (0.72,231) (0.74,304)
+(0.76,354) (0.78,368) (0.80,260) (0.82,141) (0.84,66) (0.86,23) (0.88,6) (0.90,0)};
+\draw[densityred, very thick, dashed] (axis cs:0.680,0) -- (axis cs:0.680,390);
+\draw[densityred, very thick, dashed] (axis cs:0.852,0) -- (axis cs:0.852,390);
+\draw[black, thick] (axis cs:0.769,0) -- (axis cs:0.769,425);
+\node[font=\small, anchor=east, densityred] at (axis cs:0.678,370) {$2.5\%$: $0.680$};
+\node[font=\small, anchor=west, densityred] at (axis cs:0.854,370) {$97.5\%$: $0.852$};
+\node[font=\small, anchor=south] at (axis cs:0.769,425) {observed $0.769$};
+\end{axis}
+\end{tikzpicture}
+\caption{Bootstrap distribution of AUC on a $120$-example test set. The $95\%$ percentile
+interval is nearly $0.17$ wide. Small test sets give AUCs that are much less precise than their
+three decimal places suggest.}
+\label{fig:ml-bootauc}
+\end{figure}
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+rng = np.random.default_rng(0)
+def auc(p, n):                      # P(pos score > neg score), ties = 1/2
+    return np.mean(p[:, None] > n) + 0.5 * np.mean(p[:, None] == n)
+def boot_auc(pos, neg, B=2000):
+    reps = [auc(rng.choice(pos, len(pos)), rng.choice(neg, len(neg)))
+            for _ in range(B)]
+    return np.percentile(reps, [2.5, 97.5])
+\end{lstlisting}
+
+\subsection{Comparing two models on the same test set}
+
+Model A gets $435/500$ right and model B gets $420/500$. Is A better, or did it get lucky? Two
+separate confidence intervals overlap heavily, but that comparison throws away information:
+both models were scored on the \emph{same} examples. This is paired data, like the
+before/after measurements of Chapter 9. Only the examples where the models disagree carry
+evidence about which is better.
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+& B right & B wrong \\
+\midrule
+A right & $395$ & $b=40$ \\
+A wrong & $c=25$ & $40$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Check the margins: A is right on $395+40=435$, B on $395+25=420$. If the models were equally
+good, each of the $b+c=65$ disagreements would be a fair coin flip between ``A wins'' and
+``B wins''. \textbf{McNemar's test} asks whether $40$ versus $25$ is a surprising split for $65$
+fair flips:
+\[
+\chi^2 = \frac{(b-c)^2}{b+c} = \frac{(40-25)^2}{65} = \frac{225}{65} \approx 3.46,
+\qquad p \approx 0.063 \ \ (\chi^2 \text{ with 1 df}).
+\]
+The exact binomial version (count $\le 25$ or $\ge 40$ out of $65$ under $p=1/2$) gives
+$p\approx0.082$. The three-point accuracy gap is suggestive but not convincing on $500$
+examples.
+
+\begin{lstlisting}[language=Python]
+from scipy import stats
+b, c = 40, 25                         # discordant pairs
+chi2 = (b - c)**2 / (b + c)
+print(chi2, stats.chi2.sf(chi2, 1))   # 3.46, 0.063
+print(stats.binomtest(c, b + c, 0.5).pvalue)   # exact: 0.082
+\end{lstlisting}
+
+For metrics that are not per-example averages (AUC, F1), use a \textbf{paired bootstrap}:
+resample test-example indices with replacement, compute the metric for \emph{both} models on
+the same resample, record the difference, and look at the percentile interval of the
+differences. If it excludes zero, the gap is unlikely to be resampling noise.
+
+\begin{trapbox}
+Comparing a new model against a baseline across $20$ random seeds and $10$ benchmarks, then
+reporting the one where it wins, is the garden of forking paths from Chapter 11. Decide the
+comparison in advance, and correct for the number of comparisons you actually ran.
+\end{trapbox}
+
+\section{Stochastic gradients are Monte Carlo estimates}
+\label{sec:ml-sgd}
+
+Gradient descent minimises the training loss by repeatedly stepping downhill:
+$\theta \leftarrow \theta - \eta\,\nabla_\theta \hat R_n(\theta)$, where the \textbf{learning
+rate} $\eta$ is the step size. The gradient of an average is the average of the gradients:
+\[
+\nabla_\theta \hat R_n(\theta) = \frac1n\sum_{i=1}^n \nabla_\theta\,\ell_i(\theta),
+\qquad \ell_i(\theta) = \ell\big(f_\theta(x_i),y_i\big).
+\]
+With $n$ in the millions, computing all $n$ terms per step is wasteful. \textbf{Stochastic
+gradient descent} (SGD) instead averages over a random \textbf{minibatch} of $B$ examples. That
+is exactly a sample mean estimating a population mean, where the ``population'' is the $n$
+per-example gradients. An average of random draws used to estimate an expectation is called a
+\textbf{Monte Carlo estimate}; the bootstrap of Chapter 8 was one too.
+
+\subsection{By hand: four points}
+
+Fit $f_\theta(x)=\theta x$ with squared loss to $x=(1,2,3,4)$, $y=(2,5,5,9)$, at the current
+value $\theta=1$. The per-example gradient is $-2x_i(y_i-\theta x_i)$:
+\[
+g = \big(-2(1)(1),\ -2(2)(3),\ -2(3)(2),\ -2(4)(5)\big) = (-2,\ -12,\ -12,\ -40),
+\qquad \bar g = -16.5 .
+\]
+The six possible minibatches of size $B=2$ give gradient estimates
+\[
+\tfrac{-2-12}{2}=-7,\ \ \tfrac{-2-12}{2}=-7,\ \ \tfrac{-2-40}{2}=-21,\ \
+\tfrac{-12-12}{2}=-12,\ \ \tfrac{-12-40}{2}=-26,\ \ \tfrac{-12-40}{2}=-26.
+\]
+Their average is $(-7-7-21-12-26-26)/6 = -99/6 = -16.5$, the full gradient. So the minibatch
+gradient is \textbf{unbiased}. It is noisy: single examples ($B=1$) give estimates with
+variance $200.75$; pairs give variance $66.9$. In general the variance falls like $1/B$, so the
+standard error falls like $1/\sqrt B$, the same $\sigma/\sqrt n$ law as Chapter 6. (Here the
+drop is a bit faster than $1/B$ because we sample without replacement from only four points.)
+
+\begin{happeningbox}
+Read the true objective as $R(\theta)=\E_{(x,y)\sim p}[\ell]$. Then each fresh minibatch is a
+Monte Carlo estimate of $\nabla R(\theta)$ itself, not just of the training-set gradient. In one
+pass over fresh data, SGD is directly descending the expected risk. That is why papers write
+the gradient as $\E_{(x,y)\sim p}[\nabla_\theta\ell]$ and then approximate it with a batch
+average in the next line.
+\end{happeningbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1.75cm, y=1.75cm]
+\begin{scope}
+\clip (-1.8,-0.8) rectangle (2.4,3.2);
+\foreach \c/\a/\b in {0.1/0.177/0.478, 0.5/0.396/1.070, 1.5/0.686/1.853, 3.5/1.049/2.830, 7/1.483/4.002} {
+  \draw[gray!60, rotate around={63.08:(1.204,1.952)}] (1.204,1.952) ellipse ({\a} and {\b});
+}
+\draw[sourceblue, very thick, -{Stealth[length=2mm]}] plot coordinates {
+(-1.50,-0.50) (-0.17,1.73) (0.25,2.22) (0.43,2.29) (0.55,2.27) (0.64,2.23) (0.72,2.20)
+(0.78,2.17) (0.84,2.14) (0.89,2.11) (0.93,2.09) (0.97,2.07) (1.00,2.06) (1.03,2.04)
+(1.05,2.03) (1.07,2.02) (1.09,2.01) (1.10,2.00) (1.12,2.00) (1.13,1.99) (1.14,1.98)};
+\draw[densityred, thick] plot coordinates {
+(-1.50,-0.50) (0.11,2.74) (0.61,2.50) (0.84,2.67) (0.46,1.87) (0.56,1.83) (0.72,2.46)
+(0.45,1.74) (0.75,2.16) (0.74,2.16) (0.87,1.97) (0.92,2.17) (0.74,1.75) (1.11,1.84)
+(1.25,1.98) (0.72,1.63) (1.18,2.40) (1.18,2.40) (0.70,1.20) (1.16,2.44) (0.95,1.99)};
+\fill (1.204,1.952) circle (1.5pt);
+\fill (-1.5,-0.5) circle (1.5pt);
+\end{scope}
+\draw[gray] (-1.8,-0.8) rectangle (2.4,3.2);
+\node[font=\small, anchor=north west] at (-1.5,-0.5) {start};
+\draw[black, thin] (1.24,1.952) -- (1.45,1.952);
+\node[font=\small, anchor=west, fill=white, inner sep=1pt] at (1.45,1.952) {minimum};
+\node[font=\small, anchor=west, sourceblue, fill=white, inner sep=1pt] at (-1.75,3.0) {full-batch gradient descent};
+\node[font=\small, anchor=west, densityred, fill=white, inner sep=1pt] at (-1.75,2.7) {SGD with $B=1$};
+\node[font=\small] at (0.3,-1.0) {intercept $\theta_0$};
+\node[font=\small, rotate=90] at (-2.0,1.2) {slope $\theta_1$};
+\end{tikzpicture}
+\caption{Gradient descent on a two-parameter linear regression ($200$ points), plotted every
+second step. Grey ellipses are contours of the training loss. Full-batch steps (blue) glide
+smoothly to the minimum. Single-example steps (red) point downhill only on average, so the path
+jitters around the minimum instead of settling. Larger batches or a shrinking learning rate
+reduce the jitter.}
+\label{fig:ml-sgd}
+\end{figure}
+
+\section{Covariance matrices, the multivariate Normal, and PCA}
+\label{sec:ml-cov}
+
+ML inputs are vectors. A house is (area, age, distance to centre); an image is a million
+pixels. The spread of a vector needs more than one number.
+
+\subsection{The covariance matrix}
+
+Six points in two dimensions:
+\[
+(2,1),\ (3,3),\ (4,3),\ (5,5),\ (6,4),\ (4,2).
+\]
+The mean is $(4,3)$. The deviations from the mean are
+$(-2,-2),(-1,0),(0,0),(1,2),(2,1),(0,-1)$. Using the $n-1=5$ divisor from Chapter 2:
+\[
+s_{11} = \tfrac{4+1+0+1+4+0}{5} = 2,\qquad
+s_{22} = \tfrac{4+0+0+4+1+1}{5} = 2,\qquad
+s_{12} = \tfrac{4+0+0+2+2+0}{5} = 1.6 .
+\]
+Stack them into the \textbf{sample covariance matrix}
+\[
+S = \begin{pmatrix} 2 & 1.6 \\ 1.6 & 2 \end{pmatrix}.
+\]
+The diagonal holds each coordinate's variance. The off-diagonal holds the covariance of
+Chapter 4; dividing by the SDs gives the correlation $1.6/\sqrt{2\cdot2}=0.8$. In general, for
+data vectors $x_i\in\R^d$ with mean $\bar x$,
+\[
+S = \frac{1}{n-1}\sum_{i=1}^n (x_i-\bar x)(x_i-\bar x)^\top ,
+\]
+a $d\times d$ symmetric matrix. Its population version is
+$\Sigma = \E[(x-\mu)(x-\mu)^\top]$.
+
+\subsection{The multivariate Normal}
+
+The \textbf{multivariate Normal} $\Normal(\mu,\Sigma)$ is the bell curve in $d$ dimensions. Its
+density is
+\[
+p(x) = \frac{1}{(2\pi)^{d/2}\,|\Sigma|^{1/2}}
+\exp\!\Big(-\tfrac12 (x-\mu)^\top\Sigma^{-1}(x-\mu)\Big).
+\]
+The exponent is a squared distance that measures each direction in units of that direction's
+spread. Its contours are ellipses centred at $\mu$, with axes along the eigenvectors of
+$\Sigma$ and half-lengths proportional to the square roots of the eigenvalues. When $d=1$ it
+reduces to the familiar $\Normal(\mu,\sigma^2)$ density. Bishop Ch.~2 is the standard reference.
+
+\subsection{PCA: the directions of greatest spread}
+
+An \textbf{eigenvector} of $S$ is a direction $v$ that $S$ only stretches, never turns:
+$Sv=\lambda v$, and the stretch factor $\lambda$ (no relation to the ridge penalty) is its
+\textbf{eigenvalue}. For a covariance
+matrix, the eigenvalue is the variance of the data measured along $v$, so the eigenvectors are
+the directions along which the data are most and least spread out. For our $S$, the eigenvalues are $2+1.6=3.6$ and $2-1.6=0.4$, with eigenvectors
+$(1,1)/\sqrt2$ and $(1,-1)/\sqrt2$. Check one: $S(1,1)^\top = (3.6,3.6)^\top = 3.6\,(1,1)^\top$.
+
+\textbf{Principal component analysis} (PCA) uses these directions as new axes. The first
+principal component points along $(1,1)/\sqrt2$, and the variance of the data projected onto it
+is $3.6$. The total variance is $2+2=4$, so the first component captures $3.6/4=90\%$ of it.
+Dropping the second component compresses each point from two numbers to one while losing only
+$10\%$ of the variance.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.9]
+\draw[step=1, gray!20] (0.5,-0.5) grid (7.5,6.5);
+\draw[->, gray] (0.5,0) -- (7.6,0) node[anchor=north east, black, font=\small] {$x_1$};
+\draw[->, gray] (1,-0.5) -- (1,6.6) node[anchor=north west, black, font=\small] {$x_2$};
+\foreach \x in {2,...,6} { \node[font=\scriptsize, anchor=north] at (\x,0) {\x}; }
+\foreach \y in {1,...,6} { \node[font=\scriptsize, anchor=east] at (1,\y) {\y}; }
+\draw[densityred, thick, rotate around={45:(4,3)}] (4,3) ellipse ({2*1.897} and {2*0.632});
+\foreach \p in {(2,1),(3,3),(4,3),(5,5),(6,4),(4,2)} { \fill[sourceblue] \p circle (2.6pt); }
+\draw[structurepurple, very thick, -{Stealth[length=2.5mm]}] (4,3) -- ({4+1.342},{3+1.342});
+\draw[targetgreen!70!black, very thick, -{Stealth[length=2.5mm]}] (4,3) -- ({4+0.447},{3-0.447});
+\node[structurepurple, font=\small, anchor=west] at (1.3,5.6) {PC1, variance $3.6$};
+\node[targetgreen!70!black, font=\small, anchor=west] at (5.0,1.3) {PC2, variance $0.4$};
+\fill (4,3) circle (1.5pt);
+\end{tikzpicture}
+\caption{Six points with covariance matrix $S$. The arrows are the eigenvectors of $S$, each
+drawn with length equal to its standard deviation ($\sqrt{3.6}\approx1.90$ and
+$\sqrt{0.4}\approx0.63$). The red ellipse is the 2-SD contour of a Normal with this covariance.
+PCA keeps the long axis.}
+\label{fig:ml-pca}
+\end{figure}
+
+\begin{connectionbox}
+PCA, Gaussian mixture models, Gaussian processes, and the Kalman filter are all built on
+covariance matrices. The initialisation schemes and normalisation layers in deep learning are
+attempts to keep the covariance of activations close to the identity matrix. ISLR Ch.~12 and
+Bishop Ch.~12 cover PCA in full.
+\end{connectionbox}
+
+\section{What you can now read}
+\label{sec:ml-reading}
+
+The statistical half of the standard ML texts is now familiar ground. Table~\ref{tab:ml-map}
+maps their early chapters to this book.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{p{4.6cm} p{4.6cm} p{3.6cm}}
+\toprule
+\textbf{Text and chapter} & \textbf{Topic} & \textbf{Where it is here} \\
+\midrule
+ISLR Ch.~2 & bias--variance, train vs test MSE & Ch.~14, Sec.~\ref{sec:ml-biasvar} \\
+ISLR Ch.~3--4 & linear and logistic regression & Ch.~12--13 \\
+ISLR Ch.~5 & cross-validation, bootstrap & Ch.~8, Sec.~\ref{sec:ml-splits} \\
+ISLR Ch.~6 & ridge, lasso, model selection & Sec.~\ref{sec:ml-reg} \\
+ISLR Ch.~12 & PCA & Sec.~\ref{sec:ml-cov} \\
+Bishop Ch.~1 & curve fitting, overfitting, Bayes, decision theory & Ch.~14, Secs.~\ref{sec:ml-risk}--\ref{sec:ml-biasvar} \\
+Bishop Ch.~2 & Bernoulli, Binomial, Gaussian, MLE & Ch.~6, 14, Sec.~\ref{sec:ml-cov} \\
+Bishop Ch.~3 & linear basis models, regularisation, bias--variance & Ch.~12, Secs.~\ref{sec:ml-biasvar}--\ref{sec:ml-reg} \\
+Goodfellow Ch.~3 & probability, expectation, covariance, Gaussians & Sec.~\ref{sec:ml-notation}, \ref{sec:ml-cov} \\
+Goodfellow Ch.~5 & capacity, validation, estimators, bias/variance, MLE, SGD & this whole chapter, Ch.~14 \\
+\bottomrule
+\end{tabular}
+\caption{Reading map. ISLR is James, Witten, Hastie and Tibshirani,
+\emph{An Introduction to Statistical Learning} (2nd ed.). Bishop is \emph{Pattern Recognition
+and Machine Learning}. Goodfellow is Goodfellow, Bengio and Courville, \emph{Deep Learning}.}
+\label{tab:ml-map}
+\end{table}
+
+When a page gets dense, apply the decoder: find each expectation and ask ``average of what, over
+which distribution?''; find each hat and ask ``estimated from which data?''; find each reported
+number and ask ``what is its standard error?''
+
+\section{Summary}
+
+\begin{itemize}
+  \item $\E_{x\sim p}$ is an average over the world; $\frac1n\sum_i$ is the same average over
+  your data ($\E_{x\sim\hat p}$). Hats mark estimates; $\argmin$ is a location.
+  \item ERM minimises empirical risk. Its training loss is optimistic; the generalisation gap
+  $R(\hat f)-\hat R_n(\hat f)$ grows with flexibility.
+  \item Train / validation / test: fit, choose, report. $k$-fold CV reuses data for choosing.
+  Every data-dependent preprocessing step goes inside the split.
+  \item Expected test error $=\sigma^2 + \text{bias}^2 + \text{variance}$. Flexibility trades
+  bias for variance and the sum is U-shaped.
+  \item Ridge divides coefficients toward zero; lasso subtracts toward zero and produces exact
+  zeros (corners of the diamond).
+  \item From the confusion matrix: precision $=TP/(TP+FP)$, recall $=TP/(TP+FN)$,
+  $F_1$ = harmonic mean. AUC $=\P(\text{score}_+>\text{score}_-)$. Precision depends on the
+  base rate; ROC does not. Calibration is a separate property, read off a reliability diagram.
+  \item Metrics have standard errors: binomial CI for accuracy, bootstrap for AUC, McNemar or
+  paired bootstrap to compare two models on one test set.
+  \item A minibatch gradient is an unbiased Monte Carlo estimate of the full gradient with SE
+  $\propto 1/\sqrt B$.
+  \item The covariance matrix holds variances and covariances; its eigenvectors are the
+  principal components and the axes of multivariate Normal contours.
+\end{itemize}
+
+Chapter 16 collects the formulas from the whole book in one place, together with a decision
+guide for choosing an interval or a test.
+
+\section{Exercises}
+
+\begin{enumerate}
+  \item A fraud model on $1000$ transactions has $TP=45$, $FP=15$, $FN=5$, $TN=935$. Compute
+  accuracy, precision, recall and $F_1$. What accuracy does ``never flag'' get?
+  \item A classifier gets $368$ of $400$ test examples right. Give a $95\%$ confidence interval
+  for its accuracy.
+  \item Models A and B are scored on the same test set. A is right and B wrong on $30$ examples;
+  B is right and A wrong on $12$. Compute McNemar's $\chi^2$ and its $p$-value.
+  \item Two positives score $0.9$ and $0.4$; two negatives score $0.6$ and $0.2$. Compute the
+  AUC by counting pairs, and draw the ROC curve.
+  \item With an orthonormal design, least squares gives $\hat\beta=(2.0,\,-0.3,\,0.8)$. Find
+  the ridge and lasso estimates for $\lambda=1$ using the formulas of
+  Section~\ref{sec:ml-reg}.
+  \item A screening test has $\text{TPR}=0.9$ and $\text{FPR}=0.05$. The condition affects $2\%$
+  of people tested. What fraction of positive results are true positives?
+  \item A dataset has covariance matrix $\begin{pmatrix}4&0\\0&1\end{pmatrix}$. What are the
+  principal components, and what fraction of the variance does the first one capture?
+  \item Show that a minibatch gradient computed from $B$ examples drawn uniformly at random with
+  replacement is unbiased for the full-batch gradient, and that its variance is $\sigma^2/B$
+  where $\sigma^2$ is the variance of the per-example gradients.
+  \item A team standardises all features using the full dataset's mean and SD, then runs
+  $5$-fold CV. Another team picks the $10$ features most correlated with the label on the full
+  dataset, then runs $5$-fold CV. Which leak is worse, and why?
+  \item How many test examples do you need for a $95\%$ CI of half-width $0.02$ on an accuracy
+  near $0.8$?
+\end{enumerate}
+
+\subsection*{Answers}
+
+\begin{enumerate}
+  \item Accuracy is $980/1000=0.98$, precision is $45/60=0.75$, and recall is
+  $45/50=0.90$. So $F_1=1.35/1.65\approx0.818$. Never flagging scores $0.95$.
+  \item $\hat a=0.92$, $\SE=\sqrt{0.92\times0.08/400}\approx0.0136$,
+  interval $0.92\pm0.027=[0.893,\ 0.947]$.
+  \item $\chi^2=(30-12)^2/42=324/42\approx7.71$, $p\approx0.005$. Strong evidence that A is
+  better on this distribution.
+  \item Pairs: $0.9>0.6$, $0.9>0.2$, $0.4>0.2$, and $0.4<0.6$. AUC $=3/4=0.75$. ROC path:
+  $(0,0)\to(0,0.5)\to(0.5,0.5)\to(0.5,1)\to(1,1)$.
+  \item Ridge: $(1.0,\,-0.15,\,0.4)$. Lasso: $(1.5,\,0,\,0.3)$.
+  \item $\dfrac{0.9(0.02)}{0.9(0.02)+0.05(0.98)}=\dfrac{0.018}{0.067}\approx0.27$. About
+  three positives in four are false.
+  \item The coordinate axes: PC1 along $x_1$ (variance $4$), PC2 along $x_2$ (variance $1$).
+  PC1 captures $4/5=80\%$.
+  \item Each sampled index $I_j$ is uniform on $\{1,\dots,n\}$, so
+  $\E[g_{I_j}]=\frac1n\sum_i g_i=\bar g$, and the batch mean has expectation $\bar g$ by
+  linearity. The $B$ draws are independent, each with variance $\sigma^2$, so the variance of
+  their mean is $\sigma^2/B$ (Chapter 6).
+  \item Feature selection is far worse. Standardising leaks only a mean and SD per feature,
+  which barely changes. Selecting features by their correlation with the label lets every fold's
+  labels influence which features the model sees, which can produce high CV accuracy on pure
+  noise.
+  \item $n=1.96^2(0.8)(0.2)/0.02^2\approx1536.6$, so about $1540$ examples.
+\end{enumerate}

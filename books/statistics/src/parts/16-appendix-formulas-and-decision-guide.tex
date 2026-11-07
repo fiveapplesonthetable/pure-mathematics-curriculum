@@ -1,0 +1,627 @@
+\chapter{Appendix: Formula Sheet and Decision Guide}
+\label{ch:appendix-formulas}
+
+Chapters 1--15 built each tool from a small dataset up. This appendix puts the results on as few pages as possible: formulas, critical values and decision rules, each pointing back to the chapter that explains it. Every critical value below was computed with \texttt{scipy.stats} and rounded, not copied from an older table.
+
+\section{Notation}
+
+\begin{center}
+\small
+\begin{tabular}{@{}p{4.0cm}p{10.8cm}@{}}
+\toprule
+Symbol & Meaning \\
+\midrule
+$x_1,\dots,x_n$ & observed data values (lower case = numbers you have) \\
+$X_1,\dots,X_n$ & the same values viewed as random variables before sampling \\
+$x_{(1)}\le\dots\le x_{(n)}$ & order statistics: the data sorted from smallest to largest \\
+$n$ & sample size; $n_1,n_2$ for two groups \\
+$\mu,\ \sigma^2,\ \sigma$ & population mean, variance, standard deviation \\
+$\xbar,\ s^2,\ s$ & sample mean, sample variance (divide by $n-1$), sample SD \\
+$p,\ \hat p$ & population proportion and sample proportion $\hat p = k/n$ \\
+$\theta,\ \hat\theta$ & a generic parameter and its estimate (a hat means ``estimated from data'') \\
+$\E[X],\ \Var(X),\ \Cov(X,Y)$ & expectation, variance and covariance of random variables \\
+$\E_{x\sim p}[f(x)]$ & average of $f(x)$ when $x$ is drawn from distribution $p$ (ML notation) \\
+$\SE(\hat\theta)$ & standard error: the SD of the sampling distribution of $\hat\theta$ \\
+$X\sim \Normal(\mu,\sigma^2)$ & $X$ is normal with mean $\mu$ and variance $\sigma^2$ (second slot is variance) \\
+$X_i \iid F$ & independent draws, all from the same distribution $F$ \\
+$z_{q},\ t_{q,\nu}$ & the point with upper-tail area $q$ under $\Normal(0,1)$ and under the $t$ distribution with $\nu$ df (so $z_{0.025}=1.96$) \\
+$z^*,\ t^*$ & critical value for a stated confidence level: $z^*=z_{\alpha/2}$ and $t^*=t_{\alpha/2,\nu}$, e.g.\ $z^*=1.96$ at 95\% \\
+$\alpha,\ \beta,\ 1-\beta$ & type I error rate, type II error rate, power \\
+$H_0,\ H_1$ & null and alternative hypotheses \\
+$\hat\beta_0,\ \hat\beta_1,\ \hat y_i,\ e_i$ & fitted intercept, slope, fitted value, residual $e_i=y_i-\hat y_i$ \\
+$S_{xx},\ S_{xy}$ & $\sum (x_i-\xbar)^2$ and $\sum (x_i-\xbar)(y_i-\ybar)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Descriptive statistics}
+
+Every formula in the table is evaluated on the same five latencies (ms): $2,4,4,5,10$. The data are already sorted. The mean is $25/5=5$; the deviations are $-3,-1,-1,0,5$; their squares sum to $9+1+1+0+25=36$.
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}p{3.3cm}p{6.6cm}p{4.4cm}@{}}
+\toprule
+Statistic & Formula & On $2,4,4,5,10$ \\
+\midrule
+Mean & $\xbar = \frac{1}{n}\sum_{i} x_i$ & $25/5 = 5$ \\
+Median & middle of sorted data; average of the two middle values if $n$ even & $4$ \\
+Sample variance & $s^2 = \frac{1}{n-1}\sum_i (x_i-\xbar)^2$ & $36/4 = 9$ \\
+Population variance & $\sigma^2 = \frac{1}{N}\sum_i (x_i-\mu)^2$ & $36/5 = 7.2$ \\
+Sample SD & $s=\sqrt{s^2}$ & $3$ \\
+Range & $x_{(n)}-x_{(1)}$ & $10-2=8$ \\
+Quartiles & $Q_1$, $Q_3$ = 25th, 75th percentiles (linear interpolation at position $(n-1)q$) & $Q_1=4$, $Q_3=5$ \\
+IQR & $Q_3-Q_1$ & $1$ \\
+MAD & $\Med_i \abs{x_i - \Med(x)}$; $\times 1.4826$ estimates $\sigma$ for normal data & $\Med(2,0,0,1,6)=1$ \\
+$z$-score & $z_i = (x_i-\xbar)/s$ & for $10$: $5/3\approx 1.67$ \\
+Coefficient of variation & $s/\xbar$ & $3/5=0.6$ \\
+Tukey fences & $Q_1-1.5\,\IQR$, $\ Q_3+1.5\,\IQR$ & $2.5$ and $6.5$: so $2$, $10$ flagged \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{trapbox}
+\texttt{np.std(x)} divides by $n$, not $n-1$. On the data above it returns $\sqrt{7.2}\approx 2.68$, not $3$. Use \texttt{np.std(x, ddof=1)}. Pandas \texttt{Series.std()} already uses $n-1$. Quantile conventions also differ between tools (there are at least nine); for small $n$ the quartiles can change by a whole data point (Chapter 3).
+\end{trapbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small]
+  \draw[->] (0,0) -- (12,0) node[right] {$x$};
+  \foreach \x/\l in {1/0,3/20,5/40,7/60,9/80,11/100} {\draw (\x,0.08)--(\x,-0.08) node[below] {\l};}
+  % box: Q1=30, med=42, Q3=55 -> x = 1 + v/10
+  \draw[thick,fill=histfill!50] (4,0.9) rectangle (6.5,1.9);
+  \draw[very thick,densityred] (5.2,0.9) -- (5.2,1.9);
+  \draw[thick] (2.2,1.4) -- (4,1.4); \draw[thick] (2.2,1.15) -- (2.2,1.65);
+  \draw[thick] (6.5,1.4) -- (9.0,1.4); \draw[thick] (9.0,1.15) -- (9.0,1.65);
+  \fill[trapred] (10.6,1.4) circle (2.5pt);
+  \node[above] at (4,1.9) {$Q_1$};
+  \node[above,densityred] at (5.2,1.9) {median};
+  \node[above] at (6.5,1.9) {$Q_3$};
+  \draw[decorate,decoration={brace,mirror,amplitude=5pt}] (4,0.75) -- (6.5,0.75) node[midway,below=5pt] {IQR};
+  \node[above,align=center,font=\footnotesize] at (2.2,1.7) {lowest point\\ $\ge Q_1-1.5\,\IQR$};
+  \node[above,align=center,font=\footnotesize] at (9.0,1.7) {highest point\\ $\le Q_3+1.5\,\IQR$};
+  \node[below,trapred,font=\footnotesize] at (10.6,1.25) {outlier};
+\end{tikzpicture}
+\caption{Box plot anatomy. The box holds the middle 50\% of the data; whiskers stop at the most extreme points inside the Tukey fences; anything beyond is drawn individually.}
+\label{fig:appendix-formulas-boxplot}
+\end{figure}
+
+\subsection{Two variables}
+
+Take three points $(x,y)=(1,2),(2,4),(3,9)$. Then $\xbar=2$, $\ybar=5$, deviations $dx=(-1,0,1)$, $dy=(-3,-1,4)$, so $S_{xy}=3+0+4=7$, $S_{xx}=2$, $S_{yy}=26$.
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}p{3.3cm}p{6.6cm}p{4.4cm}@{}}
+\toprule
+Quantity & Formula & On the three points \\
+\midrule
+Sample covariance & $s_{xy}=\frac{S_{xy}}{n-1}$ & $7/2=3.5$ \\
+Correlation & $r=\frac{S_{xy}}{\sqrt{S_{xx}S_{yy}}}$ & $7/\sqrt{52}\approx 0.971$ \\
+OLS slope & $\hat\beta_1=\frac{S_{xy}}{S_{xx}} = r\,\frac{s_y}{s_x}$ & $7/2=3.5$ \\
+OLS intercept & $\hat\beta_0=\ybar-\hat\beta_1\xbar$ & $5-7=-2$ \\
+$R^2$ (simple regression) & $r^2 = 1-\frac{\sum e_i^2}{S_{yy}}$ & $0.971^2\approx 0.942$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Expectation and variance rules}
+
+Proofs are in Probability From the Ground Up; Chapter 6 of this book uses them to derive standard errors. Here $a,b$ are constants and $X,Y$ random variables.
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{@{}p{4.6cm}p{10.2cm}@{}}
+\toprule
+Rule & Formula \\
+\midrule
+Linearity (always) & $\E[aX+bY+c]=a\E[X]+b\E[Y]+c$ \\
+Shift and scale & $\Var(aX+b)=a^2\Var(X)$, \quad $\SD(aX+b)=\abs{a}\SD(X)$ \\
+Shortcut & $\Var(X)=\E[X^2]-(\E[X])^2$ \\
+Sum & $\Var(X+Y)=\Var(X)+\Var(Y)+2\Cov(X,Y)$ \\
+Difference & $\Var(X-Y)=\Var(X)+\Var(Y)-2\Cov(X,Y)$ \\
+Independent & $\Cov(X,Y)=0$, so variances add for sums \emph{and} differences \\
+Covariance & $\Cov(X,Y)=\E[XY]-\E[X]\E[Y]$, \quad $\Corr(X,Y)=\frac{\Cov(X,Y)}{\SD(X)\SD(Y)}$ \\
+Mean of iid sample & $\E[\Xbar]=\mu$, \quad $\Var(\Xbar)=\sigma^2/n$, \quad $\SD(\Xbar)=\sigma/\sqrt n$ \\
+Sum of iid sample & $\E[\textstyle\sum X_i]=n\mu$, \quad $\SD(\sum X_i)=\sigma\sqrt n$ \\
+Function of $X$ (LOTUS) & $\E[g(X)]=\sum_x g(x)\,p(x)$ or $\int g(x) f(x)\,\dd x$ \\
+Tower rule & $\E[X]=\E\big[\E[X\given Y]\big]$ \\
+Total variance & $\Var(X)=\E[\Var(X\given Y)]+\Var(\E[X\given Y])$ \\
+Bias--variance & $\MSE(\hat\theta)=\Bias(\hat\theta)^2+\Var(\hat\theta)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{trapbox}
+$\E[g(X)]\ne g(\E[X])$ in general. The mean of squared latencies is not the square of the mean latency, and $\E[1/X]\ne 1/\E[X]$. Linearity holds only for linear $g$. Likewise $\SD(X+Y)\neq\SD(X)+\SD(Y)$: variances add, standard deviations do not.
+\end{trapbox}
+
+\subsection{Common distributions}
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}p{3.1cm}p{5.4cm}p{2.4cm}p{3.5cm}@{}}
+\toprule
+Distribution & Pmf / pdf & Mean & Variance \\
+\midrule
+$\Bern(p)$ & $p^x(1-p)^{1-x}$, $x\in\{0,1\}$ & $p$ & $p(1-p)$ \\
+$\Bin(n,p)$ & $\binom{n}{x}p^x(1-p)^{n-x}$ & $np$ & $np(1-p)$ \\
+$\Pois(\lambda)$ & $e^{-\lambda}\lambda^x/x!$ & $\lambda$ & $\lambda$ \\
+$\Geom(p)$ (trials) & $(1-p)^{x-1}p$, $x\ge 1$ & $1/p$ & $(1-p)/p^2$ \\
+$\Unif(a,b)$ & $1/(b-a)$ on $[a,b]$ & $(a+b)/2$ & $(b-a)^2/12$ \\
+$\Expo(\lambda)$ & $\lambda e^{-\lambda x}$, $x\ge 0$ & $1/\lambda$ & $1/\lambda^2$ \\
+$\Normal(\mu,\sigma^2)$ & $\frac{1}{\sigma\sqrt{2\pi}}e^{-(x-\mu)^2/(2\sigma^2)}$ & $\mu$ & $\sigma^2$ \\
+$t_\nu$ & symmetric, heavier tails than normal & $0$ ($\nu>1$) & $\nu/(\nu-2)$ ($\nu>2$) \\
+$\chi^2_k$ & sum of $k$ squared $\Normal(0,1)$ & $k$ & $2k$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Standard errors}
+
+A standard error is the SD of an estimate across hypothetical repeated samples (Chapter 6). In practice we plug sample quantities into the population formula.
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.45}
+\begin{tabular}{@{}p{3.6cm}p{5.4cm}p{5.6cm}@{}}
+\toprule
+Estimate & Standard error & Notes \\
+\midrule
+Mean $\xbar$ & $\dfrac{\sigma}{\sqrt n}\approx\dfrac{s}{\sqrt n}$ & needs independent observations \\
+Proportion $\hat p$ & $\sqrt{\dfrac{p(1-p)}{n}}\approx\sqrt{\dfrac{\hat p(1-\hat p)}{n}}$ & a mean of 0/1 values \\
+Paired difference $\bar d$ & $\dfrac{s_d}{\sqrt n}$ & $s_d$ = SD of within-pair differences \\
+Difference of means & $\sqrt{\dfrac{s_1^2}{n_1}+\dfrac{s_2^2}{n_2}}$ & independent groups (Welch) \\
+Difference of proportions & $\sqrt{\dfrac{\hat p_1(1-\hat p_1)}{n_1}+\dfrac{\hat p_2(1-\hat p_2)}{n_2}}$ & A/B tests; for the test use pooled $\hat p$ \\
+Median & $\dfrac{1}{2f(m)\sqrt n}$ & $f(m)$ = density at the median; normal data: $1.2533\,\sigma/\sqrt n$; bootstrap in practice \\
+Regression slope $\hat\beta_1$ & $\dfrac{s_e}{\sqrt{S_{xx}}}$, \ $s_e=\sqrt{\dfrac{\sum e_i^2}{n-2}}$ & shrinks with spread of $x$ \\
+Correlation (Fisher) & $\dfrac{1}{\sqrt{n-3}}$ on $z=\tanh^{-1}(r)$ scale & back-transform CI ends with $\tanh$ \\
+Any statistic & SD of the statistic over bootstrap resamples & Chapter 8 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=11cm,height=5.2cm,xmin=0,xmax=420,ymin=0,ymax=1.05,
+  xlabel={sample size $n$},ylabel={$\SE/\sigma = 1/\sqrt n$},
+  axis lines=left,grid=major,grid style={gray!20},tick label style={font=\small}]
+  \addplot[very thick,distblue,domain=1:420,samples=150] {1/sqrt(x)};
+  \addplot[only marks,mark=*,quotientorange] coordinates {(25,0.2) (100,0.1) (400,0.05)};
+  \node[anchor=south west,font=\small] at (axis cs:35,0.45) {$n=25$: $0.20$};
+  \draw[gray] (axis cs:25,0.21) -- (axis cs:38,0.45);
+  \node[anchor=south west,font=\small] at (axis cs:110,0.24) {$n=100$: $0.10$};
+  \draw[gray] (axis cs:100,0.11) -- (axis cs:113,0.24);
+  \node[anchor=south east,font=\small] at (axis cs:400,0.2) {$n=400$: $0.05$};
+  \draw[gray] (axis cs:400,0.06) -- (axis cs:395,0.2);
+\end{axis}
+\end{tikzpicture}
+\caption{The $1/\sqrt n$ law. Each halving of the standard error costs four times the data: going from 25 to 100 to 400 observations halves the SE twice.}
+\label{fig:appendix-formulas-sqrtn}
+\end{figure}
+
+\begin{recoverybox}
+A dashboard shows a conversion rate of 5\% from 2{,}000 users with SE $\approx 0.49$ percentage points. What SE do you expect at 8{,}000 users with the same rate? (Four times the data, so half the SE: about $0.24$ points.)
+\end{recoverybox}
+
+\section{Confidence interval recipes}
+
+Almost every interval in the book has the shape \emph{estimate} $\pm$ \emph{critical value} $\times$ \emph{SE} (Chapter 7). The exceptions are Wilson, order-statistic and percentile-bootstrap intervals, which need not be symmetric.
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.45}
+\begin{tabular}{@{}p{2.9cm}p{6.1cm}p{5.6cm}@{}}
+\toprule
+Target & Interval & Use when \\
+\midrule
+Mean, $z$ & $\xbar\pm z^*\,\sigma/\sqrt n$ & $\sigma$ truly known (rare), or $n$ in the hundreds \\
+Mean, $t$ & $\xbar\pm t^*_{n-1}\,s/\sqrt n$ & default for a mean; fine for mild skew once $n\gtrsim 30$ \\
+Paired mean & $\bar d\pm t^*_{n-1}\,s_d/\sqrt n$ & before/after on the same units \\
+Two means & $(\xbar_1-\xbar_2)\pm t^*_{\nu}\sqrt{s_1^2/n_1+s_2^2/n_2}$ & independent groups; Welch $\nu$ from software \\
+Proportion, Wald & $\hat p\pm z^*\sqrt{\hat p(1-\hat p)/n}$ & only if $n\hat p\ge 10$ and $n(1-\hat p)\ge 10$ \\
+Proportion, Wilson & $\dfrac{\hat p+\frac{z^2}{2n}}{1+\frac{z^2}{n}}\pm\dfrac{z\sqrt{\frac{\hat p(1-\hat p)}{n}+\frac{z^2}{4n^2}}}{1+\frac{z^2}{n}}$ & default for a proportion; good even for small $n$ or $\hat p$ near 0 or 1 \\
+Two proportions & $(\hat p_1-\hat p_2)\pm z^*\,\SE$ (unpooled) & A/B conversion rates with healthy counts \\
+Median (exact) & $[x_{(j)},\,x_{(n-j+1)}]$, $j$ from $\Bin(n,\tfrac12)$ & any continuous distribution; no shape assumption \\
+Any statistic & percentile bootstrap: 2.5th and 97.5th percentiles of $\hat\theta^*$ & medians, p99, ratios, $R^2$; $n$ not tiny \\
+Regression slope & $\hat\beta_1\pm t^*_{n-2}\,\SE(\hat\beta_1)$ & linear trend, roughly constant residual spread \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Example: $8$ successes in $20$ trials, $z=1.96$. Wilson gives $[0.219,\ 0.613]$, centred at $0.416$: pulled from $\hat p=0.4$ toward $\tfrac12$. Wald gives $0.4\pm 0.215=[0.185,\ 0.615]$, symmetric about $\hat p$. For small $n$ or $\hat p$ near 0 or 1, Wald's actual coverage falls well below the nominal 95\%; Wilson's stays close.
+
+\subsection{Order-statistic CI for the median}
+
+The number of data points below the true median is $\Bin(n,\tfrac12)$. Pick the largest $j$ with $\P(\Bin(n,\tfrac12)\le j-1)\le 0.025$. Then $[x_{(j)},x_{(n-j+1)}]$ covers the median with probability at least 95\%. Because the binomial is discrete, the actual coverage is a little above 95\%.
+
+\begin{center}
+\small
+\begin{tabular}{@{}lccccccc@{}}
+\toprule
+$n$ & 10 & 15 & 20 & 25 & 30 & 50 & 100 \\
+\midrule
+ranks $(j,\ n-j+1)$ & (2, 9) & (4, 12) & (6, 15) & (8, 18) & (10, 21) & (18, 33) & (40, 61) \\
+exact coverage & 0.979 & 0.965 & 0.959 & 0.957 & 0.957 & 0.967 & 0.965 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+For large $n$ the ranks are approximately $\tfrac n2\pm 0.98\sqrt n$ (that is, $\tfrac n2 \pm z^*\sqrt n/2$).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small,
+  q/.style={draw,rounded corners,fill=sourceblue!10,align=center,minimum height=0.7cm},
+  a/.style={draw,fill=targetgreen!10,align=center,minimum height=0.7cm,text width=3.2cm},
+  >={Stealth}]
+  \node[q] (root) at (0,0) {What are you\\ estimating?};
+  \node[a] (mean) at (5,2.4) {Mean: $t$ interval\\ (paired $t$ if paired)};
+  \node[a] (prop) at (5,1.2) {Proportion: Wilson};
+  \node[a] (med) at (5,0) {Median / quantile: order statistics or bootstrap};
+  \node[a] (diff) at (5,-1.3) {Difference: Welch $t$ or two-prop.\ $z$};
+  \node[a] (other) at (5,-2.5) {Anything else: bootstrap};
+  \foreach \t in {mean,prop,med,diff,other} \draw[->] (root.east) -- (\t.west);
+  \node[q,fill=trapred!8,text width=3.4cm] (warn) at (9.7,2.4) {tiny $n$ and heavy skew? bootstrap or transform};
+  \draw[->,dashed] (mean.east) -- (warn.west);
+\end{tikzpicture}
+\caption{Choosing a confidence interval. Start from the parameter, not from the formula; the bootstrap is the fallback whenever no clean SE formula exists.}
+\label{fig:appendix-formulas-ci-chooser}
+\end{figure}
+
+\section{Choosing a test}
+
+Figure~\ref{fig:appendix-formulas-test-chooser} is the decision tree from Chapters 9 and 10. Read it left to right. Green edges lead to the test for roughly normal data (or large $n$, where the CLT makes the mean normal anyway). Red edges lead to the rank-based or resampling alternative for skewed data, outliers, ordinal scores or small samples.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\scriptsize,
+  dec/.style={draw,rounded corners,fill=sourceblue!10,align=center,minimum height=0.5cm,inner sep=2pt},
+  leaf/.style={draw,fill=targetgreen!6,anchor=west,text width=3.7cm,align=left,minimum height=0.5cm,inner sep=2pt},
+  ok/.style={->,targetgreen!70!black,thick},
+  no/.style={->,trapred,thick},
+  e/.style={->,gray!70!black},
+  >={Stealth}]
+  % leaves at x=8.5
+  \node[leaf] (l1)  at (8.5,0)     {one-sample $t$};
+  \node[leaf] (l2)  at (8.5,-0.8)  {sign test, Wilcoxon signed-rank, bootstrap};
+  \node[leaf] (l3)  at (8.5,-1.6)  {paired $t$ (on differences)};
+  \node[leaf] (l4)  at (8.5,-2.4)  {Wilcoxon signed-rank};
+  \node[leaf] (l5)  at (8.5,-3.2)  {Welch two-sample $t$};
+  \node[leaf] (l6)  at (8.5,-4.0)  {Mann--Whitney, permutation test};
+  \node[leaf] (l7)  at (8.5,-4.8)  {one-way ANOVA ($F$ test)};
+  \node[leaf] (l8)  at (8.5,-5.6)  {Kruskal--Wallis};
+  \node[leaf] (l9)  at (8.5,-6.4)  {regression $t$ on slope; Pearson / Spearman $r$};
+  \node[leaf] (l10) at (8.5,-7.4)  {one-proportion $z$; exact binomial};
+  \node[leaf] (l11) at (8.5,-8.2)  {two-proportion $z$; Fisher exact if counts small};
+  \node[leaf] (l12) at (8.5,-9.0)  {$\chi^2$ test of independence};
+  \node[leaf] (l13) at (8.5,-9.8)  {$\chi^2$ goodness of fit};
+  % level 3
+  \node[dec] (pair) at (6.3,-2.0) {paired};
+  \node[dec] (indp) at (6.3,-3.6) {independent};
+  % level 2 numeric
+  \node[dec] (g1) at (3.9,-0.4) {one group};
+  \node[dec] (g2) at (3.9,-2.8) {two groups};
+  \node[dec] (g3) at (3.9,-5.2) {3+ groups};
+  \node[dec] (g4) at (3.9,-6.4) {numeric $x$};
+  % level 2 categorical
+  \node[dec] (c1) at (3.9,-7.4) {one proportion};
+  \node[dec] (c2) at (3.9,-8.2) {two proportions};
+  \node[dec] (c3) at (3.9,-9.0) {two cat.\ variables};
+  \node[dec] (c4) at (3.9,-9.8) {one variable, $k$ cats};
+  % level 1
+  \node[dec] (num) at (1.6,-3.2) {numeric\\ outcome};
+  \node[dec] (cat) at (1.6,-8.6) {categorical\\ outcome};
+  \node[dec,fill=structurepurple!15] (root) at (0,-5.9) {data\\ type?};
+  \draw[e] (root.east) -- (num.west);
+  \draw[e] (root.east) -- (cat.west);
+  \foreach \g in {g1,g2,g3,g4} \draw[e] (num.east) -- (\g.west);
+  \foreach \g in {c1,c2,c3,c4} \draw[e] (cat.east) -- (\g.west);
+  \draw[e] (g2.east) -- (pair.west);
+  \draw[e] (g2.east) -- (indp.west);
+  \draw[ok] (g1.east) -- (l1.west); \draw[no] (g1.east) -- (l2.west);
+  \draw[ok] (pair.east) -- (l3.west); \draw[no] (pair.east) -- (l4.west);
+  \draw[ok] (indp.east) -- (l5.west); \draw[no] (indp.east) -- (l6.west);
+  \draw[ok] (g3.east) -- (l7.west); \draw[no] (g3.east) -- (l8.west);
+  \draw[e] (g4.east) -- (l9.west);
+  \draw[e] (c1.east) -- (l10.west); \draw[e] (c2.east) -- (l11.west);
+  \draw[e] (c3.east) -- (l12.west); \draw[e] (c4.east) -- (l13.west);
+  % legend
+  \draw[ok] (0,-10.7) -- (0.6,-10.7) node[right,black] {roughly normal / large $n$};
+  \draw[no] (4.4,-10.7) -- (5.0,-10.7) node[right,black] {skewed / outliers / small $n$};
+\end{tikzpicture}
+\caption{Test chooser. Decide the outcome type, then the number of groups, then pairing, then whether a normal approximation is safe. Every test here has a matching confidence interval, which is usually more informative than the p-value.}
+\label{fig:appendix-formulas-test-chooser}
+\end{figure}
+
+\begin{trapbox}
+``Paired'' is a property of the design, not of the data. Two columns of the same length are not paired unless each row is the same unit measured twice (same user, same server, same patient). Running an independent-samples test on paired data throws away the pairing and loses power; running a paired test on independent data is simply wrong.
+\end{trapbox}
+
+\begin{recoverybox}
+Page load times (heavily right-skewed) for the same 40 pages, before and after a CDN change. Which leaf of Figure~\ref{fig:appendix-formulas-test-chooser}? (Numeric, two groups, paired. With $n=40$ the mean difference is close to normal, so a paired $t$ is defensible; Wilcoxon signed-rank is the robust check.)
+\end{recoverybox}
+
+\subsection{Test statistics at a glance}
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.45}
+\begin{tabular}{@{}p{3.4cm}p{6.4cm}p{4.8cm}@{}}
+\toprule
+Test & Statistic & Reference distribution \\
+\midrule
+One-sample $t$ & $t=\dfrac{\xbar-\mu_0}{s/\sqrt n}$ & $t_{n-1}$ \\
+Welch $t$ & $t=\dfrac{\xbar_1-\xbar_2}{\sqrt{s_1^2/n_1+s_2^2/n_2}}$ & $t_\nu$, Welch--Satterthwaite $\nu$ \\
+One proportion & $z=\dfrac{\hat p-p_0}{\sqrt{p_0(1-p_0)/n}}$ & $\Normal(0,1)$ \\
+Two proportions & $z=\dfrac{\hat p_1-\hat p_2}{\sqrt{\hat p(1-\hat p)(1/n_1+1/n_2)}}$, pooled $\hat p$ & $\Normal(0,1)$ \\
+$\chi^2$ (GOF or table) & $\sum \dfrac{(O-E)^2}{E}$, table: $E=\dfrac{\text{row}\times\text{col}}{\text{total}}$ & $\chi^2_{k-1}$ or $\chi^2_{(r-1)(c-1)}$ \\
+Regression slope & $t=\hat\beta_1/\SE(\hat\beta_1)$ & $t_{n-2}$ \\
+ANOVA & $F=\dfrac{\text{between-group MS}}{\text{within-group MS}}$ & $F_{k-1,\,n-k}$ ($k$ groups, $n$ total) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Critical values}
+
+\subsection{Standard normal}
+
+\begin{center}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Confidence level (two-sided) & 80\% & 90\% & 95\% & 99\% \\
+\midrule
+$z^* = z_{\alpha/2}$ & 1.2816 & 1.6449 & 1.9600 & 2.5758 \\
+One-sided $z_{\alpha}$ at the same $\alpha$ & 0.8416 & 1.2816 & 1.6449 & 2.3263 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The one-sided row doubles as the power table: $z_{0.20}=0.8416$ and $z_{0.10}=1.2816$ are the values of $z_{\beta}$ for 80\% and 90\% power.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=11cm,height=5cm,xmin=-3.6,xmax=3.6,ymin=0,ymax=0.46,
+  axis lines=middle,xtick={-1.96,0,1.96},xticklabels={$-1.96$,$0$,$1.96$},ytick=\empty,
+  tick label style={font=\small}]
+  \addplot[name path=f,domain=-3.6:3.6,samples=120,thick,distblue] {exp(-x^2/2)/sqrt(2*pi)};
+  \path[name path=ax] (axis cs:-3.6,0) -- (axis cs:3.6,0);
+  \addplot[histfill!60] fill between[of=f and ax,soft clip={domain=-1.96:1.96}];
+  \addplot[trapred!60] fill between[of=f and ax,soft clip={domain=1.96:3.6}];
+  \addplot[trapred!60] fill between[of=f and ax,soft clip={domain=-3.6:-1.96}];
+  \node[font=\small] at (axis cs:0,0.16) {95\%};
+  \node[font=\small,trapred,anchor=south] at (axis cs:2.6,0.06) {2.5\%};
+  \node[font=\small,trapred,anchor=south] at (axis cs:-2.6,0.06) {2.5\%};
+\end{axis}
+\end{tikzpicture}
+\caption{Where $z^*=1.96$ comes from: the central 95\% of $\Normal(0,1)$ lies between $\pm1.96$, leaving 2.5\% in each tail.}
+\label{fig:appendix-formulas-z}
+\end{figure}
+
+\subsection{Student's $t$ (two-sided)}
+
+Rows are degrees of freedom $\nu$; for a one-sample mean $\nu=n-1$, for a regression slope $\nu=n-2$. The $\infty$ row is the normal.
+
+\begin{center}
+\small
+\begin{tabular}{@{}rccc@{\hspace{2.2em}}rccc@{}}
+\toprule
+$\nu$ & 90\% & 95\% & 99\% & $\nu$ & 90\% & 95\% & 99\% \\
+\midrule
+1 & 6.314 & 12.706 & 63.657 & 18 & 1.734 & 2.101 & 2.878 \\
+2 & 2.920 & 4.303 & 9.925 & 19 & 1.729 & 2.093 & 2.861 \\
+3 & 2.353 & 3.182 & 5.841 & 20 & 1.725 & 2.086 & 2.845 \\
+4 & 2.132 & 2.776 & 4.604 & 21 & 1.721 & 2.080 & 2.831 \\
+5 & 2.015 & 2.571 & 4.032 & 22 & 1.717 & 2.074 & 2.819 \\
+6 & 1.943 & 2.447 & 3.707 & 23 & 1.714 & 2.069 & 2.807 \\
+7 & 1.895 & 2.365 & 3.499 & 24 & 1.711 & 2.064 & 2.797 \\
+8 & 1.860 & 2.306 & 3.355 & 25 & 1.708 & 2.060 & 2.787 \\
+9 & 1.833 & 2.262 & 3.250 & 26 & 1.706 & 2.056 & 2.779 \\
+10 & 1.812 & 2.228 & 3.169 & 27 & 1.703 & 2.052 & 2.771 \\
+11 & 1.796 & 2.201 & 3.106 & 28 & 1.701 & 2.048 & 2.763 \\
+12 & 1.782 & 2.179 & 3.055 & 29 & 1.699 & 2.045 & 2.756 \\
+13 & 1.771 & 2.160 & 3.012 & 30 & 1.697 & 2.042 & 2.750 \\
+14 & 1.761 & 2.145 & 2.977 & 40 & 1.684 & 2.021 & 2.704 \\
+15 & 1.753 & 2.131 & 2.947 & 60 & 1.671 & 2.000 & 2.660 \\
+16 & 1.746 & 2.120 & 2.921 & 120 & 1.658 & 1.980 & 2.617 \\
+17 & 1.740 & 2.110 & 2.898 & $\infty$ & 1.645 & 1.960 & 2.576 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=11cm,height=5.2cm,xmin=-4.5,xmax=4.5,ymin=0,ymax=0.43,
+  axis lines=left,ytick=\empty,xlabel={$x$},legend style={font=\small,draw=none,at={(0.98,0.95)},anchor=north east},
+  tick label style={font=\small}]
+  \addplot[very thick,distblue,domain=-4.5:4.5,samples=120] {exp(-x^2/2)/sqrt(2*pi)};
+  \addplot[thick,quotientorange,domain=-4.5:4.5,samples=120] {0.379607*(1+x^2/5)^(-3)};
+  \addplot[thick,densityred,dashed,domain=-4.5:4.5,samples=120] {0.353553*(1+x^2/2)^(-1.5)};
+  \legend{{$\Normal(0,1)$},{$t_5$},{$t_2$}}
+\end{axis}
+\end{tikzpicture}
+\caption{The $t$ density has heavier tails than the normal when $\nu$ is small, so $t^*$ must be larger to capture 95\%: $4.303$ at $\nu=2$, $2.571$ at $\nu=5$, versus $1.960$.}
+\label{fig:appendix-formulas-t-density}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{semilogxaxis}[width=11cm,height=5cm,xmin=1.8,xmax=150,ymin=1.8,ymax=4.5,
+  xlabel={degrees of freedom $\nu$ (log scale)},ylabel={95\% $t^*$},axis lines=left,
+  grid=major,grid style={gray!20},xtick={2,5,10,30,60,120},xticklabels={2,5,10,30,60,120},
+  tick label style={font=\small}]
+  \addplot[thick,distblue,mark=*,mark size=1.2pt] coordinates {
+    (2,4.303) (3,3.182) (4,2.776) (5,2.571) (6,2.447) (7,2.365) (8,2.306) (9,2.262)
+    (10,2.228) (12,2.179) (15,2.131) (20,2.086) (25,2.060) (30,2.042) (40,2.021)
+    (60,2.000) (120,1.980)};
+  \addplot[dashed,trapred,thick,domain=1.8:150] {1.96};
+  \node[trapred,anchor=south west,font=\small] at (axis cs:2.1,1.97) {$z^*=1.96$};
+\end{semilogxaxis}
+\end{tikzpicture}
+\caption{The 95\% $t$ critical value drops fast and then crawls toward $1.96$. Past $\nu\approx 30$ the difference from $z$ is under 5\%.}
+\label{fig:appendix-formulas-tcrit}
+\end{figure}
+
+\subsection{Chi-square (upper tail)}
+
+Critical value $c$ with $\P(\chi^2_k > c)=\alpha$. For goodness of fit with $k$ categories use $k-1$ df; for an $r\times c$ table use $(r-1)(c-1)$ df.
+
+\begin{center}
+\small
+\begin{tabular}{@{}rccc@{\hspace{2.2em}}rccc@{}}
+\toprule
+df & $\alpha=0.10$ & $0.05$ & $0.01$ & df & $\alpha=0.10$ & $0.05$ & $0.01$ \\
+\midrule
+1 & 2.706 & 3.841 & 6.635 & 7 & 12.017 & 14.067 & 18.475 \\
+2 & 4.605 & 5.991 & 9.210 & 8 & 13.362 & 15.507 & 20.090 \\
+3 & 6.251 & 7.815 & 11.345 & 9 & 14.684 & 16.919 & 21.666 \\
+4 & 7.779 & 9.488 & 13.277 & 10 & 15.987 & 18.307 & 23.209 \\
+5 & 9.236 & 11.070 & 15.086 & 15 & 22.307 & 24.996 & 30.578 \\
+6 & 10.645 & 12.592 & 16.812 & 20 & 28.412 & 31.410 & 37.566 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=11cm,height=5cm,xmin=0,xmax=16,ymin=0,ymax=0.24,
+  axis lines=left,xlabel={$x$},ytick=\empty,xtick={0,4,9.488,14},xticklabels={0,4,9.488,14},
+  tick label style={font=\small}]
+  \addplot[name path=g,domain=0:16,samples=120,thick,distblue] {x*exp(-x/2)/4};
+  \path[name path=ax] (axis cs:0,0) -- (axis cs:16,0);
+  \addplot[trapred!60] fill between[of=g and ax,soft clip={domain=9.488:16}];
+  \draw[->,trapred] (axis cs:12.5,0.07) -- (axis cs:10.6,0.015);
+  \node[trapred,anchor=south,font=\small] at (axis cs:12.5,0.07) {5\% rejection region};
+  \node[distblue,anchor=south west,font=\small] at (axis cs:3.2,0.19) {$\chi^2_4$, mean $4$};
+\end{axis}
+\end{tikzpicture}
+\caption{The $\chi^2_4$ density. Its 95th percentile is $9.488$: a statistic beyond that rejects at $\alpha=0.05$. Chi-square tests are always upper-tail because large $(O-E)^2$ means poor fit.}
+\label{fig:appendix-formulas-chisq}
+\end{figure}
+
+\section{Sample size and power}
+
+All formulas round \emph{up}. Here $E$ is the desired margin of error (half-width), $\delta$ the smallest difference worth detecting, $z_{\alpha/2}=1.96$ for 95\% (two-sided $\alpha=0.05$), and $z_{\beta} = 0.8416$ for 80\% power. In the two-sample rows $n$ is the size of \emph{each} group.
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{@{}p{3.2cm}p{6.4cm}p{5.0cm}@{}}
+\toprule
+Goal & Formula & Example \\
+\midrule
+Mean to $\pm E$ & $n=\left(\dfrac{z_{\alpha/2}\,\sigma}{E}\right)^2$ & $\sigma=10$, $E=2$: $96.04\to 97$ \\
+Proportion to $\pm E$ & $n=\dfrac{z_{\alpha/2}^2\,p(1-p)}{E^2}$ (worst case $p=\tfrac12$) & $E=0.03$: $1067.11\to 1068$ \\
+Two means, power $1-\beta$ & $n=\dfrac{2(z_{\alpha/2}+z_{\beta})^2\sigma^2}{\delta^2}$ & $\sigma=10$, $\delta=5$: $62.79\to 63$ ($t$-exact: 64) \\
+Two proportions ($q=1-p$) & $n=\dfrac{(z_{\alpha/2}+z_{\beta})^2\,[p_1q_1+p_2q_2]}{\delta^2}$ & $10\%\to12\%$: $3838.1\to 3839$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+With $(1.96+0.8416)^2=7.849$, the two-proportion example is $7.849\times(0.09+0.1056)/0.02^2=3838.1$. Detecting a lift from 10\% to 12\% takes almost four thousand users per arm. Because $\delta$ sits squared in the denominator, halving $\delta$ quadruples $n$.
+
+\begin{whybox}
+The two-means formula comes from requiring two things at once. Under $H_0$ the difference $\bar X_1-\bar X_2$ has SE $\sigma\sqrt{2/n}$, and we reject when it exceeds $z_{\alpha/2}\,\sigma\sqrt{2/n}$. Under the alternative it is centred at $\delta$ with the same SE, and we want it above that threshold with probability $1-\beta$. That means the threshold must sit at least $z_{\beta}$ standard errors below $\delta$: $\delta - z_{\alpha/2}\sigma\sqrt{2/n}\ge z_{\beta}\,\sigma\sqrt{2/n}$. Divide by $\sigma\sqrt{2/n}$ and square: $n\ge 2(z_{\alpha/2}+z_{\beta})^2\sigma^2/\delta^2$. (The chance of rejecting in the wrong tail is negligible and ignored.)
+\end{whybox}
+
+\section{Python one-liners}
+
+Imports assumed: \texttt{import numpy as np}, \texttt{from scipy import stats}, \texttt{import statsmodels.api as sm}. Statsmodels helpers live in \texttt{statsmodels.stats.proportion}, \texttt{.power} and \texttt{.multitest}.
+
+\begin{center}
+\footnotesize
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}p{3.4cm}p{11.3cm}@{}}
+\toprule
+Task & Code \\
+\midrule
+mean, SD ($n-1$) & \texttt{x.mean(), x.std(ddof=1)} \\
+quartiles, p99 & \texttt{np.percentile(x, [25, 50, 75, 99])} \\
+SE of mean & \texttt{stats.sem(x)} \\
+$z^*$, $t^*$ & \texttt{stats.norm.ppf(0.975)}, \ \texttt{stats.t.ppf(0.975, df)} \\
+$t$ CI for mean & \texttt{stats.t.interval(0.95, len(x)-1, loc=x.mean(), scale=stats.sem(x))} \\
+Wilson CI & \texttt{proportion\_confint(k, n, method="wilson")} \\
+bootstrap CI & \texttt{stats.bootstrap((x,), np.median).confidence\_interval} \\
+one-sample $t$ & \texttt{stats.ttest\_1samp(x, mu0)} \\
+Welch $t$ & \texttt{stats.ttest\_ind(a, b, equal\_var=False)} \\
+paired $t$ & \texttt{stats.ttest\_rel(before, after)} \\
+Mann--Whitney & \texttt{stats.mannwhitneyu(a, b)} \\
+Wilcoxon signed-rank & \texttt{stats.wilcoxon(before, after)} \\
+binomial test & \texttt{stats.binomtest(k, n, p=0.5)} \\
+two-proportion $z$ & \texttt{proportions\_ztest([k1, k2], [n1, n2])} \\
+$\chi^2$ on a table & \texttt{stats.chi2\_contingency(table)} \\
+Fisher exact & \texttt{stats.fisher\_exact(table)} \\
+ANOVA, Kruskal & \texttt{stats.f\_oneway(a, b, c)}, \ \texttt{stats.kruskal(a, b, c)} \\
+correlation & \texttt{stats.pearsonr(x, y)}, \ \texttt{stats.spearmanr(x, y)} \\
+linear regression & \texttt{sm.OLS(y, sm.add\_constant(X)).fit().summary()} \\
+logistic regression & \texttt{sm.Logit(y, sm.add\_constant(X)).fit().summary()} \\
+sample size ($d=0.5$) & \texttt{TTestIndPower().solve\_power(effect\_size=0.5, alpha=0.05, power=0.8)} \\
+FDR control & \texttt{multipletests(pvals, method="fdr\_bh")} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The power call returns $63.77$, so $64$ per group, matching the $t$-exact entry in the sample-size table. All scipy tests return an object with \texttt{.statistic} and \texttt{.pvalue}.
+
+\section{Glossary}
+
+\small
+\begin{longtable}{@{}p{3.6cm}p{11.2cm}@{}}
+\toprule
+Term & Definition \\
+\midrule
+\endhead
+Alternative hypothesis & The claim $H_1$ that the data are tested for evidence of, e.g.\ $\mu_B\ne\mu_A$. \\
+ANOVA & A test of whether three or more group means are all equal, via a ratio of variances. \\
+Bias & $\E[\hat\theta]-\theta$: how far an estimator is off on average. \\
+Bootstrap & Estimating a sampling distribution by resampling the data with replacement. \\
+Box plot & A plot of median, quartiles, whiskers and outliers. \\
+Central limit theorem & Sums and means of many independent values are approximately normal. \\
+Confidence interval & A range produced by a procedure that captures the true parameter in a stated fraction of repeated samples. \\
+Confidence level & That long-run capture fraction, e.g.\ 95\%. \\
+Confounder & A variable that affects both treatment and outcome, creating spurious association. \\
+Correlation & A unit-free measure in $[-1,1]$ of linear association between two variables. \\
+Covariance & Average product of deviations from the means; sign gives direction of association. \\
+Critical value & The cutoff from a reference distribution, e.g.\ $1.96$, used for intervals and tests. \\
+Degrees of freedom & The number of independent pieces of information left after estimating parameters. \\
+Effect size & The size of a difference in meaningful units, or standardised (Cohen's $d$). \\
+Estimator & A rule that turns data into a guess of a parameter; the guess is the estimate. \\
+Expectation & The probability-weighted average of a random variable. \\
+False discovery rate & Expected fraction of rejected nulls that are actually true. \\
+Heteroscedasticity & Residual spread that changes with $x$; breaks the usual regression SEs. \\
+Histogram & Bar chart of counts of values falling into bins. \\
+Independence & Knowing one variable's value tells you nothing about another's. \\
+Interquartile range & $Q_3-Q_1$: the width of the middle 50\% of the data. \\
+Law of large numbers & The sample mean converges to the population mean as $n$ grows. \\
+Least squares & Choosing parameters that minimise the sum of squared residuals. \\
+Likelihood & The probability (or density) of the observed data, viewed as a function of the parameters. \\
+Margin of error & Half the width of a symmetric confidence interval. \\
+Maximum likelihood & Estimating parameters by the values that maximise the likelihood. \\
+Median & The middle value: half the data below, half above. \\
+Null hypothesis & The default claim $H_0$, usually ``no effect'', assumed when computing a p-value. \\
+Outlier & A point far from the bulk of the data, e.g.\ beyond the Tukey fences. \\
+p-value & Probability, assuming $H_0$, of a statistic at least as extreme as the one observed. \\
+Parameter & A fixed, unknown number describing the population, such as $\mu$ or $p$. \\
+Percentile & The value below which a given percentage of data falls; p99 is the 99th. \\
+Power & Probability that a test rejects $H_0$ when a specified alternative is true. \\
+Regression & Modelling the mean of an outcome as a function of predictors. \\
+Residual & Observed minus fitted value, $e_i=y_i-\hat y_i$. \\
+Sampling distribution & The distribution of a statistic over all possible samples of size $n$. \\
+Standard deviation & Square root of the variance; typical distance from the mean. \\
+Standard error & Standard deviation of an estimator's sampling distribution. \\
+Statistic & Any number computed from the sample, such as $\xbar$ or $s$. \\
+Type I / II error & Rejecting a true $H_0$ / failing to reject a false $H_0$. \\
+\bottomrule
+\end{longtable}
+\normalsize

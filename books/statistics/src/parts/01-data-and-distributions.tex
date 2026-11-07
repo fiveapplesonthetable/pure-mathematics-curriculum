@@ -1,0 +1,1053 @@
+\chapter{Data and Distributions}
+\label{ch:data-distributions}
+
+Here are twenty response times, in milliseconds, from one API endpoint over one minute:
+\[
+\begin{array}{cccccccccc}
+12 & 14 & 15 & 15 & 17 & 18 & 18 & 19 & 21 & 22\\
+23 & 23 & 24 & 26 & 28 & 31 & 35 & 42 & 58 & 140
+\end{array}
+\]
+Is this endpoint fast? Is $140$ a problem or just bad luck? Would tomorrow look the same?
+Staring at the list does not answer any of these. Twenty numbers are already too many to hold
+in your head, and production systems log millions per hour. This chapter is about the first
+move every statistician makes: turn a pile of numbers into a \emph{picture of how the values are
+spread out}. That picture is called a \emph{distribution}, and nearly everything in the rest of
+the book is a question about one.
+
+\section{What statistics is for}
+\label{sec:data-what}
+
+Statistics does three jobs. Each one asks something different of the same data.
+
+\begin{itemize}
+  \item \textbf{Describe.} Summarize the data you have. ``Of these 20 requests, 15 finished in
+  under 30 ms.'' No guessing is involved; it is bookkeeping done well.
+  \item \textbf{Infer.} Use the data you have to say something about data you do not have.
+  ``Across all of today's traffic, about 75\% of requests finish in under 30 ms, give or take
+  a few points.'' Now there is uncertainty, and we must quantify it.
+  \item \textbf{Predict.} Say what the next observation will look like. ``The next request will
+  probably take between 12 and 60 ms.'' This is the job a machine learning model does.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, thick, align=center, minimum width=3.3cm, minimum height=1.5cm, font=\small},
+  arr/.style={-Stealth, thick}
+]
+\node[box, fill=histfill!30] (d) at (0,0) {\textbf{Describe}\\what is in\\this sample};
+\node[box, fill=targetgreen!20] (i) at (4.2,0) {\textbf{Infer}\\what is true of\\the population};
+\node[box, fill=quotientorange!25] (p) at (8.4,0) {\textbf{Predict}\\what the next\\value will be};
+\draw[arr] (d) -- (i);
+\draw[arr] (i) -- (p);
+\node[font=\footnotesize, align=center, below=0.25cm of d] {Chapters 1--4};
+\node[font=\footnotesize, align=center, below=0.25cm of i] {Chapters 5--11};
+\node[font=\footnotesize, align=center, below=0.25cm of p] {Chapters 12--15};
+\end{tikzpicture}
+\caption{The three jobs of statistics. Each builds on the one before: you cannot infer
+anything about a population until you can describe a sample, and prediction is inference
+about a single future value.}
+\label{fig:data-three-jobs}
+\end{figure}
+
+This chapter and the next three are about describing. Description sounds like the easy part,
+but many mistakes in practice happen here: the wrong chart, the wrong summary, a
+misleading bin width, an outlier nobody looked at.
+
+\section{Units, variables, and types}
+\label{sec:data-variables}
+
+\subsection{The shape of a data set}
+
+A data set is a table. Each row is one \textbf{observational unit}: the thing you measured. Each
+column is a \textbf{variable}: one property you recorded about every unit. Here is a slice of a
+request log.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{cllrcl}
+\toprule
+\texttt{request\_id} & \texttt{endpoint} & \texttt{status} & \texttt{latency\_ms} & \texttt{retries} & \texttt{priority}\\
+\midrule
+1 & \texttt{/search}  & 200 & 21.4  & 0 & high\\
+2 & \texttt{/search}  & 200 & 18.9  & 0 & medium\\
+3 & \texttt{/cart}    & 404 & 12.1  & 0 & low\\
+4 & \texttt{/checkout}& 200 & 57.6  & 1 & high\\
+5 & \texttt{/search}  & 503 & 140.2 & 3 & medium\\
+\bottomrule
+\end{tabular}
+\caption{Five rows of a request log. Each row is one request (the unit). Each column is a variable.}
+\label{tab:data-log}
+\end{table}
+
+Picking the unit is a real decision. If each row were a \emph{user} instead of a request, the
+latency column would have to become something like ``average latency of that user's
+requests,'' and the questions you could answer would change. Before any analysis, say out
+loud: one row is one \underline{\hspace{1.5cm}}.
+
+\subsection{Types of variables}
+
+The type of a variable decides which summaries and charts make sense. There are two big
+families.
+
+\begin{definition}[Categorical and numerical variables]
+A \textbf{categorical} variable places each unit into one of a set of groups (\texttt{endpoint},
+\texttt{status}). A \textbf{numerical} variable records a quantity, a number for which
+arithmetic means something (\texttt{latency\_ms}, \texttt{retries}).
+\end{definition}
+
+The test is simple: does averaging make sense? The average latency of requests 1 and 2 is
+$20.15$ ms, a meaningful number. The ``average status code'' of a 200 and a 404 is 302, which is
+a real HTTP code (a redirect) that neither request returned. Status codes are labels written
+with digits. They are categorical.
+
+Each family splits again.
+
+\begin{itemize}
+  \item A categorical variable is \textbf{nominal} if its groups have no natural order
+  (\texttt{endpoint}: \texttt{/cart} is not ``more'' than \texttt{/search}), and
+  \textbf{ordinal} if they do (\texttt{priority}: low $<$ medium $<$ high). Ordinal means
+  you can rank the groups but the gaps between them have no fixed size: ``high minus medium''
+  is not a number.
+  \item A numerical variable is \textbf{discrete} if it takes separated values you can list,
+  usually counts (\texttt{retries} is 0, 1, 2, \dots; never 1.5), and \textbf{continuous} if
+  it can take any value in an interval (\texttt{latency\_ms} could be $21.4$ or $21.41$ or
+  $21.4137$, limited only by the clock's precision).
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  level distance=1.55cm,
+  level 1/.style={sibling distance=6.2cm},
+  level 2/.style={sibling distance=3.1cm},
+  every node/.style={draw, rounded corners, align=center, font=\small, thick, minimum width=2.4cm, inner sep=4pt},
+  edge from parent/.style={draw, -Stealth, thick}
+]
+\node[fill=gray!10] {Variable}
+  child {node[fill=structurepurple!15] {Categorical\\(labels)}
+    child {node[fill=structurepurple!8] {Nominal\\[-1pt]{\footnotesize endpoint, status}}}
+    child {node[fill=structurepurple!8] {Ordinal\\[-1pt]{\footnotesize priority, rating}}}
+  }
+  child {node[fill=sourceblue!15] {Numerical\\(quantities)}
+    child {node[fill=sourceblue!8] {Discrete\\[-1pt]{\footnotesize retries, heads}}}
+    child {node[fill=sourceblue!8] {Continuous\\[-1pt]{\footnotesize latency, height}}}
+  };
+\end{tikzpicture}
+\caption{The four variable types. The first split asks ``does arithmetic make sense?'' The
+second asks ``is there an order?'' (categorical) or ``can I list the possible values?''
+(numerical).}
+\label{fig:data-types-tree}
+\end{figure}
+
+\begin{trapbox}
+Numbers in a column do not make a variable numerical. Zip codes, user IDs, status codes, and
+product SKUs are categorical. A plotting library will happily draw a histogram of zip codes;
+the library did what it was told, and the mistake is yours. Going the other way, a 1--5 star rating is ordinal: treating
+it as numerical (averaging stars) is common and often useful, but it assumes the step from 1 to
+2 stars equals the step from 4 to 5, which nobody checked.
+\end{trapbox}
+
+\begin{recoverybox}
+Classify each: (a) number of items in a shopping cart; (b) browser name; (c) time to first
+byte; (d) T-shirt size S/M/L/XL. \emph{Answers:} discrete, nominal, continuous, ordinal.
+\end{recoverybox}
+
+\subsection{Populations and samples}
+
+The twenty latencies above are not all the requests this endpoint will ever serve. They are
+a \textbf{sample}: the units we actually observed. The \textbf{population} is the full set of
+units we care about, such as every request this endpoint served today. A number that describes
+the population (the true fraction of today's requests under 30 ms) is a \textbf{parameter}. The
+same number computed from the sample is a \textbf{statistic}. Parameters are usually unknown;
+statistics are what we can compute.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\draw[thick, fill=histfill!15] (0,0) ellipse (3.0cm and 1.7cm);
+\node[font=\small] at (0,1.95) {Population: every request today};
+\foreach \x/\y in {-2.2/0.3,-1.8/-0.6,-1.5/0.9,-1.2/0.1,-0.9/-1.1,-0.6/0.6,-0.3/-0.4,0/1.2,
+  0.2/0.1,0.5/-0.9,0.8/0.7,1.1/-0.2,1.4/1.0,1.6/-0.8,1.9/0.3,2.3/-0.1,-2.4/-0.2,-1.0/1.3,
+  0.6/1.25,1.0/-1.25,-0.4/-1.3,2.0/0.9,-1.9/0.85,0.1/-0.7}
+  \fill[distblue] (\x,\y) circle (2pt);
+\foreach \x/\y in {-1.2/0.1,0.2/0.1,0.8/0.7,1.6/-0.8,-0.3/-0.4,1.9/0.3}
+  \draw[trapred, very thick] (\x,\y) circle (4pt);
+\draw[thick, fill=quotientorange!15] (7.2,0) circle (1.25cm);
+\node[font=\small] at (7.2,1.55) {Sample: what we logged};
+\foreach \x/\y in {6.7/0.4,7.3/0.6,7.8/0.1,6.8/-0.4,7.4/-0.2,7.6/-0.7}
+  \fill[distblue] (\x,\y) circle (2pt);
+\draw[-Stealth, thick] (3.1,0.45) to[bend left=15] node[above, font=\footnotesize] {select} (5.85,0.45);
+\draw[-Stealth, thick, densityred] (5.85,-0.45) to[bend left=15] node[below, font=\footnotesize] {infer} (3.1,-0.45);
+\end{tikzpicture}
+\caption{A sample is a subset of the population. Describing the sample is arithmetic.
+Going back along the red arrow, from sample to population, is inference, and it is only as good
+as the way the sample was selected.}
+\label{fig:data-pop-sample}
+\end{figure}
+
+How samples are drawn and why random selection matters is the subject of Chapter 5. For now,
+keep the vocabulary straight: in this chapter and the next three we only describe the data in
+hand.
+
+\section{Categorical data: counts and bar charts}
+\label{sec:data-categorical}
+
+\subsection{Frequency tables}
+
+Fifty requests come back with these status codes: 41 returned 200, 4 returned 304, 3 returned
+404, and 2 returned 500. A \textbf{frequency table} lists each category with its count (its
+\emph{frequency}). The \textbf{relative frequency} of a category is its count divided by the
+total: the fraction of units that fell in that group.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrr}
+\toprule
+status & frequency & relative frequency\\
+\midrule
+200 OK            & 41 & $41/50 = 0.82$\\
+304 Not Modified  & 4  & $4/50 = 0.08$\\
+404 Not Found     & 3  & $3/50 = 0.06$\\
+500 Server Error  & 2  & $2/50 = 0.04$\\
+\midrule
+total             & 50 & $1.00$\\
+\bottomrule
+\end{tabular}
+\caption{Frequency table for 50 status codes. Relative frequencies always sum to 1.}
+\label{tab:data-status}
+\end{table}
+
+Relative frequencies are what let you compare data sets of different sizes. ``2 errors'' means
+nothing until you know whether it was out of 50 requests or 50 million. ``4\% errors'' is
+comparable across a quiet minute and a busy hour.
+
+\subsection{Bar charts}
+
+A \textbf{bar chart} draws one bar per category, with height equal to the count or the
+relative frequency. The bars are separated by gaps, because the categories are separate
+things; there is nothing ``between'' 304 and 404.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=left, width=6.3cm, height=5.2cm,
+  ybar, bar width=0.55cm, ymin=0, ymax=0.95,
+  symbolic x coords={200,304,404,500}, xtick=data,
+  ylabel={relative frequency}, xlabel={status code (nominal)},
+  title={Nominal: order by size}, title style={font=\small},
+  nodes near coords, nodes near coords style={font=\footnotesize},
+  every node near coord/.append style={/pgf/number format/fixed, /pgf/number format/precision=2},
+  axis lines*=left, enlarge x limits=0.2
+]
+\addplot[fill=histfill, draw=distblue] coordinates {(200,0.82) (304,0.08) (404,0.06) (500,0.04)};
+\end{axis}
+\begin{axis}[
+  at={(left.east)}, anchor=west, xshift=1.3cm,
+  width=6.3cm, height=5.2cm,
+  ybar, bar width=0.45cm, ymin=0, ymax=0.42,
+  xtick={1,2,3,4,5}, xlabel={star rating (ordinal)},
+  title={Ordinal: keep the order}, title style={font=\small},
+  nodes near coords, nodes near coords style={font=\footnotesize},
+  every node near coord/.append style={/pgf/number format/fixed, /pgf/number format/precision=3},
+  axis lines*=left, enlarge x limits=0.22
+]
+\addplot[fill=structurepurple!40, draw=structurepurple] coordinates {(1,0.075) (2,0.125) (3,0.2) (4,0.35) (5,0.25)};
+\end{axis}
+\end{tikzpicture}
+\caption{Bar charts for categorical data. Left: 50 status codes; with no natural order, sort
+bars by height so the big category is obvious. Right: 40 star ratings (counts 3, 5, 8, 14, 10);
+the order 1 to 5 carries information, so never re-sort an ordinal axis.}
+\label{fig:data-bars}
+\end{figure}
+
+\begin{trapbox}
+A bar chart whose $y$-axis does not start at zero exaggerates differences. Bar \emph{length} is
+what the eye compares. If the axis starts at 0.75, a 0.82 bar is drawn $0.07/0.03\approx 2.3$
+times as long as a 0.78 bar, though the two values differ by only 5\%. For bar charts, start
+at zero.
+\end{trapbox}
+
+\section{Numerical data: seeing every value}
+\label{sec:data-small-numerical}
+
+Return to the twenty latencies. With a small data set we can draw every value.
+
+\subsection{Dot plots}
+
+A \textbf{dot plot} puts a number line under the data and stacks one dot per observation
+above its value. Nothing is hidden or grouped.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.5cm, height=3.6cm,
+  xmin=0, xmax=150, ymin=0.3, ymax=3.2,
+  axis lines*=left, axis y line=none,
+  xtick={0,10,...,150}, xlabel={latency (ms)},
+  clip=false
+]
+\addplot[only marks, mark=*, mark size=2.6pt, color=distblue]
+  coordinates {(12,1) (14,1) (15,1) (15,2) (17,1) (18,1) (18,2) (19,1) (21,1) (22,1) (23,1) (23,2) (24,1) (26,1) (28,1) (31,1) (35,1) (42,1) (58,1)};
+\addplot[only marks, mark=*, mark size=2.6pt, color=trapred] coordinates {(140,1)};
+\draw[decorate, decoration={brace, amplitude=5pt}] (axis cs:11,2.5) -- (axis cs:29,2.5)
+  node[midway, above=5pt, font=\footnotesize] {15 of 20 values};
+\draw[<->, gray] (axis cs:61,1.7) -- (axis cs:137,1.7) node[midway, above, font=\footnotesize] {empty gap of 82 ms};
+\end{axis}
+\end{tikzpicture}
+\caption{Dot plot of the 20 latencies. Most values crowd between 12 and 28 ms, a few trail
+off to the right, and one sits far away at 140 ms. This is the whole data set; every dot is a
+request.}
+\label{fig:data-dotplot}
+\end{figure}
+
+Three features are visible at once that were invisible in the list: where the bulk of the data
+sits (around 20 ms), that the values trail off further to the right than to the left, and that
+140 is separated from everything else by a wide gap.
+
+\subsection{Stem-and-leaf plots}
+
+A \textbf{stem-and-leaf plot} is a dot plot made of digits. Split each number into a
+\emph{stem} (all digits but the last) and a \emph{leaf} (the last digit). For 23, the stem is 2
+and the leaf is 3. Write each stem once, then list the leaves of all values with that stem.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\node[draw=gray!60, fill=codebg, inner sep=8pt] (s) {%
+\ttfamily
+\begin{tabular}{r|l}
+1 & 2 4 5 5 7 8 8 9\\
+2 & 1 2 3 3 4 6 8\\
+3 & 1 5\\
+4 & 2\\
+5 & 8\\
+6 & \\
+7 & \\
+8 & \\
+9 & \\
+10 & \\
+11 & \\
+12 & \\
+13 & \\
+14 & 0
+\end{tabular}};
+\node[right=0.6cm of s, align=left, font=\small, text width=5.6cm] {Key: \texttt{2 | 3} means 23 ms.\\[4pt]
+Turn the page sideways and the leaves form a histogram with bins of width 10. Unlike a
+histogram, you can read back every original value.\\[4pt]
+The run of empty stems from 6 to 13 is the gap before the outlier.};
+\end{tikzpicture}
+\caption{Stem-and-leaf plot of the 20 latencies. It keeps every digit and shows the shape at
+the same time, which makes it a good hand tool for small data sets.}
+\label{fig:data-stemleaf}
+\end{figure}
+
+Stem-and-leaf plots stop being practical beyond about a hundred values. Their real use is
+reading small data by hand, and they teach the move that the histogram makes: group nearby
+values together and count.
+
+\section{Grouping numerical data: histograms}
+\label{sec:data-histograms}
+
+\subsection{From frequency table to histogram}
+
+For a numerical variable, a frequency table needs \textbf{bins}: intervals that split the
+number line into adjacent, non-overlapping pieces. Use bins of width 10 ms, closed on the left
+and open on the right, so $[10,20)$ contains 10 but not 20. Count the latencies in each bin.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcrr}
+\toprule
+bin (ms) & values & frequency & relative frequency\\
+\midrule
+$[10,20)$ & 12 14 15 15 17 18 18 19 & 8 & 0.40\\
+$[20,30)$ & 21 22 23 23 24 26 28 & 7 & 0.35\\
+$[30,40)$ & 31 35 & 2 & 0.10\\
+$[40,50)$ & 42 & 1 & 0.05\\
+$[50,60)$ & 58 & 1 & 0.05\\
+$[60,140)$ & --- & 0 & 0.00\\
+$[140,150)$ & 140 & 1 & 0.05\\
+\midrule
+total & & 20 & 1.00\\
+\bottomrule
+\end{tabular}
+\caption{Binned frequency table for the 20 latencies. The eight bins from 60 to 140 are
+empty and have been collapsed into one row.}
+\label{tab:data-latency-bins}
+\end{table}
+
+A \textbf{histogram} draws this table. Each bin becomes a bar sitting on the number line, as
+wide as the bin, as tall as the count. Adjacent bars touch, because the bins tile the number
+line with no space between them.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.5cm, height=5cm,
+  ymin=0, ymax=9.5, xmin=0, xmax=150,
+  xtick={0,10,...,150}, ytick={0,2,...,8},
+  xlabel={latency (ms)}, ylabel={count},
+  axis lines*=left
+]
+\addplot[ybar interval, fill=histfill, draw=distblue]
+  coordinates {(10,8) (20,7) (30,2) (40,1) (50,1) (60,0) (70,0) (80,0) (90,0) (100,0) (110,0) (120,0) (130,0) (140,1) (150,0)};
+\end{axis}
+\end{tikzpicture}
+\caption{Histogram of the 20 latencies with bins of width 10. The bars touch because latency
+is continuous: every value between 10 and 150 belongs to exactly one bin.}
+\label{fig:data-hist20}
+\end{figure}
+
+\begin{intuitionbox}
+Bar chart or histogram? Ask what the horizontal axis is. If it is a list of labels, you can
+shuffle them, and gaps between bars say ``these are separate things'': bar chart. If it is a
+number line, position matters and there are no gaps in the number line, so there are none
+between bars: histogram.
+\end{intuitionbox}
+
+The same tables in Python, for the status codes and the 20 latencies:
+
+\begin{lstlisting}[language=Python]
+from collections import Counter
+import numpy as np
+codes = [200]*41 + [304]*4 + [404]*3 + [500]*2
+print(Counter(codes).most_common())      # categorical: counts
+lat = np.array([12,14,15,15,17,18,18,19,21,22,23,23,24,26,28,31,35,42,58,140])
+counts, edges = np.histogram(lat, bins=np.arange(10, 151, 10))
+print(counts)                            # [8 7 2 1 1 0 0 0 0 0 0 0 0 1]
+print(counts / len(lat))                 # relative frequencies
+\end{lstlisting}
+
+\subsection{Discrete numerical data: coin flips}
+
+Discrete numerical data sits between bar charts and histograms: the axis is a number line,
+but only whole numbers can occur. Flip a coin 20 times:
+\[
+\texttt{H T H H T T H T H H H T T H T H H T H T}
+\]
+The outcome of one flip is categorical (heads or tails); its frequency table is 11 heads,
+9 tails, relative frequencies 0.55 and 0.45. Now change the unit. Let one unit be \emph{a
+batch of 10 flips}, and the variable be \emph{the number of heads in the batch}. That variable
+is discrete numerical: it takes the values $0,1,\dots,10$. Repeat for 100 batches and count.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=coinL, width=4.4cm, height=5cm,
+  ybar, bar width=0.6cm, ymin=0, ymax=14,
+  symbolic x coords={H,T}, xtick=data, enlarge x limits=0.6,
+  xlabel={one flip}, ylabel={count},
+  title={20 single flips}, title style={font=\small},
+  nodes near coords, nodes near coords style={font=\footnotesize},
+  axis lines*=left
+]
+\addplot[fill=quotientorange!50, draw=quotientorange] coordinates {(H,11) (T,9)};
+\end{axis}
+\begin{axis}[
+  at={(coinL.east)}, anchor=west, xshift=1.2cm,
+  width=8cm, height=5cm,
+  ybar, bar width=0.32cm, ymin=0, ymax=29,
+  xmin=-0.6, xmax=10.6, xtick={0,1,...,10},
+  xlabel={heads in a batch of 10}, ylabel={batches},
+  title={100 batches of 10 flips}, title style={font=\small},
+  nodes near coords, nodes near coords style={font=\footnotesize},
+  axis lines*=left
+]
+\addplot[fill=histfill, draw=distblue] coordinates {(0,0) (1,0) (2,4) (3,13) (4,19) (5,24) (6,20) (7,14) (8,3) (9,3) (10,0)};
+\end{axis}
+\end{tikzpicture}
+\caption{Left: the outcome of one flip is categorical. Right: the number of heads in 10 flips
+is discrete numerical. Bars sit on the integers, thin enough that you cannot mistake 4.5 for a
+possible value. The pile centers near 5 and falls off roughly symmetrically on both sides.}
+\label{fig:data-coins}
+\end{figure}
+
+Exactly 5 heads happened in $24$ of the $100$ batches. Probability theory predicts
+$\binom{10}{5}/2^{10} = 252/1024 \approx 0.246$ (see \emph{Probability From the Ground Up},
+Ch.~7 on the binomial). The observed 0.24 is close but not equal. That gap between a
+relative frequency and the probability behind it is the gap that inference is about.
+
+\subsection{Larger data: 200 latencies}
+
+Dot plots and stem-and-leaf plots break down with many values. Here are 200 latencies from
+the same kind of endpoint, ranging from 13 to 110 ms. Grouped into bins of width 25:
+
+\begin{center}
+\begin{tabular}{lccccc}
+\toprule
+bin (ms) & $[0,25)$ & $[25,50)$ & $[50,75)$ & $[75,100)$ & $[100,125)$\\
+\midrule
+count & 29 & 120 & 43 & 7 & 1\\
+relative frequency & 0.145 & 0.600 & 0.215 & 0.035 & 0.005\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+These counts are correct. Whether they are \emph{useful} depends on the bins, and that is
+the next problem.
+
+\section{Bin width changes the picture}
+\label{sec:data-binwidth}
+
+There is no single histogram of a data set. Every choice of bin width gives a different
+picture. Figure~\ref{fig:data-binwidths} shows the same 200 latencies three ways.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=b1, width=12.5cm, height=3.9cm,
+  ymin=0, ymax=10, xmin=0, xmax=125, xtick={0,25,...,125}, xticklabels={},
+  ylabel={count}, axis lines*=left,
+  title={width 1 ms: too narrow, mostly noise}, title style={font=\small}
+]
+\addplot[ybar interval, fill=histfill, draw=distblue, line width=0.2pt]
+  coordinates {(13,1) (14,0) (15,1) (16,3) (17,2) (18,2) (19,1) (20,3) (21,2) (22,5) (23,6) (24,3) (25,3) (26,4) (27,4) (28,6) (29,2) (30,7) (31,8) (32,6) (33,6) (34,3) (35,8) (36,4) (37,8) (38,6) (39,8) (40,8) (41,6) (42,7) (43,2) (44,3) (45,2) (46,2) (47,5) (48,1) (49,1) (50,2) (51,2) (52,2) (53,1) (54,6) (55,3) (56,3) (57,2) (58,1) (59,2) (60,2) (61,2) (62,3) (63,0) (64,2) (65,0) (66,1) (67,1) (68,2) (69,0) (70,3) (71,0) (72,0) (73,2) (74,1) (75,1) (76,1) (77,1) (78,0) (79,2) (80,0) (81,0) (82,0) (83,0) (84,1) (85,0) (86,0) (87,0) (88,0) (89,0) (90,0) (91,0) (92,0) (93,0) (94,0) (95,0) (96,0) (97,0) (98,1) (99,0) (100,0) (101,0) (102,0) (103,0) (104,0) (105,0) (106,0) (107,0) (108,0) (109,0) (110,1) (111,0)};
+\end{axis}
+\begin{axis}[
+  name=b5, at={(b1.south)}, anchor=north, yshift=-1.15cm,
+  width=12.5cm, height=3.9cm,
+  ymin=0, ymax=38, xmin=0, xmax=125, xtick={0,25,...,125}, xticklabels={},
+  ylabel={count}, axis lines*=left,
+  title={width 5 ms: shape is clear}, title style={font=\small}
+]
+\addplot[ybar interval, fill=histfill, draw=distblue]
+  coordinates {(10,1) (15,9) (20,19) (25,19) (30,30) (35,34) (40,26) (45,11) (50,13) (55,11) (60,9) (65,4) (70,6) (75,5) (80,1) (85,0) (90,0) (95,1) (100,0) (105,0) (110,1) (115,0)};
+\end{axis}
+\begin{axis}[
+  name=b25, at={(b5.south)}, anchor=north, yshift=-1.15cm,
+  width=12.5cm, height=3.9cm,
+  ymin=0, ymax=135, xmin=0, xmax=125, xtick={0,25,...,125},
+  xlabel={latency (ms)}, ylabel={count}, axis lines*=left,
+  title={width 25 ms: too wide, detail lost}, title style={font=\small}
+]
+\addplot[ybar interval, fill=histfill, draw=distblue]
+  coordinates {(0,29) (25,120) (50,43) (75,7) (100,1) (125,0)};
+\end{axis}
+\end{tikzpicture}
+\caption{The same 200 latencies with three bin widths. Width 1 shows the random jitter of
+individual counts (note the meaningless spikes and holes). Width 25 squeezes the whole data
+set into five bars and hides the long right tail. Width 5 shows a single peak near 35 ms and a
+tail stretching to the right.}
+\label{fig:data-binwidths}
+\end{figure}
+
+What goes wrong at each extreme:
+
+\begin{itemize}
+  \item \textbf{Too narrow.} Each bin holds only a few values, so its count is dominated by
+  luck. The bar at 31 ms has height 8, the bar at 34 ms has height 3. Nobody believes requests
+  ``prefer'' 31 ms over 34 ms; another sample would put the spikes elsewhere.
+  \item \textbf{Too wide.} Each bin averages over a big stretch of the number line. The
+  $[25,50)$ bar says 60\% of requests fall there but cannot tell you whether they cluster near
+  30 or near 45. The tail beyond 75 ms, which is exactly what an on-call engineer cares about,
+  shrinks to two stubby bars.
+\end{itemize}
+
+\begin{whybox}
+Bin width trades two errors against each other. A narrow bin is \emph{faithful to its location}
+but holds few points, so its height is noisy. A wide bin holds many points, so its height is
+stable, but it blurs everything inside it into one flat bar. With more data, each bin can be
+narrower before noise takes over. That is why rules of thumb for the number of bins grow with
+$n$: Sturges' rule uses $1+\log_2 n$ bins, which for $n=200$ gives about $8.6$, and the
+Freedman--Diaconis rule sets the width to $2\cdot\IQR\cdot n^{-1/3}$ (the $\IQR$, a measure of
+spread, is defined in Chapter 2). For the 200 latencies, which run from 13 to 110 ms, Sturges
+suggests a width of about $97/8.6\approx 11$ ms and Freedman--Diaconis about 7 ms. Treat them
+as starting points and always try a few widths.
+\end{whybox}
+
+\begin{trapbox}
+Changing the bin width or shifting where the bins start can make a bump appear or vanish.
+If a histogram is evidence for some claim (``there are two kinds of users''), check that the
+feature survives at two or three other bin widths before you believe it.
+\end{trapbox}
+
+\section{Density histograms: area is proportion}
+\label{sec:data-density}
+
+\subsection{The problem with unequal bins}
+
+Sometimes bins must have different widths. Dashboards often use wide bins in the tail, where
+data is sparse, and narrow bins in the middle. Take the 200 latencies with edges
+$0, 20, 30, 40, 50, 60, 80, 120$. The counts are $10, 38, 64, 37, 24, 24, 3$. Plot those counts
+as bar heights and you get the left panel of Figure~\ref{fig:data-unequal}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=uL, width=6.4cm, height=5.2cm,
+  ymin=0, ymax=70, xmin=0, xmax=120, xtick={0,20,...,120},
+  xlabel={latency (ms)}, ylabel={count},
+  title={Height = count (misleading)}, title style={font=\small},
+  axis lines*=left
+]
+\addplot[ybar interval, fill=trapred!35, draw=trapred]
+  coordinates {(0,10) (20,38) (30,64) (40,37) (50,24) (60,24) (80,3) (120,0)};
+\end{axis}
+\begin{axis}[
+  at={(uL.east)}, anchor=west, xshift=1.5cm,
+  width=6.4cm, height=5.2cm,
+  ymin=0, ymax=0.035, xmin=0, xmax=120, xtick={0,20,...,120},
+  xlabel={latency (ms)}, ylabel={density (per ms)},
+  title={Height = density (honest)}, title style={font=\small},
+  yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2},
+  scaled y ticks=false, axis lines*=left
+]
+\addplot[ybar interval, fill=histfill, draw=distblue]
+  coordinates {(0,0.0025) (20,0.019) (30,0.032) (40,0.0185) (50,0.012) (60,0.006) (80,0.000375) (120,0)};
+\end{axis}
+\end{tikzpicture}
+\caption{Same data, same unequal bins. Left: the $[60,80)$ bar is as tall as the $[50,60)$
+bar because both hold 24 requests, but its 24 are spread over twice the width, so the data is
+half as dense there. The wide $[80,120)$ bar has a big visible area for just 3 requests. Right:
+dividing by bin width fixes both distortions.}
+\label{fig:data-unequal}
+\end{figure}
+
+The eye reads a bar's \emph{area}, not its height. A bar twice as wide looks like twice as
+much data. The fix is to choose heights so that area tells the truth.
+
+\begin{definition}[Density histogram]
+For a data set of $n$ values and a bin of width $w$ containing $k$ values, the bar height is
+\[
+  \text{density} = \frac{k}{n\,w} = \frac{\text{relative frequency}}{\text{bin width}}.
+\]
+The units are ``fraction of the data per unit of the variable,'' here per millisecond.
+\end{definition}
+
+For the bin $[60,80)$: $k=24$, $n=200$, $w=20$, so density $= 24/(200\cdot 20) = 0.006$ per ms.
+For $[50,60)$: $24/(200\cdot 10) = 0.012$. Same count, half the density, as it should be.
+
+\begin{whybox}
+The area of a bar is height times width:
+\[
+  \frac{k}{n\,w}\cdot w = \frac{k}{n},
+\]
+which is exactly the fraction of the data in that bin. Since every value lands in exactly one
+bin, the bar areas add up to $\sum k/n = n/n = 1$. Check it on our bins:
+\[
+  0.05 + 0.19 + 0.32 + 0.185 + 0.12 + 0.12 + 0.015 = 1.
+\]
+So on a density histogram, ``what fraction of requests took between $a$ and $b$ ms?'' is
+answered by ``the area of the bars between $a$ and $b$,'' whatever the bin widths.
+\end{whybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.5cm, height=5.4cm,
+  ymin=0, ymax=0.04, xmin=0, xmax=125, xtick={0,10,...,120},
+  xlabel={latency (ms)}, ylabel={density (per ms)},
+  yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2},
+  scaled y ticks=false, axis lines*=left, clip=false
+]
+\addplot[ybar interval, fill=histfill!50, draw=distblue]
+  coordinates {(10,0.001) (15,0.009) (20,0.019) (25,0.019) (30,0.030) (35,0.034) (40,0.026) (45,0.011) (50,0.013) (55,0.011) (60,0.009) (65,0.004) (70,0.006) (75,0.005) (80,0.001) (85,0) (90,0) (95,0.001) (100,0) (105,0) (110,0.001) (115,0)};
+\addplot[ybar interval, fill=quotientorange!70, draw=quotientorange!80!black]
+  coordinates {(30,0.030) (35,0.034) (40,0)};
+\node[font=\small, align=left, anchor=west] at (axis cs:58,0.031)
+  {shaded area $= 0.030\cdot 5 + 0.034\cdot 5 = 0.32$\\ so 32\% of requests took 30--40 ms};
+\draw[-Stealth, quotientorange!80!black] (axis cs:57,0.031) -- (axis cs:41,0.029);
+\end{axis}
+\end{tikzpicture}
+\caption{Density histogram of the 200 latencies, bins of width 5. The orange area equals
+the fraction of requests between 30 and 40 ms. Counting directly confirms it: 64 of the 200
+latencies lie in $[30,40)$, and $64/200 = 0.32$.}
+\label{fig:data-density-area}
+\end{figure}
+
+\begin{connectionbox}
+Area-equals-proportion is the idea that turns a histogram into a probability density. As the
+data grows and the bins shrink, the tops of the bars trace out a smooth curve $f(x)$, and
+``fraction of data between $a$ and $b$'' becomes $\int_a^b f(x)\,\dd x$. That is precisely the
+definition of a probability density function (\emph{Probability From the Ground Up}, Ch.~10).
+When an ML paper writes $x \sim p$, read it as ``$x$ is drawn from $p$'': the $p$ is this curve.
+\end{connectionbox}
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+lat = np.loadtxt("latencies.txt")          # the 200 values
+edges = [0, 20, 30, 40, 50, 60, 80, 120]
+counts, _ = np.histogram(lat, bins=edges)   # [10 38 64 37 24 24 3]
+dens, _ = np.histogram(lat, bins=edges, density=True)
+print(dens)                                 # 0.0025 0.019 0.032 ...
+print((dens * np.diff(edges)).sum())        # 1.0: areas sum to one
+\end{lstlisting}
+
+\begin{recoverybox}
+A density histogram has a bar over $[40,50)$ of height $0.0185$ per ms, with $n = 200$. How
+many values are in that bin? \emph{Answer:} area $= 0.0185\times 10 = 0.185$, and
+$0.185 \times 200 = 37$.
+\end{recoverybox}
+
+\section{Shapes of distributions}
+\label{sec:data-shapes}
+
+Once the bins are sensible, the first thing to read off a histogram is its overall shape.
+A handful of shapes cover most of what you will meet.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\pgfplotsset{shp/.style={width=4.6cm, height=3.5cm, xmin=0, xmax=10, ymin=0, ymax=1.15,
+  axis lines*=left, xtick=\empty, ytick=\empty, title style={font=\small}, domain=0:10, samples=120}}
+\begin{axis}[shp, name=s1, title={symmetric}]
+\addplot[fill=histfill!50, draw=distblue, thick] {exp(-(x-5)^2/2)} \closedcycle;
+\end{axis}
+\begin{axis}[shp, name=s2, at={(s1.east)}, anchor=west, xshift=0.5cm, title={skewed right}]
+\addplot[fill=histfill!50, draw=distblue, thick] {x*exp(1-x/1.5)/1.5} \closedcycle;
+\end{axis}
+\begin{axis}[shp, name=s3, at={(s2.east)}, anchor=west, xshift=0.5cm, title={skewed left}]
+\addplot[fill=histfill!50, draw=distblue, thick] {(10-x)*exp(1-(10-x)/1.5)/1.5} \closedcycle;
+\end{axis}
+\begin{axis}[shp, name=s4, at={(s1.south)}, anchor=north, yshift=-1.25cm, xshift=3.8cm, title={uniform}, samples=200]
+\addplot[fill=histfill!50, draw=distblue, thick] {(x>1)*(x<9)*0.8} \closedcycle;
+\end{axis}
+\begin{axis}[shp, at={(s4.east)}, anchor=west, xshift=0.5cm, title={bimodal}]
+\addplot[fill=histfill!50, draw=distblue, thick] {exp(-(x-3)^2/0.9) + 0.7*exp(-(x-7.2)^2/0.9)} \closedcycle;
+\end{axis}
+\end{tikzpicture}
+\caption{Five basic shapes, drawn as smoothed histogram outlines. Skew is named for the
+direction of the long tail, not the peak: ``skewed right'' has its peak on the left and a tail
+reaching right.}
+\label{fig:data-shapes}
+\end{figure}
+
+\begin{itemize}
+  \item \textbf{Symmetric}: the left half mirrors the right half. Heights of adults of one sex,
+  measurement errors, and the coin-flip counts in Figure~\ref{fig:data-coins} look like this.
+  \item \textbf{Skewed right} (positively skewed): a long tail toward large values. Latencies,
+  incomes, file sizes, house prices. Anything with a hard floor (latency cannot go below
+  zero, or below the network round trip) but no hard ceiling tends to skew right.
+  \item \textbf{Skewed left} (negatively skewed): a long tail toward small values. Exam scores
+  on an easy test, age at death in a rich country. A hard ceiling with no floor nearby produces
+  left skew.
+  \item \textbf{Uniform}: roughly flat, every region equally common. The last digit of a
+  timestamp in ms, or the face of a fair die over many rolls.
+  \item \textbf{Bimodal}: two peaks. Almost always a sign that two different groups have been
+  mixed into one column.
+\end{itemize}
+
+A peak is called a \textbf{mode}; ``unimodal'' means one peak and ``bimodal'' means two.
+
+\begin{trapbox}
+``Skewed right'' confuses people because the bulk of the data is on the \emph{left}. Name the
+skew after the tail: if the long thin end points toward large values, the distribution is
+skewed right.
+\end{trapbox}
+
+\subsection{A left-skewed example: exam scores}
+
+Eighty students take an exam scored out of 100. Their scores, in bins of 10, are:
+$[30,40)$: 1, $[40,50)$: 2, $[50,60)$: 2, $[60,70)$: 5, $[70,80)$: 17, $[80,90)$: 31,
+$[90,100]$: 22. (The top bin includes 100.)
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5cm,
+  ymin=0, ymax=36, xmin=30, xmax=100, xtick={30,40,...,100},
+  xlabel={exam score}, ylabel={students},
+  axis lines*=left, clip=false
+]
+\addplot[ybar interval, fill=targetgreen!35, draw=targetgreen!70!black]
+  coordinates {(30,1) (40,2) (50,2) (60,5) (70,17) (80,31) (90,22) (100,0)};
+\draw[densityred, very thick] (axis cs:100,0) -- (axis cs:100,33);
+\node[densityred, font=\footnotesize, anchor=south] at (axis cs:100,33) {ceiling};
+\draw[-Stealth, gray, thick] (axis cs:62,9) -- (axis cs:36,4);
+\node[font=\footnotesize, anchor=south] at (axis cs:52,12) {long tail to the left};
+\end{axis}
+\end{tikzpicture}
+\caption{Exam scores of 80 students. The test was easy for most: the peak is in the 80s and
+nobody can score above 100. A few struggling students form a long tail toward low scores,
+making the distribution skewed left.}
+\label{fig:data-exam}
+\end{figure}
+
+Here $53$ of $80$ students ($66\%$) scored 80 or above, while the lowest bin reaches down into
+the 30s. Chapter 2 shows that a tail like this pulls the average below the middle value: in a
+left-skewed distribution the mean sits below the median.
+
+\subsection{A bimodal example: cache hits and misses}
+
+A service answers from a cache when it can (fast) and from a database when it cannot (slow).
+Here are 150 latencies, bins of width 5 ms.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.5cm, height=5.2cm,
+  ymin=0, ymax=58, xmin=0, xmax=110, xtick={0,10,...,110},
+  xlabel={latency (ms)}, ylabel={count},
+  axis lines*=left, clip=false
+]
+\addplot[ybar interval, fill=histfill, draw=distblue]
+  coordinates {(10,9) (15,49) (20,41) (25,5) (30,1) (35,0) (40,0) (45,1) (50,0) (55,1) (60,4) (65,8) (70,4) (75,11) (80,5) (85,3) (90,3) (95,3) (100,2) (105,0)};
+\node[font=\footnotesize, anchor=west] at (axis cs:27,46) {cache hits (fast)};
+\node[font=\footnotesize, anchor=south] at (axis cs:82,14) {cache misses (slow)};
+\draw[densityred, dashed, thick] (axis cs:37,0) -- (axis cs:37,32);
+\node[densityred, font=\footnotesize, anchor=west, align=left] at (axis cs:38.5,30) {mean $\approx 37$ ms:\\no request is\\near this value};
+\end{axis}
+\end{tikzpicture}
+\caption{A bimodal latency distribution. Two kinds of request share one column. The overall
+mean lands in the valley between the peaks, a value that describes almost none of the actual
+requests.}
+\label{fig:data-bimodal}
+\end{figure}
+
+Of the 150 requests, only 2 took between 30 and 55 ms, and none between 35 and 45. Yet the
+average of all 150 is about 37 ms. The arithmetic shows why: 105 hits (70\%) average about
+20 ms and 45 misses (30\%) average about 78 ms, so the overall mean is roughly
+$0.7\cdot 20 + 0.3\cdot 78 \approx 37$, a weighted point between the two peaks. A single
+summary number cannot describe two groups. The right move is to split the
+data (by a cache-hit flag, if the log has one) and describe each group separately. A
+histogram is how you notice that you need to.
+
+\section{Outliers}
+\label{sec:data-outliers}
+
+An \textbf{outlier} is a value that sits far from the bulk of the data, separated from it by a
+gap. The 140 ms request in Figure~\ref{fig:data-dotplot} is one: the other 19 values are all
+under 60, and nothing lies between 58 and 140.
+
+There is no universal cutoff for ``far''; Chapter 3 gives a standard rule based on quartiles.
+What matters more is what you \emph{do} with an outlier. It can be any of these:
+
+\begin{itemize}
+  \item \textbf{A recording error.} A latency of $-3$ ms, a height of 17 m, a score of 850 on a
+  100-point test. Fix it if you can, drop it if you cannot, and write down that you did.
+  \item \textbf{A different process.} The 140 ms request returned 503 and retried three times
+  (Table~\ref{tab:data-log}). It is a real request, but it is a failure, not a slow success.
+  \item \textbf{The thing you care about.} For a latency service-level objective (a promise
+  such as ``99\% of requests finish within 100 ms''), the slow
+  requests \emph{are} the story. Deleting them would make the dashboard look better and the
+  product worse.
+\end{itemize}
+
+Outliers can also come in clumps. Clients usually give up after a fixed timeout, and the log
+records the cap rather than the true time.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.5cm, height=4.8cm,
+  ymin=0, ymax=135, xmin=0, xmax=1050, xtick={0,100,...,1000},
+  xlabel={latency (ms)}, ylabel={count},
+  axis lines*=left, clip=false
+]
+\addplot[ybar interval, fill=histfill, draw=distblue]
+  coordinates {(0,29) (25,120) (50,43) (75,7) (100,1) (125,0)};
+\addplot[ybar interval, fill=trapred!60, draw=trapred]
+  coordinates {(1000,6) (1025,0)};
+\node[font=\footnotesize, anchor=south east, align=right, text=trapred] at (axis cs:1010,14)
+  {6 requests hit the\\1000 ms client timeout};
+\node[font=\footnotesize, anchor=west, align=left] at (axis cs:140,100)
+  {200 completed requests,\\all under 125 ms};
+\end{axis}
+\end{tikzpicture}
+\caption{The 200 latencies plus 6 timeouts recorded as exactly 1000 ms. The red bar is not
+part of the tail; it is a pile-up at a hard cap, and the true times of those requests are
+unknown (they are at least 1000 ms). Averaging it in would treat ``gave up'' as a measurement.}
+\label{fig:data-timeouts}
+\end{figure}
+
+\begin{trapbox}
+Never delete outliers just because they are inconvenient. Investigate first. Whatever you
+decide, report results both with and without them if the conclusion changes.
+\end{trapbox}
+
+\section{The distribution is the object of study}
+\label{sec:data-distribution}
+
+Every chart in this chapter answers the same question: \emph{which values occur, and how
+often?} That pairing of values with their frequencies is the distribution.
+
+\begin{definition}[Distribution of a variable]
+The \textbf{distribution} of a variable in a data set is the list of values it takes together
+with how often it takes each one (as counts, relative frequencies, or densities). For a
+population, the distribution describes the whole population; for a sample, it is called the
+\textbf{empirical distribution}.
+\end{definition}
+
+The empirical distribution is a rough copy of the population distribution, and the copy gets
+sharper as the sample grows. Figure~\ref{fig:data-growth} shows density histograms of latency
+samples of three sizes, all drawn from the same underlying process, with the population density
+drawn on top.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\pgfplotsset{grw/.style={width=4.55cm, height=4.2cm, xmin=0, xmax=150, ymin=0, ymax=0.03,
+  xtick={0,50,100}, ytick=\empty, axis lines*=left, title style={font=\small},
+  xlabel={ms}, xlabel style={font=\footnotesize}, ticklabel style={font=\footnotesize}}}
+\begin{axis}[grw, name=g1, title={$n=50$}]
+\addplot[ybar interval, fill=histfill!60, draw=distblue]
+  coordinates {(0,0) (10,0.006) (20,0.022) (30,0.024) (40,0.020) (50,0.012) (60,0.010) (70,0.002) (80,0.002) (90,0) (100,0) (110,0) (120,0) (130,0.002) (140,0) (150,0)};
+\addplot[densityred, thick, domain=2:150, samples=120] {0.88654/x*exp(-(ln(x)-3.688879)^2/0.405)};
+\end{axis}
+\begin{axis}[grw, name=g2, at={(g1.east)}, anchor=west, xshift=0.5cm, title={$n=500$}]
+\addplot[ybar interval, fill=histfill!60, draw=distblue]
+  coordinates {(0,0) (10,0.0048) (20,0.0202) (30,0.0234) (40,0.0178) (50,0.0152) (60,0.0068) (70,0.0046) (80,0.0036) (90,0.0010) (100,0.0010) (110,0.0006) (120,0) (130,0) (140,0.0006) (150,0)};
+\addplot[densityred, thick, domain=2:150, samples=120] {0.88654/x*exp(-(ln(x)-3.688879)^2/0.405)};
+\end{axis}
+\begin{axis}[grw, at={(g2.east)}, anchor=west, xshift=0.5cm, title={$n=5000$}]
+\addplot[ybar interval, fill=histfill!60, draw=distblue]
+  coordinates {(0,0.0002) (10,0.0058) (20,0.0190) (30,0.0251) (40,0.0188) (50,0.0127) (60,0.0073) (70,0.0047) (80,0.0024) (90,0.0015) (100,0.0008) (110,0.0008) (120,0.0003) (130,0.0001) (140,0.0002) (150,0)};
+\addplot[densityred, thick, domain=2:150, samples=120] {0.88654/x*exp(-(ln(x)-3.688879)^2/0.405)};
+\end{axis}
+\end{tikzpicture}
+\caption{Density histograms of three samples from one latency process, bin width 10 ms, all on
+the same scale. The red curve is the population density. At $n=50$ the bars are lumpy; at
+$n=5000$ they hug the curve. The population distribution is the fixed target; each sample is a
+noisy picture of it.}
+\label{fig:data-growth}
+\end{figure}
+
+\begin{happeningbox}
+This figure is a preview of the whole book. The red curve is what we want to know and never
+see directly. The bars are what we have. Describing the bars is Chapters 1--4. Saying how far
+the bars might be from the curve, for a given $n$, is inference: sampling distributions,
+standard errors, and confidence intervals (Chapters 6--8). Using a fitted curve to say what
+comes next is prediction (Chapters 12--15).
+\end{happeningbox}
+
+\subsection{How to read any distribution}
+
+When you meet a new histogram, read it in a fixed order. Each step points to the chapter that
+develops it.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  st/.style={draw, rounded corners, thick, fill=histfill!20, align=center, font=\small, minimum height=1.3cm, text width=2.35cm},
+  arr/.style={-Stealth, thick}
+]
+\node[st] (a) at (0,0) {\textbf{Shape}\\one peak or two?\\skewed?};
+\node[st] (b) at (3.1,0) {\textbf{Center}\\where is a typical value?};
+\node[st] (c) at (6.2,0) {\textbf{Spread}\\how far do values range?};
+\node[st] (d) at (9.3,0) {\textbf{Unusual}\\gaps, outliers, pile-ups?};
+\draw[arr] (a) -- (b);
+\draw[arr] (b) -- (c);
+\draw[arr] (c) -- (d);
+\node[font=\footnotesize, below=0.15cm of a] {this chapter};
+\node[font=\footnotesize, below=0.15cm of b] {Chapter 2};
+\node[font=\footnotesize, below=0.15cm of c] {Chapters 2--3};
+\node[font=\footnotesize, below=0.15cm of d] {Chapters 1, 3};
+\end{tikzpicture}
+\caption{A fixed reading order for any distribution. Shape comes first because it decides
+which measures of center and spread are trustworthy: the mean works for the symmetric coin
+counts and fails for the bimodal cache latencies.}
+\label{fig:data-reading-order}
+\end{figure}
+
+Apply it to the 200 latencies (Figure~\ref{fig:data-binwidths}, middle panel). \emph{Shape}:
+one peak, skewed right. \emph{Center}: the peak bin is $[35,40)$ and half the values are at or
+below 38 ms. \emph{Spread}: most values lie between 15 and 80 ms. \emph{Unusual}: isolated
+values at 98 and 110 ms worth a look. Those four sentences already tell an on-call engineer
+what to expect from this endpoint.
+
+\begin{historybox}
+Karl Pearson, a British mathematician building the new field of mathematical statistics,
+introduced the word \emph{histogram} in his lectures in 1891. He needed a name for the
+bar-picture he used to compare measured data (skull sizes, crab shell widths, death ages)
+with the smooth curves his theory predicted, and the name stuck. Eighty years later, John
+Tukey, a Princeton and Bell Labs statistician, complained that statisticians rushed to fit
+models before looking at their data. In the 1970s he invented quick pencil-and-paper displays
+for looking first, including the stem-and-leaf plot and the box plot (Chapter 3), and collected
+them in his 1977 book \emph{Exploratory Data Analysis}. His point became standard practice:
+plot the distribution before you compute anything.
+\end{historybox}
+
+
+\section{Summary}
+\label{sec:data-summary}
+
+\begin{itemize}
+  \item Statistics describes data in hand, infers facts about a population, and predicts new
+  values. Description comes first.
+  \item A data set is a table: rows are observational units, columns are variables. Decide
+  what one row is before analyzing.
+  \item Variables are categorical (nominal or ordinal) or numerical (discrete or continuous).
+  Digits do not make a variable numerical; ask whether arithmetic makes sense.
+  \item A sample is the part of the population you observed. Parameters describe populations;
+  statistics describe samples.
+  \item Frequency tables count; relative frequencies (count$/n$) sum to 1 and compare across
+  data sets of different sizes.
+  \item Categorical data: bar charts with gaps, starting at zero; keep ordinal order.
+  Numerical data: dot plots and stem-and-leaf for small $n$, histograms with touching bars for
+  larger $n$.
+  \item Bin width trades noise (too narrow) against blur (too wide). Try several.
+  \item Density histogram: height $= k/(nw)$, so bar area is the fraction of data in the bin and
+  total area is 1. Required for unequal bins; the bridge to probability densities.
+  \item Shapes: symmetric, skewed right (long right tail), skewed left, uniform, bimodal.
+  Bimodal usually means two groups mixed together.
+  \item Outliers may be errors, a different process, or the main story. Investigate before
+  removing.
+  \item The distribution (which values, how often) is the object of study. Read it in order:
+  shape, center, spread, unusual features.
+\end{itemize}
+
+Chapter 2 turns the second and third items of that reading order into numbers: the mean and
+median for center, and the standard deviation for spread, including why it divides by $n-1$.
+
+\section{Exercises}
+\label{sec:data-exercises}
+
+\begin{enumerate}
+  \item For each variable, give its type (nominal, ordinal, discrete, continuous): (a) CPU
+  temperature; (b) number of open pull requests; (c) country of a user; (d) severity level
+  P0/P1/P2/P3; (e) HTTP method (GET, POST, \dots).
+  \item A survey of 250 engineers asks their primary language: Python 110, Java 60, Go 45,
+  C\texttt{++} 35. Compute the relative frequencies and say which chart you would draw and how
+  you would order its bars.
+  \item Make a stem-and-leaf plot of these page sizes in KB: 41, 47, 52, 38, 55, 49, 63, 44,
+  58, 36, 51, 47. Describe the shape in one sentence.
+  \item Using the binned table for the 20 latencies (Table~\ref{tab:data-latency-bins}), what
+  fraction of requests took under 30 ms? Under 40 ms?
+  \item A density histogram of $n=400$ values has a bar over $[2,5)$ of height $0.15$. How many
+  values lie in $[2,5)$?
+  \item Bins $[0,10)$, $[10,20)$, $[20,50)$ hold 30, 50, 60 values out of $n = 140$. Compute the
+  three densities. Which bin has the tallest bar on a density histogram? On a count histogram?
+  \item Predict the shape (symmetric, skewed right, skewed left, uniform, bimodal) of: (a) file
+  sizes on a laptop; (b) the second-hand reading of a wall clock at random moments; (c) heights
+  of a group containing both 6-year-olds and their parents; (d) age at retirement.
+  \item Explain why a histogram of 30 values with 30 bins and a histogram with 2 bins would both
+  be poor summaries.
+  \item In the cache example (Figure~\ref{fig:data-bimodal}), why is ``average latency 37 ms''
+  a misleading headline? What two numbers would you report instead?
+\end{enumerate}
+
+\subsection*{Answers}
+
+\begin{enumerate}
+  \item (a) continuous; (b) discrete; (c) nominal; (d) ordinal; (e) nominal.
+  \item $110/250 = 0.44$, $60/250 = 0.24$, $45/250 = 0.18$, $35/250 = 0.14$ (sum 1). A bar chart
+  with gaps, bars sorted by height, since language is nominal.
+  \item Stems 3 to 6: \texttt{3 | 6 8}, \texttt{4 | 1 4 7 7 9}, \texttt{5 | 1 2 5 8},
+  \texttt{6 | 3}. Roughly symmetric, centered in the high 40s, no outliers.
+  \item Under 30: $(8+7)/20 = 0.75$. Under 40: $(8+7+2)/20 = 0.85$.
+  \item Area $= 0.15 \times 3 = 0.45$, so $0.45 \times 400 = 180$ values.
+  \item $30/(140\cdot 10) \approx 0.0214$, $50/(140\cdot 10) \approx 0.0357$,
+  $60/(140\cdot 30) \approx 0.0143$. Tallest density bar: $[10,20)$. Tallest count bar:
+  $[20,50)$, which misleads because that bin is three times as wide.
+  \item (a) skewed right (many small files, a few huge ones); (b) uniform; (c) bimodal;
+  (d) roughly symmetric around a typical retirement age, often with a left tail from early
+  retirees.
+  \item With 30 bins most bins hold 0 or 1 value, so the picture is noise. With 2 bins every
+  feature (peaks, skew, outliers) is averaged away.
+  \item No request takes anywhere near 37 ms; the data are two groups. Report each group
+  separately, e.g.\ typical cache-hit latency (about 20 ms) and typical cache-miss latency
+  (about 78 ms), along with the hit rate (105 of 150, 70\%).
+\end{enumerate}

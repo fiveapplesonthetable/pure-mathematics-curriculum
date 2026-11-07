@@ -1,0 +1,1329 @@
+\chapter{Multiple and Logistic Regression}
+\label{ch:multiple-logistic-regression}
+
+Chapter~12 fitted a straight line through a cloud of points: one predictor $x$, one
+response $y$. Real questions rarely have one cause. A house price depends on size
+\emph{and} age \emph{and} location. A page conversion depends on time on page
+\emph{and} device \emph{and} traffic source. This chapter does two things. It lets the
+line take in many predictors at once, which turns it into a plane and then into a
+projection in high-dimensional space. Then it bends the model so it can predict a
+yes/no outcome. The second step leads straight to the loss function that trains most
+classifiers in machine learning.
+
+\section{From a line to a plane}
+\label{sec:mlr-plane}
+
+Here are the first rows of a dataset of $40$ houses. Price is in thousands of dollars,
+size in square metres, age in years.
+
+\begin{center}
+\begin{tabular}{rrrr}
+\toprule
+house & size (m$^2$) & age (yr) & price (\$k) \\
+\midrule
+1 & 144 & 16 & 308 \\
+2 & 185 & 53 & 343 \\
+3 & 166 & 31 & 313 \\
+4 & 84 & 51 & 161 \\
+5 & 95 & 38 & 142 \\
+$\vdots$ & $\vdots$ & $\vdots$ & $\vdots$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+With one predictor we drew $\hat y = b_0 + b_1 x$, a line. With two predictors the
+natural guess is
+\[
+  \widehat{\text{price}} = b_0 + b_1\cdot\text{size} + b_2\cdot\text{age},
+\]
+which is a flat plane hovering over the (size, age) floor. Least squares again picks
+the plane that makes the sum of squared vertical gaps as small as possible. For these
+$40$ houses the computer returns
+\[
+  \widehat{\text{price}} = 60.08 + 1.861\cdot\text{size} - 1.393\cdot\text{age}.
+\]
+Read it as: one extra square metre adds about \$1{,}861; one extra year of age
+subtracts about \$1{,}393.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=8cm, view={-35}{22},
+  xlabel={size (m$^2$)}, ylabel={age (yr)}, zlabel={price (\$k)},
+  xmin=50, xmax=200, ymin=0, ymax=60, zmin=50, zmax=420,
+  label style={font=\small}, tick label style={font=\footnotesize},
+  grid=major,
+]
+\addplot3[surf, domain=50:200, y domain=0:60, samples=6, samples y=5,
+  opacity=0.35, fill opacity=0.35, colormap={blues}{color=(histfill) color=(sourceblue)},
+  faceted color=sourceblue!60] {60.08+1.8615*x-1.3934*y};
+\draw[residgray] (axis cs:144,16,308) -- (axis cs:144,16,305.8);
+\draw[residgray] (axis cs:185,53,343) -- (axis cs:185,53,330.6);
+\draw[residgray] (axis cs:166,31,313) -- (axis cs:166,31,325.9);
+\draw[residgray] (axis cs:84,51,161) -- (axis cs:84,51,145.4);
+\draw[residgray] (axis cs:95,38,142) -- (axis cs:95,38,184.0);
+\draw[residgray] (axis cs:181,45,314) -- (axis cs:181,45,334.3);
+\draw[residgray] (axis cs:51,5,153) -- (axis cs:51,5,148.0);
+\draw[residgray] (axis cs:173,32,287) -- (axis cs:173,32,337.5);
+\draw[residgray] (axis cs:170,30,358) -- (axis cs:170,30,334.7);
+\draw[residgray] (axis cs:120,52,184) -- (axis cs:120,52,211.0);
+\draw[residgray] (axis cs:95,22,230) -- (axis cs:95,22,206.3);
+\draw[residgray] (axis cs:92,36,168) -- (axis cs:92,36,181.2);
+\draw[residgray] (axis cs:88,4,232) -- (axis cs:88,4,218.3);
+\draw[residgray] (axis cs:117,23,250) -- (axis cs:117,23,245.8);
+\addplot3[only marks, mark=*, mark size=1.6pt, densityred] coordinates {
+(144,16,308) (185,53,343) (166,31,313) (84,51,161) (95,38,142) (181,45,314)
+(51,5,153) (173,32,287) (170,30,358) (120,52,184) (95,22,230) (92,36,168)
+(88,4,232) (117,23,250)};
+\end{axis}
+\end{tikzpicture}
+\caption{With two predictors the fitted model is a plane. Each red point is a house;
+each grey segment is its residual, the vertical gap to the plane. Least squares tilts
+the plane to minimise the sum of the squared segment lengths, exactly as in
+Chapter~12. (Fourteen of the $40$ houses are shown.)}
+\label{fig:mlr-plane}
+\end{figure}
+
+With three or more predictors there is no picture of the plane any more, but the
+algebra does not care. We need a notation that handles any number of predictors at once.
+
+\section{The matrix form}
+\label{sec:mlr-matrix}
+
+\subsection{Stacking the equations}
+
+Take a tiny dataset so we can do everything by hand: four houses, size $x$ in units of
+$100$ m$^2$, price $y$ in units of \$100k.
+\[
+  x = (1,\,2,\,3,\,4), \qquad y = (3,\,5,\,4,\,8).
+\]
+The model says each price is intercept plus slope times size plus an error:
+\[
+\begin{aligned}
+  3 &= \beta_0 + \beta_1\cdot 1 + \eps_1,\\
+  5 &= \beta_0 + \beta_1\cdot 2 + \eps_2,\\
+  4 &= \beta_0 + \beta_1\cdot 3 + \eps_3,\\
+  8 &= \beta_0 + \beta_1\cdot 4 + \eps_4.
+\end{aligned}
+\]
+Four equations with the same shape. Stack them into vectors and a matrix:
+\[
+  \underbrace{\begin{bmatrix}3\\5\\4\\8\end{bmatrix}}_{y}
+  =
+  \underbrace{\begin{bmatrix}1&1\\1&2\\1&3\\1&4\end{bmatrix}}_{X}
+  \underbrace{\begin{bmatrix}\beta_0\\ \beta_1\end{bmatrix}}_{\beta}
+  +
+  \underbrace{\begin{bmatrix}\eps_1\\ \eps_2\\ \eps_3\\ \eps_4\end{bmatrix}}_{\eps}.
+\]
+
+\begin{definition}[Linear model in matrix form]
+With $n$ observations and $p$ predictors,
+\[
+  y = X\beta + \eps,
+\]
+where $y$ is the $n\times 1$ vector of responses, $\beta$ is the $(p+1)\times 1$ vector of
+coefficients, $\eps$ is the $n\times 1$ vector of errors, and $X$ is the $n\times(p+1)$
+\textbf{design matrix}: one row per observation, one column per predictor, plus a
+leading column of $1$s.
+\end{definition}
+
+The design matrix is the spreadsheet of inputs. The column of $1$s is the
+\textbf{intercept column}: it multiplies $\beta_0$, so every row gets the same constant
+added. Without it the fitted plane would be forced through the origin.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small]
+\node (y) at (0,0) {$\begin{bmatrix} y_1\\ y_2\\ \vdots\\ y_n \end{bmatrix}$};
+\node at (0.95,0) {$=$};
+\matrix (M) at (4.1,0) [matrix of math nodes, left delimiter={[}, right delimiter={]},
+  nodes={minimum width=0.75cm, minimum height=0.55cm, anchor=center}, column sep=1pt, row sep=0pt]
+{ 1 & x_{11} & x_{12} & \cdots & x_{1p}\\
+  1 & x_{21} & x_{22} & \cdots & x_{2p}\\
+  \vdots & \vdots & \vdots & & \vdots\\
+  1 & x_{n1} & x_{n2} & \cdots & x_{np}\\ };
+\node (b) at (7.55,0) {$\begin{bmatrix} \beta_0\\ \beta_1\\ \vdots\\ \beta_p \end{bmatrix}$};
+\node at (8.35,0) {$+$};
+\node (e) at (9.15,0) {$\begin{bmatrix} \eps_1\\ \eps_2\\ \vdots\\ \eps_n \end{bmatrix}$};
+\node[draw=quotientorange, thick, rounded corners, inner sep=1pt, fit=(M-1-1)(M-4-1)] (IC) {};
+\node[draw=sourceblue, thick, rounded corners, inner sep=1pt, fit=(M-1-2)(M-4-5)] (PC) {};
+\node[draw=targetgreen, thick, rounded corners, inner sep=0pt, fit=(M-2-1)(M-2-5)] (R2) {};
+\node[quotientorange, anchor=north, align=center] at (IC.south) {intercept\\column};
+\node[sourceblue, anchor=north, align=center] at (PC.south) {one column\\per predictor};
+\node[targetgreen, anchor=south] at (PC.north) {one row per observation (row 2 shown)};
+\node[anchor=north, align=center] at (0,-1.15) {$n\times 1$\\responses};
+\node[anchor=north, align=center] at (7.55,-1.15) {$(p{+}1)\times 1$\\coefficients};
+\node[anchor=north, align=center] at (9.3,-1.15) {$n\times 1$\\errors};
+\end{tikzpicture}
+\caption{The anatomy of $y = X\beta + \eps$. The design matrix $X$ holds the inputs;
+its first column of $1$s carries the intercept. Multiplying row $i$ of $X$ by $\beta$
+gives the model's prediction for observation $i$.}
+\label{fig:mlr-design}
+\end{figure}
+
+\subsection{The normal equations}
+
+We want the $\beta$ that minimises the sum of squared residuals
+\[
+  S(\beta) = \sum_{i=1}^n (y_i - \hat y_i)^2 = \norm{y - X\beta}^2 .
+\]
+The symbol $\norm{v}^2$ is the squared length of a vector: the sum of its squared
+entries. So $S(\beta)$ is the squared distance between the data vector $y$ and the
+prediction vector $X\beta$.
+
+Expand it, treating vectors like numbers but keeping track of transposes
+($v^\top$ turns a column into a row):
+\[
+  S(\beta) = y^\top y - 2\beta^\top X^\top y + \beta^\top X^\top X \beta .
+\]
+This is a bowl-shaped quadratic in $\beta$. At the bottom of a bowl the slope in every
+direction is zero. The vector of slopes (the \textbf{gradient}, one partial
+derivative per coefficient) is
+\[
+  \nabla S(\beta) = -2X^\top y + 2X^\top X\beta .
+\]
+Setting it to zero gives the central equation of this chapter.
+
+\begin{theorem}[Normal equations]
+The least squares coefficients $\hat\beta = (b_0, b_1, \dots, b_p)^\top$ satisfy
+\[
+  X^\top X\,\hat\beta = X^\top y .
+\]
+If the columns of $X$ are linearly independent, $X^\top X$ is invertible and
+\[
+  \hat\beta = (X^\top X)^{-1} X^\top y .
+\]
+\end{theorem}
+
+\begin{example}[Four houses by hand]
+\label{ex:mlr-four}
+With $X$ and $y$ above,
+\[
+  X^\top X = \begin{bmatrix} 4 & 10\\ 10 & 30 \end{bmatrix},\qquad
+  X^\top y = \begin{bmatrix} 3+5+4+8\\ 3+10+12+32 \end{bmatrix}
+           = \begin{bmatrix} 20\\ 57 \end{bmatrix}.
+\]
+The entries of $X^\top X$ are $n=4$, $\sum x_i = 10$ and $\sum x_i^2 = 30$. The
+determinant is $4\cdot 30 - 10\cdot 10 = 20$, so
+\[
+  \hat\beta = \frac{1}{20}\begin{bmatrix} 30 & -10\\ -10 & 4 \end{bmatrix}
+  \begin{bmatrix} 20\\ 57 \end{bmatrix}
+  = \frac{1}{20}\begin{bmatrix} 600-570\\ -200+228 \end{bmatrix}
+  = \begin{bmatrix} 1.5\\ 1.4 \end{bmatrix}.
+\]
+The fitted line is $\hat y = 1.5 + 1.4x$, the same answer the slope formula
+$b_1 = S_{xy}/S_{xx}$ from Chapter~12 gives. Fitted values are $2.9, 4.3, 5.7, 7.1$ and
+residuals are $e = (0.1,\ 0.7,\ -1.7,\ 0.9)$.
+\end{example}
+
+Two checks on those residuals. They sum to zero: $0.1+0.7-1.7+0.9=0$. And weighted by
+$x$ they also sum to zero: $0.1 + 1.4 - 5.1 + 3.6 = 0$. Those two facts are the normal
+equations rewritten as $X^\top e = 0$: the residual vector has zero dot product with
+every column of $X$. That sentence has a picture.
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+X = np.array([[1, 1], [1, 2], [1, 3], [1, 4]], dtype=float)
+y = np.array([3, 5, 4, 8], dtype=float)
+beta = np.linalg.solve(X.T @ X, X.T @ y)       # normal equations: [1.5, 1.4]
+beta2, *_ = np.linalg.lstsq(X, y, rcond=None)  # same answer, numerically safer
+e = y - X @ beta
+print(beta, X.T @ e)                           # X^T e is (0, 0) up to rounding
+\end{lstlisting}
+
+\section{The geometric picture: least squares is a projection}
+\label{sec:mlr-geometry}
+
+Think of the $n$ responses as a single arrow $y$ in $n$-dimensional space. Each column of
+$X$ is also an arrow in that space. Every possible prediction $X\beta$ is a weighted
+sum of the columns, so the set of all possible predictions is a flat sheet through the
+origin: the \textbf{column space} of $X$, meaning every vector you can build by
+stretching and adding the columns. With two columns it is a plane.
+
+The data arrow $y$ almost never lies in that plane (noise pushes it out). Least squares
+asks: which point in the plane is closest to $y$? The answer is the foot of the
+perpendicular dropped from $y$ onto the plane. That foot is $\hat y$, and the
+perpendicular itself is the residual vector $e = y - \hat y$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.15, font=\small]
+\fill[histfill!25] (-0.8,-1.0) -- (5.4,-1.0) -- (6.8,1.6) -- (0.6,1.6) -- cycle;
+\draw[histfill!80!black] (-0.8,-1.0) -- (5.4,-1.0) -- (6.8,1.6) -- (0.6,1.6) -- cycle;
+\node[sourceblue!80!black, anchor=north west] at (-0.8,-1.05) {column space of $X$};
+\coordinate (O) at (0.6,-0.4);
+\coordinate (Yh) at (3.9,0.45);
+\coordinate (Y) at (3.9,3.3);
+\coordinate (Z) at (2.9,1.2);
+\draw[-{Stealth}, thick, gray!70!black] (O) -- (2.4,0.55) node[right] {$\mathbf{1}$};
+\draw[-{Stealth}, thick, gray!70!black] (O) -- (4.6,-0.55) node[below] {$x$};
+\draw[-{Stealth}, very thick, distblue] (O) -- (Y) node[above] {$y$ (data)};
+\draw[-{Stealth}, very thick, targetgreen] (O) -- (Yh);
+\node[targetgreen!70!black, anchor=north west] at (Yh) {$\hat y = X\hat\beta$};
+\draw[-{Stealth}, very thick, densityred, dashed] (Yh) -- (Y);
+\node[densityred, anchor=west] at (3.95,1.9) {$e = y-\hat y$};
+\draw[densityred] ($(Yh)+(0,0.28)$) -- ($(Yh)+(0.26,0.36)$) -- ($(Yh)+(0.26,0.08)$);
+\draw[trapred, dotted, thick] (Y) -- (Z);
+\fill[trapred] (Z) circle (1.4pt);
+\node[trapred, anchor=west] at (2.95,1.2) {$Xb$};
+\end{tikzpicture}
+\caption{Least squares as projection. The data vector $y$ sticks out of the plane of
+possible predictions. The closest point in the plane is $\hat y$, reached by dropping a
+perpendicular. Any other choice $Xb$ (dotted) is farther from $y$. The residual $e$ is
+at a right angle to every column of $X$, which is exactly the statement $X^\top e = 0$.}
+\label{fig:mlr-projection}
+\end{figure}
+
+\begin{whybox}
+Why does the perpendicular give the closest point? Take any other point $Xb$ in the
+plane. The three points $y$, $\hat y$, $Xb$ form a right triangle with the right angle
+at $\hat y$, because $\hat y - Xb$ lies in the plane and $e$ is perpendicular to the
+plane. Pythagoras gives
+\[
+  \norm{y - Xb}^2 = \norm{e}^2 + \norm{\hat y - Xb}^2 \;\ge\; \norm{e}^2 .
+\]
+So no other point beats $\hat y$. Writing ``$e$ is perpendicular to every column'' as
+$X^\top(y - X\hat\beta) = 0$ and rearranging gives the normal equations again, with no
+calculus at all.
+\end{whybox}
+
+The same right triangle, with $\bar y\mathbf 1$ in place of $Xb$, is the decomposition
+$\text{SST} = \text{SSR} + \text{SSE}$ from Chapter~12. $R^2$ is the squared cosine of the
+angle between the centred $y$ and the plane: how much of the arrow lies \emph{in} the
+plane.
+
+\subsection{The hat matrix}
+
+Substitute $\hat\beta$ into $\hat y = X\hat\beta$:
+\[
+  \hat y = X(X^\top X)^{-1}X^\top y = Hy, \qquad H = X(X^\top X)^{-1}X^\top .
+\]
+$H$ is called the \textbf{hat matrix} because it puts the hat on $y$. It is the
+projection machine: feed in any vector, get back its shadow on the column space.
+Two facts follow from the picture. Projecting twice changes nothing, so $HH = H$. And the
+residual is what is left over, $e = (I - H)y$.
+
+The diagonal entry $h_{ii}$ is the \textbf{leverage} of observation $i$: how strongly
+$y_i$ pulls on its own fitted value $\hat y_i$. For the four houses, with one predictor,
+$h_{ii} = \tfrac1n + (x_i-\xbar)^2/S_{xx}$ with $\xbar = 2.5$ and $S_{xx} = 5$:
+\[
+  h_{11} = 0.25 + \tfrac{2.25}{5} = 0.7,\quad h_{22} = 0.25 + \tfrac{0.25}{5} = 0.3,\quad
+  h_{33} = 0.3,\quad h_{44} = 0.7 .
+\]
+The end points have the most leverage, as the seesaw intuition of Chapter~12 suggested.
+The leverages sum to $2$, the number of columns. In general they sum to $p+1$.
+
+\begin{recoverybox}
+Pause and think: if you add a predictor that is pure noise, can $\norm{e}^2$ go up?
+(No. The column space only grows, so the closest point can only get closer. That is why
+$R^2$ never falls when a variable is added, and why we will need adjusted $R^2$.)
+\end{recoverybox}
+
+\section{What a coefficient means: ``holding the others fixed''}
+\label{sec:mlr-interpret}
+
+In $\widehat{\text{price}} = 60.08 + 1.861\cdot\text{size} - 1.393\cdot\text{age}$,
+compare two houses with the same age whose sizes differ by $1$ m$^2$. Their predicted
+prices differ by exactly $1.861$ (thousand dollars). That is the meaning of a
+coefficient in multiple regression: \emph{the predicted change in $y$ for a one-unit
+change in $x_j$ with every other predictor held fixed.}
+
+This is a different number from the simple-regression slope, and the difference can be
+dramatic. Here are $12$ houses with size and number of bedrooms.
+
+\begin{center}
+\begin{tabular}{l*{12}{r}}
+\toprule
+size (m$^2$) & 60 & 70 & 80 & 90 & 100 & 110 & 120 & 130 & 140 & 150 & 160 & 170\\
+bedrooms & 1 & 2 & 1 & 2 & 3 & 2 & 3 & 4 & 3 & 4 & 5 & 4\\
+price (\$k) & 161 & 130 & 188 & 185 & 191 & 228 & 219 & 238 & 268 & 307 & 287 & 317\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Regress price on bedrooms alone:
+\[
+  \widehat{\text{price}} = 122.6 + 36.7\cdot\text{bedrooms}.
+\]
+Each extra bedroom is worth \$36{,}700. Now add size:
+\[
+  \widehat{\text{price}} = 31.5 + 2.127\cdot\text{size} - 17.5\cdot\text{bedrooms}.
+\]
+The bedroom coefficient flipped sign. Holding size fixed, an extra bedroom
+\emph{lowers} the price by \$17{,}500.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=8cm, height=7cm,
+  xlabel={bedrooms}, ylabel={price (\$k)},
+  xmin=0.5, xmax=5.5, ymin=100, ymax=350, xtick={1,2,3,4,5},
+  legend style={font=\footnotesize, at={(1.03,1)}, anchor=north west},
+  axis lines=left,
+]
+\addplot[only marks, mark=*, mark size=2.2pt, histfill!70!black] coordinates
+  {(1,161) (2,130) (1,188) (2,185) (3,191)};
+\addlegendentry{size 60--100 m$^2$}
+\addplot[only marks, mark=square*, mark size=2.2pt, quotientorange] coordinates
+  {(2,228) (3,219) (4,238)};
+\addlegendentry{size 110--130 m$^2$}
+\addplot[only marks, mark=triangle*, mark size=2.8pt, densityred] coordinates
+  {(3,268) (4,307) (5,287) (4,317)};
+\addlegendentry{size 140--170 m$^2$}
+\addplot[thick, gray!70!black, domain=0.8:5.2] {122.63+36.689*x};
+\addlegendentry{bedrooms only: slope $+36.7$}
+\addplot[thick, dashed, histfill!70!black, domain=1:3] {201.68-17.483*x};
+\addlegendentry{size fixed: slope $-17.5$}
+\addplot[thick, dashed, quotientorange, domain=2:4, forget plot] {286.75-17.483*x};
+\addplot[thick, dashed, densityred, domain=3:5, forget plot] {361.18-17.483*x};
+\end{axis}
+\end{tikzpicture}
+\caption{Confounding in a regression. Across all houses, more bedrooms go with higher
+prices (solid line), because big houses have more bedrooms. Within houses of similar size
+(dashed lines at $80$, $120$ and $155$ m$^2$), more bedrooms means smaller rooms and a
+lower price. The multiple regression coefficient is the slope of the dashed lines.}
+\label{fig:mlr-confound}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small, node distance=2.6cm,
+  box/.style={draw, rounded corners, thick, minimum width=2.3cm, minimum height=0.8cm, align=center}]
+\node[box, draw=structurepurple] (S) {size};
+\node[box, draw=sourceblue, below left=1.2cm and 1.4cm of S] (B) {bedrooms};
+\node[box, draw=densityred, below right=1.2cm and 1.4cm of S] (P) {price};
+\draw[-{Stealth}, thick] (S) -- node[above left, align=center] {$\delta = 25.5$ m$^2$\\per bedroom} (B);
+\draw[-{Stealth}, thick] (S) -- node[above right] {$+2.13$ per m$^2$} (P);
+\draw[-{Stealth}, thick] (B) -- node[below] {$-17.5$ per bedroom (direct)} (P);
+\end{tikzpicture}
+\caption{Why the coefficient flips. Size drives both bedroom count and price. The
+bedrooms-only slope mixes the direct effect ($-17.5$) with the path through size
+($25.5 \times 2.13 \approx 54.2$), giving $+36.7$.}
+\label{fig:mlr-dag}
+\end{figure}
+
+The arithmetic in Figure~\ref{fig:mlr-dag} is exact, not a heuristic. Regress size on
+bedrooms and you get slope $\delta = 25.47$: each extra bedroom comes with $25.47$ m$^2$
+more house on average. Then
+\[
+  \underbrace{36.69}_{\text{simple slope}}
+  = \underbrace{-17.48}_{\text{bedrooms, size fixed}}
+  + \underbrace{2.1267}_{\text{size coef}}\times\underbrace{25.47}_{\delta}.
+\]
+This identity is called the \textbf{omitted variable bias} formula: leaving out a
+variable that is correlated with an included one shifts the included coefficient by
+(the omitted variable's coefficient) $\times$ ($\delta$, the slope from regressing the
+omitted variable on the included one).
+It is the regression version of the confounding story from Chapter~5.
+
+\begin{trapbox}
+``Holding others fixed'' is a statement about the fitted model, not about the world.
+Regression adjusts only for variables you put in. If an unmeasured variable (school
+district, say) drives both bedrooms and price, the bedroom coefficient still carries its
+shadow. And if no house in your data has $5$ bedrooms in $60$ m$^2$, the model's
+prediction for one is extrapolation, not evidence.
+\end{trapbox}
+
+\section{Building richer models with the same machinery}
+\label{sec:mlr-features}
+
+The word ``linear'' in linear regression means linear in the coefficients $\beta$. The
+columns of $X$ can be anything you compute from the data. That freedom gives
+categorical predictors, interactions and curves at no extra cost.
+
+\subsection{Categorical predictors and dummy variables}
+
+Request latency (ms) from three regions, four requests each:
+
+\begin{center}
+\begin{tabular}{lrrrrr}
+\toprule
+region & \multicolumn{4}{c}{latencies} & mean \\
+\midrule
+US & 42 & 45 & 40 & 47 & 43.5\\
+EU & 51 & 55 & 49 & 53 & 52.0\\
+Asia & 78 & 72 & 75 & 79 & 76.0\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Region is a label, not a number. Coding US$=1$, EU$=2$, Asia$=3$ would force the EU to sit
+exactly halfway between the others. Instead create \textbf{dummy variables}: columns of
+$0$s and $1$s that switch on for one category. Pick US as the \textbf{baseline}
+(reference category) and add two columns:
+\[
+  d_{\text{EU}} = \begin{cases}1 & \text{EU}\\0&\text{otherwise}\end{cases},\qquad
+  d_{\text{Asia}} = \begin{cases}1 & \text{Asia}\\0&\text{otherwise}\end{cases}.
+\]
+The model $\hat y = b_0 + b_1 d_{\text{EU}} + b_2 d_{\text{Asia}}$ predicts $b_0$ for
+US, $b_0+b_1$ for EU and $b_0 + b_2$ for Asia. Least squares makes each prediction the
+group mean, so
+\[
+  b_0 = 43.5,\qquad b_1 = 52.0 - 43.5 = 8.5,\qquad b_2 = 76.0 - 43.5 = 32.5 .
+\]
+Each dummy coefficient is a difference from the baseline. Its $t$-test asks whether that
+region differs from US. That is the pooled two-sample $t$-test of Chapter~9 in regression
+clothing, except that the spread is pooled across all three regions.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=6.5cm,
+  ylabel={latency (ms)}, xmin=0.4, xmax=4.2, ymin=35, ymax=85,
+  xtick={1,2,3}, xticklabels={US (baseline), EU, Asia},
+  axis lines=left,
+]
+\addplot[only marks, mark=*, mark size=2pt, sourceblue] coordinates
+  {(0.9,42) (1.0,45) (1.1,40) (0.95,47) (1.9,51) (2.0,55) (2.1,49) (1.95,53)
+   (2.9,78) (3.0,72) (3.1,75) (2.95,79)};
+\draw[thick, gray!70!black, dashed] (axis cs:0.6,43.5) -- (axis cs:3.6,43.5);
+\node[anchor=north west, font=\footnotesize, gray!70!black] at (axis cs:1.45,43.2) {$b_0=43.5$};
+\draw[thick, targetgreen] (axis cs:1.75,52) -- (axis cs:2.25,52);
+\draw[thick, targetgreen] (axis cs:2.75,76) -- (axis cs:3.25,76);
+\draw[thick, targetgreen] (axis cs:0.75,43.5) -- (axis cs:1.25,43.5);
+\draw[-{Stealth}, thick, densityred] (axis cs:2.35,43.5) -- (axis cs:2.35,52);
+\node[anchor=west, font=\footnotesize, densityred] at (axis cs:2.37,47.5) {$b_1=8.5$};
+\draw[-{Stealth}, thick, densityred] (axis cs:3.35,43.5) -- (axis cs:3.35,76);
+\node[anchor=west, font=\footnotesize, densityred] at (axis cs:3.37,60) {$b_2=32.5$};
+\end{axis}
+\end{tikzpicture}
+\caption{Dummy coding. The intercept is the baseline group's mean (US). Each dummy
+coefficient is the vertical jump from the baseline mean to that group's mean (green
+bars).}
+\label{fig:mlr-dummy}
+\end{figure}
+
+\begin{trapbox}
+The \textbf{dummy variable trap}: with an intercept, use $k-1$ dummies for $k$
+categories. If you add $d_{\text{US}}$ too, then $d_{\text{US}} + d_{\text{EU}} +
+d_{\text{Asia}} = 1$ in every row, which equals the intercept column. The columns are
+linearly dependent, $X^\top X$ has no inverse, and the coefficients are not defined.
+Software either errors or silently drops a column.
+\end{trapbox}
+
+\subsection{Interactions}
+
+Latency also depends on payload size. Suppose an old and a new server version both get
+slower with payload. Two very different stories are possible, and Figure~\ref{fig:mlr-interaction}
+shows both. Let $x$ be payload (KB) and $d=1$ for the new version.
+\begin{itemize}
+  \item \emph{Parallel lines}: $\hat y = 20 + 0.5x - 8d$. The new version is $8$ ms
+  faster at every payload.
+  \item \emph{Non-parallel lines}: $\hat y = 20 + 0.5x - 8d - 0.2\,xd$. The new version
+  is $8$ ms faster at $x=0$ and its slope is $0.5 - 0.2 = 0.3$ ms per KB, so the gap grows
+  with payload.
+\end{itemize}
+The extra column $x\cdot d$ is an \textbf{interaction term}: a product of two predictors,
+which lets the effect of one depend on the value of the other.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=left, width=6.4cm, height=5.6cm,
+  title={no interaction}, title style={font=\small},
+  xlabel={payload (KB)}, ylabel={latency (ms)},
+  xmin=0, xmax=100, ymin=0, ymax=75, axis lines=left,
+]
+\addplot[thick, densityred, domain=0:100] {20+0.5*x};
+\addplot[thick, sourceblue, domain=0:100] {12+0.5*x};
+\node[densityred, font=\footnotesize, anchor=south east] at (axis cs:95,68) {old};
+\node[sourceblue, font=\footnotesize, anchor=north west] at (axis cs:62,40) {new};
+\end{axis}
+\begin{axis}[
+  at={(left.east)}, anchor=west, xshift=1.4cm,
+  width=6.4cm, height=5.6cm,
+  title={with interaction}, title style={font=\small},
+  xlabel={payload (KB)},
+  xmin=0, xmax=100, ymin=0, ymax=75, axis lines=left,
+]
+\addplot[thick, densityred, domain=0:100] {20+0.5*x};
+\addplot[thick, sourceblue, domain=0:100] {12+0.3*x};
+\node[densityred, font=\footnotesize, anchor=south east] at (axis cs:95,68) {old};
+\node[sourceblue, font=\footnotesize, anchor=north west] at (axis cs:62,30) {new};
+\end{axis}
+\end{tikzpicture}
+\caption{Left: without an interaction term, the model can only shift the line, so the
+two versions differ by the same $8$ ms everywhere. Right: with an $x\cdot d$ term the
+slopes may differ, and the new version's advantage grows from $8$ ms at $0$ KB to
+$28$ ms at $100$ KB.}
+\label{fig:mlr-interaction}
+\end{figure}
+
+\begin{trapbox}
+Once an interaction is in the model, the coefficient on $d$ alone ($-8$) is the effect of
+the new version \emph{at $x=0$} only. Reporting it as ``the effect of the new version''
+is wrong whenever $x=0$ is far from typical payloads. Centring $x$ (subtracting its mean)
+before forming the product makes that coefficient the effect at an average payload.
+\end{trapbox}
+
+\subsection{Polynomial features and overfitting}
+
+A curve is a line in disguise. To fit $\hat y = b_0 + b_1x + b_2x^2 + b_3x^3$, put the
+columns $1, x, x^2, x^3$ into $X$ and run the same normal equations. The model is
+nonlinear in $x$ but linear in the $b$'s, which is all least squares needs.
+
+How high should the degree go? Take $10$ noisy points from a wave and fit degrees $1$,
+$3$ and $9$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=p1, width=4.9cm, height=4.6cm, title={degree 1}, title style={font=\small},
+  xmin=0, xmax=1, ymin=-2, ymax=2, xtick={0,0.5,1}, ytick={-2,-1,0,1,2},
+  tick label style={font=\footnotesize}, xlabel={$x$}, ylabel={$y$},
+]
+\addplot[thick, sourceblue] coordinates {(0.020,0.734) (0.980,-0.718)};
+\addplot[only marks, mark=*, mark size=1.6pt, densityred] coordinates {(0.05,0.11) (0.15,0.48) (0.25,0.94) (0.35,0.91) (0.45,0.59) (0.55,-0.28) (0.65,-0.95) (0.75,-1.2) (0.85,-0.62) (0.95,0.1)};
+\end{axis}
+\begin{axis}[
+  name=p3, at={(p1.east)}, anchor=west, xshift=0.5cm,
+  width=4.9cm, height=4.6cm, title={degree 3}, title style={font=\small},
+  xmin=0, xmax=1, ymin=-2, ymax=2, xtick={0,0.5,1}, yticklabels={},
+  tick label style={font=\footnotesize}, xlabel={$x$},
+]
+\addplot[thick, targetgreen, smooth] coordinates {(0.020,-0.496) (0.053,-0.048) (0.085,0.313) (0.118,0.592) (0.150,0.798) (0.183,0.935) (0.215,1.010) (0.248,1.030) (0.280,1.001) (0.313,0.929) (0.345,0.821) (0.378,0.682) (0.411,0.520) (0.443,0.341) (0.476,0.150) (0.508,-0.045) (0.541,-0.238) (0.573,-0.423) (0.606,-0.594) (0.638,-0.745) (0.671,-0.868) (0.703,-0.957) (0.736,-1.008) (0.768,-1.011) (0.801,-0.963) (0.834,-0.856) (0.866,-0.683) (0.899,-0.439) (0.931,-0.117) (0.964,0.289) (0.980,0.525)};
+\addplot[only marks, mark=*, mark size=1.6pt, densityred] coordinates {(0.05,0.11) (0.15,0.48) (0.25,0.94) (0.35,0.91) (0.45,0.59) (0.55,-0.28) (0.65,-0.95) (0.75,-1.2) (0.85,-0.62) (0.95,0.1)};
+\end{axis}
+\begin{axis}[
+  name=p9, at={(p3.east)}, anchor=west, xshift=0.5cm,
+  width=4.9cm, height=4.6cm, title={degree 9}, title style={font=\small},
+  xmin=0, xmax=1, ymin=-2, ymax=2, xtick={0,0.5,1}, yticklabels={},
+  tick label style={font=\footnotesize}, xlabel={$x$},
+]
+\addplot[thick, quotientorange, smooth] coordinates {(0.022,3.019) (0.026,2.386) (0.030,1.838) (0.034,1.367) (0.038,0.965) (0.042,0.626) (0.046,0.343) (0.050,0.110) (0.060,-0.286) (0.080,-0.516) (0.100,-0.332) (0.120,0.000) (0.140,0.335) (0.160,0.604) (0.180,0.786) (0.200,0.889) (0.220,0.934) (0.240,0.943) (0.260,0.935) (0.280,0.925) (0.300,0.918) (0.320,0.916) (0.340,0.913) (0.360,0.904) (0.380,0.879) (0.400,0.832) (0.420,0.758) (0.440,0.653) (0.460,0.520) (0.480,0.362) (0.500,0.185) (0.520,-0.001) (0.540,-0.189) (0.560,-0.368) (0.580,-0.534) (0.600,-0.679) (0.620,-0.804) (0.640,-0.906) (0.660,-0.990) (0.680,-1.058) (0.700,-1.113) (0.720,-1.158) (0.740,-1.190) (0.760,-1.203) (0.780,-1.185) (0.800,-1.118) (0.820,-0.983) (0.840,-0.764) (0.860,-0.455) (0.880,-0.078) (0.900,0.303) (0.920,0.551) (0.940,0.422) (0.950,0.100) (0.954,-0.097) (0.958,-0.340) (0.962,-0.635) (0.966,-0.988) (0.970,-1.404) (0.974,-1.892) (0.978,-2.457)};
+\addplot[only marks, mark=*, mark size=1.6pt, densityred] coordinates {(0.05,0.11) (0.15,0.48) (0.25,0.94) (0.35,0.91) (0.45,0.59) (0.55,-0.28) (0.65,-0.95) (0.75,-1.2) (0.85,-0.62) (0.95,0.1)};
+\end{axis}
+\end{tikzpicture}
+\caption{The same $10$ points fitted with polynomials of degree $1$, $3$ and $9$.
+Degree $1$ misses the wave (underfitting). Degree $3$ follows it. Degree $9$ has $10$
+coefficients for $10$ points, so it passes through every point exactly. It wiggles to do
+so, and just outside the outermost points it shoots off the chart: at $x=0.98$ it
+predicts $-2.8$ (overfitting).}
+\label{fig:mlr-poly}
+\end{figure}
+
+The degree-$9$ fit has zero training error, yet it predicts new data worse than any
+degree from $3$ to $8$. To see this, draw $200$ fresh points from the same process and
+measure mean squared error (MSE) on them, the \textbf{test error}:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10.5cm, height=6cm,
+  xlabel={polynomial degree}, ylabel={mean squared error},
+  xmin=-0.3, xmax=9.3, ymin=0, ymax=0.7, xtick={0,...,9},
+  legend style={font=\footnotesize, at={(0.98,0.98)}, anchor=north east},
+  axis lines=left,
+]
+\addplot[thick, mark=*, sourceblue] coordinates {(0,0.5117) (1,0.3232) (2,0.3232) (3,0.0323) (4,0.0225) (5,0.0026) (6,0.0010) (7,0.0009) (8,0.0009) (9,0.0)};
+\addlegendentry{training error (10 points)}
+\addplot[thick, mark=square*, densityred] coordinates {(0,0.6246) (1,0.2793) (2,0.2791) (3,0.0819) (4,0.0889) (5,0.1177) (6,0.1193) (7,0.1215) (8,0.1205) (9,0.1852)};
+\addlegendentry{test error (200 new points)}
+\draw[gray, dashed] (axis cs:3,0) -- (axis cs:3,0.45);
+\node[gray!70!black, font=\footnotesize, anchor=south] at (axis cs:3,0.45) {best test error};
+\end{axis}
+\end{tikzpicture}
+\caption{Training error never rises as the model grows; at degree $9$ it is exactly zero.
+Test error falls, bottoms out at degree $3$ ($0.082$), then rises to $0.185$ at degree $9$.
+The gap between the curves is overfitting: the model memorises the noise in its own
+sample.}
+\label{fig:mlr-traintest}
+\end{figure}
+
+\begin{connectionbox}
+This U-shaped test curve is the bias--variance trade-off. Simple models are biased (they
+cannot bend enough); flexible models have high variance (they bend to every quirk of the
+sample). Chapter~15 develops it with train/validation/test splits, cross-validation and
+regularisation (ridge and lasso), which add a penalty to $\norm{y - X\beta}^2$ to keep
+coefficients small.
+\end{connectionbox}
+
+\section{Multicollinearity}
+\label{sec:mlr-collinear}
+
+Suppose we add house size measured in square feet to a model that already has size in
+square metres. The two columns carry the same information: their correlation in our
+$40$ houses is $0.9996$ (the square-foot figure was rounded with a little recording
+noise). Here is what happens to the size coefficient:
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+model & size (m$^2$) coef & its SE\\
+\midrule
+size + age & 1.861 & 0.081\\
+size + size\_ft$^2$ + age & 1.393 & 2.918\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The standard error grew about $36$ times. The fit itself barely changed ($R^2$ is
+$0.938$ either way), and the combined effect $1.393 + 10.764\times 0.0432 = 1.858$ per m$^2$
+is still right. The model just cannot tell how to split the credit between two
+near-identical columns, so any split is roughly as good as any other.
+
+\textbf{Multicollinearity} means some predictor is nearly a linear combination of the
+others. In the projection picture, two column arrows point in almost the same direction.
+The plane they span is well defined, so $\hat y$ is stable, but the coordinates of
+$\hat y$ along two nearly parallel arrows are not: a tiny wobble in $y$ sends them flying
+in opposite directions.
+
+\begin{definition}[Variance inflation factor]
+Regress predictor $x_j$ on all the other predictors and call the resulting $R^2$ value
+$R_j^2$. The \textbf{variance inflation factor} is
+\[
+  \text{VIF}_j = \frac{1}{1 - R_j^2}.
+\]
+\end{definition}
+
+The name is literal. One can show
+\[
+  \Var(\hat\beta_j) = \frac{\sigma^2}{\sum_i (x_{ij} - \bar x_j)^2}\cdot \text{VIF}_j ,
+\]
+so the first factor is the simple-regression variance from Chapter~12, and VIF is how
+much the overlap with other predictors multiplies it. The standard error is multiplied
+by $\sqrt{\text{VIF}_j}$. In the square-feet example $\text{VIF}=1274$ and
+$\sqrt{1274}\approx 35.7$, matching the $36$-fold jump.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=6cm,
+  xlabel={$R_j^2$ (how well other predictors explain $x_j$)},
+  ylabel={SE multiplier $\sqrt{\mathrm{VIF}_j}$},
+  xmin=0, xmax=1, ymin=0, ymax=8, domain=0:0.985, samples=120,
+  axis lines=left,
+]
+\addplot[thick, structurepurple] {sqrt(1/(1-x))};
+\addplot[only marks, mark=*, densityred] coordinates {(0.8,2.236) (0.9,3.162) (0.95,4.472)};
+\node[anchor=east, font=\footnotesize] at (axis cs:0.78,2.4) {VIF $5$: SE $\times 2.2$};
+\node[anchor=east, font=\footnotesize] at (axis cs:0.88,3.35) {VIF $10$: SE $\times 3.2$};
+\node[anchor=east, font=\footnotesize] at (axis cs:0.93,4.7) {VIF $20$: SE $\times 4.5$};
+\end{axis}
+\end{tikzpicture}
+\caption{Standard errors stay modest until a predictor is largely explained by the
+others, then blow up. Common rules of thumb flag VIF above $5$ or $10$.}
+\label{fig:mlr-vif}
+\end{figure}
+
+\begin{intuitionbox}
+Multicollinearity hurts interpretation, not prediction. If you only want $\hat y$, a
+model with two copies of size predicts fine. If you want to say ``size matters, and
+by this much'', drop one of the duplicates, combine them, or collect data where they
+vary separately. Perfect collinearity (VIF $=\infty$), such as the dummy trap, makes
+$X^\top X$ non-invertible.
+\end{intuitionbox}
+
+\section{Adjusted \texorpdfstring{$R^2$}{R squared}}
+\label{sec:mlr-adjr2}
+
+$R^2 = 1 - \text{SSE}/\text{SST}$ never decreases when you add a column. So it cannot
+tell you whether the new column helps. \textbf{Adjusted $R^2$} charges for each
+coefficient:
+\[
+  R^2_{\text{adj}} = 1 - (1 - R^2)\,\frac{n-1}{n-p-1}.
+\]
+Rearranged, $1 - R^2_{\text{adj}} = \dfrac{\text{SSE}/(n-p-1)}{\text{SST}/(n-1)}$: adjusted
+$R^2$ compares the residual variance to the total variance, each divided by its degrees
+of freedom instead of by $n$. It is the same $n-1$ logic as the sample variance in
+Chapter~2: each fitted coefficient uses up one degree of freedom. A new column lowers SSE
+but also lowers $n-p-1$, so adjusted $R^2$ rises only if SSE drops by enough to pay for it.
+
+For the $40$ houses with size, age and distance to the city centre, $R^2 = 0.9388$ and
+$p = 3$:
+\[
+  R^2_{\text{adj}} = 1 - 0.0612\times\frac{39}{36} = 0.9337 .
+\]
+Drop distance and refit: $R^2$ falls slightly to $0.9377$, but with $p = 2$,
+\[
+  R^2_{\text{adj}} = 1 - 0.0623\times\frac{39}{37} = 0.9343,
+\]
+which is higher. Distance added less than the price of one coefficient.
+
+\section{Uncertainty in the coefficients}
+\label{sec:mlr-se}
+
+Each $\hat\beta_j$ is computed from a random sample, so it has a sampling distribution
+(Chapter~6). Its standard deviation is the standard error we need for confidence
+intervals and tests.
+
+\begin{theorem}[Covariance of the least squares estimator]
+If $y = X\beta + \eps$ with $X$ fixed, $\E[\eps] = 0$ and $\Cov(\eps) = \sigma^2 I$
+(errors uncorrelated with equal variance $\sigma^2$), then $\E[\hat\beta] = \beta$ and
+\[
+  \Cov(\hat\beta) = \sigma^2 (X^\top X)^{-1}.
+\]
+\end{theorem}
+
+\begin{whybox}
+Write $A = (X^\top X)^{-1}X^\top$, so $\hat\beta = Ay$. Substitute $y = X\beta + \eps$:
+\[
+  \hat\beta = AX\beta + A\eps = \beta + A\eps,
+\]
+since $AX = (X^\top X)^{-1}X^\top X = I$. The error term has mean zero, so $\hat\beta$
+is unbiased. For a constant matrix $A$, $\Cov(A\eps) = A\,\Cov(\eps)\,A^\top$ (the
+matrix version of $\Var(aX) = a^2\Var(X)$). So
+\[
+  \Cov(\hat\beta) = A(\sigma^2 I)A^\top = \sigma^2 (X^\top X)^{-1}X^\top X (X^\top X)^{-1}
+  = \sigma^2 (X^\top X)^{-1}.
+\]
+\end{whybox}
+
+The diagonal of $\Cov(\hat\beta)$ holds the variances of the individual coefficients;
+the off-diagonal entries say how their errors move together. We do not know $\sigma^2$,
+so we estimate it from the residuals, dividing by the residual degrees of freedom:
+\[
+  s^2 = \frac{\text{SSE}}{n - p - 1}, \qquad
+  \SE(\hat\beta_j) = s\sqrt{\big[(X^\top X)^{-1}\big]_{jj}} .
+\]
+
+\begin{example}[Standard errors for the four houses]
+Residuals were $(0.1, 0.7, -1.7, 0.9)$, so $\text{SSE} = 0.01 + 0.49 + 2.89 + 0.81 = 4.2$
+and $s^2 = 4.2/(4-2) = 2.1$. The inverse was
+$(X^\top X)^{-1} = \tfrac{1}{20}\begin{bmatrix}30&-10\\-10&4\end{bmatrix}$. Hence
+\[
+  \SE(\hat\beta_1) = \sqrt{2.1\times\tfrac{4}{20}} = \sqrt{0.42} = 0.648, \qquad
+  \SE(\hat\beta_0) = \sqrt{2.1\times\tfrac{30}{20}} = \sqrt{3.15} = 1.775 .
+\]
+The slope SE matches Chapter~12's $s/\sqrt{S_{xx}} = \sqrt{2.1/5} = 0.648$. The
+negative off-diagonal entry says that if the slope comes out too high, the intercept
+tends to come out too low: the line pivots around $(\xbar,\ybar)$.
+\end{example}
+
+With normal errors, $(\hat\beta_j - \beta_j)/\SE(\hat\beta_j)$ follows a $t$
+distribution with $n - p - 1$ degrees of freedom. That gives the usual recipes from
+Chapters~7 and 9:
+\[
+  \hat\beta_j \pm t^*_{n-p-1}\,\SE(\hat\beta_j), \qquad
+  t = \frac{\hat\beta_j}{\SE(\hat\beta_j)}\ \text{ for } H_0\colon \beta_j = 0 .
+\]
+
+\section{Reading a regression output table}
+\label{sec:mlr-output}
+
+Here is the full fit of price on size, age and distance (km to the centre) for the $40$
+houses, in the layout printed by Python's \texttt{statsmodels}.
+
+\begin{lstlisting}[language=Python]
+import statsmodels.formula.api as smf
+fit = smf.ols("price ~ size + age + dist", data=houses).fit()
+print(fit.summary())
+# categorical and interaction terms use the same formula language:
+# smf.ols("latency ~ C(region) + payload * new_version", data=df)
+\end{lstlisting}
+
+\begin{lstlisting}[basicstyle=\ttfamily\footnotesize, numbers=none, language={}]
+                            OLS Regression Results
+==============================================================================
+Dep. Variable:                  price   R-squared:                       0.939
+Model:                            OLS   Adj. R-squared:                  0.934
+Method:                 Least Squares   F-statistic:                     183.9
+No. Observations:                  40   Prob (F-statistic):           6.98e-22
+Df Residuals:                      36   Log-Likelihood:                -179.55
+Df Model:                           3   AIC:                             367.1
+                                        BIC:                             373.9
+==============================================================================
+                 coef    std err          t      P>|t|      [0.025      0.975]
+------------------------------------------------------------------------------
+Intercept     68.2558     15.856      4.305      0.000      36.099     100.413
+size           1.8437      0.084     21.885      0.000       1.673       2.015
+age           -1.4069      0.215     -6.547      0.000      -1.843      -0.971
+dist          -0.4276      0.536     -0.797      0.431      -1.515       0.660
+==============================================================================
+\end{lstlisting}
+
+Line by line, top block:
+\begin{itemize}
+  \item \textbf{No.\ Observations} $n = 40$. \textbf{Df Model} $p = 3$ predictors.
+  \textbf{Df Residuals} $n - p - 1 = 36$: the divisor in $s^2$ and the degrees of
+  freedom for every $t$ below.
+  \item \textbf{R-squared} $0.939$: the model explains $93.9\%$ of the variance in
+  price. \textbf{Adj.\ R-squared} $0.934$ is the penalised version from
+  Section~\ref{sec:mlr-adjr2}.
+  \item \textbf{F-statistic} $183.9$ and \textbf{Prob (F-statistic)} $7\times10^{-22}$:
+  a test of $H_0$: \emph{all three slopes are zero}. It compares explained variance per
+  predictor to residual variance per degree of freedom,
+  $F = \frac{(\text{SST}-\text{SSE})/p}{\text{SSE}/(n-p-1)}$. A tiny p-value says the
+  model as a whole beats predicting $\ybar$ for every house.
+  \item \textbf{Log-Likelihood}, \textbf{AIC}, \textbf{BIC}: measures of fit based on
+  the likelihood, with AIC and BIC adding a penalty per parameter. Lower AIC/BIC is
+  better when comparing models on the same data. Chapter~14 explains likelihood.
+\end{itemize}
+Coefficient block, one row per column of $X$:
+\begin{itemize}
+  \item \textbf{coef}: $\hat\beta_j$. Holding age and distance fixed, each extra m$^2$
+  adds \$1{,}844; holding size and distance fixed, each year of age subtracts \$1{,}407.
+  The intercept ($68.3$) is the predicted price of a $0$ m$^2$, new house at the city
+  centre: a mathematical anchor, not a real house.
+  \item \textbf{std err}: $s\sqrt{[(X^\top X)^{-1}]_{jj}}$.
+  \item \textbf{t}: coef divided by std err. For size, $1.8437/0.0842 = 21.9$: the
+  estimate sits $22$ standard errors from zero.
+  \item \textbf{P$>|$t$|$}: two-sided p-value for $H_0\colon\beta_j = 0$, from the $t_{36}$
+  distribution. For distance it is $0.431$: the data are consistent with distance
+  having no effect once size and age are known.
+  \item \textbf{[0.025\ \ 0.975]}: the $95\%$ confidence interval
+  $\hat\beta_j \pm 2.028\,\SE$, since $t^*_{36} = 2.028$. For size:
+  $1.8437 \pm 2.028\times 0.0842 = [1.673,\ 2.015]$. The distance interval
+  $[-1.515,\ 0.660]$ contains $0$, matching its large p-value.
+\end{itemize}
+The residual standard error, $s = \sqrt{\text{SSE}/36} = 22.7$, is not printed in the
+summary. In \texttt{statsmodels} it is the square root of \texttt{fit.scale}. It says
+typical prediction misses are around \$23k.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10.5cm, height=5.8cm,
+  xlabel={fitted price $\hat y$ (\$k)}, ylabel={residual $e$ (\$k)},
+  xmin=60, xmax=420, ymin=-65, ymax=65, axis lines=left,
+]
+\addplot[only marks, mark=*, mark size=1.7pt, sourceblue] coordinates {(308.8,-0.8) (324.8,18.2) (324.6,-11.6) (149.1,11.9) (180.4,-38.4) (331.6,-17.6) (149.0,4.0) (337.9,-50.9) (334.8,23.2) (213.5,-29.5) (211.6,18.4) (177.8,-9.8) (219.7,12.3) (245.6,4.4) (270.1,-40.1) (292.7,26.3) (365.5,44.5) (343.2,-3.2) (248.2,8.8) (382.4,-2.4) (158.4,-12.4) (144.0,39.0) (267.5,-4.5) (154.9,-3.9) (123.7,-12.7) (278.7,-20.7) (249.2,-30.2) (399.0,22.0) (248.1,12.9) (278.3,19.7) (234.1,10.9) (193.6,-15.6) (89.0,9.0) (147.6,0.4) (340.5,-10.5) (135.8,9.2) (172.9,13.1) (84.5,-16.5) (338.3,-16.3) (181.4,39.6)};
+\draw[densityred, thick] (axis cs:60,0) -- (axis cs:420,0);
+\draw[gray, dashed] (axis cs:60,45.4) -- (axis cs:420,45.4);
+\draw[gray, dashed] (axis cs:60,-45.4) -- (axis cs:420,-45.4);
+\node[gray!70!black, font=\footnotesize, anchor=south east] at (axis cs:418,45.4) {$+2s$};
+\node[gray!70!black, font=\footnotesize, anchor=north east] at (axis cs:418,-45.4) {$-2s$};
+\end{axis}
+\end{tikzpicture}
+\caption{Before trusting the table, check the residuals against fitted values. Here they
+form a patternless band around zero with roughly constant spread, and nearly all lie
+within $\pm 2s = \pm 45$. A funnel or a curve here would mean the standard errors in the
+table are not to be trusted.}
+\label{fig:mlr-resid}
+\end{figure}
+
+\begin{trapbox}
+A small p-value says a coefficient is distinguishable from zero, not that it is large or
+causal. A large p-value (distance, $0.43$) does not prove the effect is zero: the
+interval runs from $-1.5$ to $+0.7$ thousand dollars per km, which includes effects
+someone might care about. And the p-values are computed one at a time; scanning twenty
+of them for stars runs into the multiple-testing problem of Chapter~11.
+\end{trapbox}
+
+\section{Logistic regression: predicting yes or no}
+\label{sec:logit}
+
+\subsection{Why a straight line fails}
+
+Twenty visitors to a product page: minutes spent on the page and whether they bought
+($1$) or not ($0$).
+
+\begin{center}
+\begin{tabular}{l*{10}{r}}
+\toprule
+minutes & 1 & 2 & 2 & 3 & 4 & 4 & 5 & 5 & 6 & 6\\
+bought  & 0 & 0 & 0 & 0 & 0 & 1 & 0 & 0 & 1 & 0\\
+\midrule
+minutes & 7 & 7 & 8 & 8 & 9 & 10 & 11 & 12 & 13 & 14\\
+bought  & 1 & 0 & 1 & 1 & 0 & 1 & 1 & 1 & 1 & 1\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+We want $\P(\text{buy}\given\text{minutes})$. Fitting an ordinary line to the $0$/$1$
+column gives $\hat y = -0.120 + 0.0906\cdot\text{minutes}$. At $0$ minutes it predicts a
+probability of $-0.12$; at $16$ minutes, $1.33$. Neither is a probability. The errors are
+not normal either (each $y$ is $0$ or $1$) and their variance $p(1-p)$ changes with $x$,
+so the standard errors from Section~\ref{sec:mlr-se} are wrong too.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.3cm,
+  xlabel={minutes on page}, ylabel={$\P(\text{buy})$},
+  xmin=0, xmax=16, ymin=-0.25, ymax=1.4, ytick={0,0.5,1},
+  legend style={font=\footnotesize, at={(0.98,0.2)}, anchor=south east},
+  axis lines=left,
+]
+\fill[trapred!12] (axis cs:0,1) rectangle (axis cs:16,1.4);
+\fill[trapred!12] (axis cs:0,-0.25) rectangle (axis cs:16,0);
+\addplot[thick, dashed, gray!70!black, domain=0:16] {-0.1203+0.09056*x};
+\addlegendentry{straight line}
+\addplot[thick, sourceblue, domain=0:16, samples=100] {1/(1+exp(-(-4.0455+0.61032*x)))};
+\addlegendentry{logistic curve}
+\addplot[only marks, mark=*, mark size=1.8pt, densityred] coordinates
+  {(1,0) (2,0.03) (2,-0.03) (3,0) (4,0) (5,0.03) (5,-0.03) (6,0) (7,0) (9,0)
+   (4,1) (6,1) (7,1) (8,1.03) (8,0.97) (10,1) (11,1) (12,1) (13,1) (14,1)};
+\addlegendentry{visitors}
+\node[trapred, font=\footnotesize, anchor=north west] at (axis cs:0.2,1.38) {impossible: $p>1$};
+\node[trapred, font=\footnotesize, anchor=south east] at (axis cs:15.8,-0.24) {impossible: $p<0$};
+\end{axis}
+\end{tikzpicture}
+\caption{A straight line through $0$/$1$ data leaves the interval $[0,1]$ at both ends
+(shaded regions). The logistic curve bends to stay inside it, approaching $0$ and $1$
+without crossing.}
+\label{fig:logit-vs-linear}
+\end{figure}
+
+\subsection{Odds, log-odds and the sigmoid}
+
+The fix is to model a quantity that can take any real value, then squash it back into
+$[0,1]$. Two steps get there.
+
+The \textbf{odds} of an event with probability $p$ are $p/(1-p)$: how many times more
+likely it is to happen than not. Probability $0.8$ is odds of $4$ (``4 to 1''); probability
+$0.5$ is odds $1$. Odds range over $(0,\infty)$.
+
+The \textbf{log-odds}, or \textbf{logit}, is $\log\frac{p}{1-p}$ (natural log). It
+ranges over all real numbers: $p = 0.5$ gives $0$, $p = 0.8$ gives $\log 4 = 1.386$,
+$p = 0.2$ gives $-1.386$. A line can live on that scale without hitting any wall.
+
+\begin{definition}[Logistic regression]
+For a $0$/$1$ response with predictors $x_1,\dots,x_p$, logistic regression models
+\[
+  \log\frac{p}{1-p} = \beta_0 + \beta_1x_1 + \dots + \beta_p x_p = x^\top\beta,
+\]
+equivalently
+\[
+  p = \sigma(x^\top\beta), \qquad \sigma(z) = \frac{1}{1 + e^{-z}} .
+\]
+The function $\sigma$ is the \textbf{sigmoid} (or logistic function): it maps any real
+number $z$ to a probability.
+\end{definition}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6cm,
+  xlabel={$z = x^\top\beta$ (log-odds)}, ylabel={$p = \sigma(z)$},
+  xmin=-6.5, xmax=6.5, ymin=-0.05, ymax=1.12, ytick={0,0.2,0.5,0.8,1},
+  xtick={-6,-4,-1.386,0,1.386,4,6}, xticklabels={$-6$,$-4$,$-1.39$,$0$,$1.39$,$4$,$6$},
+  tick label style={font=\footnotesize}, axis lines=left,
+]
+\addplot[very thick, sourceblue, domain=-6.5:6.5, samples=120] {1/(1+exp(-x))};
+\draw[gray, dashed] (axis cs:-6.5,1) -- (axis cs:6.5,1);
+\draw[gray, dotted] (axis cs:1.386,0) -- (axis cs:1.386,0.8) -- (axis cs:-6.5,0.8);
+\draw[gray, dotted] (axis cs:-1.386,0) -- (axis cs:-1.386,0.2) -- (axis cs:-6.5,0.2);
+\fill[densityred] (axis cs:0,0.5) circle (2pt);
+\node[densityred, font=\footnotesize, anchor=east] at (axis cs:-0.3,0.58) {$z=0 \Rightarrow p=0.5$};
+\draw[densityred, thick] (axis cs:-1,0.25) -- (axis cs:1,0.75);
+\node[densityred, font=\footnotesize, anchor=west, align=left] at (axis cs:1.6,0.6) {steepest here:\\slope $1/4$};
+\node[font=\footnotesize, anchor=north] at (axis cs:5.2,0.95) {$p\to 1$};
+\end{axis}
+\end{tikzpicture}
+\caption{The sigmoid turns log-odds into probability. It is symmetric about $(0, 0.5)$,
+steepest there (slope $1/4$), and flattens toward $0$ and $1$. Log-odds of $\pm 1.39$
+correspond to probabilities $0.8$ and $0.2$.}
+\label{fig:logit-sigmoid}
+\end{figure}
+
+\subsection{Interpreting coefficients as odds ratios}
+
+Fitting the page data (method in the next subsection) gives
+\[
+  \log\frac{\hat p}{1-\hat p} = -4.045 + 0.610\cdot\text{minutes}.
+\]
+On the log-odds scale this is a line: each extra minute adds $0.610$ to the log-odds.
+Exponentiate and it becomes multiplication: each extra minute multiplies the odds by
+\[
+  e^{0.610} = 1.84 .
+\]
+That number is the \textbf{odds ratio}: the factor by which the odds change for a one-unit
+increase in the predictor, holding other predictors fixed.
+
+\begin{center}
+\begin{tabular}{rrrr}
+\toprule
+minutes & log-odds $-4.045 + 0.610x$ & odds & $\hat p$\\
+\midrule
+2 & $-2.825$ & 0.059 & 0.056\\
+5 & $-0.994$ & 0.370 & 0.270\\
+8 & $0.837$ & 2.31 & 0.698\\
+12 & $3.278$ & 26.5 & 0.964\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+From $5$ to $8$ minutes the odds go from $0.370$ to $2.31$, a factor of
+$2.31/0.370 = 6.24 = 1.84^3$. The probability rises by $0.43$. From $8$ to $11$ minutes
+the odds again grow $6.24$-fold, but the probability can only rise from $0.70$ to about
+$0.94$. Constant effect on the odds; diminishing effect on the probability.
+
+\begin{trapbox}
+An odds ratio of $1.84$ does not mean ``$84\%$ more likely to buy''. It means the odds,
+not the probability, grow by $84\%$. When $p$ is small the two are close (odds
+$\approx p$), which is why the confusion survives; when $p$ is near $0.5$ or above they
+diverge sharply.
+\end{trapbox}
+
+\begin{recoverybox}
+Pause and think: a coefficient of $\beta = 0$ gives an odds ratio of $e^0 = 1$. What does
+a negative coefficient do to the odds? (It gives an odds ratio below $1$: $\beta = -0.69$
+halves the odds.)
+\end{recoverybox}
+
+\subsection{Fitting by maximum likelihood}
+
+There are no residuals to square in the usual sense, so we fit differently. For each
+candidate $\beta$, the model assigns visitor $i$ a probability $p_i = \sigma(x_i^\top\beta)$
+of buying. The probability the model assigns to what \emph{actually happened} is $p_i$
+if they bought and $1 - p_i$ if not, which can be written in one expression as
+$p_i^{y_i}(1-p_i)^{1-y_i}$. Assuming visitors are independent, multiply over all of them:
+\[
+  L(\beta) = \prod_{i=1}^n p_i^{\,y_i}(1-p_i)^{1-y_i}.
+\]
+$L$ is the \textbf{likelihood}: how probable the observed data are under a given
+$\beta$. \textbf{Maximum likelihood} picks the $\beta$ that makes the data most probable.
+Products of many small numbers are awkward, so take logs and flip the sign to get a loss
+to minimise:
+\[
+  \ell(\beta) = -\sum_{i=1}^n \Big[\,y_i\log p_i + (1-y_i)\log(1-p_i)\Big].
+\]
+Divided by $n$, this is the \textbf{log loss}, also called binary cross-entropy. Each
+visitor contributes $-\log(\text{probability given to the true outcome})$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=6cm,
+  xlabel={predicted probability of buying $p$}, ylabel={loss for one visitor},
+  xmin=0, xmax=1, ymin=0, ymax=4.6, domain=0.01:0.99, samples=150,
+  legend style={font=\footnotesize, at={(0.5,0.62)}, anchor=south},
+  axis lines=left,
+]
+\addplot[thick, sourceblue] {-ln(x)};
+\addlegendentry{visitor bought ($y=1$): $-\log p$}
+\addplot[thick, densityred, dashed] {-ln(1-x)};
+\addlegendentry{did not buy ($y=0$): $-\log(1-p)$}
+\end{axis}
+\end{tikzpicture}
+\caption{Log loss punishes confident mistakes hardest. Predicting $p = 0.9$ for a buyer
+costs $0.11$; predicting $p = 0.1$ for that buyer costs $2.30$; the cost goes to infinity
+as a confident prediction becomes certain and wrong.}
+\label{fig:logit-logloss}
+\end{figure}
+
+There is no closed-form solution like the normal equations. But $\ell$ is convex (a
+single bowl with no false bottoms), so iterative methods find the minimum reliably.
+Software uses Newton's method, which re-solves a weighted least squares problem at each
+step; machine learning libraries use gradient descent. Both use the same gradient,
+\[
+  \nabla\ell(\beta) = X^\top(p - y),
+\]
+which has the same shape as the least squares gradient $X^\top(X\beta - y)$, with
+predicted probabilities in place of predicted values. At the optimum the residuals
+$y - \hat p$ are again orthogonal to every column of $X$.
+
+For the page data the minimum log loss is $0.415$ per visitor. Standard errors come from
+the curvature of $\ell$ at its minimum: the analogue of $\sigma^2(X^\top X)^{-1}$ is
+$(X^\top W X)^{-1}$, where $W$ is diagonal with entries $\hat p_i(1-\hat p_i)$. Here
+$\SE(\hat\beta_1) = 0.268$, so $z = 0.610/0.268 = 2.27$ and $p = 0.023$. The $95\%$
+interval for $\beta_1$ is $0.610 \pm 1.96\times 0.268$; exponentiating its endpoints gives
+an odds-ratio interval of $[1.09,\ 3.12]$.
+
+\begin{lstlisting}[language=Python]
+import numpy as np, statsmodels.formula.api as smf
+fit = smf.logit("bought ~ minutes", data=visits).fit()
+print(fit.params)                 # Intercept -4.045, minutes 0.610
+print(np.exp(fit.params))         # odds ratio per minute: 1.84
+print(np.exp(fit.conf_int()))     # odds-ratio CI: [1.09, 3.12]
+# sklearn.linear_model.LogisticRegression adds a ridge penalty by default
+\end{lstlisting}
+
+\begin{trapbox}
+If some combination of predictors separates the $0$s from the $1$s perfectly, the
+likelihood keeps increasing as the coefficients grow without bound, and the fit
+``converges'' to huge numbers with huge standard errors. This is called
+\textbf{complete separation}. The fix is more data, fewer predictors, or a penalty on
+coefficient size.
+\end{trapbox}
+
+\subsection{From probabilities to decisions}
+
+A classifier needs a yes/no answer. The usual rule is: predict $1$ when $\hat p \ge 0.5$.
+Since $\sigma(z) \ge 0.5$ exactly when $z \ge 0$, this is the same as
+$x^\top\hat\beta \ge 0$. For the page data, $-4.045 + 0.610x \ge 0$ when
+$x \ge 6.63$ minutes.
+
+With two predictors, $\hat\beta_0 + \hat\beta_1 x_1 + \hat\beta_2 x_2 = 0$ is a straight
+line in the $(x_1, x_2)$ plane: the \textbf{decision boundary}. With $p$ predictors it is a
+flat hyperplane. Figure~\ref{fig:logit-boundary} shows $30$ users described by two
+engagement scores, with the fitted model
+$\log\frac{\hat p}{1-\hat p} = -12.55 + 1.94x_1 + 1.98x_2$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=9.5cm, height=8cm,
+  xlabel={score $x_1$}, ylabel={score $x_2$},
+  xmin=0, xmax=6, ymin=0, ymax=6, axis lines=left,
+  legend style={font=\footnotesize, at={(0.5,-0.17)}, anchor=north, legend columns=2},
+]
+\addplot[thick, black, domain=0:6] {(12.55179-1.94243*x)/1.98008};
+\addlegendentry{$\hat p = 0.5$ boundary}
+\addplot[thin, dashed, gray, domain=0:6] {(12.55179+1.38629-1.94243*x)/1.98008};
+\addlegendentry{$\hat p = 0.2$ and $0.8$}
+\addplot[thin, dashed, gray, domain=0:6, forget plot] {(12.55179-1.38629-1.94243*x)/1.98008};
+\addplot[only marks, mark=o, mark size=2.3pt, thick, sourceblue] coordinates {(2.6,3.7) (0.4,3.9) (2.2,1.4) (1.4,1.1) (2.0,3.0) (2.8,2.8) (0.5,0.6) (3.8,3.2) (4.4,3.4) (1.2,3.5) (2.8,2.4) (1.4,2.2) (2.1,3.1) (2.3,3.8) (1.4,2.7)};
+\addlegendentry{did not convert}
+\addplot[only marks, mark=triangle*, mark size=2.8pt, densityred] coordinates {(4.3,2.9) (2.6,4.8) (4.3,3.6) (4.2,3.1) (4.0,3.2) (4.0,4.8) (3.5,4.6) (2.8,3.5) (2.4,3.7) (3.9,3.6) (3.5,5.1) (5.2,2.6) (5.0,2.1) (3.1,3.6) (3.9,2.8)};
+\addlegendentry{converted}
+\node[font=\footnotesize, anchor=south west, sourceblue] at (axis cs:1.6,0.2) {predict $0$};
+\node[font=\footnotesize, anchor=north east, densityred] at (axis cs:5.8,5.8) {predict $1$};
+\end{axis}
+\end{tikzpicture}
+\caption{The decision boundary of logistic regression is a straight line where the
+log-odds equal zero. Dashed lines mark where the model is $80\%$ confident either way.
+Points near the boundary are the uncertain ones; four points fall on the wrong side, so
+training accuracy is $26/30$.}
+\label{fig:logit-boundary}
+\end{figure}
+
+\begin{connectionbox}
+A logistic regression is a neural network with no hidden layer: a weighted sum of inputs
+followed by a sigmoid, trained by minimising cross-entropy with gradient descent. Replace
+the sigmoid by a softmax over $K$ classes and you get multinomial logistic regression,
+the output layer of nearly every classifier. Curved boundaries come from feeding in
+nonlinear features, exactly as polynomial columns bent the regression line.
+\end{connectionbox}
+
+\section{Generalised linear models: the umbrella}
+\label{sec:glm}
+
+Linear and logistic regression share a three-part structure:
+\begin{enumerate}
+  \item a \textbf{linear predictor} $\eta = x^\top\beta$, the weighted sum of inputs;
+  \item a \textbf{link function} $g$ that connects the mean of $y$ to $\eta$ through
+  $g(\E[y\given x]) = \eta$;
+  \item a \textbf{distribution} for $y$ around its mean.
+\end{enumerate}
+Linear regression uses the identity link and a normal distribution. Logistic regression
+uses the logit link and a Bernoulli distribution (a single $0$/$1$ trial). Counts, such as
+errors per hour or clicks per page view, use a log link and a Poisson distribution, so
+$\log\E[y] = x^\top\beta$ and each coefficient multiplies the expected count by
+$e^{\beta_j}$. Any model of this form is a \textbf{generalised linear model} (GLM), and
+all of them are fitted by maximum likelihood with the same algorithm.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small,
+  top/.style={draw=structurepurple, very thick, rounded corners, align=center, fill=structurepurple!8, minimum width=6.5cm, minimum height=1cm},
+  leaf/.style={draw, thick, rounded corners, align=center, minimum width=3.4cm, minimum height=1.9cm, text width=3.2cm}]
+\node[top] (G) at (0,0) {Generalised linear model\\$g(\E[y\given x]) = x^\top\beta$};
+\node[leaf, draw=sourceblue, fill=sourceblue!6] (L) at (-4,-2.6) {\textbf{Linear}\\$y$ continuous\\link: identity\\Normal errors};
+\node[leaf, draw=densityred, fill=densityred!6] (B) at (0,-2.6) {\textbf{Logistic}\\$y\in\{0,1\}$\\link: logit\\Bernoulli};
+\node[leaf, draw=targetgreen, fill=targetgreen!6] (P) at (4,-2.6) {\textbf{Poisson}\\$y$ a count\\link: log\\Poisson};
+\draw[-{Stealth}, thick] (G) -- (L);
+\draw[-{Stealth}, thick] (G) -- (B);
+\draw[-{Stealth}, thick] (G) -- (P);
+\node[anchor=north, font=\footnotesize, align=center] at (L.south) {coef: additive\\change in $y$};
+\node[anchor=north, font=\footnotesize, align=center] at (B.south) {$e^{\text{coef}}$: odds\\ratio};
+\node[anchor=north, font=\footnotesize, align=center] at (P.south) {$e^{\text{coef}}$: rate\\ratio};
+\end{tikzpicture}
+\caption{Generalised linear models share one linear predictor and differ in the link
+function and the distribution of $y$. The link determines how to read a coefficient:
+additively, as an odds ratio, or as a rate ratio.}
+\label{fig:glm-umbrella}
+\end{figure}
+
+\begin{historybox}
+In 1944 the American statistician Joseph Berkson, working on dose--response data (what
+fraction of animals respond at each dose of a drug), proposed the log-odds transform and
+named it the ``logit''. The competing approach of the day, the ``probit'', used the normal
+distribution's cumulative curve and needed tables of the normal to fit; the logit had a
+simple closed form. For decades, regression for continuous data, for proportions and for
+counts were taught as separate subjects with separate fitting tricks. In 1972 John Nelder
+and Robert Wedderburn showed they were one model with different link functions and
+distributions, all fittable by a single iterative weighted least squares algorithm. That
+paper created the term ``generalised linear model'' and the software (GLIM, and later R's
+\texttt{glm}) that made logistic and Poisson regression routine.
+\end{historybox}
+
+\section{Summary}
+\label{sec:mlr-summary}
+
+\begin{itemize}
+  \item \textbf{Matrix form}: $y = X\beta + \eps$, with design matrix $X$ (rows =
+  observations, columns = intercept plus predictors).
+  \item \textbf{Normal equations}: $X^\top X\hat\beta = X^\top y$, so
+  $\hat\beta = (X^\top X)^{-1}X^\top y$ when the columns are independent.
+  \item \textbf{Geometry}: $\hat y = Hy$ is the orthogonal projection of $y$ onto the column
+  space of $X$; the residual satisfies $X^\top e = 0$. Leverages $h_{ii}$ sum to $p+1$.
+  \item \textbf{Interpretation}: $\hat\beta_j$ is the change in $\hat y$ per unit of
+  $x_j$ with the other predictors fixed. Adding or dropping a correlated variable can change
+  it, even flip its sign (omitted variable bias).
+  \item \textbf{Features}: dummies ($k-1$ for $k$ categories), interactions (products,
+  non-parallel lines), polynomials (curves). More flexibility lowers training error and
+  eventually raises test error.
+  \item \textbf{Multicollinearity}: $\text{VIF}_j = 1/(1-R_j^2)$ multiplies
+  $\Var(\hat\beta_j)$; it hurts interpretation, not prediction.
+  \item \textbf{Adjusted $R^2$} $= 1-(1-R^2)\frac{n-1}{n-p-1}$ can fall when a useless
+  variable is added.
+  \item \textbf{Uncertainty}: $\Cov(\hat\beta) = \sigma^2(X^\top X)^{-1}$, estimated with
+  $s^2 = \text{SSE}/(n-p-1)$; $t$-tests and CIs use $n-p-1$ degrees of freedom.
+  \item \textbf{Logistic regression}: $\log\frac{p}{1-p} = x^\top\beta$,
+  $p = \sigma(x^\top\beta)$; $e^{\beta_j}$ is an odds ratio; fit by maximum likelihood
+  (minimum log loss); decision boundary $x^\top\hat\beta = 0$ is linear.
+  \item \textbf{GLMs}: linear predictor + link + distribution; linear, logistic and
+  Poisson regression are special cases.
+\end{itemize}
+
+Chapter~14 takes the idea that fitted logistic regression, maximum likelihood, and
+develops it as a general method for estimation, together with its Bayesian counterpart.
+
+\section{Exercises}
+\label{sec:mlr-exercises}
+
+\begin{enumerate}
+  \item For $x = (0,1,2,3,4)$ and $y = (1,3,2,5,4)$, write the design matrix, compute
+  $X^\top X$ and $X^\top y$, and solve the normal equations.
+  \item A model gives $\widehat{\text{price}} = 50 + 2.0\cdot\text{size} - 1.5\cdot\text{age}$
+  (price in \$k, size in m$^2$, age in years). Predict the price of a $120$ m$^2$,
+  $10$-year-old house, and state in words what $-1.5$ means.
+  \item A regression of salary on years of experience gives a slope of $3$ (\$k per year).
+  Adding education changes it to $2$. Using the omitted variable bias formula, what does
+  this tell you about the relationship between experience and education, given that
+  education has a positive coefficient?
+  \item A dataset has a ``day of week'' column with $7$ values. How many dummy columns
+  should a model with an intercept use, and what goes wrong if you use $7$?
+  \item In $\hat y = 10 + 2x + 5d + 3xd$ with $d\in\{0,1\}$, give the intercept and slope
+  of the line for each group. Are the lines parallel?
+  \item With $n = 30$, $p = 5$ and $R^2 = 0.40$, compute adjusted $R^2$.
+  \item A predictor has $R_j^2 = 0.8$ when regressed on the other predictors. By what
+  factor is its standard error inflated?
+  \item Show that the hat matrix satisfies $HH = H$, and explain geometrically why this
+  must be true.
+  \item In a logistic regression for churn, the coefficient on ``received discount'' is
+  $0.405$. Compute the odds ratio. If a customer's churn probability is $0.20$ without the
+  discount, what is it with the discount?
+  \item A logistic model predicts $\hat p = 0.8$ for one positive example and
+  $\hat p = 0.3$ for one negative example. Compute the average log loss over the two.
+\end{enumerate}
+
+\subsection*{Answers}
+
+\begin{enumerate}
+  \item $X$ has rows $(1, x_i)$. $X^\top X = \begin{bmatrix}5&10\\10&30\end{bmatrix}$,
+  $X^\top y = (15,\ 38)$. Determinant $50$, so
+  $\hat\beta = \tfrac{1}{50}(30\cdot 15 - 10\cdot 38,\ -10\cdot 15 + 5\cdot 38) = (1.4,\ 0.8)$.
+  \item $50 + 240 - 15 = 275$, so \$275k. Among houses of the same size, each extra year
+  of age lowers the predicted price by \$1{,}500.
+  \item Simple slope $=$ direct slope $+$ (education coef)$\times\delta$, so
+  $3 = 2 + (\text{education coef})\times\delta$. The product is $1 > 0$; with a positive
+  education coefficient, $\delta > 0$: more experienced people in this data also have more
+  education, and part of the simple slope was education's effect.
+  \item Six, with one day as baseline. With seven, the dummies sum to the intercept column,
+  $X^\top X$ is singular and the coefficients are not identifiable.
+  \item $d = 0$: $\hat y = 10 + 2x$. $d = 1$: $\hat y = 15 + 5x$. Not parallel; the
+  interaction coefficient $3$ is the difference in slopes.
+  \item $1 - 0.60\times 29/24 = 1 - 0.725 = 0.275$.
+  \item $\text{VIF} = 1/0.2 = 5$; the SE is multiplied by $\sqrt5 \approx 2.24$.
+  \item $HH = X(X^\top X)^{-1}X^\top X(X^\top X)^{-1}X^\top = X(X^\top X)^{-1}X^\top = H$.
+  Projecting a vector that already lies in the column space leaves it where it is.
+  \item Odds ratio $e^{0.405} \approx 1.50$. Odds $0.2/0.8 = 0.25$ become $0.375$, so
+  $p = 0.375/1.375 \approx 0.273$.
+  \item Losses $-\log 0.8 = 0.223$ and $-\log(1-0.3) = -\log 0.7 = 0.357$; average
+  $0.290$.
+\end{enumerate}
