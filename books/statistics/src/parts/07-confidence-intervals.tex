@@ -1,0 +1,1283 @@
+\chapter{Confidence Intervals}
+\label{ch:confidence-intervals}
+
+A dashboard says the mean page-load time this week is 212 ms. Is the true
+mean 212.0? Almost certainly not. It is 212 plus or minus something, and the
+size of that something decides whether last week's 205 ms is a real
+regression or noise. Chapter~6 gave us the raw ingredient: the standard error
+$\SE$, the typical distance between an estimate and the truth. This chapter
+turns $\SE$ into a range with a stated success rate.
+
+\section{From standard error to interval}
+\label{sec:ci-from-se}
+
+Take $n=36$ page loads. Their mean is $\xbar = 212$ ms. Suppose years of
+monitoring tell us the per-request standard deviation is $\sigma = 30$ ms.
+Then
+\[
+  \SE(\Xbar) = \frac{\sigma}{\sqrt n} = \frac{30}{\sqrt{36}} = \frac{30}{6} = 5 \text{ ms}.
+\]
+By the Central Limit Theorem (Chapter~6), $\Xbar$ is approximately Normal,
+centred on the true mean $\mu$ with standard deviation 5 ms. A Normal variable
+lands within $1.96$ standard deviations of its centre 95\% of the time. So
+95\% of the time,
+\[
+  \abs{\Xbar - \mu} \le 1.96 \times 5 = 9.8 \text{ ms}.
+\]
+If $\Xbar$ is within 9.8 ms of $\mu$, then $\mu$ is within 9.8 ms of $\Xbar$.
+That gives the interval
+\[
+  212 \pm 9.8 = [202.2,\ 221.8] \text{ ms}.
+\]
+Last week's 205 ms is inside it. This week's data are consistent with no
+change at all.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm,
+  domain=-3.6:3.6, samples=121,
+  axis lines=left, ymin=0, ymax=0.47,
+  ytick=\empty,
+  xtick={-3,-1.96,-1,0,1,1.96,3},
+  xticklabels={$\mu-15$,$\mu-9.8$,$\mu-5$,$\mu$,$\mu+5$,$\mu+9.8$,$\mu+15$},
+  xticklabel style={font=\small},
+  xlabel={value of $\Xbar$ (ms)}, ylabel={density},
+  clip=false,
+]
+\addplot[fill=histfill!60, draw=none, domain=-1.96:1.96] {0.39894*exp(-x^2/2)} \closedcycle;
+\addplot[fill=trapred!35, draw=none, domain=-3.6:-1.96] {0.39894*exp(-x^2/2)} \closedcycle;
+\addplot[fill=trapred!35, draw=none, domain=1.96:3.6] {0.39894*exp(-x^2/2)} \closedcycle;
+\addplot[distblue, thick] {0.39894*exp(-x^2/2)};
+\node at (axis cs:0,0.16) {\small 95\%};
+\node[trapred] at (axis cs:-2.75,0.08) {\small 2.5\%};
+\node[trapred] at (axis cs:2.75,0.08) {\small 2.5\%};
+\draw[<->, thick] (axis cs:-1.96,0.43) -- (axis cs:1.96,0.43)
+  node[midway, above, font=\small] {$\pm 1.96\,\SE = \pm 9.8$ ms};
+\end{axis}
+\end{tikzpicture}
+\caption{The sampling distribution of $\Xbar$ for $n=36$, $\sigma=30$
+($\SE=5$ ms). The middle 95\% of sample means fall within 9.8 ms of $\mu$.
+That fact, read backwards, is the confidence interval.}
+\label{fig:ci-sampling-shaded}
+\end{figure}
+
+Every interval in this chapter has the same skeleton.
+
+\begin{definition}[Confidence interval, general form]
+A \emph{confidence interval} for a parameter $\theta$ at confidence level
+$1-\alpha$ is a range computed from the data,
+\[
+  \text{estimate} \;\pm\; (\text{critical value}) \times \SE(\text{estimate}),
+\]
+built so that, before the data are drawn, the random interval contains
+$\theta$ with probability $1-\alpha$. The number $\alpha$ is the miss rate we
+accept: $\alpha=0.05$ gives a 95\% interval. The product
+$(\text{critical value})\times\SE$ is the \emph{margin of error}.
+\end{definition}
+
+Three ingredients change from case to case. The \emph{estimate} ($\xbar$,
+$\hat p$, a difference of means). Its \emph{standard error} (always derived from
+the sampling distribution). The \emph{critical value} ($1.96$ for a 95\% Normal
+interval, a slightly larger $t$ value when $\sigma$ is estimated).
+
+\section{The z-interval from a pivot}
+\label{sec:ci-pivot}
+
+The informal argument above can be made exact. Assume $X_1,\dots,X_n \iid
+\Normal(\mu,\sigma^2)$ with $\sigma$ known (or $n$ large enough for the CLT).
+Define
+\[
+  Z = \frac{\Xbar - \mu}{\sigma/\sqrt n}.
+\]
+$Z$ depends on the unknown $\mu$, yet its distribution, $\Normal(0,1)$, does
+not depend on $\mu$ or anything else unknown. A quantity with this property is
+called a \emph{pivot}. Because its distribution is fully known, we can write an
+exact probability statement about it:
+\[
+  \P\left(-1.96 \le \frac{\Xbar-\mu}{\sigma/\sqrt n} \le 1.96\right) = 0.95 .
+\]
+Now rearrange the inequalities to isolate $\mu$. Multiply through by
+$\sigma/\sqrt n$:
+\[
+  -1.96\frac{\sigma}{\sqrt n} \le \Xbar - \mu \le 1.96\frac{\sigma}{\sqrt n}.
+\]
+Subtract $\Xbar$ and multiply by $-1$ (which flips both inequalities):
+\[
+  \Xbar - 1.96\frac{\sigma}{\sqrt n} \le \mu \le \Xbar + 1.96\frac{\sigma}{\sqrt n}.
+\]
+The event has not changed, only how it is written. So its probability is still
+0.95.
+
+\begin{theorem}[z-interval for a mean]
+If $\Xbar$ is Normal (exactly, or approximately by the CLT) and $\sigma$ is
+known, then
+\[
+  \Xbar \pm z_{\alpha/2}\,\frac{\sigma}{\sqrt n}
+\]
+contains $\mu$ with probability $1-\alpha$, where $z_{\alpha/2}$ is the point
+with upper-tail area $\alpha/2$ under $\Normal(0,1)$: $z_{0.05}=1.645$ (90\%),
+$z_{0.025}=1.960$ (95\%), $z_{0.005}=2.576$ (99\%).
+\end{theorem}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.95cm, y=1cm]
+  % top: distance statement around mu
+  \draw[->, thick] (-6,2) -- (6.3,2) node[right] {\small ms};
+  \fill[histfill!50] (-1.96*1.4,1.85) rectangle (1.96*1.4,2.15);
+  \draw[thick, distblue] (0,1.75) -- (0,2.25) node[above] {$\mu$};
+  \node[font=\small, distblue, anchor=south] at (2.744,2.15) {$\mu+1.96\,\SE$};
+  \node[font=\small, distblue, anchor=south] at (-2.744,2.15) {$\mu-1.96\,\SE$};
+  \fill[quotientorange] (1.2,2) circle (2.5pt);
+  \node[quotientorange, font=\small, anchor=north] at (1.2,1.8) {$\xbar$};
+  \node[anchor=west, font=\small, align=left] at (-6,2.95) {$\xbar$ lands inside the band around $\mu$ (prob.\ 0.95)};
+  % bottom: interval around xbar
+  \draw[->, thick] (-6,0) -- (6.3,0) node[right] {\small ms};
+  \draw[very thick, quotientorange] (1.2-2.744,0) -- (1.2+2.744,0);
+  \draw[very thick, quotientorange] (1.2-2.744,-0.15) -- (1.2-2.744,0.15);
+  \draw[very thick, quotientorange] (1.2+2.744,-0.15) -- (1.2+2.744,0.15);
+  \fill[quotientorange] (1.2,0) circle (2.5pt);
+  \node[quotientorange, font=\small, anchor=north] at (1.2,-0.2) {$\xbar$};
+  \draw[thick, distblue] (0,-0.25) -- (0,0.25) node[above] {$\mu$};
+  \node[anchor=west, font=\small] at (-6,-0.9) {$\iff$ the interval $\xbar \pm 1.96\,\SE$ covers $\mu$};
+  \draw[dashed, gray] (0,0.8) -- (0,1.55);
+\end{tikzpicture}
+\caption{The pivot argument in one picture. ``$\xbar$ is within $1.96\,\SE$ of
+$\mu$'' and ``$\mu$ is within $1.96\,\SE$ of $\xbar$'' are the same event, so
+they have the same probability.}
+\label{fig:ci-pivot}
+\end{figure}
+
+\begin{whybox}
+Why $1.96$? Because $\P(\abs{Z}\le 1.96) = 0.95$ for a standard Normal. The
+critical value is not a convention; it is whatever number traps the chosen
+fraction of the pivot's distribution. A 99\% interval needs to trap 99\%, so
+it reaches out to $2.576$. Nothing else about the construction changes.
+\end{whybox}
+
+\begin{recoverybox}
+Pause and think: with the same 36 page loads, what is the 99\% interval?
+(Answer: $212 \pm 2.576\times 5 = 212\pm 12.9 = [199.1,\ 224.9]$ ms. Wider,
+because it must succeed more often.)
+\end{recoverybox}
+
+\section{What ``95\% confidence'' means}
+\label{sec:ci-coverage}
+
+The probability statement above is about $\Xbar$, a random variable, before
+sampling. Once we have computed $[202.2, 221.8]$, nothing is random any more:
+$\mu$ is a fixed number and it either is or is not in that range. The 95\%
+describes the \emph{procedure}, not the particular interval.
+
+The cleanest way to see this is to run the procedure many times. We simulated
+a population with $\mu = 200$ ms and $\sigma=30$ ms, drew 25 independent
+samples of $n=36$, and built the 95\% z-interval $\xbar \pm 9.8$ from each.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=9cm,
+  xmin=176, xmax=240, ymin=0, ymax=27.5,
+  xtick={180,190,200,210,220,230},
+  xlabel={ms}, ylabel={sample number},
+  ytick={1,5,10,15,20,25},
+  axis lines=left,
+  legend style={at={(0.98,0.02)}, anchor=south east, font=\small},
+]
+\draw[thick, dashed, black] (axis cs:200,0) -- (axis cs:200,26);
+\addplot[only marks, mark=*, mark size=1.4pt, sourceblue,
+  error bars/.cd, x dir=both, x fixed=9.8, error bar style={sourceblue, thick}]
+coordinates {
+(202.33,1) (192.17,2) (200.63,3) (207.00,4) (202.67,5) (203.06,6) (194.21,7)
+(193.18,9) (203.30,10) (201.10,11) (198.45,13) (204.39,14) (204.04,15)
+(199.14,16) (203.96,17) (204.22,18) (205.60,19) (195.73,20) (194.95,21)
+(196.78,22) (200.97,23) (191.50,24) (200.69,25)
+};
+\addlegendentry{covers $\mu$ (23)}
+\addplot[only marks, mark=*, mark size=1.6pt, trapred,
+  error bars/.cd, x dir=both, x fixed=9.8, error bar style={trapred, very thick}]
+coordinates { (211.60,8) (210.76,12) };
+\addlegendentry{misses $\mu$ (2)}
+\node[anchor=south, font=\small] at (axis cs:200,26) {$\mu=200$};
+\end{axis}
+\end{tikzpicture}
+\caption{Twenty-five 95\% intervals from 25 simulated samples ($n=36$,
+$\sigma=30$, true $\mu=200$). Each interval has the same width (19.6 ms); only
+its centre moves. Samples 8 and 12 drew unusually slow requests and their
+intervals (red) miss $\mu$. Over the long run, 5\% of intervals miss; here 2 of
+25 did (8\%), which is within ordinary chance.}
+\label{fig:ci-coverage}
+\end{figure}
+
+\begin{definition}[Coverage]
+The \emph{coverage probability} of an interval procedure is the probability,
+over repeated samples, that the interval contains the true parameter. A
+procedure is a valid 95\% interval if its coverage is (at least
+approximately) 0.95 for every possible value of the parameter.
+\end{definition}
+
+\begin{intuitionbox}
+Think of a ring toss. The peg ($\mu$) is fixed. Each sample throws a ring of
+fixed width at it. A 95\% procedure is a thrower who rings the peg 95\% of the
+time. After a single throw you do not get to see the peg; you only know the
+thrower's success rate.
+\end{intuitionbox}
+
+\begin{trapbox}
+Statements that are \textbf{wrong} for the interval $[202.2, 221.8]$:
+\begin{itemize}
+  \item ``There is a 95\% probability that $\mu$ lies between 202.2 and
+        221.8.'' In frequentist statistics $\mu$ is not random; the probability is 0 or 1.
+        (A Bayesian \emph{credible} interval does make this statement; see Chapter~14.)
+  \item ``95\% of page loads take between 202.2 and 221.8 ms.'' The interval is
+        about the \emph{mean}. Individual loads vary with $\sigma=30$; a range
+        covering 95\% of loads would be roughly $212\pm 59$.
+  \item ``If we repeat the study, 95\% of new sample means will fall in
+        $[202.2,221.8]$.'' New means scatter around $\mu$, not around this
+        $\xbar$. That fraction is lower, about 83\% on average.
+  \item ``The interval contains all plausible values with certainty.'' One
+        in twenty intervals misses, and you never know which one.
+\end{itemize}
+The right statement: ``We used a method that captures the true mean in 95\%
+of samples; applied to our sample, it gives $[202.2, 221.8]$.''
+\end{trapbox}
+
+\begin{recoverybox}
+Pause and think: in Figure~\ref{fig:ci-coverage}, if we had drawn 1000
+samples instead of 25, about how many intervals would be red? (About 50. The
+count of misses is itself $\Bin(1000, 0.05)$, so anywhere from roughly
+37 to 64 is typical.)
+\end{recoverybox}
+
+\subsection{Confidence level versus width}
+
+Higher confidence is not free. With the same data, raising the level raises the
+critical value, so the interval widens. Using $\xbar=212$ and $\SE=5$:
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Level & $z_{\alpha/2}$ & Margin of error & Interval (ms) \\
+\midrule
+80\%   & 1.282 & 6.41  & $[205.59,\ 218.41]$ \\
+90\%   & 1.645 & 8.22  & $[203.78,\ 220.22]$ \\
+95\%   & 1.960 & 9.80  & $[202.20,\ 221.80]$ \\
+99\%   & 2.576 & 12.88 & $[199.12,\ 224.88]$ \\
+99.9\% & 3.291 & 16.45 & $[195.55,\ 228.45]$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5.6cm,
+  xmin=192, xmax=232, ymin=0.3, ymax=5.7,
+  ytick={1,2,3,4,5}, yticklabels={80\%,90\%,95\%,99\%,99.9\%},
+  xlabel={mean page-load time (ms)}, ylabel={confidence level},
+  axis lines=left,
+]
+\addplot[only marks, mark=*, mark size=1.6pt, structurepurple,
+  error bars/.cd, x dir=both, x explicit, error bar style={structurepurple, thick}]
+coordinates {
+(212,1) +- (6.41,0)
+(212,2) +- (8.22,0)
+(212,3) +- (9.80,0)
+(212,4) +- (12.88,0)
+(212,5) +- (16.45,0)
+};
+\draw[dashed, gray] (axis cs:205,0.3) -- (axis cs:205,5.7);
+\node[gray, font=\small, anchor=north east] at (axis cs:205,5.6) {last week: 205};
+\end{axis}
+\end{tikzpicture}
+\caption{Same data, five confidence levels. Going from 95\% to 99.9\%
+widens the interval by 68\%. The only ways to get a narrow interval with high
+confidence are more data or less noisy data.}
+\label{fig:ci-level-width}
+\end{figure}
+
+A 100\% confidence interval exists: $(-\infty, \infty)$. It is useless. Every
+choice of level is a trade between being right more often and saying something
+specific. 95\% is a convention, not a law; 90\% is common in engineering
+dashboards and 99\% where errors are expensive.
+
+\section{When \texorpdfstring{$\sigma$}{sigma} is unknown: the t-distribution}
+\label{sec:ci-t}
+
+In practice we almost never know $\sigma$. The natural fix is to plug in the
+sample standard deviation $s$ (Chapter~2):
+\[
+  T = \frac{\Xbar - \mu}{s/\sqrt n}.
+\]
+This is no longer standard Normal. The denominator is now random too. With a
+small sample, $s$ is a noisy estimate of $\sigma$; when $s$ happens to come
+out low, $T$ gets inflated. Those occasional inflations give $T$ heavier tails
+than $Z$.
+
+How much does this matter? If we ignore it and use $\xbar \pm 1.96\,s/\sqrt n$
+on Normal data, the true coverage is:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5.6cm,
+  xmode=log, log basis x=10,
+  xmin=1.8, xmax=120, ymin=0.68, ymax=0.98,
+  xtick={2,3,5,10,20,30,50,100}, xticklabels={2,3,5,10,20,30,50,100},
+  ytick={0.70,0.75,0.80,0.85,0.90,0.95},
+  yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2},
+  xlabel={sample size $n$}, ylabel={actual coverage},
+  axis lines=left, grid=major, grid style={gray!20},
+]
+\addplot[densityred, thick, mark=*, mark size=1.5pt] coordinates {
+(2,0.6997) (3,0.8109) (4,0.8551) (5,0.8784) (6,0.8927) (8,0.9092) (10,0.9184)
+(15,0.9298) (20,0.9352) (30,0.9403) (50,0.9443) (100,0.9472)
+};
+\draw[dashed, targetgreen, thick] (axis cs:1.8,0.95) -- (axis cs:120,0.95);
+\node[targetgreen, font=\small, anchor=south west] at (axis cs:2.1,0.95) {nominal 95\%};
+\end{axis}
+\end{tikzpicture}
+\caption{Exact coverage of the naive interval $\xbar\pm 1.96\,s/\sqrt n$ for
+Normal data. At $n=5$ it covers only 88\% of the time; at $n=2$, 70\%. The
+shortfall is caused entirely by the noise in $s$.}
+\label{fig:ci-naive-coverage}
+\end{figure}
+
+\begin{historybox}
+In 1908 William Sealy Gosset, a chemist at the Guinness brewery in Dublin,
+had to judge barley and hop quality from tiny batches: often four or five
+measurements. The practice of the day was to plug $s$ into the Normal formula as if it were
+$\sigma$, and with $n=4$ that gave badly overconfident intervals, exactly the shortfall in
+Figure~\ref{fig:ci-naive-coverage}. Gosset worked out (partly by hand
+simulation with numbers drawn from shuffled cards) the distribution of
+$(\Xbar-\mu)/(s/\sqrt n)$. Guinness did not allow staff to publish under their
+own names, so he signed the paper ``Student''. The result made honest
+inference from small samples possible, and his ratio is still called Student's
+$t$.
+\end{historybox}
+
+\begin{theorem}[Student's t]
+If $X_1,\dots,X_n \iid \Normal(\mu,\sigma^2)$, then
+\[
+  T = \frac{\Xbar-\mu}{s/\sqrt n} \sim t_{n-1},
+\]
+the $t$-distribution with $n-1$ degrees of freedom. It is symmetric around 0,
+bell-shaped, has heavier tails than $\Normal(0,1)$, and approaches
+$\Normal(0,1)$ as $n\to\infty$.
+\end{theorem}
+
+The \emph{degrees of freedom} (df) is the single number that picks out which
+member of the $t$ family you have: small df means a squat curve with fat tails,
+large df means nearly Normal. Here df $=n-1$ for the same reason $s^2$ divides by $n-1$:
+the $n$ deviations $x_i - \xbar$ sum to zero, so only $n-1$ of them carry
+independent information about spread (Chapter~2). The proof that $T$ has
+exactly this distribution uses the independence of $\Xbar$ and $s^2$ for Normal
+data; see Probability From the Ground Up for the derivation.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  domain=-4.5:4.5, samples=141,
+  axis lines=left, ymin=0, ymax=0.43,
+  xlabel={$t$}, ylabel={density},
+  legend style={at={(0.98,0.97)}, anchor=north east, font=\small},
+]
+\addplot[black, very thick] {0.39894*exp(-x^2/2)};
+\addlegendentry{$\Normal(0,1)$}
+\addplot[distblue, thick] {0.389108*(1+x^2/10)^(-5.5)};
+\addlegendentry{$t_{10}$}
+\addplot[quotientorange, thick, dashed] {0.367553*(1+x^2/3)^(-2)};
+\addlegendentry{$t_{3}$}
+\addplot[densityred, thick, dotted] {0.318310/(1+x^2)};
+\addlegendentry{$t_{1}$}
+\draw[->, gray] (axis cs:3.3,0.12) -- (axis cs:3.0,0.03);
+\node[gray, font=\small, anchor=south] at (axis cs:3.3,0.12) {heavier tails};
+\end{axis}
+\end{tikzpicture}
+\caption{The $t$-distribution for 1, 3 and 10 degrees of freedom against the
+standard Normal. Fewer degrees of freedom means a lower peak and fatter tails.
+At $t=3$, the two-sided tail area is 0.27\% for the Normal but 5.8\% for
+$t_3$. By $t_{30}$ the curves are nearly indistinguishable.}
+\label{fig:ci-t-shapes}
+\end{figure}
+
+Fatter tails mean we must reach further out to trap 95\%. The \emph{critical
+value} (the cut-off on the horizontal axis that leaves the chosen tail area
+outside) becomes $t_{\alpha/2,\,n-1}$ in place of $z_{\alpha/2}$:
+
+\begin{center}
+\begin{tabular}{rccc}
+\toprule
+df & 90\% ($t_{0.05}$) & 95\% ($t_{0.025}$) & 99\% ($t_{0.005}$) \\
+\midrule
+1   & 6.314 & 12.706 & 63.657 \\
+2   & 2.920 & 4.303 & 9.925 \\
+3   & 2.353 & 3.182 & 5.841 \\
+4   & 2.132 & 2.776 & 4.604 \\
+5   & 2.015 & 2.571 & 4.032 \\
+6   & 1.943 & 2.447 & 3.707 \\
+7   & 1.895 & 2.365 & 3.499 \\
+8   & 1.860 & 2.306 & 3.355 \\
+9   & 1.833 & 2.262 & 3.250 \\
+10  & 1.812 & 2.228 & 3.169 \\
+15  & 1.753 & 2.131 & 2.947 \\
+20  & 1.725 & 2.086 & 2.845 \\
+30  & 1.697 & 2.042 & 2.750 \\
+50  & 1.676 & 2.009 & 2.678 \\
+100 & 1.660 & 1.984 & 2.626 \\
+$\infty$ & 1.645 & 1.960 & 2.576 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The last row is the Normal. The table makes the practical point: below about
+$n=30$ the difference matters; above it, $t$ and $z$ agree to within a few
+percent.
+
+\begin{theorem}[t-interval for a mean]
+For a sample of size $n$ with mean $\xbar$ and standard deviation $s$,
+\[
+  \xbar \pm t_{\alpha/2,\,n-1}\,\frac{s}{\sqrt n}
+\]
+has coverage exactly $1-\alpha$ for Normal data, and approximately $1-\alpha$
+for other data when $n$ is moderate and the data are not heavily skewed.
+\end{theorem}
+
+\subsection{Worked example}
+
+\begin{walkbox}
+Eight latency measurements (ms) from a staging server:
+\[
+  182,\ 195,\ 210,\ 177,\ 224,\ 201,\ 189,\ 214.
+\]
+\textbf{Step 1: mean.} The sum is 1592, so $\xbar = 1592/8 = 199$ ms.
+
+\textbf{Step 2: standard deviation.} Deviations from 199:
+$-17, -4, 11, -22, 25, 2, -10, 15$. Squares: $289, 16, 121, 484, 625, 4, 100,
+225$, summing to 1864. So
+\[
+  s^2 = \frac{1864}{8-1} = 266.29, \qquad s = 16.32 \text{ ms}.
+\]
+\textbf{Step 3: standard error.} $\SE = 16.32/\sqrt 8 = 16.32/2.828 = 5.77$ ms.
+
+\textbf{Step 4: critical value.} $\text{df} = 7$, so $t_{0.025,7} = 2.365$
+from the table.
+
+\textbf{Step 5: interval.} Margin $= 2.365 \times 5.77 = 13.64$ ms, giving
+\[
+  199 \pm 13.64 = [185.4,\ 212.6] \text{ ms}.
+\]
+Using $1.96$ instead would give $[187.7, 210.3]$, an interval 17\% too narrow,
+with real coverage about 91\% instead of 95\%.
+\end{walkbox}
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+from scipy import stats
+x = np.array([182, 195, 210, 177, 224, 201, 189, 214])
+n, m, s = len(x), x.mean(), x.std(ddof=1)     # ddof=1 -> divide by n-1
+t = stats.t.ppf(0.975, df=n-1)                 # 2.365
+print(m - t*s/np.sqrt(n), m + t*s/np.sqrt(n))  # 185.36 212.64
+# one call: stats.t.interval(0.95, n-1, loc=m, scale=s/np.sqrt(n))
+\end{lstlisting}
+
+\begin{trapbox}
+The t-interval assumes the \emph{sample mean} is roughly Normal, not the data.
+For small $n$ with strong skew (latencies often have a long right tail), the
+t-interval can still under-cover. Look at the data first (Chapter~3). For
+skewed data, consider a log transform, an interval for the median, or the
+bootstrap (Chapter~8).
+\end{trapbox}
+
+\section{Interval for a proportion}
+\label{sec:ci-proportion}
+
+A landing page gets $n=400$ visitors, of whom $x=46$ sign up. The sample
+proportion is $\hat p = 46/400 = 0.115$. Each visitor is a Bernoulli trial, so
+(Chapter~6)
+\[
+  \SE(\hat p) = \sqrt{\frac{p(1-p)}{n}}.
+\]
+We do not know $p$, so the simplest move is to plug in $\hat p$.
+
+\begin{definition}[Wald interval]
+\[
+  \hat p \pm z_{\alpha/2}\sqrt{\frac{\hat p(1-\hat p)}{n}}.
+\]
+\end{definition}
+
+For the landing page: $\SE = \sqrt{0.115\times 0.885/400} = 0.01595$, margin
+$= 1.96\times 0.01595 = 0.0313$, interval $[0.084,\ 0.146]$. Somewhere between
+8.4\% and 14.6\% of visitors sign up.
+
+\subsection{Why Wald fails near 0 and 1}
+
+Now a smaller test: 25 runs of a flaky integration test, 0 failures. Then
+$\hat p = 0$, $\SE = \sqrt{0\times 1/25} = 0$, and the Wald interval is
+$[0,0]$. It claims certainty that the failure rate is exactly zero after 25
+runs. With 2 failures out of 25 it gives $0.08 \pm 0.106 = [-0.026,\ 0.186]$,
+which includes impossible negative rates.
+
+Two things go wrong at once:
+\begin{enumerate}
+  \item \textbf{The SE is estimated badly.} When $\hat p$ is near 0, the plug-in
+        $\hat p(1-\hat p)$ is small, so the interval is too narrow exactly when
+        $\hat p$ happens to have come out low.
+  \item \textbf{The Normal shape is wrong.} A Binomial with small $np$ is
+        strongly right-skewed and cannot go below zero. A symmetric interval
+        cannot match it.
+\end{enumerate}
+
+We can compute the Wald interval's true coverage exactly, without simulation.
+For fixed $n$ and $p$, sum the Binomial probabilities of every count $x$ whose
+interval contains $p$. Figure~\ref{fig:ci-wald-wilson-coverage} does this for
+$n=30$ and $p$ from 0.01 to 0.99.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.4cm, height=6.6cm,
+  xmin=0, xmax=1, ymin=0.2, ymax=1.0,
+  xlabel={true proportion $p$}, ylabel={coverage},
+  ytick={0.2,0.4,0.6,0.8,0.95},
+  axis lines=left,
+  legend style={at={(0.5,0.03)}, anchor=south, font=\small, legend columns=2},
+]
+\addplot[densityred, thick] coordinates {
+(0.01,0.260) (0.02,0.454) (0.03,0.597) (0.04,0.705) (0.05,0.782) (0.06,0.842) (0.07,0.883) (0.08,0.910) (0.09,0.937) (0.10,0.809) (0.11,0.853) (0.12,0.883) (0.13,0.904) (0.14,0.930) (0.15,0.942) (0.16,0.865) (0.17,0.897) (0.18,0.914) (0.19,0.925) (0.20,0.946) (0.21,0.888) (0.22,0.902) (0.23,0.927) (0.24,0.936) (0.25,0.941) (0.26,0.910) (0.27,0.921) (0.28,0.928) (0.29,0.949) (0.30,0.953) (0.31,0.916) (0.32,0.921) (0.33,0.945) (0.34,0.947) (0.35,0.911) (0.36,0.937) (0.37,0.941) (0.38,0.942) (0.39,0.929) (0.40,0.935) (0.41,0.938) (0.42,0.937) (0.43,0.930) (0.44,0.934) (0.45,0.935) (0.46,0.933) (0.47,0.931) (0.48,0.934) (0.49,0.933) (0.50,0.957) (0.51,0.933) (0.52,0.934) (0.53,0.931) (0.54,0.933) (0.55,0.935) (0.56,0.934) (0.57,0.930) (0.58,0.937) (0.59,0.938) (0.60,0.935) (0.61,0.929) (0.62,0.942) (0.63,0.941) (0.64,0.937) (0.65,0.911) (0.66,0.947) (0.67,0.945) (0.68,0.921) (0.69,0.916) (0.70,0.953) (0.71,0.949) (0.72,0.928) (0.73,0.921) (0.74,0.910) (0.75,0.941) (0.76,0.936) (0.77,0.927) (0.78,0.902) (0.79,0.888) (0.80,0.946) (0.81,0.925) (0.82,0.914) (0.83,0.897) (0.84,0.865) (0.85,0.942) (0.86,0.930) (0.87,0.904) (0.88,0.883) (0.89,0.853) (0.90,0.809) (0.91,0.937) (0.92,0.910) (0.93,0.883) (0.94,0.842) (0.95,0.782) (0.96,0.705) (0.97,0.597) (0.98,0.454) (0.99,0.260)
+};
+\addlegendentry{Wald}
+\addplot[distblue, thick] coordinates {
+(0.01,0.964) (0.02,0.978) (0.03,0.940) (0.04,0.969) (0.05,0.939) (0.06,0.968) (0.07,0.945) (0.08,0.971) (0.09,0.952) (0.10,0.974) (0.11,0.959) (0.12,0.956) (0.13,0.951) (0.14,0.939) (0.15,0.965) (0.16,0.954) (0.17,0.951) (0.18,0.948) (0.19,0.940) (0.20,0.964) (0.21,0.957) (0.22,0.954) (0.23,0.953) (0.24,0.948) (0.25,0.968) (0.26,0.942) (0.27,0.939) (0.28,0.961) (0.29,0.957) (0.30,0.930) (0.31,0.954) (0.32,0.952) (0.33,0.947) (0.34,0.947) (0.35,0.947) (0.36,0.943) (0.37,0.964) (0.38,0.942) (0.39,0.940) (0.40,0.962) (0.41,0.938) (0.42,0.937) (0.43,0.959) (0.44,0.958) (0.45,0.935) (0.46,0.957) (0.47,0.957) (0.48,0.934) (0.49,0.956) (0.50,0.957) (0.51,0.956) (0.52,0.934) (0.53,0.957) (0.54,0.957) (0.55,0.935) (0.56,0.958) (0.57,0.959) (0.58,0.937) (0.59,0.938) (0.60,0.962) (0.61,0.940) (0.62,0.942) (0.63,0.964) (0.64,0.943) (0.65,0.947) (0.66,0.947) (0.67,0.947) (0.68,0.952) (0.69,0.954) (0.70,0.930) (0.71,0.957) (0.72,0.961) (0.73,0.939) (0.74,0.942) (0.75,0.968) (0.76,0.948) (0.77,0.953) (0.78,0.954) (0.79,0.957) (0.80,0.964) (0.81,0.940) (0.82,0.948) (0.83,0.951) (0.84,0.954) (0.85,0.965) (0.86,0.939) (0.87,0.951) (0.88,0.956) (0.89,0.959) (0.90,0.974) (0.91,0.952) (0.92,0.971) (0.93,0.945) (0.94,0.968) (0.95,0.939) (0.96,0.969) (0.97,0.940) (0.98,0.978) (0.99,0.964)
+};
+\addlegendentry{Wilson}
+\draw[dashed, black] (axis cs:0,0.95) -- (axis cs:1,0.95);
+\end{axis}
+\end{tikzpicture}
+\caption{Exact coverage of nominal 95\% intervals for a proportion, $n=30$.
+Wald (red) collapses near the edges: at $p=0.05$ it covers only 78\% of the
+time, at $p=0.01$ only 26\%. Wilson (blue) stays between 93\% and 98\%
+everywhere. Both curves are jagged because $x$ can only take 31 values.}
+\label{fig:ci-wald-wilson-coverage}
+\end{figure}
+
+\subsection{The Wilson interval}
+
+The fix is to stop plugging $\hat p$ into the standard error. Ask instead:
+which values of $p$ are close enough to $\hat p$, measured in units of
+\emph{their own} standard error?
+
+\begin{definition}[Wilson score interval]
+The set of $p$ satisfying
+$\abs{\hat p - p} \le z\sqrt{p(1-p)/n}$ is the interval
+\[
+  \frac{\hat p + \dfrac{z^2}{2n}}{1+\dfrac{z^2}{n}}
+  \;\pm\;
+  \frac{z}{1+\dfrac{z^2}{n}}\sqrt{\frac{\hat p(1-\hat p)}{n} + \frac{z^2}{4n^2}},
+\]
+where $z = z_{\alpha/2}$.
+\end{definition}
+
+\begin{whybox}
+Square both sides of $\abs{\hat p - p} \le z\sqrt{p(1-p)/n}$:
+\[
+  (\hat p - p)^2 \le \frac{z^2}{n}\,p(1-p).
+\]
+This is a quadratic inequality in $p$. Its two roots are the endpoints above.
+The pivot $(\hat p - p)/\sqrt{p(1-p)/n}$ uses the \emph{true} $p$ in the SE,
+so it is much closer to $\Normal(0,1)$ than the Wald version. Two
+consequences: the centre is pulled from $\hat p$ toward $1/2$, and the interval
+can never leave $[0,1]$.
+\end{whybox}
+
+For the flaky test, $x=0$, $n=25$: with $\hat p=0$ the formula simplifies to
+$[0,\ (z^2/n)/(1+z^2/n)] = [0,\ 0.1537/1.1537] = [0,\ 0.133]$. Zero failures in
+25 runs is consistent with a failure rate up to 13\%.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6.4cm,
+  xmin=-0.07, xmax=0.42, ymin=-0.6, ymax=5.6,
+  ytick={0,1,2,3,4,5}, yticklabels={0/25,1/25,2/25,3/25,4/25,5/25},
+  xtick={0,0.1,0.2,0.3,0.4},
+  xticklabel style={/pgf/number format/fixed},
+  xlabel={proportion}, ylabel={observed $x/n$},
+  axis lines=left,
+  legend style={at={(0.98,0.03)}, anchor=south east, font=\small},
+]
+\fill[trapred!12] (axis cs:-0.07,-0.6) rectangle (axis cs:0,5.6);
+\draw[gray] (axis cs:0,-0.6) -- (axis cs:0,5.6);
+\addplot[only marks, mark=*, mark size=1.4pt, densityred,
+  error bars/.cd, x dir=both, x explicit, error bar style={densityred, thick}]
+coordinates {
+(0.00,0.15) +- (0,0)
+(0.04,1.15) +- (0.0768,0)
+(0.08,2.15) +- (0.1063,0)
+(0.12,3.15) +- (0.1274,0)
+(0.16,4.15) +- (0.1437,0)
+(0.20,5.15) +- (0.1568,0)
+};
+\addlegendentry{Wald}
+\addplot[only marks, mark=square*, mark size=1.4pt, distblue,
+  error bars/.cd, x dir=both, x explicit, error bar style={distblue, thick}]
+coordinates {
+(0.0666,-0.15) +- (0.0666,0)
+(0.1013,0.85) +- (0.0941,0)
+(0.1359,1.85) +- (0.1138,0)
+(0.1706,2.85) +- (0.1290,0)
+(0.2053,3.85) +- (0.1413,0)
+(0.2400,4.85) +- (0.1514,0)
+};
+\addlegendentry{Wilson}
+\node[trapred, font=\scriptsize, rotate=90] at (axis cs:-0.035,4.4) {impossible};
+\end{axis}
+\end{tikzpicture}
+\caption{Wald (red, circle at $\hat p$) and Wilson (blue, square at its
+centre) 95\% intervals for $x$ successes out of $n=25$. Wald is a single point
+at $x=0$ and spills below zero for $x=1,2,3$. Wilson is asymmetric, shifted
+toward $1/2$, and stays inside $[0,1]$.}
+\label{fig:ci-wald-wilson-intervals}
+\end{figure}
+
+\begin{lstlisting}[language=Python]
+from statsmodels.stats.proportion import proportion_confint
+proportion_confint(46, 400, alpha=0.05, method="normal")  # Wald  (0.084, 0.146)
+proportion_confint(46, 400, alpha=0.05, method="wilson")  # Wilson(0.087, 0.150)
+proportion_confint(0, 25, alpha=0.05, method="wilson")    # (0.0, 0.133)
+\end{lstlisting}
+
+\begin{trapbox}
+The textbook rule ``Wald is fine if $n\hat p \ge 10$ and $n(1-\hat p)\ge
+10$'' is a minimum, not a guarantee. Even at $p=0.5$ with $n=30$, Wald's
+coverage oscillates between 93\% and 96\%. Wilson costs nothing extra. Use it
+by default, especially for error rates, click-through rates and anything
+measured in fractions of a percent.
+\end{trapbox}
+
+\section{Margin of error and sample-size planning}
+\label{sec:ci-sample-size}
+
+Turn the interval around. Before collecting data, decide how precise the
+answer must be, then solve for $n$. For a mean, the margin of error is
+$E = z\,\sigma/\sqrt n$. Solving for $n$:
+\[
+  n = \left(\frac{z\,\sigma}{E}\right)^2,
+\]
+rounded \emph{up}. You need a guess for $\sigma$: from a pilot study, past
+data, or a conservative upper bound.
+
+\begin{example}
+We want the mean page-load time to within $\pm 5$ ms at 95\% confidence, and
+historical data say $\sigma \approx 30$ ms. Then
+$n = (1.96\times 30/5)^2 = 11.76^2 = 138.3$, so 139 requests. To halve the
+margin to $\pm 2.5$ ms we need $(1.96\times 30/2.5)^2 = 553.2$, so 554
+requests: four times as many.
+\end{example}
+
+\begin{intuitionbox}
+Precision costs quadratically. Because the margin shrinks like $1/\sqrt n$,
+each extra decimal place of precision (a factor of 10) costs 100 times the
+data.
+\end{intuitionbox}
+
+\subsection{What ``$\pm 3\%$'' in a poll means}
+
+For a proportion, $E = z\sqrt{p(1-p)/n}$. The product $p(1-p)$ is largest at
+$p=1/2$, where it equals $1/4$. Planning with $p=1/2$ is therefore
+conservative:
+\[
+  E_{\max} = z\sqrt{\frac{1}{4n}} = \frac{z}{2\sqrt n}, \qquad
+  n = \left(\frac{z}{2E}\right)^2.
+\]
+For $E = 0.03$ at 95\%: $n = (1.96/0.06)^2 = 1067.1$, so 1068 respondents. A
+poll of 1000 people has $E_{\max} = 1.96/(2\sqrt{1000}) = 0.031$. That is
+where the ubiquitous ``margin of error $\pm 3$ percentage points'' comes from.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=5.8cm,
+  domain=100:4500, samples=120,
+  xmin=0, xmax=4500, ymin=0, ymax=10.5,
+  xlabel={sample size $n$}, ylabel={max.\ margin of error (\%)},
+  axis lines=left, grid=major, grid style={gray!20},
+  scaled x ticks=false,
+  xticklabel style={/pgf/number format/fixed, /pgf/number format/1000 sep={,}},
+]
+\addplot[distblue, thick] {98/sqrt(x)};
+\addplot[only marks, mark=*, trapred] coordinates {(1067,3.0) (100,9.8) (4268,1.5)};
+\node[anchor=south west, font=\small, trapred] at (axis cs:1067,3.0) {$n=1067$: $\pm3.0\%$};
+\node[anchor=west, font=\small, trapred] at (axis cs:130,9.8) {$n=100$: $\pm 9.8\%$};
+\node[anchor=south east, font=\small, trapred] at (axis cs:4400,2.3) {$n=4268$: $\pm1.5\%$};
+\node[anchor=west, font=\small, distblue] at (axis cs:1900,0.7) {$E=1.96/(2\sqrt n)$};
+\end{axis}
+\end{tikzpicture}
+\caption{Worst-case 95\% margin of error for a proportion versus sample size.
+The curve flattens fast: going from 100 to 1067 respondents cuts the margin
+from 9.8 to 3 points, but halving it again to 1.5 points needs four times
+as many, about 4300.}
+\label{fig:ci-moe-curve}
+\end{figure}
+
+\begin{trapbox}
+The poll margin covers \emph{only} random sampling error. It says nothing about
+who refused to answer, leading question wording, or people lying (Chapter~5).
+Those biases do not shrink with $n$ and are often larger than 3 points.
+Also: in a two-way race the margin on the \emph{gap} between the candidates is
+roughly twice the margin on each share, because the shares move in opposite
+directions: every respondent who switches adds to one and subtracts from the
+other.
+\end{trapbox}
+
+The population size does not appear in any of these formulas. A random sample
+of 1000 gives the same precision for a city of 50{,}000 as for a country of
+300 million, as long as the population is much larger than the sample.
+
+\section{Comparing two groups}
+\label{sec:ci-two-sample}
+
+Most practical questions are comparisons: is the new build faster, does the
+new button convert better? The estimate is a difference, and we need the SE
+of a difference.
+
+\begin{whybox}
+For independent estimates $A$ and $B$,
+$\Var(A - B) = \Var(A) + \Var(B)$. Variances add even when you subtract,
+because a minus sign flips direction but not spread. So
+\[
+  \SE(A - B) = \sqrt{\SE(A)^2 + \SE(B)^2}.
+\]
+Standard errors combine like the sides of a right triangle, not by plain
+addition.
+\end{whybox}
+
+\subsection{Difference in means (Welch)}
+
+\begin{walkbox}
+Old build: $n_A = 40$ requests, $\xbar_A = 212$ ms, $s_A = 30$ ms.
+New build: $n_B = 35$ requests, $\xbar_B = 198$ ms, $s_B = 22$ ms.
+
+\textbf{Estimate.} $\xbar_A - \xbar_B = 14$ ms.
+
+\textbf{SE.} $s_A^2/n_A = 900/40 = 22.50$ and $s_B^2/n_B = 484/35 = 13.83$, so
+$\SE = \sqrt{22.50 + 13.83} = \sqrt{36.33} = 6.03$ ms.
+
+\textbf{Degrees of freedom} (Welch--Satterthwaite):
+\[
+  \nu = \frac{\left(\dfrac{s_A^2}{n_A}+\dfrac{s_B^2}{n_B}\right)^2}
+             {\dfrac{(s_A^2/n_A)^2}{n_A-1}+\dfrac{(s_B^2/n_B)^2}{n_B-1}}
+      = \frac{36.33^2}{\dfrac{22.50^2}{39}+\dfrac{13.83^2}{34}}
+      = \frac{1319.9}{12.98 + 5.62} = 70.9 .
+\]
+\textbf{Interval.} $t_{0.025,\,70.9} = 1.994$, so
+$14 \pm 1.994\times 6.03 = 14 \pm 12.0 = [2.0,\ 26.0]$ ms.
+
+The new build is faster by somewhere between 2 and 26 ms. The interval excludes
+zero, but only just: the data are compatible with a negligible speedup or a
+large one.
+\end{walkbox}
+
+\begin{definition}[Welch interval]
+\[
+  (\xbar_A - \xbar_B) \pm t_{\alpha/2,\,\nu}\sqrt{\frac{s_A^2}{n_A} + \frac{s_B^2}{n_B}},
+\]
+with $\nu$ from the Welch--Satterthwaite formula above. It does not assume
+the two groups have equal variances.
+\end{definition}
+
+The $\nu$ formula is an approximation: it picks the $t$ distribution whose
+degrees of freedom best match how noisy the estimated SE is. You do not need to compute it by
+hand; software does. It always lies between $\min(n_A,n_B)-1$ and
+$n_A+n_B-2$, and using $\min(n_A,n_B)-1$ is a safe hand shortcut. Older texts
+use a ``pooled'' interval that assumes equal variances. Welch loses almost
+nothing when variances are equal and is far safer when they are not, so use
+Welch by default.
+
+\begin{lstlisting}[language=Python]
+from scipy import stats
+res = stats.ttest_ind(a, b, equal_var=False)   # Welch
+print(res.confidence_interval(0.95))           # CI for mean(a) - mean(b)
+\end{lstlisting}
+
+\subsection{Difference in proportions}
+
+An A/B test shows the old checkout page to 2400 users (120 buy, $\hat p_A =
+0.050$) and the new page to 2400 users (156 buy, $\hat p_B = 0.065$). The
+difference is $\hat p_B - \hat p_A = 0.015$, or 1.5 percentage points.
+\[
+  \SE = \sqrt{\frac{0.05\times0.95}{2400} + \frac{0.065\times0.935}{2400}}
+      = \sqrt{0.00001979 + 0.00002532} = 0.00672.
+\]
+The 95\% interval is $0.015 \pm 1.96\times 0.00672 = 0.015\pm 0.0132 =
+[0.0018,\ 0.0282]$. The new page lifts conversion by between 0.2 and 2.8
+points. In relative terms, that is anywhere from a 4\% to a 56\% improvement on the
+5\% baseline: the direction is fairly clear, the size is not.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=left, width=6.3cm, height=5.5cm,
+  xmin=0.5, xmax=2.5, ymin=3.5, ymax=8,
+  xtick={1,2}, xticklabels={old (A), new (B)},
+  ylabel={conversion rate (\%)},
+  axis lines=left, title style={font=\small}, title={ each group},
+]
+\addplot[only marks, mark=*, sourceblue,
+  error bars/.cd, y dir=both, y explicit, error bar style={sourceblue, thick}]
+coordinates { (1,5.0) +- (0,0.872) (2,6.5) +- (0,0.986) };
+\end{axis}
+\begin{axis}[
+  at={(left.east)}, anchor=west, xshift=1.6cm,
+  width=5.2cm, height=5.5cm,
+  xmin=0.5, xmax=1.5, ymin=-1, ymax=3.5,
+  xtick={1}, xticklabels={B $-$ A},
+  ylabel={difference (points)},
+  axis lines=left, title style={font=\small}, title={ difference},
+]
+\draw[dashed, gray] (axis cs:0.5,0) -- (axis cs:1.5,0);
+\addplot[only marks, mark=diamond*, mark size=3pt, targetgreen,
+  error bars/.cd, y dir=both, y explicit, error bar style={targetgreen, thick}]
+coordinates { (1,1.5) +- (0,1.32) };
+\end{axis}
+\end{tikzpicture}
+\caption{The A/B checkout test with 95\% intervals. Left: each page's
+conversion rate. Right: the interval for the difference, $[0.18, 2.82]$
+points, which excludes zero. The question ``is B better?'' is answered by
+the right panel, not by squinting at the left.}
+\label{fig:ci-ab-test}
+\end{figure}
+
+\subsection{Paired data}
+
+Eight servers had their p50 latency measured before and after a kernel
+upgrade (ms):
+
+\begin{center}
+\begin{tabular}{lcccccccc}
+\toprule
+Server & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 \\
+\midrule
+Before & 241 & 198 & 225 & 260 & 210 & 233 & 247 & 219 \\
+After  & 228 & 195 & 214 & 249 & 207 & 220 & 238 & 213 \\
+Difference $d$ & 13 & 3 & 11 & 11 & 3 & 13 & 9 & 6 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{recoverybox}
+Pause and think before reading on: should we compare the mean of the
+``before'' row with the mean of the ``after'' row as two separate groups?
+\end{recoverybox}
+
+The two columns are not independent samples. Server 4 is slow both times;
+server 2 is fast both times. The before and after columns have correlation
+0.99. The right analysis works on the differences, which turns the problem into
+a one-sample t-interval:
+\[
+  \bar d = 8.625, \quad s_d = 4.14, \quad \SE = 4.14/\sqrt 8 = 1.463, \quad
+  t_{0.025,7} = 2.365,
+\]
+\[
+  8.625 \pm 2.365\times 1.463 = 8.625 \pm 3.46 = [5.17,\ 12.08] \text{ ms}.
+\]
+
+If we wrongly treat the columns as independent groups (Welch), the SE becomes
+$9.44$ ms and the interval is $[-11.7,\ 28.9]$ ms, which includes zero and is
+six times wider. The server-to-server variation (SD about 20 ms) swamps the
+upgrade effect (about 9 ms). Pairing subtracts it out.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=8cm, height=6.2cm,
+  xmin=0.6, xmax=2.4, ymin=190, ymax=265,
+  xtick={1,2}, xticklabels={before, after},
+  ylabel={p50 latency (ms)},
+  axis lines=left,
+]
+\addplot[structurepurple, mark=*, mark size=1.5pt] coordinates {(1,241) (2,228)};
+\addplot[structurepurple, mark=*, mark size=1.5pt] coordinates {(1,198) (2,195)};
+\addplot[structurepurple, mark=*, mark size=1.5pt] coordinates {(1,225) (2,214)};
+\addplot[structurepurple, mark=*, mark size=1.5pt] coordinates {(1,260) (2,249)};
+\addplot[structurepurple, mark=*, mark size=1.5pt] coordinates {(1,210) (2,207)};
+\addplot[structurepurple, mark=*, mark size=1.5pt] coordinates {(1,233) (2,220)};
+\addplot[structurepurple, mark=*, mark size=1.5pt] coordinates {(1,247) (2,238)};
+\addplot[structurepurple, mark=*, mark size=1.5pt] coordinates {(1,219) (2,213)};
+\end{axis}
+\end{tikzpicture}
+\caption{Before/after latency for eight servers, one line per server. The
+spread \emph{between} servers (about 65 ms top to bottom) is large, yet every
+line slopes down. A paired interval looks only at the slopes.}
+\label{fig:ci-paired}
+\end{figure}
+
+\begin{trapbox}
+Whenever each observation in group A has a natural partner in group B (same
+user, same server, same patient, same day), use the paired interval. Using a
+two-sample interval on paired data does not give a wrong centre, but it
+throws away the pairing and can make a clear effect look like noise.
+\end{trapbox}
+
+\section{One-sided bounds}
+\label{sec:ci-one-sided}
+
+Sometimes only one direction matters. An SLO says mean latency must be below
+220 ms; we want an \emph{upper confidence bound}: a number we are 95\%
+confident the mean does not exceed. Put the whole $\alpha=5\%$ in one tail:
+\[
+  \text{upper bound} = \xbar + t_{\alpha,\,n-1}\frac{s}{\sqrt n}.
+\]
+For the eight staging latencies ($\xbar = 199$, $\SE=5.77$, df $=7$):
+$t_{0.05,7} = 1.895$, so the bound is $199 + 1.895\times 5.77 = 209.9$ ms.
+The SLO of 220 ms is met with 95\% confidence.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=two, width=6.4cm, height=4.6cm,
+  domain=-4:4, samples=101, axis lines=left, ymin=0, ymax=0.45,
+  ytick=\empty, xtick={-2.365,0,2.365}, xticklabels={$-2.365$,0,$2.365$},
+  xticklabel style={font=\scriptsize},
+  title style={font=\small}, title={ two-sided 95\%: $2.5\%$ each tail},
+]
+\addplot[fill=trapred!40, draw=none, domain=-4:-2.365] {0.38499*(1+x^2/7)^(-4)} \closedcycle;
+\addplot[fill=trapred!40, draw=none, domain=2.365:4] {0.38499*(1+x^2/7)^(-4)} \closedcycle;
+\addplot[distblue, thick] {0.38499*(1+x^2/7)^(-4)};
+\end{axis}
+\begin{axis}[
+  at={(two.east)}, anchor=west, xshift=0.6cm,
+  width=6.4cm, height=4.6cm,
+  domain=-4:4, samples=101, axis lines=left, ymin=0, ymax=0.45,
+  ytick=\empty, xtick={0,1.895}, xticklabels={0,$1.895$},
+  xticklabel style={font=\scriptsize},
+  title style={font=\small}, title={ one-sided 95\%: $5\%$ upper tail},
+]
+\addplot[fill=trapred!40, draw=none, domain=1.895:4] {0.38499*(1+x^2/7)^(-4)} \closedcycle;
+\addplot[distblue, thick] {0.38499*(1+x^2/7)^(-4)};
+\end{axis}
+\end{tikzpicture}
+\caption{The $t_7$ density. A two-sided 95\% interval splits the 5\% miss
+rate between both tails and reaches out to 2.365. A one-sided bound puts all
+5\% in one tail, so its critical value is smaller (1.895) and the bound is
+tighter on the side you care about.}
+\label{fig:ci-one-sided}
+\end{figure}
+
+\begin{trapbox}
+Decide on a one-sided bound \emph{before} looking at the data. Picking the
+side after seeing which way the estimate went is a way of quietly doubling
+your error rate. The one-sided 95\% upper bound equals the upper end of a
+two-sided 90\% interval, which shows exactly what you are giving up.
+\end{trapbox}
+
+\section{Error bars: SD, SE, or CI?}
+\label{sec:ci-error-bars}
+
+A bar chart with whiskers is meaningless until you know what the whiskers are.
+Three common choices look alike and mean very different things. Take two
+groups of $n=10$ task-completion times (seconds):
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+Group & mean & SD & SE $=$ SD$/\sqrt{10}$ & 95\% CI half-width ($t_{0.025,9}=2.262$) \\
+\midrule
+A & 50.0 & 9.79 & 3.09 & 7.00 \\
+B & 62.0 & 8.88 & 2.81 & 6.35 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.2cm, height=6.4cm,
+  xmin=0.2, xmax=8.8, ymin=30, ymax=92,
+  xtick={1,2,4,5,7,8}, xticklabels={A,B,A,B,A,B},
+  ylabel={completion time (s)},
+  axis lines=left, clip=false,
+]
+\addplot[only marks, mark=o, mark size=1.2pt, residgray] coordinates {
+(0.75,38) (0.80,52) (0.85,61) (0.75,45) (0.80,49) (0.85,70) (0.75,44) (0.80,55) (0.85,41) (0.70,45)
+(1.75,58) (1.80,66) (1.85,49) (1.75,72) (1.80,61) (1.85,55) (1.75,80) (1.80,57) (1.85,63) (1.70,59)
+};
+\addplot[only marks, mark=*, sourceblue,
+  error bars/.cd, y dir=both, y explicit, error bar style={sourceblue, thick}]
+coordinates { (1.1,50) +- (0,9.79) (2.1,62) +- (0,8.88) };
+\addplot[only marks, mark=*, quotientorange,
+  error bars/.cd, y dir=both, y explicit, error bar style={quotientorange, thick}]
+coordinates { (4,50) +- (0,3.09) (5,62) +- (0,2.81) };
+\addplot[only marks, mark=*, targetgreen,
+  error bars/.cd, y dir=both, y explicit, error bar style={targetgreen, thick}]
+coordinates { (7,50) +- (0,7.00) (8,62) +- (0,6.35) };
+\node[sourceblue, font=\small, align=center] at (axis cs:1.5,88) {$\pm 1$ SD\\(spread of data)};
+\node[quotientorange, font=\small, align=center] at (axis cs:4.5,88) {$\pm 1$ SE\\(68\% CI, roughly)};
+\node[targetgreen, font=\small, align=center] at (axis cs:7.5,88) {95\% CI\\($\pm 2.26$ SE)};
+\draw[gray!50] (axis cs:3,30) -- (axis cs:3,82);
+\draw[gray!50] (axis cs:6,30) -- (axis cs:6,82);
+\end{axis}
+\end{tikzpicture}
+\caption{The same two groups with three kinds of error bars. SD bars (with the
+raw points in grey) describe individuals and do not shrink with $n$. SE bars are
+the shortest and look the most impressive, but they are only about a 68\%
+interval. 95\% CI bars are the ones that support inference about the means.}
+\label{fig:ci-error-bars}
+\end{figure}
+
+\begin{itemize}
+  \item \textbf{SD bars} answer ``how variable are individuals?'' They are
+        descriptive. Use them when the reader cares about the spread of
+        outcomes (how long will \emph{my} task take?).
+  \item \textbf{SE bars} answer ``how precisely is each mean known?'' in units
+        of one SE. They are about $1/\sqrt n$ as long as SD bars, so they look
+        tight. A $\pm 1$ SE bar covers the true mean only about 68\% of the time.
+  \item \textbf{95\% CI bars} answer the same question at a stated level. They
+        are what most readers think they are seeing.
+\end{itemize}
+
+\begin{trapbox}
+Always label error bars in the caption: ``mean $\pm$ SD'', ``mean $\pm$ SE'',
+or ``mean with 95\% CI''. An unlabelled error bar is uninterpretable, and
+switching SD to SE is a common way (deliberate or not) to make noisy results
+look solid.
+\end{trapbox}
+
+\subsection{The overlapping-intervals fallacy}
+
+A tempting shortcut: ``the two 95\% intervals overlap, so the difference is not
+significant.'' It is wrong.
+
+Two services have mean latencies 200 ms and 207 ms, each with $\SE = 2$ ms.
+Their 95\% intervals are $[196.1,\ 203.9]$ and $[203.1,\ 210.9]$. They overlap.
+But the difference is $7$ ms with
+\[
+  \SE(\text{diff}) = \sqrt{2^2 + 2^2} = 2.83, \qquad
+  7 \pm 1.96\times 2.83 = [1.5,\ 12.5],
+\]
+which excludes zero.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=grp, width=6.2cm, height=5.6cm,
+  xmin=0.5, xmax=2.5, ymin=193, ymax=214,
+  xtick={1,2}, xticklabels={service 1, service 2},
+  ylabel={mean latency (ms)}, axis lines=left,
+  title style={font=\small}, title={ 95\% CI of each mean},
+]
+\fill[quotientorange!25] (axis cs:0.5,203.08) rectangle (axis cs:2.5,203.92);
+\addplot[only marks, mark=*, sourceblue,
+  error bars/.cd, y dir=both, y explicit, error bar style={sourceblue, thick}]
+coordinates { (1,200) +- (0,3.92) (2,207) +- (0,3.92) };
+\node[quotientorange!80!black, font=\scriptsize, anchor=south] at (axis cs:1.5,204) {overlap};
+\end{axis}
+\begin{axis}[
+  at={(grp.east)}, anchor=west, xshift=1.5cm,
+  width=5cm, height=5.6cm,
+  xmin=0.5, xmax=1.5, ymin=-2, ymax=14,
+  xtick={1}, xticklabels={2 $-$ 1},
+  ylabel={difference (ms)}, axis lines=left,
+  title style={font=\small}, title={ 95\% CI of difference},
+]
+\draw[dashed, gray] (axis cs:0.5,0) -- (axis cs:1.5,0);
+\addplot[only marks, mark=diamond*, mark size=3pt, targetgreen,
+  error bars/.cd, y dir=both, y explicit, error bar style={targetgreen, thick}]
+coordinates { (1,7) +- (0,5.54) };
+\end{axis}
+\end{tikzpicture}
+\caption{Overlapping individual intervals (left) can coexist with a
+difference interval that excludes zero (right). The SE of a difference is
+$\sqrt 2\approx 1.41$ times one SE, not 2 times, so judging by overlap is too
+conservative.}
+\label{fig:ci-overlap}
+\end{figure}
+
+\begin{whybox}
+Non-overlap of two 95\% intervals requires the gap to exceed
+$1.96(\SE_1 + \SE_2)$. Significance of the difference requires the gap to exceed
+$1.96\sqrt{\SE_1^2 + \SE_2^2}$, which is smaller (the hypotenuse is shorter
+than the two legs combined). With equal SEs the ratio is $\sqrt 2$. So:
+\begin{itemize}
+  \item intervals do not overlap $\Rightarrow$ the difference is significant
+        (with equal SEs, at about the 0.6\% level, not 5\%);
+  \item intervals overlap $\Rightarrow$ you cannot conclude anything. Compute
+        the interval for the difference.
+\end{itemize}
+For paired data, overlap is even less informative, because the individual
+intervals ignore the pairing entirely.
+\end{whybox}
+
+\section{Choosing an interval}
+\label{sec:ci-choosing}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  node distance=0.55cm and 0.5cm,
+  q/.style={draw, rounded corners, fill=structurepurple!10, font=\small, align=center, text width=2.6cm},
+  a/.style={draw, fill=targetgreen!12, font=\small, align=center, text width=2.3cm},
+  >={Stealth[length=2mm]}
+]
+\node[q] (start) {What is the parameter?};
+\node[q, below left=0.7cm and 0.9cm of start] (mean) {One mean or two?};
+\node[q, below right=0.7cm and 0.9cm of start] (prop) {One proportion\\or two?};
+\node[a, below left=0.7cm and -0.6cm of mean] (one) {$\xbar \pm t\,s/\sqrt n$\\(t-interval)};
+\node[q, below right=0.7cm and -0.6cm of mean] (pair) {Paired?};
+\node[a, below left=0.7cm and -1.2cm of pair] (paired) {t-interval on differences};
+\node[a, below right=0.7cm and -1.2cm of pair] (welch) {Welch interval};
+\node[a, below left=0.7cm and -0.6cm of prop] (wil) {Wilson interval};
+\node[a, below right=0.7cm and -0.6cm of prop] (dp) {$\hat p_B - \hat p_A \pm z\,\SE$};
+\draw[->] (start) -- node[above left, font=\scriptsize] {mean} (mean);
+\draw[->] (start) -- node[above right, font=\scriptsize] {proportion} (prop);
+\draw[->] (mean) -- node[left, font=\scriptsize] {one} (one);
+\draw[->] (mean) -- node[right, font=\scriptsize] {two} (pair);
+\draw[->] (pair) -- node[left, font=\scriptsize] {yes} (paired);
+\draw[->] (pair) -- node[right, font=\scriptsize] {no} (welch);
+\draw[->] (prop) -- node[left, font=\scriptsize] {one} (wil);
+\draw[->] (prop) -- node[right, font=\scriptsize] {two} (dp);
+\end{tikzpicture}
+\caption{Choosing among the intervals of this chapter. For medians,
+percentiles such as p99, and other statistics without a simple SE formula,
+use the bootstrap (Chapter~8).}
+\label{fig:ci-decision}
+\end{figure}
+
+\begin{connectionbox}
+Machine-learning papers report ``accuracy $91.2 \pm 0.4$''. Check what the
+$\pm$ is: often it is the SD across 5 random seeds, which measures training
+instability, not the uncertainty in the true accuracy. A test-set accuracy is a
+proportion, so a Wilson interval on (correct, test-set size) gives the
+sampling uncertainty from the finite test set: with 2000 test examples and
+91.2\% accuracy, the 95\% margin is about $\pm 1.2$ points, three times the
+quoted $\pm 0.4$. Chapter~15 returns to this.
+\end{connectionbox}
+
+\section{Summary}
+\label{sec:ci-summary}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{lll}
+\toprule
+Parameter & Interval & Notes \\
+\midrule
+Mean, $\sigma$ known & $\xbar \pm z_{\alpha/2}\,\sigma/\sqrt n$ & rare in practice \\
+Mean & $\xbar \pm t_{\alpha/2,n-1}\,s/\sqrt n$ & default for means \\
+Proportion & Wilson & avoid Wald near 0 or 1 \\
+Two means & $\Delta\xbar \pm t_{\alpha/2,\nu}\sqrt{s_A^2/n_A + s_B^2/n_B}$ & Welch $\nu$ \\
+Two proportions & $\Delta\hat p \pm z_{\alpha/2}\sqrt{\sum \hat p(1-\hat p)/n}$ & A/B tests \\
+Paired & $\bar d \pm t_{\alpha/2,n-1}\,s_d/\sqrt n$ & use differences \\
+One-sided upper & $\xbar + t_{\alpha,n-1}\,s/\sqrt n$ & all of $\alpha$ in one tail \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+  \item Every interval is estimate $\pm$ critical value $\times$ SE.
+  \item ``95\% confidence'' is the long-run hit rate of the method. A computed
+        interval either contains $\mu$ or does not.
+  \item Use $t$ instead of $z$ whenever $s$ replaces $\sigma$; it matters for
+        $n\lesssim 30$.
+  \item Higher confidence means wider intervals; precision improves only like
+        $\sqrt n$. Plan with $n = (z\sigma/E)^2$ or $n=(z/2E)^2$ for
+        proportions.
+  \item SEs of independent estimates combine like the sides of a right
+        triangle: $\sqrt{\SE_A^2+\SE_B^2}$. Pair when you can.
+  \item Label error bars. Overlapping CIs do not imply ``no difference''.
+\end{itemize}
+
+Every interval here needed a formula for the SE. For a median, a p99, or a
+ratio of two means there is no tidy formula. Chapter~8 gets the SE, and the
+interval, by resampling the data itself: the bootstrap.
+
+\section{Exercises}
+\label{sec:ci-exercises}
+
+\begin{exercise}
+A sample of $n=64$ has $\xbar = 50$ and the population SD is known to be
+$\sigma = 8$. Give the 95\% z-interval for $\mu$.
+\end{exercise}
+
+\begin{exercise}
+An analyst quadruples the sample size. By what factor does the width of the
+95\% interval change? What about if she instead raises the level from 95\% to
+99\% at the original $n$?
+\end{exercise}
+
+\begin{exercise}
+Six battery lifetimes (hours): $4.1, 3.8, 5.0, 4.6, 4.4, 3.9$. Compute a 95\%
+t-interval for the mean lifetime.
+\end{exercise}
+
+\begin{exercise}
+In a survey of 200 users, 30 report a bug. Compute the 95\% Wald interval for
+the proportion of users who hit the bug.
+\end{exercise}
+
+\begin{exercise}
+A deployment pipeline ran 50 times with no failures. What does the Wald
+interval say? What is the 95\% Wilson upper bound on the failure rate?
+\end{exercise}
+
+\begin{exercise}
+You want to estimate mean session length to within $\pm 3$ minutes with 99\%
+confidence; a pilot suggests $\sigma \approx 15$ minutes. How many sessions do
+you need?
+\end{exercise}
+
+\begin{exercise}
+A poll of $n=1067$ reports $\pm 3\%$. Roughly how many respondents are needed for
+$\pm 1.5\%$?
+\end{exercise}
+
+\begin{exercise}
+True or false: (a) A 95\% CI of $[4.1, 4.8]$ means $\P(4.1\le\mu\le4.8)=0.95$.
+(b) If we built 95\% intervals for 100 independent studies, we would expect
+about 5 to miss their true parameter. (c) A 99\% interval from the same data is
+always wider than the 95\% interval.
+\end{exercise}
+
+\begin{exercise}
+Two group means each have a 95\% CI of half-width 4, and the means differ by 6.
+The intervals overlap. Assuming independent groups with equal SEs, is the
+difference significant at the 5\% level?
+\end{exercise}
+
+\subsection*{Answers}
+
+\begin{enumerate}[label=\textbf{\arabic*.}]
+  \item $\SE = 8/8 = 1$; $50 \pm 1.96 = [48.04,\ 51.96]$.
+  \item Width scales as $1/\sqrt n$, so it halves. Going to 99\% multiplies
+        the width by $2.576/1.960 = 1.31$.
+  \item $\xbar = 4.30$, $s = 0.456$, $\SE = 0.186$, $t_{0.025,5}=2.571$;
+        $4.30 \pm 0.479 = [3.82,\ 4.78]$ hours.
+  \item $\hat p = 0.15$, $\SE = \sqrt{0.15\times0.85/200} = 0.0252$;
+        $0.15 \pm 0.049 = [0.101,\ 0.199]$.
+  \item Wald gives $[0,0]$, which is absurd. Wilson with $x=0$:
+        upper $= (z^2/n)/(1+z^2/n) = 0.0768/1.0768 = 0.071$. The failure rate
+        could plausibly be as high as 7\%.
+  \item $n = (2.576\times 15/3)^2 = 12.88^2 = 165.9$, so 166 sessions.
+  \item Halving the margin needs four times the sample: about $4\times 1067
+        \approx 4270$.
+  \item (a) False: $\mu$ is fixed; 95\% is the method's hit rate.
+        (b) True. (c) True: $z_{0.005} > z_{0.025}$ (and likewise for $t$) with the same SE.
+  \item Each SE is $4/1.96 = 2.04$; $\SE(\text{diff}) = 2.04\sqrt2 = 2.89$;
+        the difference interval is $6 \pm 1.96\times 2.89 = 6\pm 5.66 =
+        [0.34,\ 11.66]$, which excludes 0. Yes, significant, despite the
+        overlap.
+\end{enumerate}

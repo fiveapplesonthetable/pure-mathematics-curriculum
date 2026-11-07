@@ -1,0 +1,1228 @@
+\chapter{Sampling and Study Design}
+\label{ch:sampling}
+
+Chapters 1--4 described the data in front of us. This chapter asks where the data came
+from. Every later formula (standard errors, confidence intervals, p-values, regression
+coefficients) assumes something about how the numbers were collected. If that assumption
+is false, the formula still produces a number, and the number is wrong. No amount of
+arithmetic repairs a bad sample or a confounded comparison.
+
+Two questions organise the chapter:
+\begin{itemize}
+  \item \textbf{Can I generalise?} Does what I saw in my sample hold for the larger group I
+  care about? That depends on \emph{how units were selected}.
+  \item \textbf{Can I claim cause?} Did the treatment produce the difference, or did
+  something else? That depends on \emph{how treatments were assigned}.
+\end{itemize}
+
+\section{Populations, parameters, and statistics}
+\label{sec:sampling-pop}
+
+Suppose you run a fleet of $6$ cache servers and want the average p50 latency (each
+server's median request time) across the fleet. Their true p50 latencies (ms) are
+\[
+  10,\quad 14,\quad 18,\quad 22,\quad 26,\quad 48 .
+\]
+The fleet average is $(10+14+18+22+26+48)/6 = 138/6 = 23$ ms. If you can measure all six,
+you are done. Usually you cannot: the fleet has $60{,}000$ machines, or measuring one is
+expensive, or the ``fleet'' is every user who will ever visit your site. So you measure a
+few and reason about the rest.
+
+\begin{definition}[Population, sample, parameter, statistic]
+The \textbf{population} is the full set of units you want to learn about. A
+\textbf{sample} is the subset you actually observe. A \textbf{parameter} is a number
+describing the population (fixed, usually unknown). A \textbf{statistic} is a number
+computed from the sample (known, but it changes from sample to sample).
+\end{definition}
+
+The rule of thumb for notation: \emph{Greek letters for parameters, Latin letters for
+statistics}. Hats also mark estimates: $\hat p$ is ``our estimate of $p$''.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}lccl@{}}
+\toprule
+Quantity & Parameter (population) & Statistic (sample) & Example \\
+\midrule
+Mean & $\mu$ & $\xbar$ & mean latency \\
+Standard deviation & $\sigma$ & $s$ & spread of latency \\
+Variance & $\sigma^2$ & $s^2$ & \\
+Proportion & $p$ & $\hat p$ & conversion rate \\
+Regression slope & $\beta$ (or $\beta_1$) & $b$ (or $\hat\beta_1$) & price per m$^2$ \\
+Correlation & $\rho$ & $r$ & height vs.\ weight \\
+Size & $N$ & $n$ & fleet vs.\ sample size \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small]
+  \draw[thick, sourceblue, fill=sourceblue!5] (0,0) ellipse (2.9cm and 1.75cm);
+  \foreach \x/\y in {0.64/0.73, -0.16/-0.76, 0.23/0.22, 1.38/-1.02, 0.61/-1.12,
+    -1.51/-0.85, 2.05/-0.6, -0.72/-1.0, -1.03/0.31, -0.84/-0.57, 1.66/-0.06,
+    -0.96/-0.06, 1.3/1.03, -1.58/0.77, 0.13/0.83, -2.13/-0.48, 0.58/1.25,
+    -0.83/1.27, 0.23/-0.56, -0.23/-0.23, -0.72/0.86, 1.43/0.58, 0.78/0.24,
+    1.92/0.57, 2.27/-0.07, 1.0/0.66, 0.86/-0.24, -0.31/0.45, 0.56/-0.45,
+    -2.04/0.2, -0.44/-0.54, -1.21/-1.04, 1.35/-0.6, -0.23/1.25, -1.06/0.99,
+    -0.11/0.15, 1.78/-0.84, 0.52/-0.03, 0.09/-1.1, -1.38/-0.39, -0.53/-1.32,
+    -1.67/0.03, -0.51/0.09, 2.19/0.29, 1.31/0.17, -2.09/0.65}
+    \fill[gray!60] (\x,\y) circle (0.06);
+  \foreach \x/\y in {1.38/-1.02, -0.96/-0.06, -0.23/-0.23, -0.31/0.45, -1.58/0.77,
+    1.92/0.57}
+    \fill[quotientorange] (\x,\y) circle (0.09);
+  \node[sourceblue, anchor=south] at (0,1.8) {\textbf{Population} ($N$ units)};
+  \node[sourceblue] at (0,-2.1) {parameter: $\mu$, $\sigma$, $p$};
+  \draw[thick, quotientorange, fill=quotientorange!6] (7.3,0) circle (1.2cm);
+  \foreach \x/\y in {-0.5/0.4, 0.3/0.55, -0.6/-0.3, 0.1/-0.1, 0.55/-0.5, -0.1/-0.65}
+    \fill[quotientorange] ($(7.3,0)+(\x,\y)$) circle (0.09);
+  \node[quotientorange, anchor=south] at (7.3,1.25) {\textbf{Sample} ($n$ units)};
+  \node[quotientorange] at (7.3,-1.55) {statistic: $\xbar$, $s$, $\hat p$};
+  \draw[-{Stealth}, thick] (3.0,0.55) to[bend left=18] node[above]{sampling} (6.05,0.55);
+  \draw[-{Stealth}, thick, targetgreen] (6.05,-0.55) to[bend left=18]
+    node[below]{inference} (3.0,-0.55);
+\end{tikzpicture}
+\caption{Sampling goes from population to sample; inference goes back. The statistic
+is computed; the parameter is what we actually want. How the arrow labelled
+``sampling'' was carried out decides whether the return arrow is justified.}
+\label{fig:sampling-pop-sample}
+\end{figure}
+
+\begin{trapbox}
+The ``population'' is defined by the question, not by the data you happen to have. If
+your logs contain only users who logged in this week, the population for a question
+about ``all customers'' is larger than your logs. Write down the target population
+before you look at the sample.
+\end{trapbox}
+
+\section{Simple random sampling}
+\label{sec:sampling-srs}
+
+\begin{definition}[Simple random sample]
+A \textbf{simple random sample} (SRS) of size $n$ from a population of size $N$ is a
+sample chosen so that every subset of $n$ units has the same chance of being the one
+selected.
+\end{definition}
+
+Back to the six servers. Take an SRS of size $n=2$. There are $\binom{6}{2}=15$ possible
+pairs, each with probability $1/15$. Here are all $15$ sample means:
+\[
+  12,\ 14,\ 16,\ 16,\ 18,\ 18,\ 20,\ 20,\ 22,\ 24,\ 29,\ 31,\ 33,\ 35,\ 37 .
+\]
+(For example, the pair $\{10,14\}$ gives $12$, and $\{26,48\}$ gives $37$.) Their average
+is $345/15 = 23$, exactly the population mean $\mu$. Individual samples miss, some by a
+lot, but the misses in each direction cancel on average: the high misses (up to $+14$)
+are fewer but larger than the low ones (down to $-11$).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=4.6cm, axis lines=left,
+  xmin=8, xmax=40, ymin=0, ymax=2.9, ytick=\empty,
+  xlabel={sample mean $\xbar$ (ms)}, xtick={10,15,20,25,30,35,40},
+  clip=false,
+]
+\addplot[only marks, mark=*, mark size=3pt, color=distblue] coordinates {
+  (12,0.3) (14,0.3) (16,0.3) (16,0.7) (18,0.3) (18,0.7) (20,0.3) (20,0.7)
+  (22,0.3) (24,0.3) (29,0.3) (31,0.3) (33,0.3) (35,0.3) (37,0.3)};
+\addplot[only marks, mark=square*, mark size=3pt, color=trapred] coordinates {(20,1.5)};
+\draw[densityred, thick, dashed] (axis cs:23,0) -- (axis cs:23,2.3);
+\node[densityred, anchor=south] at (axis cs:23,2.3) {$\mu = 23$ = average of all 15};
+\node[trapred, anchor=south east] at (axis cs:22.6,1.75) {``typical'' pair $\{18,22\}$};
+\end{axis}
+\end{tikzpicture}
+\caption{All $15$ equally likely SRS means for $n=2$ from the fleet
+$\{10,14,18,22,26,48\}$. They balance at the true mean $23$. A hand-picked
+``representative'' pair that avoids the odd server lands at $20$, and would land there
+every time.}
+\label{fig:sampling-srs-means}
+\end{figure}
+
+\begin{definition}[Unbiased]
+A statistic is \textbf{unbiased} for a parameter if its average over all possible samples
+equals the parameter. Its \textbf{bias} is
+$\Bias = \E[\text{statistic}] - \text{parameter}$, where $\E[\cdot]$ (the expected
+value) means exactly that average over all possible samples, each weighted by its
+probability.
+\end{definition}
+
+\begin{recoverybox}
+Pause and think: replace the $48$ ms server by one at $100$ ms. Is the average of the $15$
+sample means still equal to the new $\mu$? (Yes. Each server still appears in exactly
+$5$ of the $15$ pairs, so the grand average is still the plain average of the six servers,
+now $190/6 \approx 31.7$ ms.)
+\end{recoverybox}
+
+Under simple random sampling, $\xbar$ is unbiased for $\mu$. The calculation above is
+the whole proof in miniature: each unit appears in the same number of samples, so each
+unit gets equal weight in the grand average. Chapter 6 studies the \emph{spread} of the
+$15$ values (the standard error); here the point is the \emph{centre}.
+
+\subsection{Why randomness beats judgement}
+
+The intuitive alternative to random selection is to pick ``representative'' units by
+hand. An engineer asked for two typical servers would likely choose $18$ and $22$ and
+skip the odd one at $48$. That gives $\xbar = 20$, and it gives $20$ \emph{every time}
+the engineer is asked. The error is $-3$ ms, and it never averages out.
+
+\begin{whybox}
+Human judgement has preferences: it avoids outliers, favours units that are convenient,
+familiar, or look ``normal''. Those preferences are correlated with the thing being
+measured, so they produce a bias that repeats on every sample. A random mechanism has no
+preferences. It can still produce a bad sample, but bad in an unpredictable direction,
+and the size of that chance error is something probability theory can quantify
+(Chapter 6). Randomness converts an unknown systematic error into a known random one.
+\end{whybox}
+
+In practice an SRS needs a \textbf{sampling frame}: a list of every unit, from which a
+random number generator picks. For servers, users, or transactions this list usually
+exists in a database.
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+rng = np.random.default_rng(seed=42)       # fixed seed: reproducible
+user_ids = np.arange(1_000_000)            # the sampling frame
+srs = rng.choice(user_ids, size=500, replace=False)
+# SQL equivalent (approx.): SELECT * FROM users ORDER BY random() LIMIT 500;
+\end{lstlisting}
+
+\section{Other sampling designs}
+\label{sec:sampling-designs}
+
+Simple random sampling is the reference design. Three variations trade simplicity for
+precision or cost; one shortcut abandons randomness altogether.
+
+\subsection{Stratified sampling}
+
+A product has $1000$ users: $800$ on the free tier and $200$ paid. Free users average
+$3$ sessions per week (SD $2$); paid users average $15$ (SD $5$). The population mean is
+\[
+  \mu = \frac{800\cdot 3 + 200 \cdot 15}{1000} = \frac{2400+3000}{1000} = 5.4 .
+\]
+An SRS of $100$ users might, by bad luck, contain $10$ paid users or $30$. Since paid
+users are so different, that luck swings $\xbar$ a lot. Instead, split the population
+into the two tiers (\textbf{strata}) and sample each separately: $80$ free and $20$ paid,
+in proportion to their sizes. Then combine:
+\[
+  \xbar_{\text{strat}} = 0.8\,\xbar_{\text{free}} + 0.2\,\xbar_{\text{paid}} .
+\]
+
+\begin{definition}[Stratified random sample]
+Divide the population into non-overlapping groups (\textbf{strata}) that differ from each
+other. Take an SRS within each stratum. Combine stratum means with weights
+$W_h = N_h/N$ equal to each stratum's share of the population.
+\end{definition}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small]
+  \draw[thick, sourceblue, fill=sourceblue!4] (0,0) rectangle (8.4,2.4);
+  \node[sourceblue, anchor=south west] at (0,2.4) {Free tier: $N_1=800$};
+  \foreach \i in {0,...,15} \foreach \j in {0,...,4}
+    \fill[gray!55] ({0.4+0.5*\i},{0.3+0.45*\j}) circle (0.07);
+  \foreach \i/\j in {1/0, 4/3, 6/1, 9/4, 11/2, 13/0, 2/2, 7/3, 14/3, 10/0, 3/4, 12/4,
+    0/1, 5/0, 8/2, 15/1}
+    \fill[quotientorange] ({0.4+0.5*\i},{0.3+0.45*\j}) circle (0.11);
+  \draw[thick, structurepurple, fill=structurepurple!5] (9.0,0) rectangle (11.4,2.4);
+  \node[structurepurple, anchor=south west] at (9.0,2.4) {Paid: $N_2=200$};
+  \foreach \i in {0,...,3} \foreach \j in {0,...,4}
+    \fill[gray!55] ({9.4+0.5*\i},{0.3+0.45*\j}) circle (0.07);
+  \foreach \i/\j in {1/1, 3/3, 0/4, 2/0}
+    \fill[quotientorange] ({9.4+0.5*\i},{0.3+0.45*\j}) circle (0.11);
+  \node[anchor=north] at (4.2,-0.15) {SRS of $n_1=80$ (20\%)};
+  \node[anchor=north] at (10.2,-0.15) {SRS of $n_2=20$ (20\%)};
+\end{tikzpicture}
+\caption{Proportional stratified sampling: the same $20\%$ fraction is drawn at random
+inside each stratum (orange dots). The paid stratum is guaranteed exactly its fair share
+of the sample, so luck in the mix of tiers is removed.}
+\label{fig:sampling-stratified}
+\end{figure}
+
+How much does this help? Chapter 6 develops standard errors properly; here is the
+preview, ignoring the small correction for sampling without replacement. For an SRS the
+standard error of $\xbar$ is $\sigma/\sqrt n$, where $\sigma^2$ is the variance of the
+whole population. That variance has two parts:
+\begin{align*}
+  \text{within tiers:}\quad & 0.8\cdot 2^2 + 0.2\cdot 5^2 = 3.2 + 5.0 = 8.2,\\
+  \text{between tiers:}\quad & 0.8\,(3-5.4)^2 + 0.2\,(15-5.4)^2 = 4.608 + 18.432 = 23.04,\\
+  \text{total:}\quad & \sigma^2 = 8.2 + 23.04 = 31.24 .
+\end{align*}
+So $\SE_{\text{SRS}} = \sqrt{31.24/100} \approx 0.559$. Stratification removes the
+between-tier part entirely, because the tier mix is fixed by design:
+\[
+  \SE_{\text{strat}} = \sqrt{0.8^2\cdot\frac{2^2}{80} + 0.2^2\cdot\frac{5^2}{20}}
+  = \sqrt{0.032 + 0.05} = \sqrt{0.082} \approx 0.286 .
+\]
+The same $100$ users give roughly half the standard error. To get that from an SRS you
+would need about $31.24/0.082 \approx 381$ users.
+
+\begin{recoverybox}
+Pause and think: if free and paid users had the same mean ($5.4$ each) but the same SDs
+as before, would stratifying still help? (Barely. The between-tier part would be $0$, so
+$\sigma^2$ would equal the within-tier $8.2$ and SRS would already achieve
+$\SE \approx 0.286$.)
+\end{recoverybox}
+
+\begin{intuitionbox}
+Stratify on variables that (a) you know for every unit in advance and (b) strongly
+predict the outcome. Platform, country, plan tier, and device class are typical. The
+more different the strata are from each other, the larger the gain. Stratifying on
+something unrelated to the outcome costs nothing but gains nothing.
+\end{intuitionbox}
+
+\subsection{Cluster sampling}
+
+To survey on-call engineers about tooling, you could build a list of all $3000$
+engineers and pick $120$ at random, which would mean interviewing in $40$ offices.
+Instead, pick $4$ teams of $30$ at random and interview everyone on them. The teams are
+\textbf{clusters}.
+
+\begin{definition}[Cluster sample]
+Divide the population into groups (\textbf{clusters}), take an SRS of clusters, and
+measure every unit inside the chosen clusters (or a random subsample of them).
+\end{definition}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small]
+  \foreach \c in {0,...,11}{
+    \pgfmathsetmacro{\cx}{mod(\c,6)*2.0}
+    \pgfmathsetmacro{\cy}{-floor(\c/6)*1.7}
+    \draw[gray!70, rounded corners] (\cx,\cy) rectangle ++(1.7,1.4);
+    \foreach \i in {0,1,2} \foreach \j in {0,1}
+      \fill[gray!55] ({\cx+0.35+0.5*\i},{\cy+0.45+0.5*\j}) circle (0.08);
+  }
+  \foreach \c in {1,4,8}{
+    \pgfmathsetmacro{\cx}{mod(\c,6)*2.0}
+    \pgfmathsetmacro{\cy}{-floor(\c/6)*1.7}
+    \draw[quotientorange, very thick, rounded corners, fill=quotientorange!12]
+      (\cx,\cy) rectangle ++(1.7,1.4);
+    \foreach \i in {0,1,2} \foreach \j in {0,1}
+      \fill[quotientorange] ({\cx+0.35+0.5*\i},{\cy+0.45+0.5*\j}) circle (0.1);
+  }
+  \node[anchor=north] at (5.85,-1.85) {12 clusters (teams, data centres, schools);
+    3 chosen at random; everyone inside is measured};
+\end{tikzpicture}
+\caption{Cluster sampling picks whole groups. It is cheap when travel or setup per
+group dominates the cost, but units in one cluster tend to resemble each other, so $n$
+clustered units carry less information than $n$ independent ones.}
+\label{fig:sampling-cluster}
+\end{figure}
+
+\begin{trapbox}
+Strata and clusters are opposites. Strata should be \emph{internally similar and
+different from each other}; you sample \emph{from every} stratum. Clusters are ideally
+\emph{internally diverse, each a mini-population}; you sample \emph{some} clusters.
+Analysing a cluster sample as if it were an SRS understates the standard error, often
+badly. Users within the same company, requests from the same session, and pixels from
+the same image are all clusters.
+\end{trapbox}
+
+\subsection{Systematic sampling}
+
+To audit $10{,}000$ log lines, pick a random start between $1$ and $50$ and then take
+every $50$th line. This is a \textbf{systematic sample}. It is simple and spreads the
+sample evenly over the list. It behaves like an SRS when the list order is unrelated to
+the outcome.
+
+It fails when the list has a period that lines up with the step. Traffic has a daily
+cycle. Sampling every $24$th hour hits the same clock time every day.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=4.8cm, axis lines=left,
+  xmin=0, xmax=72, ymin=0, ymax=190,
+  xlabel={hour}, ylabel={requests/s},
+  xtick={0,12,24,36,48,60,72}, legend style={font=\small, at={(0.5,1.03)},
+  anchor=south, legend columns=2, draw=none,
+  /tikz/every even column/.append style={column sep=0.6cm}},
+]
+\addplot[distblue, thick, domain=0:72, samples=200] {100 + 60*sin(360*(x-6)/24)};
+\addlegendentry{true traffic (mean 100)}
+\addplot[only marks, mark=*, mark size=3pt, trapred] coordinates {(12,160) (36,160) (60,160)};
+\addlegendentry{every 24 h from noon}
+\addplot[densityred, dashed, domain=0:72] {100};
+\end{axis}
+\end{tikzpicture}
+\caption{Systematic sampling with a step equal to the cycle length. Every sampled hour is
+at the daily peak, so the estimate is $160$ requests/s instead of the true mean $100$.
+A random start does not help: whichever start you draw, all points share one phase.}
+\label{fig:sampling-systematic}
+\end{figure}
+
+\subsection{Convenience sampling}
+
+A \textbf{convenience sample} uses whoever is easiest to reach: the users who answered an
+in-app pop-up, colleagues down the hall, the first $1000$ rows of a table sorted by
+signup date. There is no random mechanism, so there is no way to compute its error.
+Convenience samples are useful for finding bugs and generating hypotheses. They are not
+a basis for estimating population numbers.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.4cm}>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}p{5.6cm}@{}}
+\toprule
+Design & How units are chosen & Use when \\
+\midrule
+SRS & every subset of size $n$ equally likely & you have a full list; default \\
+Stratified & SRS inside each stratum & known groups differ on the outcome \\
+Cluster & SRS of groups, all units inside & listing or reaching units is costly \\
+Systematic & every $k$th unit, random start & list order unrelated to outcome \\
+Convenience & whoever is easy & exploration only \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Bias: errors that do not average out}
+\label{sec:sampling-bias}
+
+A statistic can be wrong in two ways. \textbf{Chance error} (variance) changes from sample
+to sample and shrinks as $n$ grows. \textbf{Bias} is a systematic offset that comes from
+the method and stays the same no matter how many units you collect.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small]
+  \foreach \k/\lab/\dx/\dy/\s in {
+      0/{low bias\\low variance}/0/0/0.25,
+      1/{low bias\\high variance}/0/0/0.75,
+      2/{high bias\\low variance}/0.7/0.5/0.25,
+      3/{high bias\\high variance}/0.7/0.5/0.75}{
+    \begin{scope}[xshift=\k*3.15cm]
+      \draw[gray!60] (0,0) circle (1.25); \draw[gray!60] (0,0) circle (0.85);
+      \draw[gray!60] (0,0) circle (0.45);
+      \fill[densityred] (0,0) circle (0.07);
+      \foreach \u/\v in {0.3/0.2, -0.4/0.1, 0.1/-0.5, -0.2/-0.3, 0.5/-0.1,
+                         -0.1/0.45, 0.25/-0.2, -0.45/-0.4}
+        \fill[distblue] ({\dx+\s*\u*1.6},{\dy+\s*\v*1.6}) circle (0.075);
+      \node[align=center, anchor=north] at (0,-1.35) {\lab};
+    \end{scope}}
+\end{tikzpicture}
+\caption{Bias versus variance. Red centre: the parameter. Blue dots: estimates from
+repeated samples. Bias is where the cloud is centred; variance is how wide it is. A
+larger sample shrinks the cloud but does not move its centre.}
+\label{fig:sampling-dartboard}
+\end{figure}
+
+Most bias in practice comes from one of four sources.
+
+\subsection{Selection bias}
+
+\textbf{Selection bias} occurs when the way units enter the sample is related to the
+outcome. Surveying gym members about exercise habits, measuring app satisfaction among
+users who still have the app installed, estimating commute times from people who answered
+the survey at the office at 9 a.m.: in each case the selection process prefers certain
+values of the thing being measured.
+
+\subsection{Nonresponse bias}
+
+You email a satisfaction survey to $2000$ customers. $800$ reply ($40\%$), and $640$ of
+those are satisfied, so $\hat p = 640/800 = 80\%$. What can you say about all $2000$?
+
+The $1200$ non-responders are unknown. In the worst case none of them are satisfied:
+$640/2000 = 32\%$. In the best case all are: $(640+1200)/2000 = 92\%$. If non-responders
+are satisfied at $50\%$ (plausible: unhappy customers often ignore surveys), the truth is
+$(640 + 600)/2000 = 62\%$, which is $18$ points below the headline.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small, x=0.115cm]
+  \draw[thick, -{Stealth}] (0,0) -- (103,0);
+  \foreach \t in {0,20,40,60,80,100}{
+    \draw (\t,0.12) -- (\t,-0.12); \node[below] at (\t,-0.12) {\t\%}; }
+  \fill[structurepurple!20] (32,0.25) rectangle (92,0.75);
+  \draw[structurepurple, thick] (32,0.25) rectangle (92,0.75);
+  \node[structurepurple, anchor=east] at (31,0.5) {possible: 32\%--92\%};
+  \draw[quotientorange, very thick] (80,-0.05) -- (80,1.75);
+  \node[quotientorange, anchor=south west] at (78,1.75) {responders: 80\%};
+  \draw[targetgreen, very thick] (62,-0.05) -- (62,1.75);
+  \node[targetgreen, anchor=south east] at (64,1.75) {if non-resp.\ 50\%: 62\%};
+\end{tikzpicture}
+\caption{With a $40\%$ response rate, the data alone pin the true satisfaction rate only
+to a $60$-point-wide range. A large $n$ of responders does not narrow this range; only a
+higher response rate does.}
+\label{fig:sampling-nonresponse}
+\end{figure}
+
+\begin{trapbox}
+Reporting $\hat p$ among responders as if it were the population value silently assumes
+non-responders look exactly like responders. That is an assumption about data you did
+not collect. Report the response rate next to every survey estimate, and treat low rates
+($<50\%$) with suspicion.
+\end{trapbox}
+
+\subsection{Survivorship bias}
+
+\textbf{Survivorship bias} is selection bias where the filter is ``still around to be
+measured'': units that failed, died, or dropped out vanish from the data, and the
+survivors look better than the whole group did.
+
+\begin{historybox}
+In 1943 the US military was losing bombers over Europe and wanted to add armour. Armour
+is heavy, so it could only go where it mattered most. Officers examined bombers
+returning from missions and recorded where they had been hit. The holes clustered on the
+wings, fuselage, and tail; the engines had few. The natural conclusion was to armour
+where the holes were.
+
+Abraham Wald, a Hungarian-born mathematician working at the Statistical Research Group at
+Columbia University (a wartime team of statisticians solving military problems), pointed
+out the selection: these were the planes that \emph{came back}. Bullets do not prefer
+wings to engines. Planes hit in the engines mostly did not return, so they were missing
+from the data. The clean areas on survivors marked where hits were fatal, and armour
+belonged there. Wald went further and worked out how to estimate the vulnerability of
+each area from the survivors alone, an early example of correcting an estimate for data
+that are missing for a known reason.
+\end{historybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.85, font=\small]
+  % wings
+  \draw[thick, fill=gray!15] (-0.3,0.6) -- (-4.5,-0.2) -- (-4.5,-0.8) -- (-0.3,-0.4) -- cycle;
+  \draw[thick, fill=gray!15] (0.3,0.6) -- (4.5,-0.2) -- (4.5,-0.8) -- (0.3,-0.4) -- cycle;
+  % tail
+  \draw[thick, fill=gray!15] (-0.2,-2.35) -- (-1.6,-2.85) -- (-1.6,-3.2) -- (-0.2,-3.0) -- cycle;
+  \draw[thick, fill=gray!15] (0.2,-2.35) -- (1.6,-2.85) -- (1.6,-3.2) -- (0.2,-3.0) -- cycle;
+  % fuselage
+  \draw[thick, fill=gray!15] (0,0) ellipse (0.38cm and 3.2cm);
+  % engines
+  \foreach \ex/\ey in {-1.6/0.2, 1.6/0.2, -3.0/-0.1, 3.0/-0.1}
+    \draw[thick, fill=targetgreen!25] (\ex,\ey) ellipse (0.22cm and 0.55cm);
+  % cockpit
+  \draw[thick, fill=targetgreen!25] (0,2.35) ellipse (0.22cm and 0.4cm);
+  % bullet holes
+  \foreach \x/\y in {-0.8/0.1, -1.1/-0.2, -2.2/-0.35, -2.4/0.05, -3.6/-0.45,
+      -4.1/-0.5, -3.9/-0.3, -2.0/-0.5, -0.7/-0.25,
+      0.8/0.2, 1.0/-0.15, 2.3/-0.2, 2.2/-0.5, 3.7/-0.55, 4.0/-0.35, 2.5/0.1,
+      0.75/-0.3, 3.6/-0.3,
+      -0.1/1.1, 0.12/0.7, -0.15/-0.9, 0.1/-1.3, -0.12/-1.7, 0.15/-2.0,
+      0.0/1.5, 0.1/-0.4,
+      -0.8/-2.75, -1.2/-2.95, 0.9/-2.8, 1.3/-3.0, -0.5/-2.6}
+    \fill[trapred] (\x,\y) circle (0.065);
+  \node[anchor=west, align=left, targetgreen!60!black] (eng) at (5.1,1.5)
+    {engines, cockpit:\\ almost no holes};
+  \draw[-{Stealth}, targetgreen!60!black] (eng.west) -- (3.15,0.35);
+  \node[anchor=west, align=left, trapred] (wng) at (5.1,-1.3)
+    {wings, fuselage, tail:\\ many holes};
+  \draw[-{Stealth}, trapred] (wng.west) -- (4.2,-0.6);
+\end{tikzpicture}
+\caption{Hits recorded on bombers that returned (schematic). The data are conditioned on
+survival. Areas that look safe on survivors are the ones where a hit was most likely to
+bring the plane down, so the missing planes carry the important information.}
+\label{fig:sampling-wald}
+\end{figure}
+
+Survivorship bias is everywhere in tech: studying only startups that succeeded, only
+code that is still in the repository, only users who did not churn, only requests that
+completed. Section~\ref{sec:sampling-logs} returns to the last one.
+
+\subsection{Response bias}
+
+\textbf{Response bias} is error in the answers rather than in who answers. Causes include
+leading wording (``Don't you agree the new design is cleaner?''), social desirability
+(people under-report drinking and over-report voting), recall error (``How many hours did
+you use the app last month?''), and the order in which options appear. Logged behaviour
+is usually more reliable than self-report for the same question. Wording effects can be
+large: changing ``forbid'' to ``not allow'' in otherwise identical questions has shifted
+survey answers by more than $20$ percentage points.
+
+\section{Size does not cure bias: the Literary Digest poll}
+\label{sec:sampling-digest}
+
+In 1936 the magazine \emph{Literary Digest} mailed about $10$ million straw-poll ballots
+(unofficial mock ballots asking ``whom will you vote for?'')
+for the US presidential election between Franklin Roosevelt and Alf Landon. About
+$2.4$ million came back. The Digest predicted Landon would win with $57\%$ to Roosevelt's
+$43\%$. Roosevelt won with about $61\%$ of the vote, one of the largest landslides in US
+history.
+
+George Gallup, with a sample of about $50{,}000$ chosen to mirror the electorate,
+predicted a Roosevelt win with $56\%$. He also predicted, in advance, that the Digest
+would show Roosevelt near $44\%$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=5.6cm, ybar, bar width=1.1cm,
+  ymin=0, ymax=75, ylabel={Roosevelt share (\%)},
+  symbolic x coords={Digest,Gallup,Actual},
+  xticklabels={{Digest: $43\%$\\($n\approx 2.4$M)},{Gallup: $56\%$\\($n\approx 50$k)},{Actual: $61\%$\\(election)}},
+  xtick=data, enlarge x limits=0.25, axis lines*=left,
+  x tick label style={font=\small, align=center},
+]
+\addplot[fill=histfill, draw=distblue] coordinates {(Digest,43) (Gallup,56) (Actual,61)};
+\draw[densityred, dashed, thick] (rel axis cs:0,0.6667) -- (rel axis cs:1,0.6667);
+\node[densityred, anchor=south west, font=\small, xshift=4pt] at (rel axis cs:0,0.6667) {50\%};
+\end{axis}
+\end{tikzpicture}
+\caption{The largest poll was the worst by far. The Digest was off by about $18$
+percentage points and called the wrong winner; Gallup, with a sample $48$ times smaller,
+was off by about $5$ points.}
+\label{fig:sampling-digest}
+\end{figure}
+
+What went wrong? The Digest built its mailing list from its own subscribers, telephone
+directories, and car registrations. In 1936, during the Depression, phones and cars were
+markers of wealth, and wealthier voters leaned Republican (selection bias). Then only
+about a quarter of recipients replied, and Landon supporters were more motivated to
+reply (nonresponse bias). Both biases pushed the same way.
+
+How large was the Digest's \emph{chance} error? For a proportion near $0.43$ and
+$n = 2.4$ million, the standard error (Chapter 6) is
+\[
+  \sqrt{\frac{0.43 \times 0.57}{2{,}400{,}000}} \approx 0.00032,
+\]
+about $0.03$ percentage points. The chance error was negligible. The entire $18$-point
+miss was bias.
+
+\begin{recoverybox}
+Pause and think: if the Digest had mailed $100$ million ballots to the same kinds of
+lists, would its prediction have improved? (No. The SE would drop to about $0.005$
+points, and the estimate would sit even more firmly near $43\%$.)
+\end{recoverybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.2cm, xmode=log, axis lines=left,
+  xmin=100, xmax=10000000, ymin=0, ymax=42,
+  xlabel={sample size $n$ (log scale)}, ylabel={error (percentage points)},
+  legend style={font=\small, at={(0.98,0.98)}, anchor=north east},
+]
+\addplot[name path=bu, draw=none, forget plot] coordinates {
+ (100,28.000) (178,25.499) (316,23.623) (562,22.217) (1000,21.162) (1778,20.371)
+ (3162,19.778) (5623,19.334) (10000,19.000) (17783,18.750) (31623,18.562)
+ (56234,18.422) (100000,18.316) (177828,18.237) (316228,18.178) (562341,18.133)
+ (1000000,18.100) (1778279,18.075) (3162278,18.056) (5623413,18.042) (10000000,18.032)};
+\addplot[name path=bl, draw=none, forget plot] coordinates {
+ (100,8.000) (178,10.501) (316,12.377) (562,13.783) (1000,14.838) (1778,15.629)
+ (3162,16.222) (5623,16.666) (10000,17.000) (17783,17.250) (31623,17.438)
+ (56234,17.578) (100000,17.684) (177828,17.763) (316228,17.822) (562341,17.867)
+ (1000000,17.900) (1778279,17.925) (3162278,17.944) (5623413,17.958) (10000000,17.968)};
+\addplot[trapred!25] fill between[of=bu and bl];
+\addlegendentry{biased sample: $18 \pm 2\,\SE$}
+\addplot[trapred, thick, domain=100:10000000] {18};
+\addlegendentry{bias $= 18$ points}
+\addplot[distblue, very thick] coordinates {
+ (100,10.000) (178,7.499) (316,5.623) (562,4.217) (1000,3.162) (1778,2.371)
+ (3162,1.778) (5623,1.334) (10000,1.000) (17783,0.750) (31623,0.562) (56234,0.422)
+ (100000,0.316) (177828,0.237) (316228,0.178) (562341,0.133) (1000000,0.100)
+ (1778279,0.075) (3162278,0.056) (5623413,0.042) (10000000,0.032)};
+\addlegendentry{random sample: $2\,\SE$}
+\end{axis}
+\end{tikzpicture}
+\caption{Typical error versus sample size for a proportion near $50\%$. A random
+sample's error ($2\,\SE = 100/\sqrt n$ points) falls toward zero. A sample with $18$
+points of bias converges, with growing confidence, to the wrong answer. A random sample
+of $1000$ beats a biased sample of any size.}
+\label{fig:sampling-size-vs-bias}
+\end{figure}
+
+\begin{happeningbox}
+Increasing $n$ shrinks variance, never bias. A huge biased sample is worse than useless
+because its tiny standard error makes the wrong answer look precise. Big data from logs
+or scraped sources is often exactly this: millions of rows, collected by a process
+nobody randomised.
+\end{happeningbox}
+
+\begin{connectionbox}
+The total error of an estimate combines both pieces. The \textbf{mean squared error}
+(the average squared distance between estimate and parameter over repeated samples)
+splits as $\MSE = \Bias^2 + \Var$. Chapter 14 proves this decomposition; Chapter 15 meets it again
+as the bias--variance trade-off in machine learning. The Digest had
+$\MSE \approx 18^2 + 0.03^2$, all bias.
+\end{connectionbox}
+
+\section{Observational studies and experiments}
+\label{sec:sampling-obs-exp}
+
+Sampling decides whom you measure. A second design choice decides whether you can claim
+cause and effect.
+
+\begin{definition}[Observational study, experiment]
+In an \textbf{observational study} the researcher records the treatment each unit
+happens to receive (a feature used, a drug taken, a habit) without influencing it. In an
+\textbf{experiment} the researcher \emph{assigns} the treatment.
+\end{definition}
+
+\subsection{Confounding}
+
+Your analytics show that users of a new ``saved searches'' feature have $85\%$ 30-day
+retention, compared with $45\%$ for non-users. Does the feature cause a $40$-point lift?
+
+Split users by engagement level, measured \emph{before} the feature launched:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+ & \multicolumn{2}{c}{Uses feature} & \multicolumn{2}{c}{Does not use} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Group & users & retained & users & retained \\
+\midrule
+Heavy users & $900$ & $810$ ($90\%$) & $100$ & $90$ ($90\%$) \\
+Light users & $100$ & $40$ ($40\%$) & $900$ & $360$ ($40\%$) \\
+\midrule
+All & $1000$ & $850$ ($85\%$) & $1000$ & $450$ ($45\%$) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Within each engagement group, feature users and non-users retain at exactly the same
+rate. The $40$-point gap comes entirely from \emph{who} adopts the feature: $90\%$ of
+adopters are heavy users, who retain well anyway.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5.4cm, ybar, bar width=0.6cm,
+  ymin=0, ymax=110, ylabel={30-day retention (\%)},
+  symbolic x coords={All,Heavy,Light},
+  xticklabels={{All users},{Heavy users},{Light users}},
+  xtick=data, enlarge x limits=0.25, axis lines*=left,
+  nodes near coords, nodes near coords style={font=\footnotesize},
+  legend style={font=\small, at={(0.98,0.98)}, anchor=north east},
+]
+\addplot[fill=quotientorange!70, draw=quotientorange!70!black] coordinates {(All,85) (Heavy,90) (Light,40)};
+\addlegendentry{uses feature}
+\addplot[fill=histfill, draw=distblue] coordinates {(All,45) (Heavy,90) (Light,40)};
+\addlegendentry{does not use}
+\end{axis}
+\end{tikzpicture}
+\caption{A $40$-point gap overall, zero gap within each engagement level. Engagement
+drives both feature adoption and retention, so comparing adopters with non-adopters
+mixes the feature's effect with the engagement effect.}
+\label{fig:sampling-confound-bars}
+\end{figure}
+
+\begin{definition}[Confounder]
+A \textbf{confounder} (a hidden third factor that pushes on both sides of a
+comparison) is a variable that influences both the treatment and the outcome,
+creating an association between them that is not caused by the treatment.
+\end{definition}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small, node distance=1.5cm and 3.2cm,
+  box/.style={draw, thick, rounded corners, minimum width=2.8cm, minimum height=0.8cm, align=center}]
+  \node[box, fill=structurepurple!8, draw=structurepurple] (c) {engagement\\(confounder)};
+  \node[box, fill=quotientorange!8, draw=quotientorange, below left=of c] (t) {uses feature\\(treatment)};
+  \node[box, fill=targetgreen!8, draw=targetgreen, below right=of c] (y) {retained\\(outcome)};
+  \draw[-{Stealth}, thick, structurepurple] (c) -- (t);
+  \draw[-{Stealth}, thick, structurepurple] (c) -- (y);
+  \draw[-{Stealth}, thick, dashed, gray] (t) -- node[below]{causal effect? (here: none)} (y);
+\end{tikzpicture}
+\caption{The confounding triangle. Arrows mean ``influences''. The observed association
+between treatment and outcome flows through the back path via engagement, whether or
+not the direct arrow exists.}
+\label{fig:sampling-confound-dag}
+\end{figure}
+
+\begin{recoverybox}
+Pause and think: in the table, what fraction of heavy users adopted the feature, and what
+fraction of light users? ($900/1000 = 90\%$ and $100/1000 = 10\%$.) That imbalance,
+combined with heavy users retaining better, is the whole $40$-point gap.
+\end{recoverybox}
+
+Splitting by engagement fixed this example because we knew the confounder and had
+measured it. In general you cannot list every confounder. Heavy users differ from light
+users in a hundred ways: job, device, motivation, how they found the product. Adjusting
+for the ones you thought of leaves the ones you did not. Chapter 13 shows how multiple
+regression adjusts for measured confounders and why it cannot fix unmeasured ones.
+
+\begin{trapbox}
+``Correlation is not causation'' is too weak a slogan. The useful version: an
+observational difference between groups equals the treatment effect \emph{plus} the
+pre-existing difference between the kinds of units that chose each treatment. You see
+only the sum.
+\end{trapbox}
+
+\subsection{Randomised experiments}
+
+The fix is to take the choice away from the units. Flip a coin for each user: heads gets
+the feature, tails does not. Now heavy and light users, motivated and unmotivated, iOS
+and Android, all land in each group in roughly equal proportions. Any confounder, measured
+or not, is balanced \emph{on average}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small, node distance=0.9cm and 1.1cm,
+  box/.style={draw, thick, rounded corners, minimum height=0.85cm, align=center, inner sep=4pt}]
+  \node[box, fill=gray!8] (pool) {$2000$ eligible\\users};
+  \node[box, fill=structurepurple!10, draw=structurepurple, right=of pool] (rand) {random\\assignment};
+  \node[box, fill=quotientorange!10, draw=quotientorange, above right=0.35cm and 1.1cm of rand] (trt) {Treatment\\$n=1000$, feature on};
+  \node[box, fill=histfill!25, draw=distblue, below right=0.35cm and 1.1cm of rand] (ctl) {Control\\$n=1000$, feature off};
+  \node[box, fill=gray!8, right=4.3cm of rand] (cmp) {compare\\retention};
+  \draw[-{Stealth}, thick] (pool) -- (rand);
+  \draw[-{Stealth}, thick] (rand) -- (trt.west);
+  \draw[-{Stealth}, thick] (rand) -- (ctl.west);
+  \draw[-{Stealth}, thick] (trt.east) -- (cmp);
+  \draw[-{Stealth}, thick] (ctl.east) -- (cmp);
+\end{tikzpicture}
+\caption{A randomised controlled experiment. Because a random mechanism, not the user,
+decides who gets the feature, the two groups differ systematically only in the
+treatment. A difference in outcomes beyond chance is therefore caused by it.}
+\label{fig:sampling-randomise}
+\end{figure}
+
+\begin{whybox}
+Before treatment, the two random groups are two random samples from the same pool. So
+their average engagement, age, device mix, and every other pre-treatment trait differ
+only by chance, and chance differences shrink as the groups grow. After treatment, if
+outcomes differ by more than chance can explain (Chapter 9 makes ``more than chance''
+precise), the only systematic difference left is the treatment itself.
+\end{whybox}
+
+The essential ingredients of a good experiment:
+\begin{itemize}
+  \item \textbf{Control group.} A comparison group that does not get the treatment.
+  Without it, a before/after change could be seasonality, a marketing push, or a bug fix
+  shipped the same week.
+  \item \textbf{Randomisation.} Assignment by a random mechanism, never by judgement,
+  convenience, or the units' own choice.
+  \item \textbf{Replication.} Enough units that chance differences between groups are
+  small relative to the effect you want to detect.
+\end{itemize}
+
+\subsection{Blocking}
+
+Randomisation balances groups on average, but a particular assignment can be lopsided.
+If iOS users convert at $8\%$ and Android users at $3\%$, a random split that happens to
+put $55\%$ of iOS users in the treatment group adds noise. \textbf{Blocking} is
+stratification applied to experiments: group units by a known, important trait, then
+randomise separately within each block.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small, node distance=0.6cm and 0.9cm,
+  box/.style={draw, thick, rounded corners, minimum height=0.75cm, align=center, inner sep=3pt}]
+  \node[box, fill=gray!8] (all) {all users};
+  \node[box, fill=sourceblue!10, draw=sourceblue, above right=0.9cm and 1.0cm of all] (ios) {block: iOS};
+  \node[box, fill=sourceblue!10, draw=sourceblue, below right=0.9cm and 1.0cm of all] (and) {block: Android};
+  \node[box, fill=structurepurple!10, draw=structurepurple, right=of ios] (r1) {randomise};
+  \node[box, fill=structurepurple!10, draw=structurepurple, right=of and] (r2) {randomise};
+  \node[box, fill=quotientorange!10, draw=quotientorange, above right=0.05cm and 0.9cm of r1] (t1) {A};
+  \node[box, fill=histfill!25, draw=distblue, below right=0.05cm and 0.9cm of r1] (c1) {B};
+  \node[box, fill=quotientorange!10, draw=quotientorange, above right=0.05cm and 0.9cm of r2] (t2) {A};
+  \node[box, fill=histfill!25, draw=distblue, below right=0.05cm and 0.9cm of r2] (c2) {B};
+  \node[box, fill=gray!8, right=3.2cm of r1, yshift=-1.25cm] (cmp) {combine\\within-block\\differences};
+  \draw[-{Stealth}, thick] (all) -- (ios.west);
+  \draw[-{Stealth}, thick] (all) -- (and.west);
+  \draw[-{Stealth}, thick] (ios) -- (r1);
+  \draw[-{Stealth}, thick] (and) -- (r2);
+  \foreach \r/\a/\b in {r1/t1/c1, r2/t2/c2}{
+    \draw[-{Stealth}, thick] (\r.east) -- (\a.west);
+    \draw[-{Stealth}, thick] (\r.east) -- (\b.west);
+    \draw[-{Stealth}, gray] (\a.east) -- (cmp.west);
+    \draw[-{Stealth}, gray] (\b.east) -- (cmp.west);}
+\end{tikzpicture}
+\caption{A randomised block design. Platform is fixed before randomising, so A and B
+contain exactly the same platform mix. Platform differences cancel out of the
+comparison instead of inflating its noise.}
+\label{fig:sampling-blocking}
+\end{figure}
+
+The slogan: \emph{block what you can, randomise what you cannot}. Blocking handles the
+few big known factors; randomisation handles everything else.
+
+\subsection{Matched pairs}
+
+The extreme form of blocking is a block of size two. To test a new kernel setting, run
+each of $6$ servers once with the old setting and once with the new, in random order.
+Measured mean latencies (ms):
+
+\begin{center}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+Server & 1 & 2 & 3 & 4 & 5 & 6 \\
+\midrule
+Old & 120 & 95 & 210 & 150 & 80 & 175 \\
+New & 112 & 90 & 198 & 146 & 75 & 163 \\
+Difference & 8 & 5 & 12 & 4 & 5 & 12 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The old and new means are $138.3$ and $130.7$ ms; the SDs across servers are about $49$
+and $47$ ms. Compared as two separate groups, a $7.7$ ms gap is buried in $48$ ms of
+server-to-server spread. But every server improved. The differences have mean
+$46/6 \approx 7.67$ ms and SD about $3.6$ ms. Pairing removes the server-to-server
+variation from the comparison.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=7.5cm, height=6.2cm, axis lines=left,
+  xmin=-0.3, xmax=1.3, ymin=60, ymax=225,
+  xtick={0,1}, xticklabels={old setting, new setting},
+  ylabel={mean latency (ms)},
+]
+\foreach \a/\b in {120/112, 95/90, 210/198, 150/146, 80/75, 175/163}{
+  \edef\tmp{\noexpand\addplot[distblue, thick, mark=*, mark size=2pt] coordinates {(0,\a) (1,\b)};}
+  \tmp}
+\end{axis}
+\end{tikzpicture}
+\caption{Matched pairs: each line is one server. Levels differ hugely between servers
+($75$ to $210$ ms), but every line slopes down by $4$ to $12$ ms. Analysing the
+differences uses that consistency; comparing the two columns as unrelated groups throws
+it away.}
+\label{fig:sampling-pairs}
+\end{figure}
+
+Matched pairs also covers before/after measurements on the same unit (with a
+randomised order or a control to rule out time trends), and twin studies. Chapter 9
+gives the paired $t$-test that analyses such data.
+
+\subsection{Blinding and placebos}
+
+People who know they are treated behave differently. A patient told they are getting a
+new painkiller may report less pain whether or not the pill does anything: the
+\textbf{placebo effect}. A doctor who knows which patients got the drug may rate them
+more favourably.
+
+\begin{itemize}
+  \item A \textbf{placebo} is a fake treatment (a sugar pill, a sham procedure) given to
+  the control group so both groups have the same experience apart from the active
+  ingredient.
+  \item \textbf{Single-blind}: subjects do not know their group.
+  \textbf{Double-blind}: neither subjects nor the people measuring outcomes know.
+\end{itemize}
+
+In software the analogue is usually automatic: users rarely know they are in an
+experiment. Blinding matters for the \emph{analysts}. Deciding which metric is
+``primary'', when to stop, and which users to exclude, \emph{after} seeing which arm is
+winning, reintroduces judgement into a design built to exclude it (Chapter 11).
+
+\section{A/B tests are randomised experiments}
+\label{sec:sampling-ab}
+
+An A/B test is the experiment of Figure~\ref{fig:sampling-randomise} at web scale. Each
+user is assigned to variant A (control) or B (treatment) by a deterministic function of
+their user ID that behaves like a coin flip. For example, A has $10{,}000$ users with
+$520$ conversions ($5.2\%$) and B has $10{,}000$ users with $580$ ($5.8\%$). Because
+assignment was random, the $0.6$-point difference is either caused by B or is chance;
+Chapters 9 and 10 decide which.
+
+\begin{lstlisting}[language=Python]
+import hashlib
+def variant(user_id: str, experiment: str = "checkout_v2") -> str:
+    h = hashlib.sha256(f"{experiment}:{user_id}".encode()).hexdigest()
+    return "B" if int(h, 16) % 100 < 50 else "A"   # 50/50 split
+# Deterministic per user (same user, same variant on every visit),
+# but unrelated to anything about the user: effectively random.
+\end{lstlisting}
+
+\begin{trapbox}
+Common ways A/B tests stop being randomised experiments:
+\begin{itemize}
+  \item \textbf{Analysing only users who saw the change.} If B's new button is below the
+  fold (off the first screen, visible only after scrolling), ``users who saw it'' are the users who scrolled, a self-selected group.
+  Compare everyone \emph{assigned} to each arm, whether or not they saw the change.
+  This is called \textbf{intention-to-treat} analysis: you analyse the groups the coin
+  created, so the comparison stays randomised.
+  \item \textbf{Sample ratio mismatch.} You configured $50/50$ but got $10{,}000$ vs
+  $9{,}700$. Something (a crash, a redirect, a bot filter) removed users from one arm
+  non-randomly. Investigate before reading any metric.
+  \item \textbf{Comparing to last week instead of a concurrent control.} That is a
+  before/after observational study.
+\end{itemize}
+\end{trapbox}
+
+\section{Generalisation versus causation}
+\label{sec:sampling-2x2}
+
+The two kinds of randomness answer different questions:
+\begin{itemize}
+  \item \textbf{Random sampling} (who is in the study) licenses \emph{generalisation}
+  from the sample to the population.
+  \item \textbf{Random assignment} (who gets which treatment) licenses \emph{causal}
+  conclusions about the treatment.
+\end{itemize}
+They are independent. A study can have both, either, or neither.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small]
+  \def\w{4.6} \def\h{2.3}
+  \fill[targetgreen!18] (0,\h) rectangle (\w,2*\h);
+  \fill[sourceblue!12] (\w,\h) rectangle (2*\w,2*\h);
+  \fill[quotientorange!14] (0,0) rectangle (\w,\h);
+  \fill[gray!10] (\w,0) rectangle (2*\w,\h);
+  \draw[thick] (0,0) rectangle (2*\w,2*\h);
+  \draw[thick] (\w,0) -- (\w,2*\h); \draw[thick] (0,\h) -- (2*\w,\h);
+  \node[align=center, text width=4.2cm] at (0.5*\w,1.5*\h)
+    {\textbf{Causal + generalisable}\\A/B test on all traffic;\\trial on a random sample\\of customers};
+  \node[align=center, text width=4.2cm] at (1.5*\w,1.5*\h)
+    {\textbf{Generalisable, not causal}\\random survey of users;\\opinion poll};
+  \node[align=center, text width=4.2cm] at (0.5*\w,0.5*\h)
+    {\textbf{Causal for these units only}\\clinical trial on volunteers;\\A/B test on beta users};
+  \node[align=center, text width=4.2cm] at (1.5*\w,0.5*\h)
+    {\textbf{Neither}\\``users of feature X retain more''\\from whatever logs exist};
+  \node[anchor=south] at (0.5*\w,2*\h+0.05) {random assignment: \textbf{yes}};
+  \node[anchor=south] at (1.5*\w,2*\h+0.05) {random assignment: \textbf{no}};
+  \node[anchor=east, align=right] at (-0.1,1.5*\h) {random\\sampling:\\ \textbf{yes}};
+  \node[anchor=east, align=right] at (-0.1,0.5*\h) {random\\sampling:\\ \textbf{no}};
+\end{tikzpicture}
+\caption{What each design licenses. Rows: were units randomly sampled from the target
+population? Columns: were treatments randomly assigned? Most medical trials sit
+bottom-left (causal, but only for people like the volunteers); most dashboards sit
+bottom-right.}
+\label{fig:sampling-2x2}
+\end{figure}
+
+\begin{intuitionbox}
+An A/B test randomises assignment, so it is causal. Whether it generalises depends on
+who was in it. A test run during the holiday week, or only in one country, or only on
+the beta channel, tells you the effect for that group. Extending it to everyone is an
+assumption, not a conclusion.
+\end{intuitionbox}
+
+\begin{recoverybox}
+Pause and think: a company emails a random $1\%$ of all customers a discount, and
+compares their purchases with the other $99\%$. Which cell is it in? (Top-left. Every
+customer is in the study, so the ``sample'' is the whole population, and the discount
+was assigned at random. The result is causal and applies to all current customers.)
+\end{recoverybox}
+
+\section{Selection in tech logs and data leakage}
+\label{sec:sampling-logs}
+
+Logs feel like a census: every request, every user, nothing sampled. They are not. Logs
+are produced by code, and code decides what gets written. That decision is a selection
+mechanism, and it is rarely random.
+
+\subsection{Survivorship in latency logs}
+
+A service handles $1000$ requests. Clients give up at $2000$ ms; the server only writes a
+latency record when it sends a response, so the $40$ requests that timed out leave no
+record. The $960$ logged latencies look like this:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm, axis lines=left,
+  xmin=0, xmax=2200, ymin=0, ymax=470,
+  xlabel={latency (ms)}, ylabel={requests},
+  xtick={0,500,1000,1500,2000}, scaled x ticks=false,
+  x tick label style={/pgf/number format/1000 sep={}},
+]
+\addplot[ybar interval, fill=histfill, draw=distblue] coordinates {
+  (0,150) (100,380) (200,250) (300,100) (400,40) (500,20) (600,7) (700,5)
+  (800,5) (900,3) (1000,3)};
+\addplot[ybar interval, fill=trapred!15, draw=trapred, dashed, thick] coordinates {
+  (2000,40) (2100,40)};
+\draw[-{Stealth}, trapred] (axis cs:1750,200) -- (axis cs:2040,55);
+\node[trapred, align=center, anchor=south, font=\small] at (axis cs:1700,200)
+  {40 timeouts:\\never logged};
+\draw[densityred, thick] (axis cs:215,0) -- (axis cs:215,440);
+\node[densityred, anchor=west, font=\small] at (axis cs:230,440) {logged mean $215$ ms};
+\end{axis}
+\end{tikzpicture}
+\caption{The logged latency histogram (blue) is conditioned on the request completing.
+The slowest $4\%$ of requests are missing. Every summary computed from the log (mean,
+p95, p99) is biased low, and the tail percentiles are the most wrong.}
+\label{fig:sampling-logs}
+\end{figure}
+
+Using bin midpoints, the logged mean is
+\[
+  \frac{50\cdot 150 + 150\cdot 380 + 250\cdot 250 + \dots + 950\cdot 3}{960}
+  = \frac{206{,}400}{960} = 215 \text{ ms}.
+\]
+Each timed-out request took at least $2000$ ms, so the true mean is at least
+\[
+  \frac{206{,}400 + 40 \cdot 2000}{1000} = \frac{286{,}400}{1000} \approx 286 \text{ ms}.
+\]
+The logged p99 is the $951$st of $960$ sorted values, which falls in the $700$--$800$ ms
+bin. The true p99 is the $990$th of $1000$; since $40$ requests ($4\%$) timed out, it is
+at least $2000$ ms. The dashboard says p99 is under a second; users experience the
+opposite.
+
+\begin{trapbox}
+Before trusting any metric from logs, ask: \emph{which events fail to produce a log
+line?} Crashes, timeouts, users who bounce before analytics loads, clients with ad
+blockers, and requests dropped by a load balancer are typical. Log the attempt as well
+as the outcome, so failures are counted.
+\end{trapbox}
+
+\subsection{Other selection traps in product data}
+
+\begin{itemize}
+  \item \textbf{Active-user filters.} ``Average session length among daily active
+  users'' rises when a change drives casual users away, even though no one's sessions
+  got longer. The denominator changed.
+  \item \textbf{Opt-in telemetry.} Users who enable diagnostics skew toward power users
+  and developers.
+  \item \textbf{Feedback loops.} A recommender only logs clicks on items it chose to
+  show. Training the next model on those logs teaches it about the old model's choices,
+  not about user taste in general.
+\end{itemize}
+
+\subsection{Data leakage}
+
+\textbf{Data leakage} is the machine-learning form of the same error: the training data
+contain information that will not be available, or will look different, when the model
+is used. Two common forms:
+\begin{itemize}
+  \item \textbf{Target leakage.} A churn model uses ``number of support tickets in the
+  last 30 days'' computed over a window that ends \emph{after} the cancellation. The
+  feature partly records the outcome. Accuracy looks excellent offline and collapses in
+  production.
+  \item \textbf{Selection leakage.} A fraud model is trained only on transactions that
+  a previous rule system flagged for review, because only those have labels. The model
+  learns the rule system's blind spots as ``safe''.
+\end{itemize}
+
+\begin{connectionbox}
+Chapter 15 treats train/test splits and cross-validation. Every one of those procedures
+assumes the test data are a random sample from the same process the model will face. The
+sampling ideas of this chapter are exactly what that assumption means, and leakage is
+what happens when it fails.
+\end{connectionbox}
+
+\begin{labbox}
+Simulate nonresponse bias. Each of $100{,}000$ customers is satisfied with probability
+$0.6$. Satisfied customers respond with probability $0.5$, unsatisfied ones with
+probability $0.2$. Compute $\hat p$ among responders. Then raise $n$ to $10^7$: does
+$\hat p$ approach $0.6$?
+
+\textit{Answer.} Responders: $0.6\cdot 0.5 = 0.30$ satisfied, $0.4\cdot 0.2 = 0.08$
+unsatisfied, so $\hat p \to 0.30/0.38 \approx 0.789$. More customers make $\hat p$
+settle more tightly around $0.789$, not $0.6$.
+\end{labbox}
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+rng = np.random.default_rng(0)
+n = 100_000
+satisfied = rng.random(n) < 0.6
+responds = rng.random(n) < np.where(satisfied, 0.5, 0.2)
+print(satisfied.mean(), satisfied[responds].mean())   # ~0.600, ~0.789
+\end{lstlisting}
+
+\section{Summary}
+\label{sec:sampling-summary}
+
+\begin{itemize}
+  \item A \textbf{parameter} ($\mu,\sigma,p,\beta$) describes the population; a
+  \textbf{statistic} ($\xbar,s,\hat p,b$) is computed from a sample and estimates it.
+  \item A \textbf{simple random sample} gives every subset the same chance; under it
+  $\xbar$ is unbiased for $\mu$. Random selection beats expert judgement because its
+  errors are unsystematic and measurable.
+  \item \textbf{Stratified} sampling (SRS within known groups) improves precision;
+  \textbf{cluster} sampling (whole groups) cuts cost but loses precision;
+  \textbf{systematic} sampling fails on periodic lists; \textbf{convenience} samples
+  support no inference.
+  \item \textbf{Bias} does not shrink with $n$. Main sources: selection, nonresponse,
+  survivorship, response bias. The 1936 Literary Digest poll ($2.4$ million responses,
+  $18$ points wrong) lost to Gallup's far smaller, better-designed sample.
+  \item \textbf{Observational} comparisons are vulnerable to \textbf{confounding}.
+  \textbf{Randomised experiments} with a control group balance all confounders on
+  average, measured or not.
+  \item \textbf{Blocking} and \textbf{matched pairs} remove known sources of variation;
+  \textbf{blinding} and \textbf{placebos} remove expectation effects.
+  \item Random \textbf{sampling} $\Rightarrow$ generalisation. Random
+  \textbf{assignment} $\Rightarrow$ causation. An A/B test is causal for the users it
+  included.
+  \item Logs are selected data. Ask what fails to get logged; check for leakage before
+  trusting an offline model metric.
+\end{itemize}
+
+Random sampling makes $\xbar$ right on average. Chapter 6 asks the next question: how far
+from $\mu$ is one particular $\xbar$ likely to be? The answer, the standard error, is what
+turns a random sample into a margin of error.
+
+\section{Exercises}
+\label{sec:sampling-exercises}
+
+\begin{enumerate}
+  \item Name the sampling design.
+  (a) A school district picks $10$ of its $60$ schools at random and surveys every
+  teacher in them.
+  (b) A bank samples $1\%$ of accounts at random within each of its five regions.
+  (c) A QA engineer checks every $200$th build artifact, starting from a random one of
+  the first $200$.
+  (d) A product manager posts a poll in the company chat.
+
+  \item For each number, say whether it is a parameter or a statistic and give its
+  symbol. (a) Of $400$ randomly chosen sessions, $7.5\%$ ended in a crash. (b) The mean
+  age of all $12{,}340$ employees on the HR roster is $34.1$. (c) In a sample of $50$
+  houses, the fitted price increase per extra bedroom is \$18{,}000.
+
+  \item A survey is sent to $500$ users; $150$ respond and $120$ of them say ``yes''.
+  Give the range of possible values for the proportion of all $500$ who would say
+  ``yes''. What would it be if non-responders said ``yes'' at half the responders' rate?
+
+  \item A city has three districts making up $50\%$, $30\%$, and $20\%$ of households.
+  A stratified sample gives mean monthly electricity use of $400$, $600$, and $1000$ kWh
+  respectively. Estimate the city-wide mean. Why would the unweighted average of the three
+  stratum means be wrong?
+
+  \item An observational study finds that people who carry lighters have higher lung
+  cancer rates. Name the likely confounder and draw the confounding triangle. What
+  experiment would settle whether lighters cause cancer, and why is it unnecessary?
+
+  \item A service's client timeout is $5$ s, and timed-out requests are not logged. The
+  logged mean latency is $300$ ms, and $2\%$ of all requests time out. Give a lower bound
+  for the true mean latency.
+
+  \item A metric is sampled once per week, every Monday at 09:00, for a year. What can
+  go wrong? Propose a better design with the same number of measurements.
+
+  \item Place each study in the $2\times 2$ grid of
+  Figure~\ref{fig:sampling-2x2}. (a) $5000$ customers chosen at random from all
+  customers are each randomly shown one of two pricing pages. (b) Employees who
+  volunteered are randomly split between two keyboard layouts. (c) A random sample of
+  households reports how much TV their children watch and their school grades.
+
+  \item For the Literary Digest poll, compute the standard error of $\hat p$ with
+  $n = 2.4$ million and $\hat p = 0.43$. Explain why that number says nothing about how
+  accurate the poll was.
+
+  \item You want to test whether a new code-review tool reduces review time. Ten teams
+  volunteer. Teams differ greatly in typical review time. Describe a matched-pairs or
+  blocked design and say what it gains over randomly giving the tool to $5$ teams.
+\end{enumerate}
+
+\subsection*{Answers}
+
+\begin{enumerate}
+  \item (a) Cluster. (b) Stratified. (c) Systematic. (d) Convenience (voluntary
+  response).
+  \item (a) Statistic, $\hat p = 0.075$. (b) Parameter, $\mu = 34.1$ (the whole
+  population is measured). (c) Statistic, $b = 18{,}000$ dollars per bedroom.
+  \item Minimum $120/500 = 24\%$; maximum $(120 + 350)/500 = 94\%$. Responders say yes at
+  $80\%$; at half that, $40\%$ of $350$ is $140$, giving $(120+140)/500 = 52\%$.
+  \item $0.5\cdot 400 + 0.3\cdot 600 + 0.2\cdot 1000 = 200 + 180 + 200 = 580$ kWh. The
+  unweighted average $(400+600+1000)/3 \approx 667$ kWh over-weights the small,
+  high-usage district.
+  \item Smoking causes both carrying a lighter and lung cancer. The experiment would
+  randomly assign people to carry lighters; randomisation would balance smoking across
+  groups. It is unnecessary because splitting by smoking status already answers the
+  question: among smokers, and separately among non-smokers, carrying a lighter is not
+  associated with cancer.
+  \item True mean $\ge 0.98 \cdot 300 + 0.02 \cdot 5000 = 294 + 100 = 394$ ms.
+  \item Weekly and daily cycles mean Monday 09:00 may be systematically unusual (e.g.\
+  a weekly peak), so the estimate is biased. Better: $52$ times chosen at random over the
+  year, or one random time within each week (stratified by week).
+  \item (a) Random sampling and random assignment: causal and generalisable to all
+  customers. (b) Random assignment only: causal for volunteers. (c) Random sampling
+  only: generalisable association, not causal.
+  \item $\sqrt{0.43\cdot 0.57/2{,}400{,}000} \approx 0.00032$, i.e.\ $0.03$ percentage
+  points. The SE measures chance error only; the poll's error was $18$ points of bias,
+  which the SE cannot see.
+  \item Pair teams with similar typical review times (5 pairs) and flip a coin within
+  each pair for who gets the tool; or measure each team with and without the tool in a
+  random order. Comparing within pairs removes the large team-to-team differences, so a
+  real effect is visible with far fewer teams. Note the result generalises only to teams
+  like the volunteers.
+\end{enumerate}

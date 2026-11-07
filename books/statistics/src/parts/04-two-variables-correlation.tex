@@ -1,0 +1,1049 @@
+\chapter{Two Variables: Tables, Scatter Plots, and Correlation}
+\label{ch:two-variables}
+
+Chapters 1--3 looked at one variable at a time: its center, its spread, its
+quantiles, its shape. Real questions almost always involve two. Does latency grow
+with payload size? Do customers who contact support by phone get answers faster?
+Does one treatment work better than another? This chapter builds the tools for
+describing how two variables move together, and then spends a long time on the
+ways those tools mislead.
+
+There are two cases. If both variables are categories (device type, yes/no), we
+count pairs in a table. If both are numbers (size, latency), we draw a scatter
+plot and summarize it with the correlation coefficient.
+
+\section{Two categorical variables: contingency tables}
+\label{sec:corr-tables}
+
+A support team logs 600 tickets. For each ticket it records the channel the
+customer used (chat, email, phone) and how long resolution took (same day, 1--3
+days, longer). Counting every combination gives a \textbf{contingency table}: a
+grid with one row per category of the first variable, one column per category of
+the second, and a count in each cell.
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+ & Same day & 1--3 days & Longer & Row total \\
+\midrule
+Chat  & 120 &  60 & 20 & 200 \\
+Email &  90 & 150 & 60 & 300 \\
+Phone &  70 &  20 & 10 & 100 \\
+\midrule
+Column total & 280 & 230 & 90 & 600 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The row and column totals are the \textbf{marginal distributions}: the
+distribution of one variable alone, ignoring the other. The name comes from where
+they sit, in the margins of the table. Overall, $280/600 \approx 46.7\%$ of tickets
+were resolved the same day.
+
+Raw counts are hard to compare because the rows have different sizes. Email has
+90 same-day tickets and phone has 70, but email had three times as many tickets.
+The fix is to divide each cell by its row total. The result is a
+\textbf{conditional distribution}: the distribution of resolution time
+\emph{given} a particular channel.
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+ & Same day & 1--3 days & Longer \\
+\midrule
+Chat  & $120/200 = 60\%$ & $60/200 = 30\%$ & $20/200 = 10\%$ \\
+Email & $90/300 = 30\%$ & $150/300 = 50\%$ & $60/300 = 20\%$ \\
+Phone & $70/100 = 70\%$ & $20/100 = 20\%$ & $10/100 = 10\%$ \\
+\midrule
+All   & $280/600 \approx 46.7\%$ & $230/600 \approx 38.3\%$ & $90/600 = 15\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Now the story is visible. Phone resolves 70\% of tickets the same day; email only
+30\%. A \textbf{segmented bar chart} draws each row of this table as a bar of
+height 100\%, cut into pieces whose lengths are the conditional proportions.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  xbar stacked, width=11cm, height=5.2cm, bar width=0.55cm,
+  xmin=0, xmax=100, xlabel={percent of tickets in the row},
+  symbolic y coords={All,Phone,Email,Chat}, ytick=data,
+  y tick label style={font=\small},
+  legend style={at={(0.5,1.03)}, anchor=south, legend columns=3, font=\small, draw=none},
+  legend cell align=left,
+  nodes near coords, nodes near coords style={font=\scriptsize, color=white},
+  every node near coord/.append style={xshift=0pt},
+  point meta=explicit symbolic,
+  enlarge y limits=0.18
+]
+\addplot[fill=targetgreen, draw=white] coordinates {(60,Chat)[60\%] (30,Email)[30\%] (70,Phone)[70\%] (46.7,All)[46.7\%]};
+\addplot[fill=sourceblue, draw=white] coordinates {(30,Chat)[30\%] (50,Email)[50\%] (20,Phone)[20\%] (38.3,All)[38.3\%]};
+\addplot[fill=trapred, draw=white] coordinates {(10,Chat)[10\%] (20,Email)[20\%] (10,Phone)[10\%] (15,All)[15\%]};
+\legend{Same day, 1--3 days, Longer}
+\end{axis}
+\end{tikzpicture}
+\caption{Segmented bar chart of resolution time given channel. If channel and
+resolution time were unrelated, every bar would look like the ``All'' bar. Email's
+bar is visibly different: its green (same-day) segment is shorter than
+the ``All'' bar's and half as long as chat's.}
+\label{fig:two-variables-segbar}
+\end{figure}
+
+\begin{definition}[Association for categorical variables]
+Two categorical variables are \textbf{associated} in a data set if the conditional
+distribution of one differs across the categories of the other. They show
+\textbf{no association} if every row has the same conditional distribution, which
+is then equal to the marginal distribution.
+\end{definition}
+
+No association has a concrete numerical meaning. If channel told us nothing about
+resolution time, then 46.7\% of email's 300 tickets would be same-day, that is
+\[
+  300 \times \frac{280}{600} = 140 \text{ tickets}.
+\]
+In general the count we would expect in row $i$, column $j$ under no association is
+\[
+  \text{expected}_{ij} = \frac{(\text{row } i \text{ total})\times(\text{column } j \text{ total})}{n}.
+\]
+Email actually has 90 same-day tickets, 50 fewer than expected. Chapter 10 turns
+the gap between observed and expected counts into the chi-square test, which asks
+whether gaps this large could come from chance alone.
+
+\begin{trapbox}
+Conditioning in the other direction answers a different question. Dividing by
+\emph{column} totals gives ``of the same-day tickets, what fraction came by
+chat?'': $120/280 \approx 42.9\%$. That is not the same as ``of chat tickets,
+what fraction were same-day?'': $120/200 = 60\%$. In symbols, $P(\text{chat} \given
+\text{same day}) \ne P(\text{same day} \given \text{chat})$. Mixing these two up is
+the root of the base-rate fallacy (Probability From the Ground Up covers it with
+Bayes' rule). Always say which variable you conditioned on.
+\end{trapbox}
+
+\begin{lstlisting}[language=Python]
+import pandas as pd
+df = pd.DataFrame({"channel": ["Chat"]*200 + ["Email"]*300 + ["Phone"]*100,
+                   "res": ["Same"]*120 + ["1-3"]*60 + ["Long"]*20
+                        + ["Same"]*90 + ["1-3"]*150 + ["Long"]*60
+                        + ["Same"]*70 + ["1-3"]*20 + ["Long"]*10})
+pd.crosstab(df.channel, df.res, margins=True)          # counts
+pd.crosstab(df.channel, df.res, normalize="index")     # row proportions
+\end{lstlisting}
+
+\section{Two numerical variables: scatter plots}
+\label{sec:corr-scatter}
+
+When both variables are numbers we plot each observation as a point $(x_i, y_i)$.
+This is a \textbf{scatter plot}. By convention the variable we think of as the
+input, or the one we could control, goes on the horizontal axis and is called the
+\textbf{explanatory variable}; the one we want to understand goes on the
+vertical axis and is called the \textbf{response}.
+
+Read a scatter plot in four passes:
+\begin{itemize}
+  \item \textbf{Direction.} Do points drift up to the right (positive association) or
+    down to the right (negative association)?
+  \item \textbf{Form.} Do they follow a straight line, a curve, or separate clusters?
+  \item \textbf{Strength.} How tightly do they hug that form?
+  \item \textbf{Outliers.} Are there points far from the overall pattern?
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\pgfplotsset{gal/.style={scale only axis, width=4.4cm, height=2.9cm,
+  xmin=-0.5, xmax=10.5, ticks=none, title style={font=\small},
+  every axis plot/.append style={only marks, mark=*, mark size=1.3pt}}}
+\begin{axis}[gal, at={(0,0)}, title={positive, linear, strong}, ymin=0, ymax=11]
+\addplot[sourceblue] coordinates {(0.00,2.00) (0.42,2.54) (0.83,2.47) (1.25,2.38) (1.67,3.02) (2.08,2.97) (2.50,4.04) (2.92,5.27) (3.33,4.32) (3.75,4.57) (4.17,5.68) (4.58,5.92) (5.00,6.07) (5.42,5.68) (5.83,6.65) (6.25,7.49) (6.67,6.39) (7.08,7.35) (7.50,6.67) (7.92,7.43) (8.33,7.38) (8.75,8.84) (9.17,8.45) (9.58,9.86) (10.00,10.11)};
+\end{axis}
+\begin{axis}[gal, at={(6.2cm,0)}, title={negative, linear, weak}, ymin=-1, ymax=13]
+\addplot[sourceblue] coordinates {(0.00,8.63) (0.42,3.76) (0.83,7.51) (1.25,8.28) (1.67,8.39) (2.08,4.90) (2.50,6.79) (2.92,5.58) (3.33,5.72) (3.75,9.25) (4.17,5.30) (4.58,6.64) (5.00,8.27) (5.42,5.12) (5.83,5.86) (6.25,6.10) (6.67,5.79) (7.08,3.01) (7.50,5.40) (7.92,7.76) (8.33,1.74) (8.75,6.34) (9.17,4.66) (9.58,2.93) (10.00,8.00)};
+\end{axis}
+\begin{axis}[gal, at={(0,-4.1cm)}, title={curved, strong, no direction}, ymin=-0.5, ymax=11]
+\addplot[sourceblue] coordinates {(0.00,10.13) (0.42,7.75) (0.83,7.11) (1.25,6.21) (1.67,4.79) (2.08,4.32) (2.50,3.15) (2.92,2.85) (3.33,2.69) (3.75,1.21) (4.17,1.34) (4.58,0.83) (5.00,1.06) (5.42,0.47) (5.83,0.95) (6.25,1.45) (6.67,2.42) (7.08,3.09) (7.50,2.53) (7.92,3.58) (8.33,5.21) (8.75,4.93) (9.17,6.84) (9.58,8.30) (10.00,10.38)};
+\end{axis}
+\begin{axis}[gal, at={(6.2cm,-4.1cm)}, title={positive, linear, one outlier}, ymin=0, ymax=9]
+\addplot[sourceblue] coordinates {(0.00,2.41) (0.42,2.05) (0.83,2.28) (1.25,2.60) (1.67,3.91) (2.08,2.99) (2.50,3.32) (2.92,3.96) (3.33,3.93) (3.75,4.13) (4.17,3.83) (4.58,4.74) (5.00,4.73) (5.42,5.95) (5.83,5.89) (6.25,5.74) (6.67,6.40) (7.08,6.05) (7.50,7.13) (7.92,6.75) (8.33,0.50) (8.75,6.48) (9.17,7.71) (9.58,6.74) (10.00,6.78)};
+\draw[trapred, thick] (axis cs:8.33,0.5) circle[radius=0.25cm];
+\end{axis}
+\end{tikzpicture}
+\caption{Four scatter plots, each described by direction, form, strength, and
+outliers. The curved panel has a strong relationship but no overall up or down
+direction; a single number measuring ``upness'' will miss it.}
+\label{fig:two-variables-gallery}
+\end{figure}
+
+\begin{recoverybox}
+Before reading on: in the bottom-right panel, would removing the circled point make
+the relationship look stronger or weaker? (Stronger. The point sits far below the
+line the other 24 points follow.)
+\end{recoverybox}
+
+\section{Covariance: the quadrant picture}
+\label{sec:corr-covariance}
+
+We want one number that says ``these points go up together''. Start with six API
+requests, recording payload size $x$ in KB and response latency $y$ in ms.
+
+\begin{center}
+\begin{tabular}{crrrrr}
+\toprule
+$i$ & $x_i$ (KB) & $y_i$ (ms) & $x_i - \xbar$ & $y_i - \ybar$ & $(x_i-\xbar)(y_i-\ybar)$ \\
+\midrule
+1 & 1 & 12 & $-3$ & $-5$ & $15$ \\
+2 & 2 & 19 & $-2$ & $2$ & $-4$ \\
+3 & 3 & 13 & $-1$ & $-4$ & $4$ \\
+4 & 5 & 20 & $1$ & $3$ & $3$ \\
+5 & 6 & 22 & $2$ & $5$ & $10$ \\
+6 & 7 & 16 & $3$ & $-1$ & $-3$ \\
+\midrule
+sum & 24 & 102 & 0 & 0 & 25 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The means are $\xbar = 24/6 = 4$ KB and $\ybar = 102/6 = 17$ ms. Draw a vertical
+line at $\xbar$ and a horizontal line at $\ybar$. They cut the plane into four
+quadrants centered on the point of means $(\xbar, \ybar)$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=10cm, height=7cm, xmin=0, xmax=8, ymin=10, ymax=24,
+  xlabel={payload $x$ (KB)}, ylabel={latency $y$ (ms)},
+  xtick={1,2,3,4,5,6,7}, ytick={12,14,16,17,18,20,22}]
+\fill[targetgreen, opacity=0.25] (axis cs:4,17) rectangle (axis cs:1,12);
+\fill[targetgreen, opacity=0.25] (axis cs:4,17) rectangle (axis cs:3,13);
+\fill[targetgreen, opacity=0.25] (axis cs:4,17) rectangle (axis cs:5,20);
+\fill[targetgreen, opacity=0.25] (axis cs:4,17) rectangle (axis cs:6,22);
+\fill[trapred, opacity=0.3] (axis cs:4,17) rectangle (axis cs:2,19);
+\fill[trapred, opacity=0.3] (axis cs:4,17) rectangle (axis cs:7,16);
+\draw[dashed, gray] (axis cs:4,10) -- (axis cs:4,24);
+\draw[dashed, gray] (axis cs:0,17) -- (axis cs:8,17);
+\addplot[only marks, mark=*, mark size=2.2pt, targetgreen!60!black] coordinates {(1,12) (3,13) (5,20) (6,22)};
+\addplot[only marks, mark=*, mark size=2.2pt, trapred] coordinates {(2,19) (7,16)};
+\node[font=\scriptsize, anchor=south west] at (axis cs:1,12) {$+15$};
+\node[font=\scriptsize, anchor=north] at (axis cs:2,19) {$-4$};
+\node[font=\scriptsize, anchor=north east] at (axis cs:3,13) {$+4$};
+\node[font=\scriptsize, anchor=south east] at (axis cs:5,20) {$+3$};
+\node[font=\scriptsize, anchor=south east] at (axis cs:6,22) {$+10$};
+\node[font=\scriptsize, anchor=north east] at (axis cs:7,16) {$-3$};
+\node[font=\small, anchor=north east] at (axis cs:7.9,23.8) {$+$ quadrant};
+\node[font=\small, anchor=south west] at (axis cs:0.1,10.2) {$+$ quadrant};
+\node[font=\small, anchor=north west] at (axis cs:0.1,23.8) {$-$ quadrant};
+\node[font=\small, anchor=south east] at (axis cs:7.9,10.2) {$-$ quadrant};
+\node[font=\scriptsize, anchor=south west] at (axis cs:4,17) {$(\xbar,\ybar)$};
+\end{axis}
+\end{tikzpicture}
+\caption{Each point spans a rectangle with the point of means. Its signed area is
+$(x_i-\xbar)(y_i-\ybar)$: positive (green) in the upper-right and lower-left
+quadrants, negative (red) in the other two. Green area wins,
+$(15+4+3+10) - (4+3) = 32 - 7 = 25$, so the association is positive.}
+\label{fig:two-variables-rectangles}
+\end{figure}
+
+A point in the upper right is above average in both variables, so both deviations
+are positive and the product is positive. A point in the lower left is below
+average in both, and the product of two negatives is positive again. Points in the
+other two quadrants are above average in one variable and below in the other, and
+contribute negative products. Adding all the products asks: on balance, do points
+fall in the agreeing quadrants or the disagreeing ones?
+
+\begin{definition}[Sample covariance]
+For paired data $(x_1,y_1),\dots,(x_n,y_n)$ the \textbf{sample covariance} is
+\[
+  s_{xy} = \frac{1}{n-1}\sum_{i=1}^{n}(x_i-\xbar)(y_i-\ybar).
+\]
+It is the average signed rectangle area, with the same $n-1$ divisor as the sample
+variance from Chapter 2.
+\end{definition}
+
+For the requests, $s_{xy} = 25/5 = 5$ KB$\cdot$ms. Notice that $s_{xx}$, the
+covariance of $x$ with itself, is exactly the sample variance $s_x^2$: every
+rectangle becomes a square.
+
+With more points the picture is the same. Figure~\ref{fig:two-variables-quadrant}
+colours 30 points by the sign of their product.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=10cm, height=6.5cm, xmin=25, xmax=75, ymin=10, ymax=35,
+  xlabel={$x$}, ylabel={$y$},
+  legend style={at={(0.02,0.98)}, anchor=north west, font=\small}, legend cell align=left]
+\addplot[only marks, mark=*, mark size=1.8pt, targetgreen!70!black] coordinates {(26.70,11.20) (63.50,20.80) (52.70,23.20) (49.60,14.80) (39.40,18.30) (61.70,20.20) (37.00,16.30) (48.30,19.00) (62.80,24.10) (61.60,24.40) (39.40,18.60) (69.90,33.20) (61.30,21.60) (59.20,22.40) (43.70,18.60) (47.60,16.90) (65.20,20.10) (42.80,13.80) (54.40,21.90) (45.30,15.30)};
+\addplot[only marks, mark=square*, mark size=1.8pt, trapred] coordinates {(44.80,22.90) (36.30,20.10) (46.80,20.10) (51.60,19.00) (48.40,24.00) (47.40,20.50) (46.70,20.90) (44.90,22.00) (41.10,20.50) (60.10,15.40)};
+\draw[dashed, gray] (axis cs:50.01,10) -- (axis cs:50.01,35);
+\draw[dashed, gray] (axis cs:25,20) -- (axis cs:75,20);
+\legend{product $>0$ (20 points), product $<0$ (10 points)}
+\end{axis}
+\end{tikzpicture}
+\caption{Thirty points split by the dashed lines at $\xbar$ and $\ybar$. Twenty
+fall in the agreeing quadrants and ten in the disagreeing ones, so the sum of
+products, and the covariance, is positive.}
+\label{fig:two-variables-quadrant}
+\end{figure}
+
+Covariance has a flaw: its size depends on units. Measure payload in bytes instead
+of KB and every $x_i - \xbar$ grows by a factor of 1000, so $s_{xy}$ jumps from 5
+to 5000. The relationship did not change; only the ruler did. A covariance of 5000
+tells you nothing until you know the scales of both variables.
+
+\section{Pearson correlation}
+\label{sec:corr-pearson}
+
+The cure for the units problem is the same trick as in Chapter 2: measure each
+deviation in standard deviations. Recall that the \textbf{z-score} of $x_i$ is
+$z_{x,i} = (x_i - \xbar)/s_x$, the number of standard deviations $x_i$ sits above
+its mean. A z-score has no units.
+
+\begin{definition}[Pearson correlation]
+The \textbf{(Pearson) correlation coefficient} of paired data is the average product
+of z-scores,
+\[
+  r = \frac{1}{n-1}\sum_{i=1}^{n} z_{x,i}\,z_{y,i}
+    = \frac{1}{n-1}\sum_{i=1}^{n}\frac{x_i-\xbar}{s_x}\cdot\frac{y_i-\ybar}{s_y}
+    = \frac{s_{xy}}{s_x s_y}.
+\]
+\end{definition}
+
+So $r$ is covariance computed after rescaling each axis so that one standard
+deviation has length 1. The quadrant picture is unchanged: same quadrants, same
+signs, only the rectangles are resized.
+
+\begin{example}[Correlation by hand]
+For the six requests, $\sum (x_i-\xbar)^2 = 9+4+1+1+4+9 = 28$ and
+$\sum (y_i-\ybar)^2 = 25+4+16+9+25+1 = 80$. So
+\[
+  s_x = \sqrt{28/5} \approx 2.366 \text{ KB}, \qquad s_y = \sqrt{80/5} = 4 \text{ ms}.
+\]
+Then
+\[
+  r = \frac{s_{xy}}{s_x s_y} = \frac{5}{2.366 \times 4} \approx 0.528 .
+\]
+The z-score route gives the same thing. The z-scores are
+\begin{align*}
+  z_x &: -1.268,\ -0.845,\ -0.423,\ 0.423,\ 0.845,\ 1.268,\\
+  z_y &: -1.25,\ 0.5,\ -1,\ 0.75,\ 1.25,\ -0.25.
+\end{align*}
+The six products are
+\[
+  1.585,\ -0.423,\ 0.423,\ 0.317,\ 1.056,\ -0.317,
+\]
+which sum to $2.641$. Dividing by $n-1=5$ gives $r \approx 0.528$. In bytes and
+seconds instead of KB and ms, $r$ is still $0.528$.
+\end{example}
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+x = np.array([1, 2, 3, 5, 6, 7]); y = np.array([12, 19, 13, 20, 22, 16])
+np.cov(x, y)[0, 1]        # 5.0   (uses n-1)
+np.corrcoef(x, y)[0, 1]   # 0.528
+\end{lstlisting}
+
+\subsection{Properties of $r$}
+
+\begin{theorem}[Properties of the correlation coefficient]
+\label{thm:corr-props}
+For any paired data with $s_x > 0$ and $s_y > 0$:
+\begin{enumerate}
+  \item $-1 \le r \le 1$.
+  \item $r = 1$ exactly when all points lie on a line with positive slope, and
+    $r=-1$ exactly when they lie on a line with negative slope.
+  \item $r$ has no units. Replacing $x$ by $a + bx$ with $b > 0$ (a change of units)
+    leaves $r$ unchanged; with $b<0$ it flips the sign of $r$.
+  \item $r$ is symmetric: the correlation of $x$ with $y$ equals that of $y$ with $x$.
+\end{enumerate}
+\end{theorem}
+
+\begin{whybox}
+Why can $r$ never pass $\pm 1$? Z-scores satisfy $\sum z_{x,i}^2 = n-1$, because
+$\sum (x_i-\xbar)^2 / s_x^2 = (n-1)s_x^2/s_x^2$. The same holds for $y$. A sum of
+squares cannot be negative, so
+\[
+  0 \le \sum_{i=1}^n (z_{x,i} \pm z_{y,i})^2
+    = \sum z_{x,i}^2 \pm 2\sum z_{x,i}z_{y,i} + \sum z_{y,i}^2
+    = (n-1) \pm 2(n-1)r + (n-1).
+\]
+Dividing by $2(n-1)$ gives $0 \le 1 \pm r$, so $-1 \le r \le 1$. Equality $r = 1$
+needs $\sum(z_{x,i} - z_{y,i})^2 = 0$, so $z_{y,i} = z_{x,i}$ for every point:
+$y$ is an exact increasing linear function of $x$. That is property 2. For
+property 3, the change $x \mapsto a + bx$ turns the mean into $a + b\xbar$, so each
+deviation $x_i - \xbar$ is multiplied by $b$ and $s_x$ by $\abs{b}$; the ratio
+$(x_i-\xbar)/s_x$ is multiplied by $b/\abs{b} = \pm 1$.
+\end{whybox}
+
+Figure~\ref{fig:two-variables-rgallery} calibrates the eye. Each panel has 40
+points with both variables standardized.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\pgfplotsset{rg/.style={scale only axis, width=3.2cm, height=2.6cm,
+  xmin=-3.2, xmax=3.2, ymin=-3.2, ymax=3.2, ticks=none, title style={font=\small},
+  every axis plot/.append style={only marks, mark=*, mark size=1pt, distblue}}}
+\begin{axis}[rg, at={(0,0)}, title={$r=-0.9$}]
+\addplot coordinates {(-0.41,0.20) (1.86,-1.23) (-1.38,1.06) (-0.38,0.33) (-1.35,1.14) (0.46,0.31) (0.54,-0.24) (-1.24,1.97) (-1.65,1.77) (-0.10,-0.37) (-0.42,-0.02) (0.60,-0.57) (1.68,-2.22) (0.22,-0.63) (0.99,-1.80) (-0.11,0.14) (-1.23,1.38) (0.40,0.09) (1.17,-1.42) (-0.55,0.31) (0.96,-0.42) (-0.47,0.05) (-0.55,0.13) (-0.01,-0.10) (2.24,-2.07) (-0.06,0.21) (-0.71,0.35) (0.24,0.12) (-1.06,1.43) (-0.12,0.13) (1.06,-0.59) (1.26,-0.98) (0.21,-0.07) (-0.75,1.11) (-0.53,-0.19) (2.24,-1.90) (-0.93,1.54) (-0.10,0.52) (-0.59,0.31) (-1.43,0.22)};
+\end{axis}
+\begin{axis}[rg, at={(4.2cm,0)}, title={$r=-0.5$}]
+\addplot coordinates {(-1.33,0.52) (0.81,1.50) (-1.39,1.47) (-0.88,0.22) (-1.93,-0.34) (-1.09,-0.55) (-0.15,-0.63) (1.36,-0.71) (0.05,0.82) (0.47,-0.40) (-0.26,-0.08) (1.15,-0.06) (0.29,0.40) (-0.81,0.74) (-1.85,2.00) (-0.04,0.06) (0.57,-0.43) (-0.46,1.13) (-0.01,-0.89) (0.38,-1.76) (1.85,-1.24) (-0.09,1.84) (2.44,-1.31) (0.60,0.48) (1.88,-1.22) (0.01,0.91) (0.18,0.43) (0.59,-1.39) (-1.18,-1.72) (-0.46,1.26) (-1.49,1.71) (1.05,-0.72) (-0.16,0.04) (-1.19,0.27) (-0.21,0.51) (0.80,-1.17) (0.85,-1.22) (-0.35,0.38) (-0.18,-0.13) (0.18,-0.68)};
+\end{axis}
+\begin{axis}[rg, at={(8.4cm,0)}, title={$r=0$}]
+\addplot coordinates {(-0.63,-0.30) (0.77,-0.12) (1.58,0.26) (-2.63,-0.65) (1.37,0.03) (-0.44,-0.99) (1.08,1.05) (0.52,0.42) (1.18,0.87) (-1.12,0.69) (0.08,-0.16) (0.60,0.01) (-2.60,1.43) (0.83,-0.13) (-0.38,0.16) (-1.17,0.20) (-0.26,-0.43) (-0.86,-0.81) (0.89,1.38) (0.37,-0.08) (-0.82,0.65) (1.33,-1.66) (0.95,-2.25) (-0.36,0.33) (-1.24,-1.70) (0.10,0.86) (-0.47,1.32) (-0.74,1.73) (0.04,0.19) (0.47,0.31) (1.53,2.33) (0.41,-0.20) (-1.08,-0.90) (-0.05,-0.16) (-0.10,-0.05) (0.37,-1.44) (-0.95,1.06) (0.66,-0.57) (1.06,-0.70) (-0.28,-1.97)};
+\end{axis}
+\begin{axis}[rg, at={(0,-3.6cm)}, title={$r=0.3$}]
+\addplot coordinates {(0.39,0.21) (0.60,1.17) (-0.31,0.14) (0.72,0.17) (-0.54,-0.06) (0.36,1.35) (1.41,0.56) (0.80,-0.37) (0.19,0.33) (1.25,1.36) (-0.79,0.50) (-0.04,-0.28) (-0.64,-1.29) (2.22,1.19) (0.55,-1.07) (-1.38,-0.62) (-0.50,0.90) (-1.30,0.25) (1.06,-0.56) (0.49,-0.84) (-0.03,0.55) (1.27,-0.20) (-0.20,1.32) (-1.46,-0.48) (-1.17,-1.21) (0.28,1.09) (2.06,2.64) (0.85,0.27) (-0.64,0.03) (-2.49,1.13) (-0.99,-1.58) (-0.80,0.86) (0.80,-0.02) (0.04,0.05) (-1.31,-0.22) (-0.35,-1.92) (0.65,-1.55) (-0.16,-1.25) (-1.15,-1.23) (0.28,-1.32)};
+\end{axis}
+\begin{axis}[rg, at={(4.2cm,-3.6cm)}, title={$r=0.7$}]
+\addplot coordinates {(-0.09,1.25) (-0.56,-0.22) (0.71,0.22) (0.53,0.05) (0.74,0.71) (-0.79,0.67) (-0.01,-0.03) (-0.78,-0.69) (-0.01,0.29) (1.11,-0.05) (-0.25,0.88) (0.25,0.64) (1.57,1.46) (0.52,0.48) (1.73,2.08) (-0.60,0.18) (-1.00,0.30) (0.71,0.52) (-0.30,-1.33) (0.79,0.61) (-0.22,0.55) (-0.55,-0.63) (-0.58,-1.20) (2.32,1.56) (-0.26,0.64) (-2.88,-1.77) (0.08,-0.50) (0.49,-0.99) (0.06,0.83) (-2.04,-2.27) (-0.13,0.01) (-0.62,-0.05) (0.20,-0.77) (-0.14,-0.96) (-2.01,-3.03) (0.88,0.54) (1.75,0.13) (-0.42,0.00) (-0.23,0.25) (0.04,-0.38)};
+\end{axis}
+\begin{axis}[rg, at={(8.4cm,-3.6cm)}, title={$r=0.95$}]
+\addplot coordinates {(-2.26,-2.40) (1.57,1.67) (1.25,0.95) (-0.22,-0.50) (0.34,0.32) (0.40,0.93) (-0.81,-0.51) (-1.34,-0.88) (-0.43,-0.43) (0.11,0.63) (-0.04,-0.21) (-1.13,-0.96) (-0.82,-0.92) (-0.04,0.17) (-0.69,-0.42) (1.66,1.04) (1.27,1.85) (-0.57,-0.33) (-1.31,-1.10) (-0.32,-0.20) (-0.88,-1.08) (-0.44,-0.64) (-0.61,-0.63) (-1.08,-1.05) (0.42,-0.37) (0.15,-0.12) (-1.10,-1.46) (-0.85,-1.04) (0.27,-0.17) (0.93,0.57) (0.59,0.87) (-1.20,-0.78) (2.03,1.71) (0.54,0.45) (0.09,0.02) (-0.45,-0.17) (0.87,0.82) (1.48,1.73) (0.73,0.46) (1.87,2.16)};
+\end{axis}
+\end{tikzpicture}
+\caption{Scatter plots with correlations from $-0.9$ to $0.95$. Moderate values
+look weaker than you might expect: at $r=0.3$ the cloud is almost round, and only
+near $\pm 0.9$ does it look like a line.}
+\label{fig:two-variables-rgallery}
+\end{figure}
+
+\begin{trapbox}
+$r$ measures \emph{linear} association only, and only its strength, not its slope.
+A cloud with $r=0.95$ can have a slope of $0.001$ or of $1000$; the slope depends on
+units and $r$ does not. ``Strong correlation'' does not mean ``big effect''.
+\end{trapbox}
+
+\section{Always plot: Anscombe's quartet}
+\label{sec:corr-anscombe}
+
+In 1973 the statistician Francis Anscombe published four small data sets, each with
+11 points, built to make one point. Here they are in full.
+
+\begin{center}
+\small
+\begin{tabular}{rr|rr|rr|rr}
+\toprule
+\multicolumn{2}{c|}{I} & \multicolumn{2}{c|}{II} & \multicolumn{2}{c|}{III} & \multicolumn{2}{c}{IV} \\
+$x$ & $y$ & $x$ & $y$ & $x$ & $y$ & $x$ & $y$ \\
+\midrule
+10 & 8.04 & 10 & 9.14 & 10 & 7.46 & 8 & 6.58 \\
+8 & 6.95 & 8 & 8.14 & 8 & 6.77 & 8 & 5.76 \\
+13 & 7.58 & 13 & 8.74 & 13 & 12.74 & 8 & 7.71 \\
+9 & 8.81 & 9 & 8.77 & 9 & 7.11 & 8 & 8.84 \\
+11 & 8.33 & 11 & 9.26 & 11 & 7.81 & 8 & 8.47 \\
+14 & 9.96 & 14 & 8.10 & 14 & 8.84 & 8 & 7.04 \\
+6 & 7.24 & 6 & 6.13 & 6 & 6.08 & 8 & 5.25 \\
+4 & 4.26 & 4 & 3.10 & 4 & 5.39 & 19 & 12.50 \\
+12 & 10.84 & 12 & 9.13 & 12 & 8.15 & 8 & 5.56 \\
+7 & 4.82 & 7 & 7.26 & 7 & 6.42 & 8 & 7.91 \\
+5 & 5.68 & 5 & 4.74 & 5 & 5.73 & 8 & 6.89 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+All four have $\xbar = 9$, $s_x^2 = 11$, $\ybar \approx 7.50$, $s_y^2 \approx
+4.12$--$4.13$, $r \approx 0.816$, and the same best-fit line $\hat y \approx 3.00 + 0.500x$
+(Chapter 12 explains how that line is found). A table of summary statistics
+cannot tell them apart. A picture can.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\pgfplotsset{an/.style={scale only axis, width=4.6cm, height=2.9cm,
+  xmin=2, xmax=20, ymin=2, ymax=14, xtick={4,8,12,16,20}, ytick={4,8,12},
+  tick label style={font=\scriptsize}, title style={font=\small}}}
+\begin{axis}[an, at={(0,0)}, title={I: linear with scatter}]
+\addplot[only marks, mark=*, mark size=1.5pt, sourceblue] coordinates {(10,8.04) (8,6.95) (13,7.58) (9,8.81) (11,8.33) (14,9.96) (6,7.24) (4,4.26) (12,10.84) (7,4.82) (5,5.68)};
+\addplot[densityred, thick, domain=2:20] {3+0.5*x};
+\end{axis}
+\begin{axis}[an, at={(6.3cm,0)}, title={II: a smooth curve}]
+\addplot[only marks, mark=*, mark size=1.5pt, sourceblue] coordinates {(10,9.14) (8,8.14) (13,8.74) (9,8.77) (11,9.26) (14,8.10) (6,6.13) (4,3.10) (12,9.13) (7,7.26) (5,4.74)};
+\addplot[densityred, thick, domain=2:20] {3+0.5*x};
+\end{axis}
+\begin{axis}[an, at={(0,-4.7cm)}, title={III: a line plus one outlier}]
+\addplot[only marks, mark=*, mark size=1.5pt, sourceblue] coordinates {(10,7.46) (8,6.77) (13,12.74) (9,7.11) (11,7.81) (14,8.84) (6,6.08) (4,5.39) (12,8.15) (7,6.42) (5,5.73)};
+\addplot[densityred, thick, domain=2:20] {3+0.5*x};
+\end{axis}
+\begin{axis}[an, at={(6.3cm,-4.7cm)}, title={IV: one point does all the work}]
+\addplot[only marks, mark=*, mark size=1.5pt, sourceblue] coordinates {(8,6.58) (8,5.76) (8,7.71) (8,8.84) (8,8.47) (8,7.04) (8,5.25) (19,12.50) (8,5.56) (8,7.91) (8,6.89)};
+\addplot[densityred, thick, domain=2:20] {3+0.5*x};
+\end{axis}
+\end{tikzpicture}
+\caption{Anscombe's quartet. Same means, variances, correlation ($0.816$) and
+fitted line (red). Only panel I is described well by ``linear with $r = 0.82$''.
+II is a perfect curve, III is a perfect line ruined by one point, and IV has no
+relationship at all apart from one point.}
+\label{fig:two-variables-anscombe}
+\end{figure}
+
+Each panel teaches a separate lesson. Panel II: $r$ only measures fit to a line,
+and a curve that fits perfectly gets $0.82$. Panel III: one outlier dragged $r$
+down from $1$ to $0.82$. Panel IV: one \textbf{high-leverage} point, a point whose
+$x$ value sits far from all the others, manufactured a correlation out of nothing; remove it and $x$ has no variation left at all.
+
+\section{When $r$ misses the relationship}
+\label{sec:corr-nonlinear}
+
+\subsection{A perfect relationship with $r = 0$}
+
+Take $x = -3, -2, -1, 0, 1, 2, 3$ and $y = x^2$, so $y = 9,4,1,0,1,4,9$. Here $y$
+is completely determined by $x$. Yet $\xbar = 0$, $\ybar = 28/7 = 4$, and the
+products $(x_i - \xbar)(y_i - \ybar) = x_i(y_i - 4)$ are
+\[
+  -15,\ 0,\ 3,\ 0,\ -3,\ 0,\ 15,
+\]
+which sum to $0$. So $r = 0$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=9cm, height=6cm, xmin=-3.6, xmax=3.6, ymin=-1.5, ymax=10.5,
+  xlabel={$x$}, ylabel={$y = x^2$}, xtick={-3,...,3}]
+\fill[targetgreen, opacity=0.2] (axis cs:0,4) rectangle (axis cs:3,9);
+\fill[targetgreen, opacity=0.2] (axis cs:0,4) rectangle (axis cs:-1,1);
+\fill[trapred, opacity=0.2] (axis cs:0,4) rectangle (axis cs:-3,9);
+\fill[trapred, opacity=0.2] (axis cs:0,4) rectangle (axis cs:1,1);
+\addplot[gray, domain=-3.3:3.3, samples=60] {x^2};
+\draw[dashed, gray] (axis cs:0,-1.5) -- (axis cs:0,10.5);
+\draw[dashed, gray] (axis cs:-3.6,4) -- (axis cs:3.6,4);
+\addplot[only marks, mark=*, mark size=2pt, sourceblue] coordinates {(-3,9) (-2,4) (-1,1) (0,0) (1,1) (2,4) (3,9)};
+\node[font=\small, anchor=south] at (axis cs:-1.8,-1.4) {$r = 0$};
+\end{axis}
+\end{tikzpicture}
+\caption{Points exactly on a parabola. The rectangles on the right side cancel the
+mirror-image rectangles on the left, so the covariance and $r$ are exactly $0$.
+Zero correlation means no \emph{linear} trend, not no relationship.}
+\label{fig:two-variables-parabola}
+\end{figure}
+
+The lesson runs in one direction. If $x$ and $y$ are independent (knowing one tells
+you nothing about the other), then in a large sample $r$ is near $0$. The converse fails: $r=0$ does
+not imply independence.
+
+\subsection{Spearman rank correlation}
+
+Sometimes the relationship is curved but still always increasing. Suppose a service
+is tested at load levels $x = 1, 2, \dots, 8$ and the queue length is
+$y = 2, 4, 8, \dots, 256$: it doubles with every step. Bigger $x$ always means
+bigger $y$, yet $r \approx 0.850$, because the points bend away from any line.
+
+A relationship where $y$ always goes up when $x$ goes up (or always down) is
+called \textbf{monotone}. To measure monotone association, replace each value by
+its \textbf{rank}, its position when the values are sorted from smallest (rank 1)
+to largest (rank $n$), and compute Pearson's $r$ on the ranks.
+
+\begin{definition}[Spearman rank correlation]
+The \textbf{Spearman correlation} $r_s$ is the Pearson correlation of the ranks of
+the $x$ values with the ranks of the $y$ values. Tied values each get the average
+of the ranks they occupy. When there are no ties,
+\[
+  r_s = 1 - \frac{6\sum_{i=1}^n d_i^2}{n(n^2-1)},
+\]
+where $d_i$ is the difference between the rank of $x_i$ and the rank of $y_i$.
+\end{definition}
+
+For the doubling queue, the ranks of $y$ are $1, 2, \dots, 8$, identical to the
+ranks of $x$. Every $d_i = 0$ and $r_s = 1$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[name=raw, scale only axis, width=4.3cm, height=3.4cm,
+  xmin=0, xmax=9, ymin=-15, ymax=275, xlabel={load $x$}, ylabel={queue $y$},
+  title={raw values: $r \approx 0.85$}, title style={font=\small},
+  tick label style={font=\scriptsize}]
+\addplot[only marks, mark=*, mark size=1.8pt, sourceblue] coordinates {(1,2) (2,4) (3,8) (4,16) (5,32) (6,64) (7,128) (8,256)};
+\end{axis}
+\begin{axis}[at={(6.6cm,0)}, scale only axis, width=4.3cm, height=3.4cm,
+  xmin=0, xmax=9, ymin=0, ymax=9, xlabel={rank of $x$}, ylabel={rank of $y$},
+  title={ranks: $r_s = 1$}, title style={font=\small},
+  tick label style={font=\scriptsize}]
+\addplot[only marks, mark=*, mark size=1.8pt, quotientorange] coordinates {(1,1) (2,2) (3,3) (4,4) (5,5) (6,6) (7,7) (8,8)};
+\addplot[gray, dashed, domain=0.5:8.5] {x};
+\end{axis}
+\end{tikzpicture}
+\caption{Ranking straightens any monotone relationship. The doubling curve on the
+left becomes a perfect line on the right, so Spearman's $r_s$ is 1 while Pearson's
+$r$ is only 0.85.}
+\label{fig:two-variables-spearman}
+\end{figure}
+
+\begin{example}[Spearman by hand]
+For the six requests the $x$ values are already in order, with ranks
+$1,2,3,4,5,6$. The latencies $12, 19, 13, 20, 22, 16$ have ranks $1, 4, 2, 5, 6, 3$.
+The differences are $d = 0, -2, 1, -1, -1, 3$, so $\sum d_i^2 = 0+4+1+1+1+9 = 16$
+and
+\[
+  r_s = 1 - \frac{6 \times 16}{6 \times 35} = 1 - \frac{96}{210} \approx 0.543 .
+\]
+This is close to Pearson's $0.528$, as expected for data without strong curvature.
+\end{example}
+
+Ranks also tame outliers. A rank can be at most $n$, however extreme the value, so a
+single wild point cannot dominate. In the outlier panel of
+Figure~\ref{fig:two-variables-gallery}, Pearson's $r$ is $0.729$ with the outlier
+and $0.960$ without; Spearman's $r_s$ is $0.801$ with it. The same logic made the
+median more robust than the mean in Chapter 2.
+
+\begin{lstlisting}[language=Python]
+from scipy import stats
+x = [1, 2, 3, 4, 5, 6, 7, 8]; y = [2**k for k in x]
+stats.pearsonr(x, y).statistic    # 0.850
+stats.spearmanr(x, y).statistic   # 1.0
+\end{lstlisting}
+
+\section{Correlation is not causation}
+\label{sec:corr-causation}
+
+Across the days of a year, a city's ice cream sales and its number of drownings are
+positively correlated. Ice cream does not cause drowning. Hot weather drives both:
+more people buy ice cream and more people swim. Temperature is a
+\textbf{confounder}, a third variable that influences both the explanatory variable
+and the response and so creates an association between them even when neither
+affects the other.
+
+A \textbf{causal diagram} draws each variable as a box and each direct causal
+influence as an arrow. It is a picture of the story we believe generated the data.
+An observed correlation between $X$ and $Y$ is consistent with several different
+diagrams.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  v/.style={draw, rounded corners, fill=gray!8, minimum width=1.3cm, minimum height=0.7cm, font=\small},
+  ar/.style={-{Stealth[length=2.4mm]}, thick}]
+\node[v] (x1) at (0,0) {$X$};
+\node[v] (y1) at (2.2,0) {$Y$};
+\draw[ar, sourceblue] (x1) -- (y1);
+\node[font=\small, align=center] at (1.1,-1.0) {(a) $X$ causes $Y$};
+
+\node[v] (x2) at (4.4,0) {$X$};
+\node[v] (y2) at (6.6,0) {$Y$};
+\draw[ar, quotientorange] (y2) -- (x2);
+\node[font=\small, align=center] at (5.5,-1.0) {(b) $Y$ causes $X$};
+
+\node[v] (x3) at (8.6,0) {$X$};
+\node[v] (y3) at (10.8,0) {$Y$};
+\node[v] (z3) at (9.7,1.5) {$Z$};
+\draw[ar, trapred] (z3) -- (x3);
+\draw[ar, trapred] (z3) -- (y3);
+\draw[dashed, gray] (x3) -- (y3);
+\node[font=\small, align=center] at (9.7,-1.0) {(c) $Z$ confounds};
+\end{tikzpicture}
+\caption{Three causal stories that all produce a correlation between $X$ and $Y$.
+Data on $X$ and $Y$ alone cannot tell them apart. In (c) the dashed line is an
+association with no arrow behind it.}
+\label{fig:two-variables-dags}
+\end{figure}
+
+Concretely:
+\begin{itemize}
+  \item \textbf{Reverse causation.} Servers with more RAM have more crashes in a
+    fleet. Perhaps RAM causes crashes, but more likely the team upgraded the RAM
+    on servers that were already crashing.
+  \item \textbf{Confounding.} Users who enable dark mode have higher retention. Dark
+    mode is buried in settings, so the users who find it are engaged power users;
+    engagement drives both.
+  \item \textbf{Chance.} Search enough pairs of variables and some will correlate
+    strongly by luck. Chapter 11 treats this as the multiple testing problem.
+\end{itemize}
+
+\begin{intuitionbox}
+The way to break the confounder's grip is to set $X$ yourself, at random. If a coin
+flip decides who gets dark mode, then engagement cannot influence who has it, so
+arrow $Z \to X$ is cut. Any remaining difference in retention must flow along
+$X \to Y$, up to chance. This is why randomized experiments (A/B tests) are the
+gold standard for causal claims. Chapter 5 develops the design of studies and
+experiments.
+\end{intuitionbox}
+
+\begin{historybox}
+Francis Galton, a Victorian scientist and cousin of Charles Darwin, spent the 1870s
+and 1880s measuring parents and children: heights, arm lengths, sweet-pea seed
+sizes. He was stuck on how to put a single number on ``how strongly does a child's
+height follow a parent's''. In 1888 he proposed measuring both variables in units
+of their own spread, which is the z-score idea, and called the resulting slope the
+``co-relation''. Karl Pearson turned this into the formula
+$r = s_{xy}/(s_x s_y)$ in 1896, which is why it carries his name. Eight years later
+the psychologist Charles Spearman introduced the rank version to study
+intelligence test scores, where only the ordering seemed meaningful. Pearson's
+colleague George Udny Yule noticed as early as 1903 that combining groups could
+reverse an association, the effect now named after Edward Simpson, who wrote it up
+in 1951. Galton's original goal, predicting one variable from another, became
+regression (Chapter 12).
+\end{historybox}
+
+\section{Simpson's paradox}
+\label{sec:corr-simpson}
+
+Confounding can do more than create an association. It can flip one. A 1986 study
+in the \emph{British Medical Journal} compared two treatments for kidney stones:
+open surgery (A) and a less invasive procedure through a small puncture (B). A
+treatment counted as a success if, three months later, the stone was gone or only
+tiny fragments remained.
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+ & Small stones & Large stones & All patients \\
+\midrule
+Treatment A (open surgery) & $81/87 = 93\%$ & $192/263 = 73\%$ & $273/350 = 78\%$ \\
+Treatment B (puncture) & $234/270 = 87\%$ & $55/80 = 69\%$ & $289/350 = 83\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Read the table one column at a time. For small stones, A wins: 93\% versus 87\%.
+For large stones, A wins: 73\% versus 69\%. For all patients together, B wins:
+83\% versus 78\%. Every patient has either a small or a large stone, so it seems
+impossible that A is better in both groups and worse overall. It is not
+impossible, and the arithmetic is right.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[ybar, width=11cm, height=6cm, bar width=0.7cm,
+  symbolic x coords={Small stones, Large stones, All patients}, xtick=data,
+  ymin=50, ymax=100, ylabel={success rate (\%)},
+  enlarge x limits=0.25,
+  nodes near coords, nodes near coords style={font=\scriptsize, /pgf/number format/fixed, /pgf/number format/precision=1, /pgf/number format/fixed zerofill},
+  legend style={at={(0.5,1.03)}, anchor=south, legend columns=2, font=\small, draw=none}, legend cell align=left]
+\addplot[fill=sourceblue, draw=sourceblue!70!black] coordinates {(Small stones,93.1) (Large stones,73.0) (All patients,78.0)};
+\addplot[fill=quotientorange, draw=quotientorange!70!black] coordinates {(Small stones,86.7) (Large stones,68.8) (All patients,82.6)};
+\legend{A (open surgery), B (puncture)}
+\end{axis}
+\end{tikzpicture}
+\caption{Simpson's paradox in the kidney-stone data. A beats B within each stone
+size, yet B beats A when the groups are combined.}
+\label{fig:two-variables-simpson-bars}
+\end{figure}
+
+The resolution is in who got which treatment. Doctors gave the invasive surgery to
+the hard cases: 263 of A's 350 patients (75\%) had large stones, but only 80 of
+B's 350 (23\%) did. Large stones are harder to treat by any method. So A's overall
+rate is mostly a large-stone rate, and B's is mostly a small-stone rate. Each
+overall rate is a weighted average of the two group rates:
+\begin{align*}
+  \text{A overall} &= \tfrac{87}{350}(93.1\%) + \tfrac{263}{350}(73.0\%) \approx 78.0\%,\\
+  \text{B overall} &= \tfrac{270}{350}(86.7\%) + \tfrac{80}{350}(68.8\%) \approx 82.6\%.
+\end{align*}
+The weights differ, and the weights carry the stone-size effect.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=10.5cm, height=7cm, xmin=0, xmax=1, ymin=0.6, ymax=1.0,
+  xlabel={fraction of patients with large stones},
+  ylabel={success rate},
+  xtick={0,0.229,0.5,0.751,1}, xticklabels={0,0.23,0.5,0.75,1},
+  ytick={0.6,0.7,0.8,0.9,1.0},
+  legend style={at={(0.02,0.03)}, anchor=south west, font=\small}, legend cell align=left]
+\addplot[sourceblue, very thick, domain=0:1] {0.931 + (0.730-0.931)*x};
+\addplot[quotientorange, very thick, domain=0:1] {0.867 + (0.6875-0.867)*x};
+\draw[densely dotted, gray] (axis cs:0.751,0.6) -- (axis cs:0.751,0.780);
+\draw[densely dotted, gray] (axis cs:0.229,0.6) -- (axis cs:0.229,0.826);
+\addplot[only marks, mark=*, mark size=3.5pt, sourceblue] coordinates {(0.751,0.780)};
+\addplot[only marks, mark=*, mark size=3.5pt, quotientorange] coordinates {(0.229,0.826)};
+\node[font=\small, anchor=south west] at (axis cs:0.751,0.785) {A: 78\%};
+\node[font=\small, anchor=south west] at (axis cs:0.229,0.832) {B: 83\%};
+\legend{A at any mix, B at any mix}
+\end{axis}
+\end{tikzpicture}
+\caption{Each line shows a treatment's overall success rate if its patients had a
+given fraction of large stones. A's line is above B's everywhere, so A is better
+at every fixed mix. The dots mark the actual mixes: A treated mostly large stones,
+B mostly small, and that pushes A's dot below B's.}
+\label{fig:two-variables-simpson-lines}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  v/.style={draw, rounded corners, fill=gray!8, minimum height=0.75cm, font=\small, align=center},
+  ar/.style={-{Stealth[length=2.4mm]}, thick}]
+\node[v] (z) at (0,1.6) {stone size};
+\node[v] (x) at (-2.6,0) {treatment};
+\node[v] (y) at (2.6,0) {success};
+\draw[ar, trapred] (z) -- node[above left, font=\scriptsize] {doctors choose} (x);
+\draw[ar, trapred] (z) -- node[above right, font=\scriptsize] {large is harder} (y);
+\draw[ar, sourceblue] (x) -- node[below, font=\scriptsize] {effect we want} (y);
+\end{tikzpicture}
+\caption{Causal diagram for the kidney-stone study. Stone size affects both which
+treatment a patient gets and whether it succeeds, so it confounds the comparison.
+Comparing within stone size removes its influence.}
+\label{fig:two-variables-simpson-dag}
+\end{figure}
+
+\begin{trapbox}
+There is no rule ``always trust the split table''. Which table answers your question
+depends on the causal story. Here stone size is measured \emph{before} treatment and
+affects it, so you compare within stone size, and A is the better treatment. If the
+splitting variable were something the treatment itself caused (say, blood pressure
+measured after surgery), splitting would block part of the treatment's effect and
+the combined table would be the right one. The numbers alone cannot tell you;
+the diagram can.
+\end{trapbox}
+
+The most famous case involves university admissions. In fall 1973 the University
+of California, Berkeley admitted about 44\% of its 8442 male graduate applicants
+and about 35\% of its 4321 female applicants. A 1975 analysis by Bickel, Hammel and
+O'Connell looked department by department and found that in most departments women
+were admitted at a similar or higher rate than men. Women had applied
+disproportionately to departments that admitted few applicants of either sex.
+The department chosen played the role of stone size.
+
+\begin{recoverybox}
+Check your understanding: could A have won in both groups and \emph{also} overall?
+(Yes, if both treatments had been given to similar mixes of patients. The reversal
+needs the groups to differ in both size mix and baseline difficulty.)
+\end{recoverybox}
+
+\section{Ecological fallacy}
+\label{sec:corr-ecological}
+
+A correlation computed from group averages (countries, states, schools, server
+racks) is called an \textbf{ecological correlation}. The \textbf{ecological
+fallacy} is reading it as if it described individuals.
+
+Averaging removes the scatter within each group. What is left is usually a much
+tighter pattern than the individuals show, and sometimes a pattern in a different
+direction.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=10.5cm, height=7cm, xmin=-2.5, xmax=10.5, ymin=-3, ymax=13,
+  xlabel={$x$}, ylabel={$y$},
+  legend style={at={(0.5,1.03)}, anchor=south, legend columns=6, font=\scriptsize, draw=none}, legend cell align=left]
+\addplot[only marks, mark=*, mark size=1.3pt, sourceblue!70] coordinates {(5.43,2.64) (-1.92,1.79) (2.84,0.94) (1.26,2.40) (1.44,4.32) (1.82,2.74) (-1.06,5.37) (1.80,2.82) (0.78,3.31) (7.48,6.66) (2.53,4.46) (1.60,2.15)};
+\addplot[only marks, mark=*, mark size=1.3pt, targetgreen!80] coordinates {(2.70,-2.10) (3.85,6.37) (6.09,2.01) (2.56,0.45) (2.60,4.73) (4.59,5.66) (1.57,3.14) (2.52,1.75) (4.40,4.18) (3.92,4.01) (3.14,7.22) (4.06,5.77)};
+\addplot[only marks, mark=*, mark size=1.3pt, quotientorange!80] coordinates {(5.41,2.96) (6.88,6.70) (4.77,4.44) (3.62,8.23) (6.03,2.09) (6.03,4.55) (4.75,8.13) (3.85,9.11) (5.47,1.82) (1.11,5.47) (6.20,7.29) (5.88,5.22)};
+\addplot[only marks, mark=*, mark size=1.3pt, structurepurple!70] coordinates {(8.60,7.40) (4.15,5.22) (6.62,4.87) (4.38,4.87) (8.31,9.65) (6.02,3.42) (5.46,5.32) (3.31,5.92) (8.75,7.13) (7.26,7.90) (7.26,3.88) (7.88,2.82)};
+\addplot[only marks, mark=*, mark size=1.3pt, trapred!70] coordinates {(7.66,7.23) (9.61,12.35) (8.88,10.04) (8.01,10.03) (7.16,2.25) (8.14,5.99) (7.28,5.40) (8.97,7.91) (6.39,1.72) (7.88,9.32) (7.49,9.09) (8.54,3.87)};
+\addplot[only marks, mark=diamond*, mark size=4.5pt, black] coordinates {(2.00,3.30) (3.50,3.60) (5.00,5.50) (6.50,5.70) (8.00,7.10)};
+\legend{group 1, group 2, group 3, group 4, group 5, group means}
+\end{axis}
+\end{tikzpicture}
+\caption{Sixty individuals in five groups (colours) and the five group means
+(black diamonds). The individuals have $r \approx 0.50$; the five means have
+$r \approx 0.97$. A correlation of averages overstates how well $x$ predicts $y$
+for any one person.}
+\label{fig:two-variables-ecological}
+\end{figure}
+
+The classic real example is W.\,S.\ Robinson's 1950 study of the 1930 US census.
+Across the 48 states, the percentage of residents born abroad correlated
+\emph{negatively} with the percentage who were illiterate: $r \approx -0.53$.
+Read naively, immigrants were more literate. Across individuals the correlation was
+\emph{positive}, about $0.12$: immigrants were somewhat more likely to be
+illiterate. The state-level pattern arose because immigrants tended to settle in
+states whose native-born population had high literacy.
+
+\begin{trapbox}
+``Countries that eat more chocolate win more Nobel prizes'' is a statement about
+countries. It says nothing about whether a chocolate-eating person is more likely
+to win one. Before using a correlation, ask what one data point is: a person, a
+request, a server, a city, a week.
+\end{trapbox}
+
+\section{Restriction of range}
+\label{sec:corr-range}
+
+A university admits students using an entrance exam score and later finds that,
+among admitted students, the exam barely correlates with first-year grades. Is the
+exam useless? Not necessarily.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=11cm, height=7cm, xmin=190, xmax=780, ymin=1.6, ymax=4.3,
+  xlabel={entrance score}, ylabel={first-year GPA},
+  legend style={at={(0.02,0.98)}, anchor=north west, font=\small}, legend cell align=left]
+\fill[targetgreen, opacity=0.12] (axis cs:600,1.6) rectangle (axis cs:780,4.3);
+\addplot[only marks, mark=*, mark size=1.2pt, gray!60] coordinates {(552,3.64) (316,3.11) (507,2.79) (424,2.49) (488,3.26) (577,3.42) (326,2.09) (400,3.19) (581,3.30) (422,2.84) (496,3.30) (526,3.60) (427,3.00) (567,2.92) (382,3.06) (569,3.15) (556,2.95) (539,2.93) (533,3.43) (475,3.24) (399,2.68) (362,2.65) (521,3.02) (483,3.41) (432,2.80) (525,2.76) (433,2.89) (436,2.66) (586,3.54) (506,3.05) (510,2.91) (456,2.59) (584,3.21) (497,3.09) (571,3.66) (482,2.86) (534,2.85) (589,3.21) (594,3.60) (567,3.11) (327,2.90) (473,2.69) (356,2.64) (483,3.30) (304,2.41) (497,3.47) (393,1.82) (360,2.76) (556,2.91) (490,3.01) (400,2.76) (505,2.78) (416,2.94) (588,3.65) (293,2.03) (435,2.48) (404,2.81) (371,2.56) (288,2.19) (548,3.38) (458,3.11) (536,3.34) (442,2.43) (400,2.60) (571,3.14) (468,2.89) (447,3.17) (569,2.93) (500,2.80) (434,2.99) (472,2.94) (519,2.90) (559,3.32) (559,3.53) (482,2.51) (459,2.99) (515,3.25) (500,2.71) (393,2.41) (467,3.44) (597,2.73) (499,3.11) (581,3.34) (442,3.01) (451,2.19) (434,2.65) (397,2.83) (522,2.63) (286,2.46) (527,2.91) (214,2.30) (449,2.62) (477,2.61) (574,3.22) (451,3.00) (509,2.57) (496,2.87) (321,2.37) (559,2.98) (479,3.15) (413,2.68) (361,2.25) (535,2.98) (539,3.28) (428,2.79) (483,2.77) (420,2.93) (497,3.13) (390,2.48) (484,3.03) (464,3.02) (402,2.72) (423,3.11) (561,3.07) (445,2.99) (477,3.01) (514,3.17) (402,2.59) (281,2.50) (443,3.17) (497,2.42) (435,2.87) (510,3.25) (568,3.15)};
+\addplot[only marks, mark=*, mark size=1.6pt, targetgreen!70!black] coordinates {(683,3.80) (752,4.05) (669,3.06) (641,2.83) (652,3.71) (610,3.41) (601,3.84) (610,3.30) (653,3.12) (659,3.66) (660,3.26) (633,3.18) (679,3.09) (606,3.47) (601,3.24) (626,3.26) (617,3.66) (667,3.99) (732,3.50) (622,3.66) (616,3.01) (648,3.84) (620,3.09) (630,2.70) (641,2.93) (663,3.25)};
+\draw[dashed, targetgreen!60!black, thick] (axis cs:600,1.6) -- (axis cs:600,4.3);
+\node[font=\small, anchor=south east, fill=white, inner sep=2pt] at (axis cs:775,1.65) {admitted: $r \approx 0.30$};
+\legend{all 150 applicants: $r \approx 0.70$, admitted (score $\ge 600$)}
+\end{axis}
+\end{tikzpicture}
+\caption{Restriction of range. Over all applicants the score and GPA correlate at
+$0.70$. Keep only those with a score of at least 600 and the correlation falls to
+about $0.30$. The relationship did not change; the range of $x$ shrank.}
+\label{fig:two-variables-range}
+\end{figure}
+
+Correlation compares the trend in $y$ to the scatter around it. If you keep only a
+narrow slice of $x$ values, the trend across the slice is small, but the scatter
+of $y$ around the trend is as large as ever. So $r$ drops. The same thing happens
+when you study only the employees who passed the hiring screen, only the requests
+that did not time out, or only the patients healthy enough to enter a trial.
+Correlations from truncated samples cannot be compared directly to correlations
+from full ones.
+
+\begin{recoverybox}
+The reverse also holds. If you sample only the very small and very large payloads
+and skip the middle, would $r$ go up or down? (Up. A wider spread in $x$ makes the
+same trend stand out more against the same scatter.)
+\end{recoverybox}
+
+\section{Preview: the regression line}
+\label{sec:corr-regression-preview}
+
+Correlation is symmetric and unitless. Often we want something asymmetric with
+units: a rule that predicts $y$ from $x$. The natural candidate is a line through
+the point of means $(\xbar, \ybar)$. Its slope turns out to be
+\[
+  b = r \,\frac{s_y}{s_x}.
+\]
+In words: when $x$ rises by one standard deviation, the predicted $y$ rises by $r$
+standard deviations. For the six requests,
+\[
+  b = 0.528 \times \frac{4}{2.366} \approx 0.893 \text{ ms per KB},
+\]
+which is also $s_{xy}/s_x^2 = 5/5.6 = 25/28$. The intercept is
+$\ybar - b\xbar = 17 - 0.893 \times 4 \approx 13.43$, so the line is
+$\hat y \approx 13.43 + 0.893x$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=10.5cm, height=7cm, xmin=0, xmax=8, ymin=8, ymax=26,
+  xlabel={payload $x$ (KB)}, ylabel={latency $y$ (ms)},
+  xtick={1,...,7},
+  legend style={at={(0.02,0.98)}, anchor=north west, font=\small}, legend cell align=left]
+\addplot[densityred, thick, domain=0:8] {13.4286 + 0.892857*x};
+\addplot[gray, dashed, domain=0.8:7.2] {17 + 1.690309*(x-4)};
+\addplot[only marks, mark=*, mark size=2pt, sourceblue] coordinates {(1,12) (2,19) (3,13) (5,20) (6,22) (7,16)};
+\addplot[only marks, mark=x, mark size=4pt, black, thick] coordinates {(4,17)};
+\draw[thick, black!70] (axis cs:4,17) -- (axis cs:6.366,17) -- (axis cs:6.366,19.113);
+\node[font=\scriptsize, anchor=north] at (axis cs:5.18,17) {$s_x = 2.37$};
+\node[font=\scriptsize, anchor=west] at (axis cs:6.366,18.05) {$r s_y = 2.11$};
+\legend{regression line slope $r s_y/s_x$, SD line slope $s_y/s_x$}
+\end{axis}
+\end{tikzpicture}
+\caption{The regression line (red) passes through $(\xbar,\ybar)$ (black cross).
+One standard deviation to the right in $x$, it rises only $r$ standard deviations
+in $y$, so it is flatter than the dashed line that rises a full $s_y$ per $s_x$.
+Chapter 12 shows that this line minimizes the sum of squared vertical errors.}
+\label{fig:two-variables-regression}
+\end{figure}
+
+Because $\abs{r} \le 1$, the prediction for $y$ is never more standard deviations
+from its mean than $x$ is from its mean, and strictly fewer unless the points lie
+on a line. Tall parents tend to have children who are
+tall, but less extreme. This is \emph{regression to the mean}, the effect Galton was
+studying, and it is pure arithmetic of the slope formula, not a force of nature.
+
+\begin{connectionbox}
+In machine learning, the correlation matrix of features is a standard first look at
+a data set, and features with $\abs{r}$ near 1 are flagged as redundant (Chapter 13
+calls this collinearity). Two cautions from this chapter carry over directly:
+near-zero $r$ does not mean a feature is useless to a nonlinear model such as a tree
+or a neural network, and a high $r$ between a feature and the label does not mean
+the feature causes the label, so it may stop working when the world shifts.
+In probability language, $r$ estimates
+$\Corr(X,Y) = \Cov(X,Y)/(\SD(X)\SD(Y))$, where
+$\Cov(X,Y) = \E[(X-\E X)(Y-\E Y)]$ (Probability From the Ground Up treats these
+for random variables).
+\end{connectionbox}
+
+\section{Summary}
+\label{sec:corr-summary}
+
+\begin{itemize}
+  \item \textbf{Two categorical variables}: make a contingency table, divide by row
+    totals to get conditional distributions, and compare them with a segmented bar
+    chart. No association means every row matches the marginal.
+  \item \textbf{Two numerical variables}: draw a scatter plot; describe direction,
+    form, strength and outliers.
+  \item \textbf{Covariance} $s_{xy} = \frac{1}{n-1}\sum (x_i-\xbar)(y_i-\ybar)$ is the
+    average signed rectangle area around $(\xbar,\ybar)$. Its size depends on units.
+  \item \textbf{Pearson's} $r = \frac{1}{n-1}\sum z_{x,i}z_{y,i} = s_{xy}/(s_x s_y)$:
+    unitless, symmetric, between $-1$ and $1$, equal to $\pm1$ only for a perfect line.
+  \item $r$ measures \textbf{linear} association only. Anscombe's quartet: same $r$,
+    four different pictures. A parabola can have $r=0$. Always plot.
+  \item \textbf{Spearman's} $r_s$ is Pearson's $r$ on ranks; it measures monotone
+    association and resists outliers.
+  \item \textbf{Correlation is not causation}: reverse causation, confounders, and
+    chance all create correlations. Randomization breaks confounding.
+  \item \textbf{Simpson's paradox}: a confounder can reverse an association when groups
+    are combined. The causal diagram decides which table to trust.
+  \item \textbf{Ecological fallacy}: correlations of group averages are usually
+    stronger than, and can even oppose, individual-level correlations.
+  \item \textbf{Restriction of range} shrinks $r$ toward 0.
+  \item \textbf{Regression slope} $b = r\,s_y/s_x$, line through $(\xbar,\ybar)$
+    (Chapter 12).
+\end{itemize}
+
+Every trap in this chapter came from how the data were gathered: who chose the
+treatment, which groups were averaged, which applicants were admitted. Chapter 5
+takes that question head on: how sampling and study design decide what a data set
+can tell you.
+
+\section{Exercises}
+\label{sec:corr-exercises}
+
+\begin{enumerate}
+  \item A/B test results by device. Desktop: 400 users, 48 converted. Mobile: 600
+    users, 42 converted. (a) Give the conversion rate for each device and overall.
+    (b) Under no association between device and conversion, how many desktop
+    conversions would you expect?
+  \item For the points $(1,2), (2,1), (3,4), (4,3), (5,5)$ compute $\xbar$, $\ybar$,
+    $s_{xy}$, $s_x$, $s_y$ and $r$.
+  \item Temperatures $x$ in degrees Celsius have correlation $r = 0.6$ with ice cream
+    sales $y$. What is the correlation if temperature is converted to Fahrenheit,
+    $x' = 32 + 1.8x$? What if $x$ is replaced by $-x$?
+  \item Compute Pearson's $r$ and Spearman's $r_s$ for $(1,1), (2,2), (3,3), (4,4),
+    (5,20)$. Which better describes ``$y$ goes up whenever $x$ goes up''?
+  \item Give data with five points on the curve $y = \abs{x}$ for which $r = 0$
+    exactly. Explain using the quadrant picture.
+  \item A study finds that cities with more police officers per capita have more
+    crime. Draw two different causal diagrams consistent with this.
+  \item Hospital P has a 90\% survival rate and hospital Q has 85\%. Describe how Q
+    could still be the better hospital for every type of patient. What additional
+    variable would you ask for?
+  \item An engineering team computes $r = 0.1$ between interview score and job
+    performance, using only people they hired. Why might the interview still be a
+    good predictor among all applicants?
+  \item Prove that if every $y_i = a + bx_i$ with $b < 0$, then $r = -1$, by writing
+    $z_{y,i}$ in terms of $z_{x,i}$.
+  \item For the six requests in Section~\ref{sec:corr-covariance}, use the regression
+    line to predict the latency for a 4 KB and a 10 KB payload. Which prediction do
+    you trust less, and why?
+\end{enumerate}
+
+\subsection*{Answers}
+
+\begin{enumerate}
+  \item (a) Desktop $48/400 = 12\%$, mobile $42/600 = 7\%$, overall $90/1000 = 9\%$.
+    (b) $400 \times 90/1000 = 36$.
+  \item $\xbar = \ybar = 3$. Deviations $x$: $-2,-1,0,1,2$; $y$: $-1,-2,1,0,2$.
+    Products $2,2,0,0,4$, sum $8$, so $s_{xy} = 8/4 = 2$. $s_x = s_y = \sqrt{10/4}
+    \approx 1.581$. $r = 2/2.5 = 0.8$.
+  \item Still $0.6$ (positive rescaling). With $-x$ it becomes $-0.6$.
+  \item With $\xbar = 3$ and $\ybar = 6$, the products of deviations sum to $40$,
+    $\sum(x_i-\xbar)^2 = 10$ and $\sum(y_i-\ybar)^2 = 250$, so
+    $r = 40/\sqrt{2500} = 0.8$. The ranks of $y$ are $1,2,3,4,5$, so $r_s = 1$. Spearman
+    describes the monotone pattern; Pearson is pulled around by the point $(5,20)$.
+  \item $x = -2,-1,0,1,2$, $y = 2,1,0,1,2$. $\ybar = 1.2$; the products
+    $x_i(y_i - 1.2)$ are $-1.6, 0.2, 0, -0.2, 1.6$, summing to $0$. Mirror-image
+    points sit in opposite-sign quadrants and cancel.
+  \item (i) Crime $\to$ more police (cities hire in response: reverse causation).
+    (ii) City size or density $\to$ both police and crime (confounding).
+  \item If Q treats a much larger share of high-risk patients, each risk group can
+    have higher survival at Q while Q's overall rate is lower (Simpson's paradox).
+    Ask for patient severity and compare within severity groups.
+  \item Restriction of range: hires all scored above a cutoff, so the range of scores
+    is narrow and $r$ is shrunk toward 0.
+  \item $\ybar = a + b\xbar$ and $s_y = \abs{b}s_x = -b s_x$, so
+    $z_{y,i} = b(x_i-\xbar)/(-b s_x) = -z_{x,i}$. Then
+    $r = \frac{1}{n-1}\sum (-z_{x,i}^2) = -\frac{n-1}{n-1} = -1$.
+  \item $\hat y(4) \approx 13.43 + 3.57 = 17.0$ ms (the mean, since $\xbar = 4$);
+    $\hat y(10) \approx 13.43 + 8.93 = 22.4$ ms. The 10 KB prediction is less
+    trustworthy: it lies outside the observed range 1--7 KB (extrapolation), and
+    $r \approx 0.53$ from six points is a weak basis.
+\end{enumerate}

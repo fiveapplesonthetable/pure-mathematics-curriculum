@@ -663,7 +663,7 @@ function parseEnv(name, inner, level) {
     let rawLang = '';
     if (opts) {
       const langM = /\blanguage\s*=\s*(?:\{([^}]*)\}|([^,\s\]}]+))/.exec(opts);
-      rawLang = langM ? (langM[1] || langM[2]).trim().replace(/^\[[^\]]*\]/, '').toLowerCase() : '';
+      rawLang = langM ? (langM[1] ?? langM[2] ?? "").trim().replace(/^\[[^\]]*\]/, '').toLowerCase() : '';
       if (rawLang && LANG_NAMES[rawLang]) lang = LANG_NAMES[rawLang];
     }
     const cleanText = inner.slice(e0).replace(/^\{[^}]*\}/, '').replace(/^\r?\n/, '').replace(/\s+$/, '');

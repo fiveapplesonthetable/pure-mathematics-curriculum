@@ -1,0 +1,1347 @@
+\chapter{The Bootstrap}
+\label{ch:bootstrap}
+
+Chapter 7 built confidence intervals for a mean and a proportion. Each one
+rested on a formula for the standard error: $s/\sqrt{n}$ for a mean,
+$\sqrt{\hat p(1-\hat p)/n}$ for a proportion. Those formulas came from Chapter 6,
+where we worked out by algebra how much the sample mean wobbles from sample to
+sample.
+
+Now your dashboard shows a median latency of 41 ms, a p90 of 71 ms, and a
+week-over-week drop in the median of 17 ms. Your manager asks: ``plus or minus
+what?'' There is no $s/\sqrt{n}$ for a median. There is no tidy formula for
+the standard error of a p90, of a ratio of two means, or of a correlation
+coefficient under a skewed population. The algebra that worked for the mean
+either gets ugly or needs things you do not know, like the height of the
+population density at the median.
+
+The bootstrap replaces that algebra with computation. It answers ``how much
+would this number wobble if I could re-run the sampling?'' by re-running the
+sampling on the data itself. This chapter shows how it works, when to trust it,
+when an exact method beats it, and where it breaks.
+
+\section{The problem: statistics with no formula}
+\label{sec:boot-problem}
+
+Here are 40 request latencies (ms) from one service, sorted:
+\begin{center}
+\small
+\begin{tabular}{*{10}{r}}
+12 & 18 & 21 & 23 & 24 & 24 & 24 & 24 & 25 & 27\\
+29 & 31 & 31 & 32 & 33 & 36 & 36 & 37 & 39 & 40\\
+42 & 43 & 48 & 50 & 50 & 51 & 52 & 53 & 55 & 58\\
+59 & 63 & 64 & 68 & 68 & 70 & 79 & 79 & 83 & 145
+\end{tabular}
+\end{center}
+The mean is $46.15$, the median is $(40+42)/2 = 41$, and the sample SD is
+$24.48$. Figure~\ref{fig:bootstrap-dotplot} shows the shape: a hump in the 20s
+to 50s and a long right tail ending at one 145 ms request.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=4.6cm,
+  xmin=0, xmax=155, ymin=0, ymax=7.5,
+  axis lines=left, ytick={0,2,4,6}, xtick={0,20,...,140},
+  xlabel={latency (ms), grouped in 5 ms bins}, ylabel={count},
+  clip=false,
+]
+\addplot[only marks, mark=*, mark size=2.6pt, color=histfill, draw=distblue]
+coordinates {(12.5,1) (17.5,1) (22.5,1) (22.5,2) (22.5,3) (22.5,4) (22.5,5) (22.5,6)
+(27.5,1) (27.5,2) (27.5,3) (32.5,1) (32.5,2) (32.5,3) (32.5,4) (37.5,1) (37.5,2)
+(37.5,3) (37.5,4) (42.5,1) (42.5,2) (42.5,3) (47.5,1) (52.5,1) (52.5,2) (52.5,3)
+(52.5,4) (52.5,5) (57.5,1) (57.5,2) (57.5,3) (62.5,1) (62.5,2) (67.5,1) (67.5,2)
+(72.5,1) (77.5,1) (77.5,2) (82.5,1) (147.5,1)};
+\draw[densityred, thick] (axis cs:41,0) -- (axis cs:41,6.6);
+\node[densityred, anchor=south, font=\small] at (axis cs:41,6.6) {median 41};
+\draw[targetgreen, thick, dashed] (axis cs:46.15,0) -- (axis cs:46.15,5.6);
+\node[targetgreen, anchor=west, font=\small] at (axis cs:47,5.9) {mean 46.15};
+\end{axis}
+\end{tikzpicture}
+\caption{Forty latencies. The right tail pulls the mean above the median. We
+want an interval for the population median, and later for the p90, and no
+textbook formula gives one directly.}
+\label{fig:bootstrap-dotplot}
+\end{figure}
+
+For the mean we already know the answer: $\SE = 24.48/\sqrt{40} = 3.87$, and
+Chapter 7 gives a $t$-interval. For the median there is a large-sample formula,
+\[
+  \SE(\text{median}) \approx \frac{1}{2 f(m)\sqrt{n}},
+\]
+where $f(m)$ is the height of the population density at the true median $m$.
+A \emph{density} is the smooth curve whose area over an interval gives the
+probability of landing there (Chapter 1). We do not know $f$, and estimating its
+height from 40 points is shaky. For a p90, a ratio of two means, or a
+correlation, the formulas get worse. We need a method that works for
+\emph{any} statistic you can compute.
+
+\begin{recoverybox}
+Pause and think: what single object would let you compute the standard error
+of \emph{any} statistic by brute force? (Answer: the population itself. If you
+had it, you could draw thousands of fresh samples and watch the statistic vary.
+The bootstrap's trick is a stand-in for that population.)
+\end{recoverybox}
+
+\section{The plug-in principle}
+\label{sec:boot-plugin}
+
+Every standard error is a property of the \emph{population} $F$ (the full
+distribution of latencies you would see if you logged forever) and the sample
+size $n$. If we knew $F$, we would simulate: draw $n$ values from $F$, compute
+the median, repeat 10{,}000 times, and take the SD of the 10{,}000 medians.
+That SD \emph{is} the standard error. This is the sampling distribution of
+Chapter 6, run by computer.
+
+We do not know $F$. The plug-in principle says: use your best estimate of $F$
+in its place, and run the same simulation.
+
+\begin{definition}[Empirical distribution]
+The \textbf{empirical distribution} $\hat F_n$ of data $x_1,\dots,x_n$ puts
+probability $1/n$ on each data point. Picture: a bag containing your $n$
+values written on slips of paper. Its cumulative distribution function, the
+\textbf{ECDF}, is
+\[
+  \hat F_n(t) = \frac{\#\{i : x_i \le t\}}{n},
+\]
+the fraction of data at or below $t$. It is a staircase that rises by $1/n$ at
+each data point.
+\end{definition}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xmin=0, xmax=160, ymin=0, ymax=1.05,
+  axis lines=left, xlabel={latency $t$ (ms)}, ylabel={fraction $\le t$},
+  legend pos=south east, legend style={font=\small},
+]
+\addplot[densityred, thick, smooth] coordinates {(5,0.000) (10,0.010) (15,0.051)
+(20,0.124) (25,0.217) (30,0.316) (35,0.412) (40,0.500) (45,0.578) (50,0.645)
+(55,0.702) (60,0.750) (65,0.791) (70,0.825) (75,0.853) (80,0.876) (85,0.895)
+(90,0.912) (95,0.925) (100,0.937) (105,0.946) (110,0.954) (115,0.961) (120,0.966)
+(125,0.971) (130,0.975) (135,0.979) (140,0.982) (145,0.984) (150,0.986)
+(155,0.988) (160,0.990)};
+\addlegendentry{true population CDF $F$}
+\addplot[distblue, thick, const plot] coordinates {(0,0) (12,0.025) (18,0.050)
+(21,0.075) (23,0.100) (24,0.200) (25,0.225) (27,0.250) (29,0.275) (31,0.325)
+(32,0.350) (33,0.375) (36,0.425) (37,0.450) (39,0.475) (40,0.500) (42,0.525)
+(43,0.550) (48,0.575) (50,0.625) (51,0.650) (52,0.675) (53,0.700) (55,0.725)
+(58,0.750) (59,0.775) (63,0.800) (64,0.825) (68,0.875) (70,0.900) (79,0.950)
+(83,0.975) (145,1.000) (160,1.000)};
+\addlegendentry{ECDF $\hat F_{40}$ of our sample}
+\end{axis}
+\end{tikzpicture}
+\caption{The staircase ECDF of the 40 latencies hugs the true CDF (these data
+were simulated from a known log-normal population so we can see both). The
+bootstrap uses the staircase as if it were the population.}
+\label{fig:bootstrap-ecdf}
+\end{figure}
+
+Figure~\ref{fig:bootstrap-ecdf} shows why this is reasonable. The law of large
+numbers (Probability From the Ground Up, Ch.~20) says each staircase height
+$\hat F_n(t)$ converges to $F(t)$, and a stronger result (the
+Glivenko--Cantelli theorem) says the whole staircase converges uniformly. With
+40 points the staircase is already close.
+
+\begin{intuitionbox}
+The plug-in principle is something you already do. You estimate the
+population mean by the sample mean, which is the mean of $\hat F_n$. You
+estimate the population median by the sample median, the median of $\hat F_n$.
+The bootstrap goes one step further: it estimates the \emph{sampling
+variability} of a statistic under $F$ by its sampling variability under
+$\hat F_n$.
+\end{intuitionbox}
+
+Figure~\ref{fig:bootstrap-worlds} lays out the parallel.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, minimum width=2.6cm, minimum height=0.9cm,
+    align=center, font=\small},
+  arr/.style={-{Stealth[length=2.5mm]}, thick},
+]
+\node[font=\bfseries\small, sourceblue] at (0,1.2) {Real world};
+\node[box, fill=sourceblue!10] (F) at (0,0) {population $F$\\(unknown)};
+\node[box, fill=sourceblue!10] (x) at (0,-1.7) {sample\\$x_1,\dots,x_n$};
+\node[box, fill=sourceblue!10] (t) at (0,-3.4) {statistic\\$\hat\theta = s(x)$};
+\draw[arr] (F) -- node[right, font=\footnotesize] {draw $n$} (x);
+\draw[arr] (x) -- node[right, font=\footnotesize] {compute} (t);
+\node[font=\bfseries\small, bootorange] at (6.5,1.2) {Bootstrap world};
+\node[box, fill=bootorange!15] (Fh) at (6.5,0) {empirical $\hat F_n$\\(known)};
+\node[box, fill=bootorange!15] (xs) at (6.5,-1.7) {resample\\$x^*_1,\dots,x^*_n$};
+\node[box, fill=bootorange!15] (ts) at (6.5,-3.4) {replicate\\$\hat\theta^* = s(x^*)$};
+\draw[arr] (Fh) -- node[right, font=\footnotesize] {draw $n$ with replacement} (xs);
+\draw[arr] (xs) -- node[right, font=\footnotesize] {compute} (ts);
+\draw[arr, dashed, gray] (x) -- node[above, font=\footnotesize] {becomes} (Fh);
+\node[font=\footnotesize, align=center, text width=4.2cm] at (0,-4.6)
+  {spread of $\hat\theta$ around $\theta$: what we want, cannot see};
+\node[font=\footnotesize, align=center, text width=4.2cm] at (6.5,-4.6)
+  {spread of $\hat\theta^*$ around $\hat\theta$: repeat $B$ times and look};
+\end{tikzpicture}
+\caption{The bootstrap copies the real-world sampling process inside a world
+we fully control. The sample plays the role of the population; resamples play
+the role of samples.}
+\label{fig:bootstrap-worlds}
+\end{figure}
+
+\section{Resampling with replacement, by hand}
+\label{sec:boot-resample}
+
+Drawing from $\hat F_n$ means: pick one of the $n$ data points uniformly at
+random, write it down, put it back, and repeat $n$ times. The result is a
+\textbf{bootstrap resample}: a list of $n$ values, each one copied from the
+data, where some originals appear twice or more and some not at all.
+
+Take a tiny dataset of $n=8$ latencies:
+\[
+  12,\ 15,\ 18,\ 21,\ 24,\ 30,\ 45,\ 110 .
+\]
+The sample median is $(21+24)/2 = 22.5$. Figure~\ref{fig:bootstrap-resamples}
+shows five random resamples, each sorted so the median (average of positions 4
+and 5) is easy to read.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  cell/.style={draw, minimum width=0.82cm, minimum height=0.55cm, font=\small,
+    inner sep=0pt},
+]
+\def\rowlabel#1#2{\node[anchor=east, font=\small] at (-0.2,#1) {#2};}
+\rowlabel{0}{data}
+\foreach \v [count=\i] in {12,15,18,21,24,30,45,110} {
+  \ifnum\v=110 \node[cell, fill=trapred!20] at (0.82*\i,0) {\v};
+  \else \node[cell, fill=sourceblue!12] at (0.82*\i,0) {\v}; \fi }
+\node[anchor=west, font=\small] at (7.8,0) {median $= 22.5$};
+\draw[gray] (0.2,-0.5) -- (10.6,-0.5);
+\foreach \row/\vals/\med [count=\r] in {
+  1/{12,15,21,24,45,45,110,110}/34.5,
+  2/{15,18,18,18,21,21,45,45}/19.5,
+  3/{12,12,24,24,30,45,45,45}/27,
+  4/{12,12,18,18,21,21,45,45}/19.5,
+  5/{15,15,18,21,21,24,110,110}/21} {
+  \rowlabel{-0.75*\r-0.3}{resample \row}
+  \foreach \v [count=\i] in \vals {
+    \ifnum\v=110 \node[cell, fill=trapred!20] at (0.82*\i,-0.75*\r-0.3) {\v};
+    \else \node[cell, fill=bootorange!15] at (0.82*\i,-0.75*\r-0.3) {\v}; \fi }
+  \draw[densityred, thick] (0.82*4-0.41,-0.75*\r-0.3-0.275) rectangle
+    (0.82*5+0.41,-0.75*\r-0.3+0.275);
+  \node[anchor=west, font=\small] at (7.8,-0.75*\r-0.3) {median $= \med$};
+}
+\end{tikzpicture}
+\caption{Five bootstrap resamples of the 8-point dataset (sorted; the red frame
+marks the two middle values). The outlier 110 appears twice in resamples 1 and
+5 and not at all in 2, 3, 4. The resample medians, $34.5, 19.5, 27, 19.5, 21$,
+spread around the original $22.5$, and that spread is what the bootstrap
+measures.}
+\label{fig:bootstrap-resamples}
+\end{figure}
+
+Three facts are visible already.
+\begin{itemize}
+  \item Each resample has exactly $n=8$ values. Same size as the data, because
+  we are imitating a sample of size $n$.
+  \item Duplicates are the whole point. Sampling \emph{without} replacement
+  would give back the same 8 numbers in a new order and the same median every
+  time.
+  \item The chance that a particular data point is missing from a resample is
+  $(1-1/n)^n$. For $n=8$ that is $(7/8)^8 = 0.344$; as $n$ grows it tends to
+  $1/e \approx 0.368$. So a typical resample uses about $63\%$ of the distinct
+  original points.
+\end{itemize}
+
+The five medians have SD $6.49$. With five resamples that is a crude
+estimate, but it is already a standard error for the median of 8 latencies,
+computed with no formula. Run $B = 2000$ resamples instead of 5 and the
+estimate stabilises.
+
+\begin{trapbox}
+Resample the \emph{units} that were sampled independently. For a correlation
+between $x$ and $y$, each resample draws whole $(x_i, y_i)$ pairs. Resampling
+the $x$'s and the $y$'s separately destroys the pairing: every replicate is a
+correlation between unrelated numbers, so the replicates cluster around zero
+whatever the real correlation is.
+\end{trapbox}
+
+\section{The bootstrap distribution}
+\label{sec:boot-distribution}
+
+Back to the 40 latencies. Draw $B = 2000$ resamples of size 40, compute the
+median of each, and plot the 2000 medians.
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+lat = np.array([48,21,63,70,12,18,43,33,40,24,68,64,42,79,53,24,50,23,68,39,
+                36,27,83,36,31,32,55,50,51,52,145,31,29,25,58,79,37,24,24,59])
+rng = np.random.default_rng(0)
+boot = rng.choice(lat, size=(2000, 40), replace=True)  # 2000 resamples
+med_star = np.median(boot, axis=1)                      # 2000 medians
+print(med_star.std(ddof=1))                   # bootstrap SE   -> 5.28
+print(np.quantile(med_star, [0.025, 0.975]))  # percentile CI  -> [33. 52.]
+\end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6.2cm,
+  xmin=27, xmax=63, ymin=0, ymax=400,
+  axis lines=left, xlabel={bootstrap median $\hat\theta^*$ (ms)},
+  ylabel={count (of 2000)}, xtick={29,33,...,61},
+  clip=false,
+]
+\addplot[ybar interval, fill=bootorange!60, draw=bootorange!80!black]
+coordinates {(27,0) (29,3) (31,46) (33,67) (35,237) (37,270) (39,333) (41,338)
+(43,108) (45,170) (47,74) (49,261) (51,76) (53,12) (55,4) (57,0) (59,1) (61,0)};
+\draw[densityred, very thick] (axis cs:41,0) -- (axis cs:41,370);
+\node[densityred, anchor=south, font=\small] at (axis cs:41,370) {$\hat\theta = 41$};
+\draw[distblue, thick, dashed] (axis cs:33,0) -- (axis cs:33,300);
+\draw[distblue, thick, dashed] (axis cs:52,0) -- (axis cs:52,300);
+\draw[distblue, thick, {Stealth}-{Stealth}] (axis cs:33,300) -- (axis cs:52,300);
+\node[distblue, anchor=south west, font=\small] at (axis cs:52.3,300)
+  {95\% percentile interval};
+\node[distblue, anchor=north, font=\small] at (axis cs:33,-30) {33};
+\node[distblue, anchor=north, font=\small] at (axis cs:52,-30) {52};
+\end{axis}
+\end{tikzpicture}
+\caption{Bootstrap distribution of the median from 2000 resamples (bins 2 ms
+wide). The middle $95\%$ of the bars runs from 33 to 52 ms. The comb-like
+lumps are real: a median of 40 values can only be an average of two data
+values, so it takes few distinct values.}
+\label{fig:bootstrap-median-hist}
+\end{figure}
+
+\begin{definition}[Bootstrap distribution]
+The \textbf{bootstrap distribution} of a statistic is the distribution of
+$\hat\theta^* = s(x^*)$ when $x^*$ is a resample from the data. In practice we
+see it through $B$ replicates $\hat\theta^*_1, \dots, \hat\theta^*_B$. It is our
+estimate of the sampling distribution of $\hat\theta$.
+\end{definition}
+
+The bootstrap distribution estimates the \emph{shape and spread} of the
+sampling distribution. It does not estimate where the truth is. Its centre sits
+near $\hat\theta$, not near $\theta$: the mean of the 2000 medians is $41.84$,
+close to the sample median 41. Nothing in resampling can move you toward a
+population value you never observed.
+
+\begin{happeningbox}
+The bootstrap distribution measures how much the statistic changes when the
+sample is perturbed in the way random sampling perturbs it. Picture shaking the
+data: some points double up, some vanish. A statistic that barely moves under
+this shaking (the median of 10{,}000 values) has a small SE. A statistic that
+jumps around (the max of 40 values) has a large or meaningless one.
+\end{happeningbox}
+
+\section{Bootstrap standard error}
+\label{sec:boot-se}
+
+\begin{definition}[Bootstrap standard error]
+\[
+  \widehat{\SE}_{\text{boot}} = \sqrt{\frac{1}{B-1}\sum_{b=1}^{B}
+  \left(\hat\theta^*_b - \bar\theta^*\right)^2},
+  \qquad \bar\theta^* = \frac{1}{B}\sum_{b=1}^B \hat\theta^*_b .
+\]
+It is the ordinary sample SD (Chapter 2) of the $B$ replicates.
+\end{definition}
+
+For the latency median, $\widehat{\SE}_{\text{boot}} = 5.28$ ms. The mean's
+formula SE is $3.87$ ms. Is the median the noisier statistic here? Because
+these data were simulated, we know the population and can find the true SEs by
+brute force (draw 200{,}000 fresh samples of 40): $4.7$ ms for the median and
+$5.0$ ms for the mean. Both one-sample estimates are off. The bootstrap
+overstates the median's SE because the values near the middle of this sample
+happen to be spread out ($39, 40, 42, 43, 48$), so reshuffles move the midpoint
+by several ms. The formula understates the mean's SE because 40 draws rarely
+include the population's rare very slow requests, so $s$ comes out too small.
+An estimated SE is itself a noisy number computed from one sample.
+
+\begin{whybox}
+Why should the SD of replicates estimate the SE? The SE is a fixed function
+of the population and $n$: write it $\SE(F, n)$. The bootstrap SE is the same
+function evaluated at the empirical distribution, $\SE(\hat F_n, n)$, which is
+the plug-in principle again. As $\hat F_n \to F$, the two agree for any
+statistic that depends smoothly on $F$. The $B$ replicates are only a Monte
+Carlo approximation to $\SE(\hat F_n, n)$, and Section~\ref{sec:boot-B} shows how
+big $B$ must be.
+\end{whybox}
+
+A quick sanity check uses the mean. One draw from $\hat F_n$ is a random data
+point, so its variance is $\hat\sigma^2 = \frac1n\sum_i (x_i - \xbar)^2$, the
+SD computed with divisor $n$ instead of $n-1$. A resample mean averages $n$
+independent such draws, so by Chapter 6 its SD is $\hat\sigma/\sqrt n$. With
+unlimited resamples the bootstrap SE of the mean is exactly this:
+$24.17/\sqrt{40} = 3.82$, against the formula's $3.87$. (Our 2000 resamples
+give $3.86$; the gap from $3.82$ is Monte Carlo noise,
+Section~\ref{sec:boot-B}.)
+
+A normal-theory interval $\hat\theta \pm 1.96\,\widehat{\SE}_{\text{boot}}$
+is the simplest use: $41 \pm 1.96(5.28) = [30.7, 51.3]$. It assumes the
+sampling distribution is bell-shaped and centred at $\theta$. The bootstrap can
+do better by using the shape it sees.
+
+\section{The percentile interval}
+\label{sec:boot-percentile}
+
+\begin{definition}[Percentile interval]
+The $95\%$ \textbf{bootstrap percentile interval} is
+\[
+  \left[\, \hat\theta^*_{(0.025)},\ \hat\theta^*_{(0.975)} \,\right],
+\]
+the $2.5$th and $97.5$th percentiles of the $B$ replicates. Picture: sort the
+2000 replicates and chop off 50 from each end.
+\end{definition}
+
+For the median latency this is $[33, 52]$ ms. The interval is not symmetric
+around 41: it reaches 8 ms below and 11 ms above, because the bootstrap
+distribution has more room on the right, which mirrors the right-skewed data.
+
+\begin{whybox}
+Why should chopping the tails of the bootstrap histogram give a confidence
+interval? Suppose some increasing transformation $g$ (a log, a square root)
+makes things symmetric: $g(\hat\theta)$ is normal around $g(\theta)$ with some
+SD $\tau$, and in the bootstrap world $g(\hat\theta^*)$ is normal around
+$g(\hat\theta)$ with the same $\tau$. Follow three steps.
+\begin{enumerate}
+  \item On the $g$ scale the ordinary interval is
+  $g(\hat\theta) \pm 1.96\tau$, and it covers $g(\theta)$ $95\%$ of the time.
+  \item The bootstrap replicates $g(\hat\theta^*)$ are normal with centre
+  $g(\hat\theta)$ and SD $\tau$, so their $2.5$th and $97.5$th percentiles are
+  exactly $g(\hat\theta) - 1.96\tau$ and $g(\hat\theta) + 1.96\tau$.
+  \item Percentiles pass through increasing functions unchanged: the
+  $2.5$th percentile of $g(\hat\theta^*)$ is $g$ of the $2.5$th percentile of
+  $\hat\theta^*$. Mapping the interval back with $g^{-1}$ therefore gives
+  $[\hat\theta^*_{(0.025)}, \hat\theta^*_{(0.975)}]$.
+\end{enumerate}
+So the percentile interval is the right interval whenever such a $g$ exists,
+and you never need to know $g$. That is why it handles skewness reasonably
+well and why it respects natural ranges: the interval for a proportion never
+leaves $[0,1]$.
+\end{whybox}
+
+\section{The basic interval}
+\label{sec:boot-basic}
+
+There is a second way to read the same histogram. Suppose the error
+$\hat\theta - \theta$ in the real world behaves like the error
+$\hat\theta^* - \hat\theta$ in the bootstrap world. The bootstrap errors run
+from $33 - 41 = -8$ to $52 - 41 = +11$ ($95\%$ of the time). So
+\[
+  -8 \le \hat\theta - \theta \le 11
+  \quad\Longleftrightarrow\quad
+  \hat\theta - 11 \le \theta \le \hat\theta + 8 .
+\]
+
+\begin{definition}[Basic interval]
+\[
+  \left[\, 2\hat\theta - \hat\theta^*_{(0.975)},\ 2\hat\theta - \hat\theta^*_{(0.025)} \,\right].
+\]
+\end{definition}
+
+For the median latency: $[82 - 52,\ 82 - 33] = [30, 49]$. The basic interval
+is the percentile interval reflected through $\hat\theta$
+(Figure~\ref{fig:bootstrap-pct-basic}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.32cm]
+\draw[-{Stealth}] (25,0) -- (60,0) node[right, font=\small] {ms};
+\foreach \t in {25,30,...,55} { \draw (\t,0.1) -- (\t,-0.1)
+  node[below, font=\footnotesize] {\t}; }
+\draw[densityred, very thick] (41,-0.3) -- (41,2.4);
+\node[densityred, above, font=\small] at (41,2.4) {$\hat\theta=41$};
+\draw[distblue, line width=2.5pt] (33,1.6) -- (52,1.6);
+\node[distblue, anchor=west, font=\small] at (52.5,1.6) {percentile $[33,52]$};
+\draw[quotientorange, line width=2.5pt] (30,0.8) -- (49,0.8);
+\node[quotientorange, anchor=east, font=\small] at (29.5,0.8) {basic $[30,49]$};
+\node[distblue, above, font=\footnotesize] at (37,1.65) {8};
+\node[distblue, above, font=\footnotesize] at (46.5,1.65) {11};
+\node[quotientorange, below, font=\footnotesize] at (35.5,0.75) {11};
+\node[quotientorange, below, font=\footnotesize] at (45,0.75) {8};
+\end{tikzpicture}
+\caption{The basic interval is the percentile interval flipped around
+$\hat\theta$: the long arm on the right becomes a long arm on the left. Which
+one is right depends on whether the skew in the bootstrap distribution is a
+property of the statistic's sampling distribution (percentile) or an error to
+be corrected (basic).}
+\label{fig:bootstrap-pct-basic}
+\end{figure}
+
+The two readings disagree whenever the bootstrap distribution is skewed. The
+basic interval is right if the bootstrap world reproduces the real-world
+\emph{error} faithfully, shape and all. The percentile interval is right if a
+hidden symmetrising transformation exists. For the median of a skewed
+distribution, the simulation in Section~\ref{sec:boot-coverage} shows the
+percentile interval covering much better. In practice the basic interval is
+seldom the best choice; it is worth knowing because it is the logic behind the
+next two methods.
+
+\section{Better intervals: bootstrap-t and BCa}
+\label{sec:boot-t-bca}
+
+Percentile and basic intervals are \textbf{first-order accurate}: the chance
+that the truth falls beyond one particular endpoint misses its target $2.5\%$
+by an error that shrinks like $1/\sqrt{n}$. Two refinements shrink that error
+to order $1/n$ for smooth statistics like means, ratios and correlations.
+
+\subsection{Bootstrap-t}
+
+The $t$-interval of Chapter 7 works because $(\bar X - \mu)/\SE$ has a
+distribution (Student's $t$) that does not depend on the unknowns. A quantity
+like that, whose distribution is free of unknown parameters, is called a
+\textbf{pivot}. The bootstrap-t builds a pivot for any statistic and lets the
+bootstrap find its distribution instead of looking it up in a $t$ table:
+\[
+  t^*_b = \frac{\hat\theta^*_b - \hat\theta}{\widehat{\SE}^*_b}, \qquad
+  \text{interval} = \left[\, \hat\theta - t^*_{(0.975)}\,\widehat{\SE},\
+  \hat\theta - t^*_{(0.025)}\,\widehat{\SE} \,\right].
+\]
+Here $\widehat{\SE}^*_b$ is the standard error computed \emph{inside}
+resample $b$. For a mean that is just $s^*_b/\sqrt n$. For a statistic with no
+formula, it requires a second, nested bootstrap inside each resample: $B=1000$
+outer times $200$ inner means $200{,}000$ medians. Studentizing (dividing by an
+estimated SE) removes the dependence of spread on $\theta$, which is where the
+extra accuracy comes from.
+
+Prefer bootstrap-t when the statistic has a stable SE estimate: means, trimmed
+means, differences of means, regression slopes. Avoid it for the median and
+other quantiles, whose resample SEs are themselves erratic; the ratio then
+explodes when $\widehat{\SE}^*_b$ is tiny.
+
+\subsection{BCa: bias-corrected and accelerated}
+
+BCa keeps the percentile idea but picks different percentiles. Two
+adjustments are estimated from the data.
+\begin{itemize}
+  \item \textbf{Bias correction} $z_0$: if more than half the replicates fall
+  below $\hat\theta$, the bootstrap distribution is shifted relative to
+  $\hat\theta$. Then $z_0 = \Phi^{-1}(\text{fraction of } \hat\theta^*_b < \hat\theta)$,
+  where $\Phi^{-1}$ turns a fraction into a standard normal quantile.
+  \item \textbf{Acceleration} $a$: measures how fast the SE changes as
+  $\theta$ changes, estimated from the jackknife (recompute the statistic
+  leaving out one point at a time; $a$ is proportional to the skewness of
+  those $n$ values).
+\end{itemize}
+The interval uses replicate percentiles $\alpha_1, \alpha_2$ instead of
+$0.025, 0.975$:
+\[
+  \alpha_{1,2} = \Phi\!\left( z_0 + \frac{z_0 + z_{\alpha}}{1 - a\,(z_0 + z_{\alpha})} \right),
+  \qquad z_\alpha = \mp 1.96 .
+\]
+With $z_0 = a = 0$ this collapses to the percentile interval.
+
+\begin{lstlisting}[language=Python]
+from scipy import stats
+res = stats.bootstrap((lat,), np.median, n_resamples=2000,
+                      method='BCa', random_state=0)
+print(res.confidence_interval)      # -> (32.7, 51.5)
+p90 = lambda a, axis: np.quantile(a, 0.9, axis=axis)
+res = stats.bootstrap((lat,), p90, n_resamples=2000,
+                      method='BCa', random_state=0)
+print(res.confidence_interval)      # -> (63.5, 89.2)
+\end{lstlisting}
+
+\begin{trapbox}
+BCa's acceleration comes from the jackknife, and the jackknife is unreliable
+for the median: leaving out one of 40 points moves the median to one of only
+two values. For the median, BCa is close to the percentile interval and gains
+little. Its real advantage is for smooth statistics (means of skewed data,
+ratios, correlations, variances).
+\end{trapbox}
+
+\section{Worked examples: median and p90 latency}
+\label{sec:boot-worked}
+
+\begin{walkbox}
+\textbf{Question.} From the 40 latencies, give a $95\%$ interval for the
+population median and for the population p90.
+
+\textbf{Median.} $\hat\theta = 41$. With $B=2000$ (seed 0):
+$\widehat{\SE}_{\text{boot}} = 5.28$; percentile $[33, 52]$; basic $[30, 49]$;
+BCa $[32.7, 51.5]$. Report: ``median 41 ms, $95\%$ CI 33 to 52 ms.''
+
+\textbf{p90.} The sample p90 (\texttt{numpy}'s default linear interpolation,
+Chapter 3) is $70.9$. From the same 2000 resamples:
+$\widehat{\SE}_{\text{boot}} = 8.35$; percentile $[59.4, 83.0]$;
+basic $[141.8 - 83.0,\ 141.8 - 59.4] = [58.8, 82.4]$; BCa $[63.5, 89.2]$.
+
+The p90 intervals disagree more than the median intervals, and the BCa interval
+is shifted right. That disagreement is a warning sign: the tail of 40 points is
+thin, and Figure~\ref{fig:bootstrap-p90-hist} shows why.
+\end{walkbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xmin=50, xmax=150, ymin=0, ymax=700,
+  axis lines=left, xlabel={bootstrap p90 $\hat\theta^*$ (ms)},
+  ylabel={count (of 2000)}, xtick={50,60,...,150},
+  clip=false,
+]
+\addplot[ybar interval, fill=bootorange!60, draw=bootorange!80!black]
+coordinates {(50,5) (55,82) (60,221) (65,561) (70,424) (75,597) (80,71) (85,29)
+(90,0) (95,0) (100,0) (105,0) (110,0) (115,0) (120,0) (125,0) (130,0) (135,0)
+(140,0) (145,10) (150,0)};
+\draw[densityred, very thick] (axis cs:70.9,0) -- (axis cs:70.9,650);
+\node[densityred, anchor=south, font=\small] at (axis cs:70.9,650) {$\hat\theta=70.9$};
+\draw[distblue, thick, {Stealth}-{Stealth}] (axis cs:59.4,450) -- (axis cs:83,450);
+\node[distblue, anchor=west, font=\small] at (axis cs:84,450) {percentile $[59.4, 83.0]$};
+\node[anchor=south, font=\small, align=center] at (axis cs:140,40)
+  {10 resamples drew the\\145 ms request $\ge 5$ times};
+\end{axis}
+\end{tikzpicture}
+\caption{Bootstrap distribution of the p90. Almost all replicates are
+interpolations between the handful of data values above 63 ms, so the
+histogram is lumpy and its right edge is pinned to the largest observations.
+The bootstrap cannot imagine a latency above 145 ms.}
+\label{fig:bootstrap-p90-hist}
+\end{figure}
+
+The p90 replicates are built from the top 5 or so data points. A resample can
+only rearrange those points; it cannot produce the 100 ms request that the
+population will occasionally send. The further into the tail you go, the less
+the bootstrap knows. For p99 from 40 points it knows essentially nothing.
+
+\section{Difference in medians between two groups}
+\label{sec:boot-two-groups}
+
+After a deploy, 35 latencies from the new version have median 24 ms, against
+41 ms for the 40 old ones (Figure~\ref{fig:bootstrap-two-box}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=4.4cm,
+  xmin=0, xmax=155, ymin=0.4, ymax=2.6,
+  ytick={1,2}, yticklabels={new ($n=35$), old ($n=40$)},
+  xlabel={latency (ms)}, axis x line=bottom, axis y line=left,
+]
+\addplot+[boxplot prepared={draw position=2, lower whisker=12,
+  lower quartile=28.5, median=41, upper quartile=58.25, upper whisker=83,
+  box extend=0.45}, color=distblue, fill=histfill!50, mark=*]
+  table[row sep=\\, y index=0] {145\\ };
+\addplot+[boxplot prepared={draw position=1, lower whisker=7,
+  lower quartile=18, median=24, upper quartile=34, upper whisker=49,
+  box extend=0.45}, color=targetgreen, fill=targetgreen!25, mark=*]
+  table[row sep=\\, y index=0] {60\\ 72\\ };
+\end{axis}
+\end{tikzpicture}
+\caption{Old and new latencies. The new median sits 17 ms lower. Is that gap
+bigger than resampling noise?}
+\label{fig:bootstrap-two-box}
+\end{figure}
+
+The two samples were drawn independently, so the bootstrap imitates that:
+\begin{enumerate}
+  \item Resample 40 values with replacement from the old group; take the median.
+  \item Resample 35 values with replacement from the new group; take the median.
+  \item Record the difference (old minus new). Repeat $B$ times.
+\end{enumerate}
+
+\begin{lstlisting}[language=Python]
+new = np.array([32,38,27,19,24,18,33,72,24,22,43,40,34,18,31,49,14,24,
+                10,15,11,28,15,38,35,29,7,23,31,34,13,24,18,20,60])
+rng = np.random.default_rng(1)
+m_old = np.median(rng.choice(lat, (2000, 40)), axis=1)
+m_new = np.median(rng.choice(new, (2000, 35)), axis=1)
+d = m_old - m_new                      # observed difference: 41 - 24 = 17
+print(d.std(ddof=1), np.quantile(d, [0.025, 0.975]))   # 5.96 [ 5. 27.5]
+\end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.8cm,
+  xmin=-6, xmax=38, ymin=0, ymax=340,
+  axis lines=left, xlabel={bootstrap difference in medians, old $-$ new (ms)},
+  ylabel={count (of 2000)}, xtick={-4,0,...,36},
+  clip=false,
+]
+\addplot[ybar interval, fill=structurepurple!40, draw=structurepurple]
+coordinates {(-4,0) (-2,2) (0,12) (2,12) (4,37) (6,76) (8,153) (10,162) (12,281)
+(14,268) (16,246) (18,247) (20,144) (22,101) (24,85) (26,131) (28,30) (30,9)
+(32,3) (34,1) (36,0)};
+\draw[gray, thick, dashed] (axis cs:0,0) -- (axis cs:0,300);
+\node[gray, anchor=south, font=\small] at (axis cs:0,300) {no difference};
+\draw[densityred, very thick] (axis cs:17,0) -- (axis cs:17,310);
+\node[densityred, anchor=south, font=\small] at (axis cs:17,310) {observed 17};
+\draw[distblue, thick, {Stealth}-{Stealth}] (axis cs:5,220) -- (axis cs:27.5,220);
+\node[distblue, anchor=west, font=\small] at (axis cs:28,220) {$[5, 27.5]$};
+\end{axis}
+\end{tikzpicture}
+\caption{Bootstrap distribution of the difference in medians. The $95\%$
+percentile interval $[5, 27.5]$ excludes 0; only 7 of the 2000 replicates
+($0.35\%$) are at or below zero.}
+\label{fig:bootstrap-diff-hist}
+\end{figure}
+
+Report: ``median latency dropped by 17 ms ($95\%$ CI 5 to 27.5 ms).'' The basic
+interval is $[34 - 27.5,\ 34 - 5] = [6.5, 29]$; both exclude zero. The
+interval is wide because the two medians wobble on their own: in these
+resamples the old median has SE $5.22$ and the new one $2.91$. SEs of
+independent estimates combine by squares, $\sqrt{5.22^2 + 2.91^2} = 5.98$,
+matching the $5.96$ above. The bootstrap does this combination for you, for
+any statistic.
+
+\begin{trapbox}
+Do not pool the two groups and resample from the pool to build a CI. Pooling
+pretends both groups come from one population, which is the no-difference
+hypothesis. That is a valid move for a \emph{test} (Section~\ref{sec:boot-perm})
+but it gives the wrong spread for an interval around the observed difference.
+\end{trapbox}
+
+\section{An exact interval for the median from order statistics}
+\label{sec:boot-exact}
+
+For medians and other quantiles there is something better than the bootstrap:
+an interval whose coverage is guaranteed for \emph{any} continuous population
+and any $n$, with no resampling at all. It needs only one fact.
+
+\begin{intuitionbox}
+For a continuous population, each observation lands below the true median $m$
+with probability exactly $1/2$. That is the definition of the median. So the
+number of observations below $m$ behaves like the number of heads in $n$ fair
+coin flips.
+\end{intuitionbox}
+
+Write $x_{(1)} \le x_{(2)} \le \dots \le x_{(n)}$ for the sorted data. These
+are the \textbf{order statistics}; $x_{(j)}$ is the $j$-th smallest value. Let
+$K$ be the number of observations below $m$. Then $K \sim \Bin(n, 1/2)$
+(Probability From the Ground Up, Ch.~7).
+
+Now ask when the interval $[x_{(j)}, x_{(n+1-j)}]$ misses $m$.
+\begin{itemize}
+  \item The whole interval sits above $m$ ($m < x_{(j)}$) exactly when fewer
+  than $j$ observations are below $m$: $K \le j - 1$.
+  \item The whole interval sits below $m$ ($m > x_{(n+1-j)}$) exactly when
+  fewer than $j$ observations are above $m$: $n - K \le j-1$.
+\end{itemize}
+By the symmetry of $\Bin(n,1/2)$ both events have the same probability, and they
+cannot happen together. So:
+
+\begin{theorem}[Distribution-free CI for the median]
+If $X_1,\dots,X_n$ are iid from a continuous distribution with median $m$, then
+\[
+  \P\!\left( X_{(j)} \le m \le X_{(n+1-j)} \right) = 1 - 2\,\P(K \le j-1),
+  \qquad K \sim \Bin(n, \tfrac12).
+\]
+\end{theorem}
+
+Choose the largest $j$ that keeps the coverage at least $95\%$. For $n=20$ the
+table below lists the binomial probabilities.
+
+\begin{center}
+\small
+\begin{tabular}{c c c c c}
+\toprule
+$k$ & $\P(K = k)$ & $\P(K \le k)$ & interval $[x_{(k+1)}, x_{(20-k)}]$ & coverage $1 - 2\P(K\le k)$\\
+\midrule
+2 & 0.0002 & 0.0002 & $[x_{(3)}, x_{(18)}]$ & 0.9996\\
+3 & 0.0011 & 0.0013 & $[x_{(4)}, x_{(17)}]$ & 0.9974\\
+4 & 0.0046 & 0.0059 & $[x_{(5)}, x_{(16)}]$ & 0.9882\\
+5 & 0.0148 & 0.0207 & $[x_{(6)}, x_{(15)}]$ & \textbf{0.9586}\\
+6 & 0.0370 & 0.0577 & $[x_{(7)}, x_{(14)}]$ & 0.8847\\
+7 & 0.0739 & 0.1316 & $[x_{(8)}, x_{(13)}]$ & 0.7368\\
+8 & 0.1201 & 0.2517 & $[x_{(9)}, x_{(12)}]$ & 0.4966\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The answer for $n=20$ is $[x_{(6)}, x_{(15)}]$, with exact coverage $95.86\%$.
+Figure~\ref{fig:bootstrap-binom20} shows where the number comes from.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm,
+  xmin=-0.7, xmax=20.7, ymin=0, ymax=0.2,
+  axis lines=left, xlabel={$K$ = number of the 20 observations below $m$},
+  ylabel={probability}, xtick={0,2,...,20},
+  yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2},
+  ybar, bar width=0.6, clip=false,
+]
+\addplot[fill=histfill, draw=distblue] coordinates {(6,0.0370) (7,0.0739)
+(8,0.1201) (9,0.1602) (10,0.1762) (11,0.1602) (12,0.1201) (13,0.0739)
+(14,0.0370)};
+\addplot[fill=trapred!60, draw=trapred] coordinates {(0,0.0000) (1,0.0000)
+(2,0.0002) (3,0.0011) (4,0.0046) (5,0.0148) (15,0.0148) (16,0.0046)
+(17,0.0011) (18,0.0002) (19,0.0000) (20,0.0000)};
+\node[trapred, font=\small, align=center] at (axis cs:2.6,0.06)
+  {$K \le 5$: miss\\prob.\ 0.0207};
+\node[trapred, font=\small, align=center] at (axis cs:17.4,0.06)
+  {$K \ge 15$: miss\\prob.\ 0.0207};
+\end{axis}
+\end{tikzpicture}
+\caption{$\Bin(20, 1/2)$. The interval $[x_{(6)}, x_{(15)}]$ misses the median
+only when 5 or fewer, or 15 or more, observations fall below it (red). Total
+miss probability $2 \times 0.0207 = 0.0414$.}
+\label{fig:bootstrap-binom20}
+\end{figure}
+
+\begin{walkbox}
+Take the first 20 of our latencies. Sorted:
+\[
+  \begin{array}{cccccccccc}
+  12 & 18 & 21 & 23 & 24 & \mathbf{24} & 33 & 39 & 40 & 42\\
+  43 & 48 & 50 & 53 & \mathbf{63} & 64 & 68 & 68 & 70 & 79
+  \end{array}
+\]
+The sample median is $(42+43)/2 = 42.5$. The $95.86\%$ interval is
+$[x_{(6)}, x_{(15)}] = [24, 63]$ ms. No resampling, no assumption about the
+shape of the latency distribution, and the coverage is exact rather than
+approximate.
+\end{walkbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.135cm]
+\draw[-{Stealth}] (5,0) -- (88,0) node[right, font=\small] {ms};
+\foreach \t in {10,20,...,80} { \draw (\t,0.1) -- (\t,-0.1)
+  node[below, font=\footnotesize] {\t}; }
+\foreach \v/\h [count=\i] in {12/1,18/1,21/1,23/1,24/1,24/2,33/1,39/1,40/1,42/1,
+  43/2,48/1,50/1,53/1,63/1,64/2,68/1,68/2,70/1,79/1} {
+  \ifnum\i<6 \fill[gray!60] (\v,0.3*\h) circle (3pt);
+  \else\ifnum\i>15 \fill[gray!60] (\v,0.3*\h) circle (3pt);
+  \else \fill[distblue] (\v,0.3*\h) circle (3pt); \fi\fi }
+\draw[targetgreen, line width=2.5pt] (24,1.3) -- (63,1.3);
+\node[targetgreen, above, font=\small] at (43.5,1.4) {$[x_{(6)}, x_{(15)}] = [24, 63]$};
+\draw[densityred, thick] (42.5,-0.3) -- (42.5,1.0);
+\node[densityred, anchor=north, font=\footnotesize] at (42.5,-0.45) {median 42.5};
+\node[gray, font=\footnotesize] at (14,1.1) {5 below};
+\node[gray, font=\footnotesize] at (73,1.1) {5 above};
+\end{tikzpicture}
+\caption{The order-statistic interval counts in from each end: drop 5
+points on each side and keep the range of the middle 10 (blue). Stacked dots
+are ties or near-ties.}
+\label{fig:bootstrap-orderstat}
+\end{figure}
+
+For all 40 latencies the same recipe with $\Bin(40, 1/2)$ gives
+$[x_{(14)}, x_{(27)}] = [32, 52]$ with coverage $96.15\%$. Compare the
+bootstrap percentile interval $[33, 52]$: nearly the same. That is no
+accident. A resample median is at most $x_{(j)}$ roughly when at least half of
+the 40 draws land on the $j$ smallest data values. Each draw does so with
+probability $j/40$, so that count is $\Bin(40, j/40)$. The bootstrap's lower
+endpoint is where this event has probability $2.5\%$. With the normal
+approximation, that is where half the draws, 20, sits 1.96 SDs above the mean
+$j$:
+\[
+  20 \approx j + 1.96\sqrt{40 \cdot \tfrac12 \cdot \tfrac12}
+  \quad\Longrightarrow\quad j \approx 20 - 6.2 = 13.8 .
+\]
+The exact method chose the largest $j$ with $\P(K \le j-1) \le 0.025$ for
+$K \sim \Bin(40, 1/2)$: again a cut-off about $1.96 \times 3.16 = 6.2$ below
+the centre 20, which the exact table turns into $j = 14$. Both methods
+are counting coin flips with probability near $1/2$, so for the median they
+land on nearly the same order statistics. The exact method gets there with a
+guarantee; the bootstrap gets there by simulation.
+
+The guarantee assumed a continuous population. If the population is discrete
+(latencies rounded to whole ms, with ties), each observation is at or below $m$
+with probability at least $1/2$ and at or above $m$ with probability at least
+$1/2$. Both miss probabilities can only shrink, so the closed interval
+$[x_{(j)}, x_{(n+1-j)}]$ covers at least as often as the table says.
+
+\subsection{Any quantile}
+
+The argument works for any quantile $q_p$ (the value with fraction $p$ of the
+population below it). Now each observation falls below $q_p$ with probability
+$p$, so $K \sim \Bin(n, p)$, and
+\[
+  \P\!\left( X_{(j)} \le q_p < X_{(k)} \right) = \P(j \le K \le k-1),
+  \qquad K \sim \Bin(n,p).
+\]
+For a rough first guess, use the normal approximation to the binomial:
+$j \approx np - 1.96\sqrt{np(1-p)}$ and $k \approx np + 1.96\sqrt{np(1-p)} + 1$,
+then adjust with exact binomial probabilities.
+
+\begin{walkbox}
+p90 from $n=40$: $np = 36$, $\sqrt{np(1-p)} = 1.90$, so the guess is
+$j \approx 32.3$, $k \approx 40.7$. The upper index runs past $n$. Exact search:
+$[x_{(32)}, x_{(40)}] = [63, 145]$ has coverage
+$\P(32 \le K \le 39) = 0.970$. The upper end is the sample maximum.
+\end{walkbox}
+
+That interval is honest about what 40 points can tell you about a p90: the
+upper limit is ``somewhere up to the largest thing we saw.'' The bootstrap
+percentile interval $[59.4, 83.0]$ looked tighter only because the bootstrap
+cannot see beyond the data. For an upper bound on p99 the arithmetic is stark:
+the sample max exceeds $q_{0.99}$ with probability $1 - 0.99^n$, which first
+reaches $95\%$ at $n = 299$. With fewer than 299 requests, no order statistic
+gives a distribution-free one-sided $95\%$ upper bound on the p99.
+
+\begin{recoverybox}
+Pause and think: with $n = 5$ observations, can any pair of order statistics
+give a $95\%$ distribution-free interval for the median? (Answer: no. The widest
+choice is $[x_{(1)}, x_{(5)}]$, which misses when all five land on one side of
+$m$: probability $2 \times (1/2)^5 = 1/16$, so coverage is only $93.75\%$. With
+$n = 6$ the range $[x_{(1)}, x_{(6)}]$ reaches $1 - 2/64 = 96.9\%$. Six is the
+smallest sample that supports a $95\%$ median interval at all.)
+\end{recoverybox}
+
+\section{How many resamples? Monte Carlo error}
+\label{sec:boot-B}
+
+There are two sources of randomness in a bootstrap answer.
+\begin{enumerate}
+  \item \textbf{Sampling error}: the data are one random sample. This is what
+  the interval is supposed to describe. More resamples cannot reduce it; only
+  more data can.
+  \item \textbf{Monte Carlo error}: we used $B$ random resamples instead of
+  all $n^n$ possible ones. Re-running with a different seed gives a slightly
+  different answer. This shrinks like $1/\sqrt{B}$.
+\end{enumerate}
+
+To see the second kind, repeat the whole 40-latency bootstrap 300 times with
+different seeds for each $B$ and look at how much the reported SE moves
+(Figure~\ref{fig:bootstrap-mcerror}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xmode=log, xmin=20, xmax=12000, ymin=4, ymax=6.5,
+  axis lines=left, xlabel={number of resamples $B$ (log scale)},
+  ylabel={bootstrap SE of median},
+  xtick={25,100,1000,10000}, xticklabels={25,100,1000,10000},
+  legend pos=north east, legend style={font=\small},
+]
+\addplot[name path=up, draw=none, forget plot] coordinates {(25,6.218) (50,6.058)
+(100,5.785) (200,5.585) (500,5.511) (1000,5.444) (2000,5.395) (5000,5.356)
+(10000,5.333)};
+\addplot[name path=lo, draw=none, forget plot] coordinates {(25,4.261) (50,4.622)
+(100,4.808) (200,4.927) (500,5.088) (1000,5.157) (2000,5.184) (5000,5.220)
+(10000,5.239)};
+\addplot[bootorange!35] fill between[of=up and lo];
+\addlegendentry{middle 90\% of 300 re-runs}
+\addplot[bootorange!80!black, thick, mark=*, mark size=1.5pt] coordinates {(25,5.252)
+(50,5.321) (100,5.296) (200,5.282) (500,5.302) (1000,5.293) (2000,5.287)
+(5000,5.286) (10000,5.288)};
+\addlegendentry{average over re-runs}
+\end{axis}
+\end{tikzpicture}
+\caption{Monte Carlo error in the bootstrap SE. With $B = 25$ one run might
+report anything from 4.3 to 6.2; with $B = 1000$ the band is 5.16 to 5.44;
+with $B = 10{,}000$ it is 5.24 to 5.33. The centre does not move: more
+resamples sharpen the estimate of $\SE(\hat F_n, n)$ but never change it.}
+\label{fig:bootstrap-mcerror}
+\end{figure}
+
+For a roughly bell-shaped bootstrap distribution, the Monte Carlo SD of the
+bootstrap SE is about $\SE/\sqrt{2B}$: at $B=1000$, about $2.2\%$ of the SE.
+Here we measured $0.09$ out of $5.29$, about $1.7\%$. Percentile endpoints
+need more resamples because they depend on the few replicates in each tail:
+at $B = 1000$ the lower $2.5\%$ endpoint had Monte Carlo SD $0.37$ ms; at
+$B=10{,}000$, $0.10$ ms.
+
+\begin{center}
+\small
+\begin{tabular}{l l}
+\toprule
+goal & resamples $B$\\
+\midrule
+bootstrap SE, rough & 200\\
+bootstrap SE, reported to 2 digits & 1000\\
+percentile or BCa $95\%$ interval & 2000--10{,}000\\
+$99\%$ interval or small p-value & 10{,}000+\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Computers are fast and the latency median of 10{,}000 resamples takes a
+fraction of a second. Pick $B$ big enough that re-running with a new seed
+does not change the digits you report. Then fix and report the seed.
+
+\section{How well do the intervals cover?}
+\label{sec:boot-coverage}
+
+A $95\%$ interval method should capture the truth in $95\%$ of repeated
+samples (Chapter 7). We can check this by simulation because we know the
+population that generated our latencies: log-normal with median exactly 40 ms.
+For each sample size $n$, draw 4000 samples, build each interval (with
+$B = 1000$ for the bootstrap ones), and count how often it contains 40.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=7cm,
+  xmode=log, xmin=8, xmax=100, ymin=0.78, ymax=1.0,
+  xtick={10,20,40,80}, xticklabels={10,20,40,80},
+  axis lines=left, xlabel={sample size $n$ (log scale)},
+  ylabel={actual coverage of nominal 95\% CI},
+  yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2},
+  legend style={font=\small, at={(0.5,-0.22)}, anchor=north, column sep=0.25cm},
+  legend columns=3,
+]
+\addplot[targetgreen, thick, mark=square*] coordinates {(10,0.979) (20,0.959) (40,0.957) (80,0.966)};
+\addlegendentry{exact order-statistic}
+\addplot[distblue, thick, mark=*] coordinates {(10,0.938) (20,0.942) (40,0.938) (80,0.946)};
+\addlegendentry{percentile}
+\addplot[structurepurple, thick, dashed, mark=o] coordinates {(10,0.923) (20,0.940) (40,0.934) (80,0.943)};
+\addlegendentry{BCa}
+\addplot[residgray, thick, mark=triangle*] coordinates {(10,0.930) (20,0.939) (40,0.930) (80,0.932)};
+\addlegendentry{$\hat\theta \pm 1.96\,\widehat{\SE}_{\text{boot}}$}
+\addplot[quotientorange, thick, mark=diamond*] coordinates {(10,0.806) (20,0.827) (40,0.854) (80,0.869)};
+\addlegendentry{basic}
+\addplot[black, dashed, domain=8:100] {0.95};
+\end{axis}
+\end{tikzpicture}
+\caption{Coverage of five $95\%$ intervals for the median of a log-normal
+population (4000 simulated samples per point; Monte Carlo SD about $0.0035$).
+The exact interval never drops below $95\%$; its zig-zag comes from the
+binomial steps (Section~\ref{sec:boot-exact}). Percentile and BCa run 1 to 2
+points low and creep up slowly with $n$. The basic interval under-covers badly
+for the median.}
+\label{fig:bootstrap-coverage}
+\end{figure}
+
+Four lessons from Figure~\ref{fig:bootstrap-coverage}:
+\begin{itemize}
+  \item For a median or quantile, use the exact order-statistic interval. It
+  is guaranteed, and it is at least as cheap as the bootstrap.
+  \item The bootstrap percentile interval is a good general default, but for
+  the median at these sample sizes expect it to run 1 to 2 points short of
+  nominal (about $94\%$ instead of $95\%$).
+  \item BCa buys nothing for the median (the jackknife issue above). For smooth
+  statistics it is usually the best bootstrap interval.
+  \item The basic interval is not a safe default. Its mirror-image logic fails
+  when the bootstrap distribution is lumpy and skewed.
+\end{itemize}
+
+\section{When the bootstrap fails}
+\label{sec:boot-fails}
+
+The bootstrap needs two things: $\hat F_n$ must resemble $F$ in the ways that
+matter for the statistic, and the statistic must respond smoothly to small
+changes in the data. Each failure below breaks one of them.
+
+\subsection{Tiny samples}
+
+With $n = 8$ there are only $\binom{15}{8} = 6435$ distinct resamples (as
+multisets, ignoring order) and the median takes a few dozen values. $\hat F_n$
+is a bag of 8 slips; it cannot represent the population's spread or tail.
+Below $n \approx 15$ treat any bootstrap interval as rough, and prefer an exact
+method when one exists.
+
+\subsection{Extremes: the maximum}
+
+Resample the 40 latencies and take the max. The largest value, 145, is in the
+resample unless all 40 draws miss it:
+\[
+  \P(\max{}^* = 145) = 1 - (39/40)^{40} = 0.637 .
+\]
+Figure~\ref{fig:bootstrap-max} shows the result: almost two-thirds of the
+bootstrap distribution is a single spike at the observed max.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=5.4cm,
+  ybar, bar width=0.8cm, ymin=0, ymax=0.75,
+  symbolic x coords={$\le 70$,79,83,145}, xtick=data,
+  axis lines=left, xlabel={bootstrap maximum (ms)}, ylabel={probability},
+  nodes near coords, nodes near coords style={font=\small,
+    /pgf/number format/fixed, /pgf/number format/precision=3},
+  enlarge x limits=0.2,
+]
+\addplot[fill=trapred!50, draw=trapred] coordinates {($\le 70$,0.015) (79,0.114)
+(83,0.235) (145,0.637)};
+\end{axis}
+\end{tikzpicture}
+\caption{Exact bootstrap distribution of the maximum of 40 latencies. The
+replicate can never exceed the observed maximum, and $63.7\%$ of the time it
+equals it. Any interval built from this distribution sits at or below 145, even
+though the population maximum is larger.}
+\label{fig:bootstrap-max}
+\end{figure}
+
+The problem is structural. If data come from $\Unif(0, \theta)$ and you want
+$\theta$, every bootstrap replicate is at most $x_{(n)} < \theta$, so the
+percentile interval has coverage exactly zero. For the max, min, and very high
+quantiles, $\hat F_n$ is wrong in exactly the region the statistic looks at.
+
+\subsection{Heavy tails}
+
+A \textbf{heavy-tailed} distribution is one where extreme values are common
+enough that the variance is huge or infinite. The Pareto family with tail
+index $\alpha$ is the standard example; smaller $\alpha$ means heavier tails,
+and the variance is infinite for $\alpha \le 2$. Bootstrap percentile
+intervals for the \emph{mean} of $n = 50$ Pareto values (2000 simulations,
+$B = 1000$):
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm,
+  ybar, bar width=0.9cm, ymin=0, ymax=1.08,
+  symbolic x coords={Pareto 3,Pareto 1.5,Pareto 1.1,AR(1) iid,AR(1) block},
+  xtick=data, x tick label style={font=\small, align=center},
+  axis lines=left, ylabel={coverage of nominal 95\%},
+  nodes near coords, nodes near coords style={font=\small, anchor=north,
+    yshift=-2pt, /pgf/number format/fixed, /pgf/number format/fixed zerofill,
+    /pgf/number format/precision=2},
+  enlarge x limits=0.13, clip=false,
+]
+\addplot[fill=bootorange!60, draw=bootorange!80!black] coordinates {(Pareto 3,0.889)
+(Pareto 1.5,0.704) (Pareto 1.1,0.261) (AR(1) iid,0.585) (AR(1) block,0.876)};
+\draw[black, dashed] (rel axis cs:0,0.8796) -- (rel axis cs:1,0.8796);
+\node[anchor=south east, font=\small] at (rel axis cs:1,0.885) {target 0.95};
+\end{axis}
+\end{tikzpicture}
+\caption{Where the percentile bootstrap breaks. Left three bars: CI for the
+mean of 50 Pareto values with tail index 3, 1.5, 1.1. Right two: CI for the
+mean of 200 autocorrelated values, resampling single points versus blocks of
+10. Each bar is 1000--2000 simulated datasets.}
+\label{fig:bootstrap-failures}
+\end{figure}
+
+With $\alpha = 1.1$ coverage collapses to $26\%$. The sample rarely contains
+the giant values that dominate the population mean, so $\hat F_n$ has a much
+lighter tail than $F$ and the bootstrap confidently reports a small spread.
+For heavy-tailed metrics (revenue per user, file sizes, p99.9 latency) prefer
+the median or a trimmed mean, or a log transform, over bootstrapping the raw
+mean.
+
+\subsection{Dependent data and the block bootstrap}
+
+Resampling individual points assumes they were drawn independently. A latency
+time series is not: a slow minute is usually followed by another slow minute.
+For a series where each value is $0.7$ times the previous one plus noise (an
+AR(1) process, ``autoregressive of order 1''), $n = 200$, the ordinary
+bootstrap CI for the mean covered only $58.5\%$ of the time. Shuffling points
+destroys the runs of high and low values, so it underestimates how much the
+mean of a correlated series wanders.
+
+The \textbf{moving block bootstrap} resamples contiguous chunks instead
+(Figure~\ref{fig:bootstrap-blocks}): cut the series into all overlapping blocks
+of length $\ell$, draw $n/\ell$ blocks with replacement, and glue them
+together. Correlation inside each block survives. With $\ell = 10$, coverage
+rose to $87.6\%$, still short of $95\%$ but far closer. Longer blocks keep more
+dependence but leave fewer distinct blocks; a common rule of thumb is $\ell$
+around $n^{1/3}$, tuned up for strongly correlated series.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  blk/.style={draw, minimum height=0.55cm, font=\footnotesize, inner sep=1pt},
+]
+\node[anchor=east, font=\small] at (-0.2,0) {series};
+\foreach \c/\lab [count=\i] in {sourceblue/A,targetgreen/B,quotientorange/C,
+  structurepurple/D,trapred/E,distblue/F} {
+  \node[blk, minimum width=1.6cm, fill=\c!25] at (1.65*\i-0.8,0) {block \lab}; }
+\node[anchor=west, font=\footnotesize] at (9.9,0) {time $\to$};
+\node[anchor=east, font=\small] at (-0.2,-1.1) {resample 1};
+\foreach \c/\lab [count=\i] in {quotientorange/C,sourceblue/A,quotientorange/C,
+  trapred/E,targetgreen/B,structurepurple/D} {
+  \node[blk, minimum width=1.6cm, fill=\c!25] at (1.65*\i-0.8,-1.1) {block \lab}; }
+\node[anchor=east, font=\small] at (-0.2,-2.0) {resample 2};
+\foreach \c/\lab [count=\i] in {distblue/F,distblue/F,targetgreen/B,
+  structurepurple/D,sourceblue/A,trapred/E} {
+  \node[blk, minimum width=1.6cm, fill=\c!25] at (1.65*\i-0.8,-2.0) {block \lab}; }
+\end{tikzpicture}
+\caption{Block bootstrap: the unit of resampling is a run of consecutive
+observations, so short-range dependence is kept inside each block. (Shown with
+non-overlapping blocks for clarity; the moving block version allows every
+starting point.)}
+\label{fig:bootstrap-blocks}
+\end{figure}
+
+The same logic applies to clustered data. If you have 50 users each with 20
+sessions, resample \emph{users}, not sessions. The unit you resample must be
+the unit that was sampled independently.
+
+\section{Bootstrap vs permutation: a preview}
+\label{sec:boot-perm}
+
+Section~\ref{sec:boot-two-groups} asked ``how big is the drop, give or take?''
+Chapter 9 asks a different question: ``could a drop this big appear if the
+deploy changed nothing?'' Both are answered by resampling, but differently
+(Figure~\ref{fig:bootstrap-vs-perm}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, align=center, font=\small,
+    text width=5.4cm, minimum height=1cm},
+  arr/.style={-{Stealth[length=2.5mm]}, thick},
+]
+\node[box, fill=gray!10, text width=5cm] (d) at (3.3,0) {old (40) and new (35) latencies};
+\node[box, fill=bootorange!15] (b) at (0,-1.7) {\textbf{Bootstrap}: resample each
+  group \emph{with} replacement, separately};
+\node[box, fill=structurepurple!15] (p) at (6.6,-1.7) {\textbf{Permutation}: pool all
+  75, shuffle labels, split 40/35 \emph{without} replacement};
+\node[box, fill=bootorange!15] (b2) at (0,-3.4) {spread of the difference\\
+  $\Rightarrow$ confidence interval};
+\node[box, fill=structurepurple!15] (p2) at (6.6,-3.4) {difference if labels
+  meant nothing\\$\Rightarrow$ p-value};
+\draw[arr] (d) -- (b); \draw[arr] (d) -- (p);
+\draw[arr] (b) -- (b2); \draw[arr] (p) -- (p2);
+\end{tikzpicture}
+\caption{Two resampling tools with different jobs. The bootstrap keeps the
+groups apart and measures uncertainty around the observed effect. The
+permutation test enforces ``no difference'' by shuffling labels and asks how
+unusual the observed effect is under that assumption.}
+\label{fig:bootstrap-vs-perm}
+\end{figure}
+
+\begin{connectionbox}
+The bootstrap shows up throughout machine learning. \emph{Bagging} (bootstrap
+aggregating) trains one model per bootstrap resample and averages them;
+random forests are bagged decision trees. The $\approx 37\%$ of points left out
+of each resample (the $1/e$ from Section~\ref{sec:boot-resample}) form the
+``out-of-bag'' set, a free validation set. Evaluation code that reports a
+model's accuracy ``$\pm$'' something often bootstraps the test set: resample
+test examples, recompute accuracy, take percentiles. Chapter 15 returns to
+this.
+\end{connectionbox}
+
+\begin{historybox}
+Bradley Efron, a statistician at Stanford, published ``Bootstrap methods:
+another look at the jackknife'' in 1979. The \emph{jackknife} (Maurice
+Quenouille, 1949; John Tukey, 1958) estimated bias and standard errors by
+recomputing a statistic with one observation left out at a time, but it gave
+nonsense for the median and offered no way to get a full sampling
+distribution. Efron saw that the jackknife was a crude approximation to a
+cleaner idea: treat the sample as the population and simulate. The name comes
+from the phrase ``pulling yourself up by your own bootstraps,'' since the data
+are used to assess themselves. The idea only became practical as computers got
+cheap; it unlocked standard errors and intervals for medians, correlations,
+and complex estimators that had no workable formula, and Efron's later BCa
+method (1987) made the intervals accurate enough for routine use.
+\end{historybox}
+
+\section{Choosing a method}
+\label{sec:boot-choose}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  q/.style={draw, rounded corners, fill=sourceblue!10, align=center,
+    font=\small, text width=4.8cm, minimum height=0.9cm},
+  a/.style={draw, fill=targetgreen!12, align=center, font=\small,
+    text width=4.3cm, minimum height=0.9cm},
+  w/.style={draw, fill=trapred!12, align=center, font=\small,
+    text width=4.3cm, minimum height=0.9cm},
+  arr/.style={-{Stealth[length=2mm]}, thick},
+]
+\node[q] (q1) at (0,0) {Observations independent?};
+\node[w] (blk) at (6.8,0) {block or cluster bootstrap};
+\node[q] (q2) at (0,-2.1) {Statistic is a max, min,\\or extreme quantile?};
+\node[w] (ext) at (6.8,-2.1) {bootstrap fails;\\get more data or a model};
+\node[q] (q3) at (0,-4.2) {Median or quantile\\of a single sample?};
+\node[a] (ex) at (6.8,-4.2) {exact order-statistic interval};
+\node[q] (q4) at (0,-6.3) {Has a stable SE formula\\per resample?};
+\node[a] (bt) at (6.8,-6.3) {bootstrap-t};
+\node[a] (bca) at (0,-8.4) {BCa (or percentile)};
+\draw[arr] (q1) -- node[above, font=\footnotesize] {no} (blk);
+\draw[arr] (q1) -- node[left, font=\footnotesize] {yes} (q2);
+\draw[arr] (q2) -- node[above, font=\footnotesize] {yes} (ext);
+\draw[arr] (q2) -- node[left, font=\footnotesize] {no} (q3);
+\draw[arr] (q3) -- node[above, font=\footnotesize] {yes} (ex);
+\draw[arr] (q3) -- node[left, font=\footnotesize] {no} (q4);
+\draw[arr] (q4) -- node[above, font=\footnotesize] {yes} (bt);
+\draw[arr] (q4) -- node[left, font=\footnotesize] {no} (bca);
+\end{tikzpicture}
+\caption{A decision path for a $95\%$ interval when no closed-form formula
+applies. With $n$ below about 15, read any bootstrap answer as rough.}
+\label{fig:bootstrap-decision}
+\end{figure}
+
+\section{Summary}
+\label{sec:boot-summary}
+
+\begin{itemize}
+  \item \textbf{Plug-in principle}: the empirical distribution $\hat F_n$ (each
+  data point with weight $1/n$) stands in for the unknown population.
+  \item \textbf{Resample}: draw $n$ values with replacement; compute the
+  statistic; repeat $B$ times. The replicates form the bootstrap distribution,
+  centred near $\hat\theta$, with roughly the spread and shape of the sampling
+  distribution.
+  \item \textbf{Bootstrap SE} = SD of the replicates. For the mean it
+  reproduces $\hat\sigma/\sqrt n$.
+  \item \textbf{Intervals}: percentile $[\hat\theta^*_{(.025)}, \hat\theta^*_{(.975)}]$
+  (good default); basic $[2\hat\theta - \hat\theta^*_{(.975)}, 2\hat\theta - \hat\theta^*_{(.025)}]$
+  (often worse); bootstrap-t (studentized, for statistics with a stable SE);
+  BCa (bias and skew corrected, best for smooth statistics).
+  \item \textbf{Two groups}: resample each group separately, record the
+  difference.
+  \item \textbf{Exact median CI}: $[x_{(j)}, x_{(n+1-j)}]$ with coverage
+  $1 - 2\P(K \le j-1)$, $K \sim \Bin(n, 1/2)$; for $n=20$ use $j=6$
+  ($95.86\%$). For quantile $q_p$ use $K \sim \Bin(n, p)$.
+  \item \textbf{Choose $B$} so the reported digits do not change with the seed:
+  1000 for an SE, 2000--10{,}000 for intervals.
+  \item \textbf{Failures}: tiny $n$, maxima and extreme quantiles, heavy tails,
+  dependent data (use blocks or clusters).
+  \item \textbf{Bootstrap vs permutation}: bootstrap gives intervals around an
+  effect; permutation gives p-values under ``no effect'' (Chapter 9).
+\end{itemize}
+
+Chapter 9 turns the question around: instead of ``what range of values is
+plausible?'' it asks ``is this one value, zero, plausible?'' and builds the
+machinery of hypothesis tests.
+
+\section{Exercises}
+\label{sec:boot-exercises}
+
+\begin{enumerate}
+  \item The data are $\{3, 5, 9\}$. How many distinct resamples are there,
+  counting a resample as a multiset? What is the probability that a resample's
+  median is 9?
+  \item For $n = 10$, what is the probability that a given observation is
+  absent from a resample? Compare with the limit as $n \to \infty$.
+  \item Use $\Bin(10, 1/2)$ to find the order statistics that give a
+  distribution-free CI for the median with coverage at least $95\%$, and state
+  the exact coverage.
+  \item A statistic has $\hat\theta = 10$ and bootstrap percentiles
+  $\hat\theta^*_{(0.025)} = 8$, $\hat\theta^*_{(0.975)} = 15$. Write down the
+  percentile and the basic intervals. Which side of $\hat\theta$ is longer in
+  each?
+  \item With $B = 200$ resamples you get a bootstrap SE of 5.0. Roughly how
+  much would that number change if you re-ran with a new seed? How large must
+  $B$ be to make the Monte Carlo SD about $0.05$?
+  \item Data are iid $\Unif(0, \theta)$, $n = 20$. What is the probability that
+  a bootstrap resample's maximum equals the sample maximum? What is the coverage
+  of the percentile interval for $\theta$?
+  \item What is the smallest $n$ for which the sample maximum is a one-sided
+  $95\%$ upper confidence bound for the p95?
+  \item You have 2000 user sessions from 100 users, and want a CI for mean
+  session length. What do you resample, and why?
+  \item To bootstrap the correlation between height and weight from 50 people,
+  a colleague resamples 50 heights and, independently, 50 weights. What will
+  the bootstrap distribution look like, and what is the fix?
+\end{enumerate}
+
+\subsection*{Answers}
+
+\begin{enumerate}
+  \item $\binom{3+3-1}{3} = 10$ multisets. The median is 9 when at least two of
+  three draws are 9: $3(1/3)^2(2/3) + (1/3)^3 = 7/27 \approx 0.259$.
+  \item $(0.9)^{10} = 0.349$; the limit is $1/e = 0.368$.
+  \item $\P(K \le 1) = 11/1024$, so $[x_{(2)}, x_{(9)}]$ has coverage
+  $1 - 22/1024 = 0.979$. ($[x_{(3)}, x_{(8)}]$ gives only $0.891$.)
+  \item Percentile $[8, 15]$, longer on the right (5 vs 2). Basic
+  $[20 - 15, 20 - 8] = [5, 12]$, longer on the left.
+  \item Monte Carlo SD $\approx 5.0/\sqrt{400} = 0.25$. Need
+  $5/\sqrt{2B} = 0.05$, so $2B = 10{,}000$, $B = 5000$.
+  \item $1 - 0.95^{20} = 0.642$. Coverage is $0$: every replicate is at most
+  $x_{(n)} < \theta$, so the interval lies entirely below $\theta$.
+  \item Need $1 - 0.95^n \ge 0.95$, i.e.\ $0.95^n \le 0.05$:
+  $n \ge \ln 0.05 / \ln 0.95 = 58.4$, so $n = 59$.
+  \item Resample users (all of a user's sessions together). Sessions from one
+  user are correlated; resampling sessions treats 2000 dependent values as
+  independent and gives an interval that is too narrow.
+  \item Pairing is destroyed, so replicates are correlations of unrelated
+  variables, centred near 0 with spread about $1/\sqrt{50}$. Resample whole
+  $(\text{height}, \text{weight})$ pairs.
+\end{enumerate}

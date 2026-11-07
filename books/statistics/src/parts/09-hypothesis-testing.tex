@@ -1,0 +1,1476 @@
+\chapter{Hypothesis Testing}
+\label{ch:hypothesis-testing}
+
+Chapters 7 and 8 built intervals: ranges of parameter values that are compatible
+with the data. This chapter asks a sharper, yes-or-no style question. A friend
+says her new checkout button is faster, or that she can predict coin flips, or that
+a drug lowers blood pressure. The data show \emph{some} effect. Could plain luck
+have produced it? A hypothesis test answers that by playing a game with a skeptic.
+
+\section{The skeptic's game}
+\label{sec:ht-skeptic}
+
+Here is the puzzle. Your friend claims she can predict coin flips. You flip a fair
+coin $20$ times; before each flip she calls heads or tails. She gets $16$ of the
+$20$ calls right.
+
+Is she gifted? You cannot answer that directly, because ``gifted'' is vague. Gifted
+at the level of $60\%$? $75\%$? $99\%$? Each would predict a different number of
+hits, and you have no way to pick among them. But there is one world you can describe
+exactly: the world where she has no gift at all and each call is a fair
+$50/50$ guess. Call it the \textbf{null world}, the boring world where nothing is
+going on.
+
+The skeptic's move is to say: ``Let us assume she is guessing, and see how
+surprising $16$ would be.'' In the null world, the number of correct calls is a
+count of heads in $20$ fair flips. You can simulate it. Imagine $1000$ people with
+no gift at all, each making $20$ blind guesses against $20$ coin flips and writing
+down how many they got right. Figure~\ref{fig:ht-null-world} is the histogram of
+those $1000$ scores (a real simulation with a fixed seed).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm, ybar, bar width=0.38cm,
+  xlabel={correct calls out of 20}, ylabel={number of guessers (of 1000)},
+  xmin=-0.5, xmax=20.5, ymin=0, ymax=200, xtick={0,2,...,20},
+  axis lines=left, title={The null world: 1000 people guessing at random},
+  title style={font=\small},
+]
+\addplot[fill=histfill, draw=distblue] coordinates {
+(0,0)(1,0)(2,1)(3,2)(4,3)(5,18)(6,22)(7,71)(8,115)(9,151)(10,186)
+(11,161)(12,141)(13,76)(14,30)(15,17)(16,5)(17,1)(18,0)(19,0)(20,0)};
+\end{axis}
+\end{tikzpicture}
+\caption{What ``nothing is going on'' looks like. Random guessers pile up around
+$10$ of $20$, and scores far from $10$ are rare. This picture is the
+\emph{null distribution}; it was computed without knowing anything about your friend.}
+\label{fig:ht-null-world}
+\end{figure}
+
+Now drop her score onto the picture. In Figure~\ref{fig:ht-observed} the bars at
+$16$ or more are shaded red. Only $5+1=6$ of the $1000$ random guessers did as well
+as she did.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm, ybar, bar width=0.38cm,
+  xlabel={correct calls out of 20}, ylabel={number of guessers (of 1000)},
+  xmin=-0.5, xmax=20.5, ymin=0, ymax=200, xtick={0,2,...,20},
+  axis lines=left, clip=false,
+]
+\addplot[fill=histfill, draw=distblue, bar shift=0pt] coordinates {
+(2,1)(3,2)(4,3)(5,18)(6,22)(7,71)(8,115)(9,151)(10,186)
+(11,161)(12,141)(13,76)(14,30)(15,17)};
+\addplot[fill=trapred, draw=trapred!70!black, bar shift=0pt] coordinates {(16,5)(17,1)(18,0)};
+\draw[trapred, very thick, -{Stealth}] (axis cs:16.3,98) -- (axis cs:16.3,12);
+\node[trapred, anchor=south west, font=\small, align=left] at (axis cs:15.6,100)
+  {her score: 16\\only 6 of 1000 random\\guessers did this well};
+\end{axis}
+\end{tikzpicture}
+\caption{The observed result dropped into the null world. The shaded tail (scores
+of $16$ or more) holds $6$ of $1000$ simulated guessers. That fraction, about
+$0.006$, measures how surprised a skeptic should be.}
+\label{fig:ht-observed}
+\end{figure}
+
+That fraction is the \textbf{p-value}: the share of the null world that produces a
+result at least as extreme as the one you saw. The simulation gives $0.006$. The
+exact binomial calculation (Probability From the Ground Up, Ch.~7) gives
+\[
+  \P(X \ge 16) = \sum_{k=16}^{20} \binom{20}{k} 0.5^{20}
+  = \frac{6196}{1048576} \approx 0.0059 .
+\]
+
+Now the skeptic has two choices. Either your friend really is a random guesser and
+a $1$-in-$170$ fluke just happened, or the null world is the wrong description of
+her. Most people find the second option more believable. That is the whole logic of
+a hypothesis test.
+
+\begin{intuitionbox}
+A hypothesis test is a proof by contradiction that is allowed to fail with small
+probability. In a mathematical proof you assume a statement, derive something
+impossible, and conclude the statement is false. Here you assume ``nothing is going
+on'', derive that the data you saw would be \emph{very unlikely}, and conclude that
+``nothing is going on'' is hard to believe. ``Impossible'' becomes ``improbable''.
+\end{intuitionbox}
+
+Why assume the boring hypothesis and not the exciting one? Because the boring one is
+the only one specific enough to compute with. Try drawing the exciting world, ``she
+has a gift'', and you get stuck at once: to draw a histogram you must pick a hit rate $\theta$ (theta), her
+true long-run fraction of correct calls.
+Figure~\ref{fig:ht-alt-family} draws three of the infinitely many choices.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.8cm, xlabel={correct calls out of 20}, ylabel={probability},
+  xmin=-0.5, xmax=20.5, ymin=0, ymax=0.32, xtick={0,2,...,20}, axis lines=left,
+  yticklabel style={/pgf/number format/fixed},
+  legend style={font=\footnotesize, draw=none, fill=white, at={(0.02,0.98)}, anchor=north west},
+  legend cell align=left,
+]
+\addplot[ybar, bar width=0.36cm, fill=histfill, draw=distblue, area legend] coordinates {
+(2,0.0002)(3,0.0011)(4,0.0046)(5,0.0148)(6,0.0370)(7,0.0739)(8,0.1201)(9,0.1602)
+(10,0.1762)(11,0.1602)(12,0.1201)(13,0.0739)(14,0.0370)(15,0.0148)(16,0.0046)(17,0.0011)(18,0.0002)};
+\addlegendentry{null, $\theta=0.5$: one exact picture}
+\addplot[thick, mark=*, mark size=1.3pt, targetgreen!80!black, dotted] coordinates {
+(4,0.0003)(5,0.0013)(6,0.0049)(7,0.0146)(8,0.0355)(9,0.0710)(10,0.1171)(11,0.1597)
+(12,0.1797)(13,0.1659)(14,0.1244)(15,0.0746)(16,0.0350)(17,0.0123)(18,0.0031)(19,0.0005)};
+\addlegendentry{gift, $\theta=0.6$?}
+\addplot[thick, mark=square*, mark size=1.3pt, targetgreen!80!black, dashed] coordinates {
+(7,0.0002)(8,0.0008)(9,0.0030)(10,0.0099)(11,0.0271)(12,0.0609)(13,0.1124)(14,0.1686)
+(15,0.2023)(16,0.1897)(17,0.1339)(18,0.0669)(19,0.0211)(20,0.0032)};
+\addlegendentry{gift, $\theta=0.75$?}
+\addplot[thick, mark=triangle*, mark size=1.6pt, targetgreen!80!black] coordinates {
+(11,0.0001)(12,0.0004)(13,0.0020)(14,0.0089)(15,0.0319)(16,0.0898)(17,0.1901)(18,0.2852)
+(19,0.2702)(20,0.1216)};
+\addlegendentry{gift, $\theta=0.9$?}
+\draw[trapred, thick, densely dashed] (axis cs:16,0) -- (axis cs:16,0.28);
+\node[trapred, font=\small, anchor=south] at (axis cs:16,0.28) {her 16};
+\end{axis}
+\end{tikzpicture}
+\caption{The null hypothesis is one world; ``she has a gift'' is a whole family of
+worlds. Blue bars: guessing ($\theta=0.5$). Green curves: three of the infinitely many
+gifted worlds, each a different prediction. Only the blue picture is pinned down well
+enough to measure surprise against.}
+\label{fig:ht-alt-family}
+\end{figure}
+
+``No gift'' pins $\theta$ to
+exactly $0.5$ and produces one histogram. ``Some gift'' means $\theta > 0.5$, which
+is every green curve at once and no histogram in particular. The test needs one
+concrete world in which to measure surprise, and only the null hypothesis supplies
+one. That is the asymmetry at the heart of testing: you can argue \emph{against} the
+null world by showing your data look out of place in it, but there is no single
+alternative world to argue \emph{for}.
+
+A courtroom works the same way. The defendant is presumed innocent (the null).
+The prosecution must show the evidence would be very unlikely if the defendant were
+innocent. A verdict of ``not guilty'' does not mean ``proven innocent''; it means the
+evidence was not strong enough. Hold on to that last point. It is the subject of
+Section~\ref{sec:ht-absence}.
+
+\subsection{Drawing a line in advance}
+
+Someone has to decide how small is small enough. The convention is to fix a
+threshold $\alpha$ (alpha), the \textbf{significance level}, before looking at the
+data. $\alpha$ is the fraction of the null world you are willing to call
+``surprising''. With $\alpha = 0.05$ and a one-sided test you reject the null when
+your friend's score lands in the top $5\%$ of the null world.
+
+For $20$ coin calls the counts are whole numbers, so the cut-off cannot hit $5\%$
+exactly. $\P(X\ge 14) = 0.058$ is too big, and $\P(X\ge 15) = 0.021$ fits. So the
+rule is: \emph{reject ``no gift'' if she gets $15$ or more right}.
+Figure~\ref{fig:ht-threshold} shows this rejection region with exact probabilities.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.4cm, ybar, bar width=0.38cm,
+  xlabel={correct calls out of 20}, ylabel={probability under the null},
+  xmin=-0.5, xmax=20.5, ymin=0, ymax=0.21, xtick={0,2,...,20},
+  axis lines=left, clip=false, yticklabel style={/pgf/number format/fixed},
+]
+\addplot[fill=histfill, draw=distblue, bar shift=0pt] coordinates {
+(2,0.0002)(3,0.0011)(4,0.0046)(5,0.0148)(6,0.0370)(7,0.0739)(8,0.1201)(9,0.1602)
+(10,0.1762)(11,0.1602)(12,0.1201)(13,0.0739)(14,0.0370)};
+\addplot[fill=trapred, draw=trapred!70!black, bar shift=0pt] coordinates {
+(15,0.0148)(16,0.0046)(17,0.0011)(18,0.0002)};
+\draw[densityred, dashed, thick] (axis cs:14.5,0) -- (axis cs:14.5,0.15);
+\node[densityred, anchor=south west, font=\small, align=left] at (axis cs:14.6,0.075)
+  {rejection region\\$X\ge 15$\\total $0.021\le\alpha$};
+\end{axis}
+\end{tikzpicture}
+\caption{Fixing $\alpha=0.05$ before the experiment turns the null world into a
+decision rule. Results in the red region lead to rejecting the null. If the null is
+true, this happens with probability $0.021$, never more than $\alpha$.}
+\label{fig:ht-threshold}
+\end{figure}
+
+The whole procedure fits in one storyboard (Figure~\ref{fig:ht-flow}). Every test in
+this chapter follows panels 1--5; only the statistic and the null world change.
+Panel 6 is the step the null world cannot do alone: to ask how often the test would
+catch a \emph{real} gift, you must pick one gifted world and overlay it. That
+overlay is called power, and Section~\ref{sec:ht-power} develops it.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[sbcap/.style={font=\footnotesize, align=center, text width=3.7cm, anchor=north}]
+\begin{scope}
+\draw[rounded corners, fill=sourceblue!8, draw=sourceblue] (0.05,0.1) rectangle (3.55,2.1);
+\node[font=\small, align=center] at (1.8,1.55) {Skeptic: ``she is\\just guessing''};
+\foreach \i/\s in {0/H,1/T,2/T,3/H,4/T} {
+  \draw[fill=quotientorange!25, draw=quotientorange!80!black] (0.75+\i*0.52,0.55) circle (0.2);
+  \node[font=\scriptsize] at (0.75+\i*0.52,0.55) {\s};
+}
+\node[sbcap] at (1.8,-0.4) {1. Assume nothing is going on: $H_0\colon\theta=0.5$};
+\end{scope}
+\begin{scope}[xshift=4.2cm]
+\draw (-0.1,0) -- (3.6,0);
+\foreach \k/\p in {2/0.0002,3/0.0011,4/0.0046,5/0.0148,6/0.0370,7/0.0739,8/0.1201,9/0.1602,10/0.1762,11/0.1602,12/0.1201,13/0.0739,14/0.0370,15/0.0148,16/0.0046,17/0.0011,18/0.0002}
+  \filldraw[fill=histfill, draw=distblue, line width=0.3pt] ({(\k-2)*0.19-0.075},0) rectangle ({(\k-2)*0.19+0.075},{\p*10});
+\node[font=\scriptsize, anchor=north] at (1.52,0) {10};
+\node[sbcap] at (1.8,-0.4) {2. Picture the null world: scores of pure guessers};
+\end{scope}
+\begin{scope}[xshift=8.4cm]
+\draw (-0.1,0) -- (3.6,0);
+\foreach \k/\p in {2/0.0002,3/0.0011,4/0.0046,5/0.0148,6/0.0370,7/0.0739,8/0.1201,9/0.1602,10/0.1762,11/0.1602,12/0.1201,13/0.0739,14/0.0370,15/0.0148,16/0.0046,17/0.0011,18/0.0002}
+  \filldraw[fill=histfill, draw=distblue, line width=0.3pt] ({(\k-2)*0.19-0.075},0) rectangle ({(\k-2)*0.19+0.075},{\p*10});
+\draw[trapred, very thick, -{Stealth}] (2.66,1.45) -- (2.66,0.08);
+\node[trapred, font=\scriptsize, anchor=south] at (2.66,1.45) {her 16};
+\node[font=\scriptsize, anchor=north] at (1.52,0) {10};
+\node[sbcap] at (1.8,-0.4) {3. Drop the observed result onto it};
+\end{scope}
+\begin{scope}[yshift=-3.9cm]
+\draw (-0.1,0) -- (3.6,0);
+\foreach \k/\p in {2/0.0002,3/0.0011,4/0.0046,5/0.0148,6/0.0370,7/0.0739,8/0.1201,9/0.1602,10/0.1762,11/0.1602,12/0.1201,13/0.0739,14/0.0370,15/0.0148}
+  \filldraw[fill=histfill, draw=distblue, line width=0.3pt] ({(\k-2)*0.19-0.075},0) rectangle ({(\k-2)*0.19+0.075},{\p*10});
+\foreach \k/\p in {16/0.0046,17/0.0011,18/0.0002}
+  \filldraw[fill=trapred, draw=trapred!70!black, line width=0.3pt] ({(\k-2)*0.19-0.075},0) rectangle ({(\k-2)*0.19+0.075},{\p*10});
+\draw[trapred, line width=2.5pt] (2.565,0) -- (3.515,0);
+\node[trapred, font=\scriptsize, align=center, anchor=south] at (2.9,0.55) {tail $\ge 16$\\$p=0.006$};
+\draw[trapred] (2.9,0.55) -- (2.9,0.06);
+\node[font=\scriptsize, anchor=north] at (1.52,0) {10};
+\node[sbcap] at (1.8,-0.4) {4. Shade the tail at least as extreme: its area is the p-value};
+\end{scope}
+\begin{scope}[xshift=4.2cm, yshift=-3.9cm]
+\draw (-0.1,0) -- (3.6,0);
+\foreach \k/\p in {2/0.0002,3/0.0011,4/0.0046,5/0.0148,6/0.0370,7/0.0739,8/0.1201,9/0.1602,10/0.1762,11/0.1602,12/0.1201,13/0.0739,14/0.0370}
+  \filldraw[fill=histfill, draw=distblue, line width=0.3pt] ({(\k-2)*0.19-0.075},0) rectangle ({(\k-2)*0.19+0.075},{\p*10});
+\foreach \k/\p in {15/0.0148,16/0.0046,17/0.0011,18/0.0002}
+  \filldraw[fill=trapred, draw=trapred!70!black, line width=0.3pt] ({(\k-2)*0.19-0.075},0) rectangle ({(\k-2)*0.19+0.075},{\p*10});
+\draw[densityred, dashed, thick] (2.375,0) -- (2.375,1.75);
+\draw[trapred, line width=2.5pt] (2.39,0) -- (3.515,0);
+\node[densityred, font=\scriptsize, anchor=west, align=left] at (2.45,1.2) {reject\\if $\ge 15$};
+\node[font=\scriptsize, anchor=north] at (1.52,0) {10};
+\node[sbcap] at (1.8,-0.4) {5. Fix the $\alpha$ line in advance; reject beyond it};
+\end{scope}
+\begin{scope}[xshift=8.4cm, yshift=-3.9cm]
+\draw (-0.1,0) -- (3.6,0);
+\foreach \k/\p in {2/0.0002,3/0.0011,4/0.0046,5/0.0148,6/0.0370,7/0.0739,8/0.1201,9/0.1602,10/0.1762,11/0.1602,12/0.1201,13/0.0739,14/0.0370,15/0.0148,16/0.0046,17/0.0011,18/0.0002}
+  \filldraw[fill=histfill, draw=distblue, line width=0.3pt] ({(\k-2)*0.19-0.09},0) rectangle ({(\k-2)*0.19},{\p*10});
+\foreach \k/\p in {7/0.0002,8/0.0008,9/0.0030,10/0.0099,11/0.0271,12/0.0609,13/0.1124,14/0.1686}
+  \filldraw[fill=bootorange!50, draw=bootorange, line width=0.3pt] ({(\k-2)*0.19},0) rectangle ({(\k-2)*0.19+0.09},{\p*10});
+\foreach \k/\p in {15/0.2023,16/0.1897,17/0.1339,18/0.0669,19/0.0211,20/0.0032}
+  \filldraw[fill=targetgreen!60, draw=targetgreen!60!black, line width=0.3pt] ({(\k-2)*0.19},0) rectangle ({(\k-2)*0.19+0.09},{\p*10});
+\draw[densityred, dashed, thick] (2.375,0) -- (2.375,2.15);
+\node[targetgreen!50!black, font=\scriptsize, anchor=west] at (2.45,2.25) {power $0.62$};
+\node[font=\scriptsize, anchor=north] at (1.52,0) {10};
+\node[sbcap] at (1.8,-0.4) {6. Overlay a gifted world ($\theta=0.75$): green share $=$ power};
+\end{scope}
+\end{tikzpicture}
+\caption{The logic of every hypothesis test as a storyboard. Panels 1--5 use only
+the null world: assume it, draw it, place the data, measure the tail, compare with a
+line drawn in advance. Panel 6 overlays one alternative world (orange and green bars)
+to see how often a real effect would land past the line.}
+\label{fig:ht-flow}
+\end{figure}
+
+\begin{recoverybox}
+Pause and think: if your friend had scored $13$ of $20$, what would the skeptic
+conclude? (Look at Figure~\ref{fig:ht-threshold}: $13$ sits in the blue bulk.
+$\P(X\ge 13)\approx 0.13$, so the data are unsurprising under the null and you do not
+reject. You also have not shown she lacks a gift.)
+\end{recoverybox}
+
+\section{Absence of evidence is not evidence of absence}
+\label{sec:ht-absence}
+
+Suppose a second friend makes $10$ calls and gets $6$ right, a $60\%$ hit rate. A
+third friend makes $1000$ calls and gets $600$ right, also $60\%$. Same rate. Very
+different verdicts.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=left, width=6.3cm, height=5cm, ybar, bar width=0.17cm,
+  xlabel={fraction correct}, ylabel={probability}, title={$n=10$: 6 right},
+  title style={font=\small}, xmin=-0.05, xmax=1.05, ymin=0, ymax=0.3,
+  axis lines=left, xtick={0,0.5,1}, ytick={0,0.1,0.2,0.3},
+  yticklabel style={/pgf/number format/fixed},
+]
+\addplot[fill=histfill, draw=distblue, bar shift=0pt] coordinates {
+(0,0.0010)(0.1,0.0098)(0.2,0.0439)(0.3,0.1172)(0.4,0.2051)(0.5,0.2461)};
+\addplot[fill=trapred!60, draw=trapred, bar shift=0pt] coordinates {
+(0.6,0.2051)(0.7,0.1172)(0.8,0.0439)(0.9,0.0098)(1.0,0.0010)};
+\draw[trapred, thick] (axis cs:0.6,0) -- (axis cs:0.6,0.27);
+\node[trapred, font=\footnotesize, anchor=west] at (axis cs:0.62,0.27) {$p=0.38$};
+\end{axis}
+\begin{axis}[
+  at={(left.east)}, anchor=west, xshift=1.3cm,
+  width=6.3cm, height=5cm, xlabel={fraction correct}, ylabel={density},
+  title={$n=1000$: 600 right}, title style={font=\small},
+  xmin=0.4, xmax=0.65, ymin=0, ymax=28, axis lines=left, domain=0.42:0.58,
+  samples=120, xtick={0.4,0.5,0.6},
+  xticklabel style={/pgf/number format/fixed, /pgf/number format/precision=1},
+]
+\addplot[fill=histfill, draw=distblue, thick] {25.231*exp(-(x-0.5)^2/(2*0.00025))} \closedcycle;
+\draw[trapred, thick] (axis cs:0.6,0) -- (axis cs:0.6,22);
+\node[trapred, font=\footnotesize, anchor=south] at (axis cs:0.6,22)
+  {$p\approx 10^{-10}$};
+\end{axis}
+\end{tikzpicture}
+\caption{Same observed hit rate ($60\%$), two sample sizes. With $10$ calls the null
+world is wide and $0.6$ sits inside it: no evidence either way. With $1000$ calls the
+null world is narrow and $0.6$ is far outside it. Failing to reject on the left
+says ``too little data'', not ``no gift''.}
+\label{fig:ht-absence}
+\end{figure}
+
+On the left of Figure~\ref{fig:ht-absence}, the null world for $n=10$ is so wide
+that $6$ of $10$ is utterly ordinary: $\P(X \ge 6) = 0.377$. On the right, the null
+world for $n=1000$ has standard deviation $\sqrt{0.25/1000}\approx 0.016$ on the
+fraction scale, and $0.6$ sits more than six standard deviations out.
+
+The second friend might have exactly the same skill as the third. Ten calls
+cannot tell a $60\%$ predictor from a $50\%$ guesser. To see this, run the test not
+only for the hit rate $0.5$ but for every candidate hit rate $\theta_0$, and keep
+the ones the data fail to reject (two-sided at $\alpha=0.05$, exact binomial
+probabilities, $2.5\%$ allowed in each tail). Figure~\ref{fig:ht-survivors} shows the survivors.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=10cm]
+\foreach \y/\lo/\hi/\obs/\lab in {1.5/0.262/0.878/0.6/{6 of 10}, 0/0.569/0.631/0.6/{600 of 1000}} {
+  \draw[->] (0,\y) -- (1.06,\y) node[right, font=\small] {$\theta_0$};
+  \foreach \t in {0,0.25,0.5,0.75,1} \draw (\t,\y+0.08) -- (\t,\y-0.08) node[below, font=\footnotesize] {\t};
+  \fill[targetgreen!45] (\lo,\y-0.12) rectangle (\hi,\y+0.12);
+  \draw[targetgreen!60!black] (\lo,\y-0.12) rectangle (\hi,\y+0.12);
+  \node[font=\small, anchor=east] at (-0.02,\y) {\lab};
+}
+\draw[trapred, thick, dashed] (0.5,-0.08) -- (0.5,0.35);
+\draw[trapred, thick, dashed] (0.5,1.42) -- (0.5,2.25);
+\node[trapred, font=\footnotesize, anchor=south] at (0.5,2.25) {guessing, $\theta_0=0.5$};
+\node[targetgreen!50!black, font=\footnotesize, anchor=south west] at (0.56,1.65) {not rejected: $0.26$ to $0.88$};
+\node[targetgreen!50!black, font=\footnotesize, anchor=south west] at (0.64,0.15) {not rejected: $0.57$ to $0.63$};
+\end{tikzpicture}
+\caption{Which hit rates survive the test? With $6$ of $10$ (top), every value from
+$0.26$ to $0.88$ survives, including $0.5$ and also a strong gift. Failing to reject
+$0.5$ cannot single it out. With $600$ of $1000$ (bottom) the survivors shrink to a
+narrow band that excludes $0.5$.}
+\label{fig:ht-survivors}
+\end{figure}
+
+With $6$ of $10$, guessing survives, but so does a $60\%$ gift and so does an $85\%$
+gift. The data have not picked out $0.5$; they have failed to rule out a wide range
+of worlds, and $0.5$ is one of them. Declaring ``$\theta=0.5$ is accepted'' would be
+as arbitrary as declaring ``$\theta=0.85$ is accepted''. That is why a test can
+\emph{reject} the null but never \emph{accept} it. When you fail to reject, the
+honest report is ``the data are compatible with the null'', and also with
+everything else in the green band. (The green band is a confidence interval; Section~\ref{sec:ht-duality}
+shows that this is no coincidence.) Section~\ref{sec:ht-power} turns ``too little
+data'' into a number called power.
+
+\begin{trapbox}
+``We found no significant difference, so the two versions perform the same.'' This is
+the most common misreading of a test. A large p-value from a small experiment is
+an absence of evidence. To claim two things are \emph{equal}, look at the
+confidence interval for the difference (Chapter 7): if it is narrow and sits inside a
+range you consider negligible, then you have shown equivalence.
+\end{trapbox}
+
+\section{A permutation test: the null world by shuffling}
+\label{sec:ht-permutation}
+
+Coin flips have a known null world. Most real questions do not. Here is a
+technique that builds the null world out of the data itself.
+
+An engineer rewrites the rendering path of a checkout page. She loads the page $12$
+times: $6$ with the old code, $6$ with the new, in random order. Render times in ms:
+\begin{center}
+\begin{tabular}{lcccccc|c}
+\toprule
+old & 212 & 198 & 225 & 240 & 205 & 231 & mean $218.5$\\
+new & 190 & 184 & 207 & 195 & 178 & 201 & mean $192.5$\\
+\bottomrule
+\end{tabular}
+\end{center}
+The new code is $26.0$ ms faster on average. Could the labels ``old'' and ``new'' be
+irrelevant, with the $26$ ms gap an accident of which loads happened to land in which
+group?
+
+The null hypothesis here is: \emph{the code version makes no difference to render
+time}. If that is true, each of the $12$ numbers would have come out the same no
+matter which label it got. The labels are then arbitrary tags, and any other way of
+assigning $6$ ``old'' and $6$ ``new'' tags was equally likely. So shuffle the labels
+and recompute the difference (Figure~\ref{fig:ht-shuffle}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[cell/.style={draw, minimum width=0.74cm, minimum height=0.55cm, font=\small, inner sep=1pt}]
+\node[anchor=west, font=\small] at (-0.4,0.6) {Real labels: $\bar o - \bar n = 218.5-192.5 = 26.0$};
+\foreach \v/\c [count=\i from 0] in {212/sourceblue,198/sourceblue,225/sourceblue,240/sourceblue,205/sourceblue,231/sourceblue,190/quotientorange,184/quotientorange,207/quotientorange,195/quotientorange,178/quotientorange,201/quotientorange}
+  \node[cell, fill=\c!40] at (\i*0.86,0) {\v};
+\node[anchor=west, font=\small] at (-0.4,-0.9) {Shuffle 1: $202.8-208.2 = -5.3$};
+\foreach \v/\c [count=\i from 0] in {212/sourceblue,198/quotientorange,225/sourceblue,240/quotientorange,205/sourceblue,231/quotientorange,190/sourceblue,184/sourceblue,207/quotientorange,195/quotientorange,178/quotientorange,201/sourceblue}
+  \node[cell, fill=\c!40] at (\i*0.86,-1.5) {\v};
+\node[anchor=west, font=\small] at (-0.4,-2.4) {Shuffle 2: $206.3-204.7 = 1.7$};
+\foreach \v/\c [count=\i from 0] in {212/quotientorange,198/sourceblue,225/quotientorange,240/sourceblue,205/quotientorange,231/sourceblue,190/quotientorange,184/sourceblue,207/sourceblue,195/quotientorange,178/sourceblue,201/quotientorange}
+  \node[cell, fill=\c!40] at (\i*0.86,-3.0) {\v};
+\node[cell, fill=sourceblue!40] at (0,-4.0) {};
+\node[anchor=west, font=\small] at (0.45,-4.0) {labelled ``old''};
+\node[cell, fill=quotientorange!45] at (3.6,-4.0) {};
+\node[anchor=west, font=\small] at (4.05,-4.0) {labelled ``new''};
+\end{tikzpicture}
+\caption{Shuffling labels. The twelve measurements stay put; only the colours
+(labels) move. Under the null the labels carry no information, so each shuffle is a
+draw from the null world. Shuffled differences are typically a few ms, far from $26$.}
+\label{fig:ht-shuffle}
+\end{figure}
+
+There are $\binom{12}{6} = 924$ ways to choose which $6$ of the $12$ values get the
+``old'' label. With so few, we can compute the difference for every one of them.
+Figure~\ref{fig:ht-perm-null} is the histogram of all $924$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm, ybar interval, xlabel={difference in means under shuffled labels (ms)},
+  ylabel={number of labellings}, ymin=0, ymax=150, xmin=-32, xmax=32,
+  xtick={-32,-24,...,32}, axis lines=left, clip=false,
+  x tick label as interval=false, xmajorgrids=false,
+]
+\addplot[fill=histfill, draw=distblue] coordinates {
+(-32,1)(-28,9)(-24,18)(-20,38)(-16,62)(-12,91)(-8,115)(-4,124)
+(0,123)(4,116)(8,92)(12,64)(16,39)(20,21)(24,10)(28,1)(32,1)};
+\draw[trapred, very thick] (axis cs:26,0) -- (axis cs:26,95);
+\draw[trapred, very thick, dashed] (axis cs:-26,0) -- (axis cs:-26,95);
+\node[trapred, anchor=south east, font=\small] at (axis cs:26.5,95) {observed $26.0$};
+\node[trapred, anchor=south west, font=\small] at (axis cs:-26.5,95) {mirror $-26.0$};
+\end{axis}
+\end{tikzpicture}
+\caption{The exact null distribution of the difference in means, from all $924$
+relabellings. The real difference, $26.0$ ms, sits in the far right tail. Only $5$
+labellings give a difference of $26$ or more, and $10$ give $|\text{difference}|\ge 26$.}
+\label{fig:ht-perm-null}
+\end{figure}
+
+Count the tail. Exactly $5$ of the $924$ labellings give a difference of $26.0$ or
+more, and $5$ more give $-26.0$ or less. So:
+\[
+  p_{\text{one-sided}} = \frac{5}{924} \approx 0.0054,
+  \qquad
+  p_{\text{two-sided}} = \frac{10}{924} \approx 0.011 .
+\]
+If the code change did nothing, a gap this large would show up in about $1$ random
+labelling in $90$. That is strong evidence the new code is faster.
+
+Notice what we did not need: no Normal distribution, no formula for a standard
+error, no assumption about the shape of render times. We only needed one fact: under
+the null, the labels are exchangeable (any relabelling is as likely as any other).
+That fact holds because the engineer randomized which loads used which code
+(Chapter 5).
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+old = np.array([212,198,225,240,205,231]); new = np.array([190,184,207,195,178,201])
+pooled = np.concatenate([old, new]); obs = old.mean() - new.mean()
+rng = np.random.default_rng(0); diffs = []
+for _ in range(100_000):                     # random shuffles instead of all 924
+    p = rng.permutation(pooled)
+    diffs.append(p[:6].mean() - p[6:].mean())
+print(np.mean(np.abs(diffs) >= obs))         # 0.011, two-sided p-value
+\end{lstlisting}
+
+With larger groups, enumerating every labelling is impossible
+($\binom{100}{50}\approx 10^{29}$), so you shuffle a large random sample of
+labellings instead, as in the code. The answer converges to the exact one.
+
+\section{The vocabulary, precisely}
+\label{sec:ht-vocab}
+
+Every test has the same parts. Here they are, each tied to the examples above.
+
+\begin{definition}[Hypotheses]
+The \textbf{null hypothesis} $H_0$ is a statement specific enough to determine the
+distribution of the data (or at least of a chosen statistic). The \textbf{alternative
+hypothesis} $H_1$ is what you conclude if you reject $H_0$.
+\end{definition}
+
+For the coin: $H_0\colon \theta = 0.5$ versus $H_1\colon \theta > 0.5$, where
+$\theta$ is her true hit rate. For the render times: $H_0\colon$ the code makes no
+difference; in mean-based tests this becomes $H_0\colon \mu_{\text{old}} =
+\mu_{\text{new}}$, with $H_1\colon \mu_{\text{old}} \ne \mu_{\text{new}}$.
+
+\begin{definition}[Test statistic and null distribution]
+A \textbf{test statistic} $T$ is a number computed from the data that tends to be
+larger (or further from zero) when $H_1$ is true. Its distribution assuming $H_0$ is
+the \textbf{null distribution}.
+\end{definition}
+
+The count of correct calls and the difference in group means are test statistics.
+Figures~\ref{fig:ht-null-world} and~\ref{fig:ht-perm-null} are null distributions.
+
+\begin{definition}[p-value]
+Let $t_{\text{obs}}$ be the observed value of $T$. The \textbf{p-value} is
+\[
+  p = \P_{H_0}\bigl(T \text{ is at least as extreme as } t_{\text{obs}}\bigr),
+\]
+the probability, computed in the null world, of a result at least as extreme as the
+one observed. ``Extreme'' means ``in the direction of $H_1$''.
+\end{definition}
+
+The notation $\P_{H_0}$ reads ``probability computed as if $H_0$ were true''. It is
+a reminder that the p-value is a statement about the null world, not about the
+real one.
+
+\subsection{One-sided and two-sided}
+
+``Extreme'' depends on $H_1$. If only an increase counts as evidence (the coin
+friend claims to be \emph{better} than chance), extreme means large, and the p-value
+is the area of the right tail. If either direction counts (the new code might be
+slower or faster), extreme means far from the null value on either side, and the
+p-value adds both tails.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=one, width=6.4cm, height=4.6cm, domain=-3.6:3.6, samples=100,
+  axis lines=left, ymin=0, ymax=0.48, ytick=\empty, xtick={-1.96,0,1.645},
+  xticklabels={,0,$1.645$}, title={One-sided, $\alpha=0.05$}, title style={font=\small},
+  xlabel={$z$},
+]
+\addplot[fill=trapred!60, draw=none, domain=1.645:3.6] {0.39894*exp(-0.5*x^2)} \closedcycle;
+\addplot[thick, distblue] {0.39894*exp(-0.5*x^2)};
+\node[font=\footnotesize, trapred, anchor=south] at (axis cs:2.6,0.08) {$0.05$};
+\end{axis}
+\begin{axis}[
+  at={(one.east)}, anchor=west, xshift=0.9cm,
+  width=6.4cm, height=4.6cm, domain=-3.6:3.6, samples=100,
+  axis lines=left, ymin=0, ymax=0.48, ytick=\empty, xtick={-1.96,0,1.96},
+  xticklabels={$-1.96$,0,$1.96$}, title={Two-sided, $\alpha=0.05$}, title style={font=\small},
+  xlabel={$z$},
+]
+\addplot[fill=trapred!60, draw=none, domain=1.96:3.6] {0.39894*exp(-0.5*x^2)} \closedcycle;
+\addplot[fill=trapred!60, draw=none, domain=-3.6:-1.96] {0.39894*exp(-0.5*x^2)} \closedcycle;
+\addplot[thick, distblue] {0.39894*exp(-0.5*x^2)};
+\node[font=\footnotesize, trapred, anchor=south] at (axis cs:2.75,0.07) {$0.025$};
+\node[font=\footnotesize, trapred, anchor=south] at (axis cs:-2.75,0.07) {$0.025$};
+\end{axis}
+\end{tikzpicture}
+\caption{Rejection regions for a statistic that is $\Normal(0,1)$ under $H_0$. A
+one-sided test spends all of $\alpha$ in one tail, so its cut-off ($1.645$) is
+closer to zero. A two-sided test splits $\alpha$ between both tails ($\pm 1.96$).}
+\label{fig:ht-sides}
+\end{figure}
+
+\begin{trapbox}
+Choose the sides \emph{before} seeing the data. Running a two-sided test, getting
+$p=0.08$, then switching to one-sided to get $p=0.04$ doubles your real false-alarm
+rate. The default in practice is two-sided. Use one-sided only when an effect in the
+other direction would lead to exactly the same action as no effect.
+\end{trapbox}
+
+\section{The z-test}
+\label{sec:ht-z}
+
+The permutation test built the null world by brute force. When the statistic is a
+sample mean, Chapter 6 already told us what the null world looks like: by the
+Central Limit Theorem, $\Xbar$ is approximately Normal with mean $\mu$ and standard
+error $\sigma/\sqrt{n}$. That gives a null world from a formula.
+
+\begin{example}[API latency]
+Historically, an API's response time has mean $200$ ms and standard deviation
+$\sigma = 40$ ms. After a dependency upgrade, a random sample of $n=64$ requests has
+mean $\xbar = 211$ ms. Did the mean change?
+
+\textbf{Hypotheses.} $H_0\colon \mu = 200$ versus $H_1\colon \mu \ne 200$.
+
+\textbf{Null world.} If $H_0$ holds, $\Xbar \approx \Normal(200, \SE^2)$ with
+$\SE = 40/\sqrt{64} = 5$ ms.
+
+\textbf{Statistic.} Measure the observed mean in units of standard error:
+\[
+  z = \frac{\xbar - \mu_0}{\sigma/\sqrt n} = \frac{211-200}{5} = 2.2 .
+\]
+\textbf{p-value.} Under $H_0$, $Z\sim\Normal(0,1)$, so
+\[
+  p = \P(|Z| \ge 2.2) = 2\bigl(1-\Phi(2.2)\bigr) = 2(0.0139) = 0.028,
+\]
+where $\Phi$ is the standard Normal CDF (the area to the left of a point under the
+bell curve). Since $0.028 < 0.05$, reject $H_0$ at the $5\%$ level: the
+mean latency appears to have risen.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5cm, domain=-4:4, samples=140, axis lines=left,
+  ymin=0, ymax=0.45, xlabel={$z$ (and the corresponding $\bar x$ in ms)},
+  ylabel={density under $H_0$}, xtick={-2.2,0,2.2},
+  xticklabels={$-2.2$ \small(189),{0 \small(200)},$2.2$ \small(211)}, clip=false,
+]
+\addplot[fill=trapred!60, draw=none, domain=2.2:4] {0.39894*exp(-0.5*x^2)} \closedcycle;
+\addplot[fill=trapred!60, draw=none, domain=-4:-2.2] {0.39894*exp(-0.5*x^2)} \closedcycle;
+\addplot[very thick, distblue] {0.39894*exp(-0.5*x^2)};
+\draw[trapred, thick] (axis cs:2.2,0) -- (axis cs:2.2,0.2);
+\node[trapred, anchor=south west, font=\small] at (axis cs:2.3,0.06) {$0.0139$};
+\node[trapred, anchor=south east, font=\small] at (axis cs:-2.3,0.06) {$0.0139$};
+\node[trapred, anchor=south, font=\small] at (axis cs:2.2,0.2) {observed};
+\end{axis}
+\end{tikzpicture}
+\caption{The two-sided p-value for $z=2.2$ is the total red area, $0.028$. The left
+tail counts because a drop to $189$ ms would have been equally surprising under
+$H_0\colon\mu=200$.}
+\label{fig:ht-ztail}
+\end{figure}
+
+The z-test needs $\sigma$ known. That is rare: here it came from a long history of
+the same service. Usually $\sigma$ must be estimated from the same sample, which
+changes the null world slightly. That is the t-test.
+
+\section{The one-sample t-test}
+\label{sec:ht-t1}
+
+Replace the unknown $\sigma$ by the sample standard deviation $s$ (Chapter 2):
+\[
+  t = \frac{\xbar - \mu_0}{s/\sqrt n}.
+\]
+This looks like $z$, but its null distribution is wider. The denominator $s$ is
+itself random: in some samples it comes out too small, which inflates $t$. The extra
+spread is captured by the \textbf{$t$ distribution with $n-1$ degrees of freedom},
+written $t_{n-1}$. ``Degrees of freedom'' is the $n-1$ from the variance formula: the
+number of independent deviations left after estimating the mean.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5cm, domain=-4.5:4.5, samples=150, axis lines=left,
+  ymin=0, ymax=0.43, xlabel={$t$}, ylabel={density},
+  legend style={font=\small, draw=none, fill=none}, legend pos=north east,
+]
+\addplot[very thick, distblue] {0.39894*exp(-0.5*x^2)};
+\addlegendentry{$\Normal(0,1)$}
+\addplot[thick, quotientorange] {0.38803*(1+x^2/9)^(-5)};
+\addlegendentry{$t_9$}
+\addplot[thick, trapred, dashed] {0.35355*(1+x^2/2)^(-1.5)};
+\addlegendentry{$t_2$}
+\end{axis}
+\end{tikzpicture}
+\caption{The $t$ distribution is a bell with heavier tails. With few degrees of
+freedom (small samples) extreme values are more common, so the cut-off for
+$\alpha=0.05$ is further out: $2.262$ for $t_9$ versus $1.96$ for the Normal. As
+$n$ grows, $t_{n-1}$ approaches $\Normal(0,1)$.}
+\label{fig:ht-tdist}
+\end{figure}
+
+\begin{whybox}
+If the data are $\Normal(\mu,\sigma^2)$, then $(\Xbar-\mu)/(\sigma/\sqrt n)$ is
+exactly $\Normal(0,1)$, $(n-1)s^2/\sigma^2$ has a chi-square distribution with $n-1$
+degrees of freedom, and the two are independent. A standard Normal divided by the
+square root of an independent (chi-square / its degrees of freedom) is, by
+definition, $t_{n-1}$. The $\sigma$ cancels, which is why the test needs no knowledge
+of it. (Derivation: see Probability From the Ground Up, Ch.~32.)
+\end{whybox}
+
+\begin{example}[Does the service meet its claim?]
+A vendor claims mean response time $120$ ms. You time $n=10$ requests:
+\[
+  128,\ 135,\ 119,\ 142,\ 126,\ 131,\ 124,\ 138,\ 117,\ 133 .
+\]
+\textbf{Summaries.} The sum is $1293$, so $\xbar = 129.3$. The squared deviations from
+$129.3$ sum to $584.1$, so $s^2 = 584.1/9 = 64.9$ and $s = 8.056$. The standard
+error is $s/\sqrt{10} = 2.548$.
+
+\textbf{Statistic.} $H_0\colon\mu=120$ versus $H_1\colon \mu\ne120$:
+\[
+  t = \frac{129.3 - 120}{2.548} = 3.65, \qquad \text{df} = 9 .
+\]
+\textbf{p-value.} $p = \P(|T_9| \ge 3.65) = 0.0053$. The cut-off for $\alpha=0.05$ is
+$t_{9,\,0.975}=2.262$, and $3.65$ is well past it. Reject: the true mean is very
+likely above $120$ ms.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.42cm]
+\draw[->] (0,0) -- (26.5,0) node[right, font=\small] {ms};
+\foreach \t in {115,120,...,140} {
+  \draw (\t-115,0.1) -- (\t-115,-0.1) node[below, font=\small] {\t};
+}
+\foreach \v in {128,135,119,142,126,131,124,138,117,133}
+  \fill[distblue] (\v-115,0.35) circle (2.6pt);
+\draw[trapred, thick, dashed] (5,-0.1) -- (5,1.5) node[above, font=\small] {$\mu_0 = 120$};
+\draw[targetgreen!60!black, very thick] (14.3,-0.1) -- (14.3,1.5) node[above, font=\small] {$\bar x = 129.3$};
+\draw[{Stealth}-{Stealth}, structurepurple] (5,0.95) -- (14.3,0.95);
+\node[font=\footnotesize, structurepurple, fill=white, inner sep=1pt] at (9.65,0.95) {$3.65\,\SE$};
+\end{tikzpicture}
+\caption{The ten response times, the claimed mean and the sample mean. The gap of
+$9.3$ ms is $3.65$ standard errors: large relative to how much $\bar x$ wobbles from
+sample to sample, even though it is small relative to the spread of individual
+requests.}
+\label{fig:ht-onesample}
+\end{figure}
+
+\section{Two samples: pooled and Welch t-tests}
+\label{sec:ht-t2}
+
+Return to the render times. Now test $H_0\colon \mu_{\text{old}} = \mu_{\text{new}}$
+using a formula instead of shuffles. The statistic is again
+``difference over its standard error'':
+\[
+  t = \frac{\bar x_1 - \bar x_2}{\SE(\bar x_1 - \bar x_2)} .
+\]
+The two versions of the test differ only in how they estimate that standard error.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.15cm]
+\draw[->] (0,0) -- (72,0) node[right, font=\small] {ms};
+\foreach \t in {175,185,...,245} \draw (\t-175,0.1) -- (\t-175,-0.1) node[below, font=\small] {\t};
+\foreach \v in {212,198,225,240,205,231} \fill[sourceblue] (\v-175,2.0) circle (2.8pt);
+\foreach \v in {190,184,207,195,178,201} \fill[targetgreen] (\v-175,0.6) circle (2.8pt);
+\draw[sourceblue, very thick] (43.5,1.75) -- (43.5,2.25);
+\draw[targetgreen, very thick] (17.5,0.35) -- (17.5,0.85);
+\node[anchor=east, font=\small, sourceblue] at (-0.5,2.0) {old};
+\node[anchor=east, font=\small, targetgreen!70!black] at (-0.5,0.6) {new};
+\node[anchor=south, font=\footnotesize, sourceblue] at (43.5,2.3) {$\bar x_1=218.5,\ s_1=16.2$};
+\node[anchor=south, font=\footnotesize, targetgreen!70!black] at (17.5,0.95) {$\bar x_2=192.5,\ s_2=10.7$};
+\end{tikzpicture}
+\caption{Render times by version, with group means as vertical ticks. The groups
+overlap a little, and the old group is more spread out. The t-test asks whether a
+$26$ ms gap is large compared with this within-group noise.}
+\label{fig:ht-twosample}
+\end{figure}
+
+\textbf{Pooled (Student) t-test.} Assume both groups share one variance $\sigma^2$.
+Estimate it by combining the two sample variances, weighted by their degrees of
+freedom:
+\[
+  s_p^2 = \frac{(n_1-1)s_1^2 + (n_2-1)s_2^2}{n_1+n_2-2}, \qquad
+  \SE = s_p\sqrt{\frac{1}{n_1}+\frac{1}{n_2}},
+  \qquad \text{df} = n_1+n_2-2 .
+\]
+For the render times, $s_1^2 = 261.1$ and $s_2^2 = 115.5$:
+\[
+  s_p^2 = \frac{5(261.1)+5(115.5)}{10} = 188.3, \quad
+  \SE = 13.72\sqrt{\tfrac16+\tfrac16} = 7.92, \quad
+  t = \frac{26.0}{7.92} = 3.28 .
+\]
+With $10$ degrees of freedom, $p = 0.0083$.
+
+\textbf{Welch t-test.} Drop the equal-variance assumption. Each mean has its own
+variance $s_i^2/n_i$, and variances of independent quantities add:
+\[
+  \SE = \sqrt{\frac{s_1^2}{n_1}+\frac{s_2^2}{n_2}}, \qquad
+  \text{df} \approx \frac{\left(s_1^2/n_1 + s_2^2/n_2\right)^2}
+  {\dfrac{(s_1^2/n_1)^2}{n_1-1} + \dfrac{(s_2^2/n_2)^2}{n_2-1}} .
+\]
+The odd-looking df formula (the Welch--Satterthwaite approximation) picks the $t$
+distribution whose spread best matches the actual null distribution. It always lies
+between $\min(n_1,n_2)-1$ and $n_1+n_2-2$. Here $n_1=n_2$, so the SE is again
+$\sqrt{261.1/6+115.5/6} = 7.92$ and $t = 3.28$, but df $= 8.70$, so
+$p = 0.0099$.
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Method & assumes & statistic & two-sided $p$\\
+\midrule
+Permutation (exact) & exchangeable labels & $26.0$ ms & $0.0108$\\
+Pooled t-test & Normal, equal variances & $t=3.28$, df $=10$ & $0.0083$\\
+Welch t-test & Normal & $t=3.28$, df $=8.70$ & $0.0099$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Three different routes to the null world, three nearly identical answers. The
+permutation test is a useful sanity check on the formulas, and the formulas explain
+why the permutation histogram in Figure~\ref{fig:ht-perm-null} looks like a bell.
+
+\begin{trapbox}
+Use Welch by default. When variances really are equal it loses almost nothing. When
+they are not, and the group sizes differ, the pooled test can be badly wrong
+(Section~\ref{sec:ht-robust} shows a case where its false-alarm rate is $30\%$
+instead of $5\%$). Pre-testing for equal variances and then choosing is worse than
+just using Welch.
+\end{trapbox}
+
+\section{Paired data}
+\label{sec:ht-paired}
+
+A build engineer measures a test suite's runtime (seconds) on $8$ different CI
+machines, once with the old compiler and once with the new one:
+\begin{center}
+\small
+\begin{tabular}{lcccccccc}
+\toprule
+machine & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8\\
+\midrule
+old $a_i$ & 52.1 & 61.4 & 47.8 & 70.2 & 55.6 & 66.3 & 49.9 & 58.7\\
+new $b_i$ & 50.8 & 59.9 & 47.1 & 68.1 & 54.2 & 65.0 & 48.3 & 57.9\\
+$d_i=a_i-b_i$ & 1.3 & 1.5 & 0.7 & 2.1 & 1.4 & 1.3 & 1.6 & 0.8\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Pretend for a moment these were $16$ unrelated runs and apply Welch. The means are
+$57.75$ and $56.41$, a gap of $1.34$ s. But the machines differ wildly (from $47$ s
+to $70$ s), so $s_a = 7.92$, $s_b = 7.69$, $\SE = 3.90$, $t = 0.34$, and $p=0.74$.
+No evidence of anything.
+
+Now look at the differences. Every single machine got faster, by between $0.7$ and
+$2.1$ seconds. Treat the $8$ differences as one sample and run a one-sample t-test of
+$H_0\colon \mu_d = 0$:
+\[
+  \bar d = 1.3375, \quad s_d = 0.4438, \quad
+  \SE = \frac{0.4438}{\sqrt 8} = 0.1569, \quad
+  t = \frac{1.3375}{0.1569} = 8.52, \quad \text{df}=7 .
+\]
+$p = 0.00006$. Same data, opposite conclusion. The paired analysis is the correct
+one, because the design paired each old run with a new run on the same machine.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=slope, width=5.6cm, height=6cm, xmin=-0.3, xmax=1.3, ymin=45, ymax=72,
+  xtick={0,1}, xticklabels={old,new}, ylabel={runtime (s)}, axis lines=left,
+  title={Raw runtimes, paired}, title style={font=\small},
+]
+\addplot[mark=*, mark size=1.6pt, distblue] coordinates {(0,52.1)(1,50.8)};
+\addplot[mark=*, mark size=1.6pt, distblue] coordinates {(0,61.4)(1,59.9)};
+\addplot[mark=*, mark size=1.6pt, distblue] coordinates {(0,47.8)(1,47.1)};
+\addplot[mark=*, mark size=1.6pt, distblue] coordinates {(0,70.2)(1,68.1)};
+\addplot[mark=*, mark size=1.6pt, distblue] coordinates {(0,55.6)(1,54.2)};
+\addplot[mark=*, mark size=1.6pt, distblue] coordinates {(0,66.3)(1,65.0)};
+\addplot[mark=*, mark size=1.6pt, distblue] coordinates {(0,49.9)(1,48.3)};
+\addplot[mark=*, mark size=1.6pt, distblue] coordinates {(0,58.7)(1,57.9)};
+\end{axis}
+\begin{axis}[
+  at={(slope.east)}, anchor=west, xshift=1.2cm,
+  width=6.3cm, height=6cm, xmin=-0.3, xmax=2.5, ymin=0, ymax=3.5,
+  ytick=\empty, axis x line=bottom, axis y line=none, xlabel={$d_i = a_i - b_i$ (s)},
+  title={Differences}, title style={font=\small}, clip=false,
+]
+\addplot[only marks, mark=*, mark size=2.4pt, quotientorange] coordinates {
+(0.7,0.4)(0.8,0.4)(1.3,0.4)(1.3,0.8)(1.4,0.4)(1.5,0.4)(1.6,0.4)(2.1,0.4)};
+\draw[trapred, dashed, thick] (axis cs:0,0) -- (axis cs:0,2.6) node[above, font=\footnotesize] {$H_0$: $0$};
+\draw[targetgreen!60!black, very thick] (axis cs:1.3375,1.0) -- (axis cs:1.3375,1.6);
+\node[targetgreen!60!black, font=\footnotesize, anchor=south] at (axis cs:1.3375,1.6) {$\bar d=1.34$};
+\draw[{Stealth}-{Stealth}, targetgreen!60!black] (axis cs:1.0237,1.25) -- (axis cs:1.6513,1.25);
+\node[font=\footnotesize, anchor=west, targetgreen!60!black] at (axis cs:1.67,1.25) {$\pm 2\,\SE$};
+\end{axis}
+\end{tikzpicture}
+\caption{Left: each line is one machine. Machine-to-machine differences (the vertical
+spread) are huge, but every line slopes down. Right: the differences remove the
+machine effect and cluster tightly around $1.34$ s, far from $0$.}
+\label{fig:ht-paired}
+\end{figure}
+
+\begin{whybox}
+For any two random quantities,
+\[
+  \Var(A - B) = \Var(A) + \Var(B) - 2\Cov(A,B).
+\]
+An unpaired analysis implicitly sets the covariance to zero. But a slow machine is
+slow under both compilers, so $A$ and $B$ are strongly positively correlated (here
+$r = 0.9988$). The covariance term then cancels almost all the variance:
+$7.92^2 + 7.69^2 - 2(0.9988)(7.92)(7.69) \approx 0.197 = 0.4438^2$. Pairing subtracts
+the machine effect before it can drown the compiler effect. This is why
+before/after studies, matched pairs and ``same user, both variants'' designs are so
+much more sensitive than comparing two separate groups.
+\end{whybox}
+
+\begin{recoverybox}
+Pause and think: an A/B test assigns each user to only one variant. Paired or two
+sample? (Two sample: no user appears in both groups, so there is nothing to pair.)
+\end{recoverybox}
+
+\section{Errors, significance and power}
+\label{sec:ht-power}
+
+A test ends in a decision, and a decision can be wrong in two ways.
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+ & $H_0$ true (nothing going on) & $H_0$ false (real effect)\\
+\midrule
+Reject $H_0$ & \textbf{Type I error} (false alarm), prob.\ $\alpha$ & correct, prob.\ $1-\beta$ = \textbf{power}\\
+Do not reject & correct, prob.\ $1-\alpha$ & \textbf{Type II error} (miss), prob.\ $\beta$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$\alpha$ is the false-alarm rate you chose. $\beta$ (beta) is the probability of
+missing a real effect, and \textbf{power} $=1-\beta$ is the probability of detecting
+it. Unlike $\alpha$, power is not a single number: it depends on how big the real
+effect is.
+
+To compute power you need the picture the null hypothesis alone cannot give: an
+\emph{alternative world}, as in panel 6 of Figure~\ref{fig:ht-flow}. Suppose the
+coin friend truly is right $75\%$ of the time.
+Her score is then $\Bin(20, 0.75)$. Overlay that world on the null world and keep the
+same rejection rule, $X \ge 15$ (Figure~\ref{fig:ht-coin-power}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm, xlabel={correct calls out of 20}, ylabel={probability},
+  xmin=1.5, xmax=20.5, ymin=0, ymax=0.23, xtick={2,4,...,20}, axis lines=left,
+  legend style={font=\footnotesize, draw=none, at={(0.5,-0.3)}, anchor=north}, legend columns=2,
+  yticklabel style={/pgf/number format/fixed}, clip=false,
+]
+\addplot[ybar, bar width=0.3cm, bar shift=-0.16cm, area legend, fill=histfill, draw=distblue] coordinates {
+(2,0.0002)(3,0.0011)(4,0.0046)(5,0.0148)(6,0.0370)(7,0.0739)(8,0.1201)(9,0.1602)
+(10,0.1762)(11,0.1602)(12,0.1201)(13,0.0739)(14,0.0370)};
+\addlegendentry{null $\theta=0.5$: do not reject}
+\addplot[ybar, bar width=0.3cm, bar shift=-0.16cm, area legend, fill=trapred, draw=trapred!70!black] coordinates {
+(15,0.0148)(16,0.0046)(17,0.0011)(18,0.0002)};
+\addlegendentry{null: false alarm, $\alpha=0.021$}
+\addplot[ybar, bar width=0.3cm, bar shift=0.16cm, area legend, fill=bootorange!50, draw=bootorange] coordinates {
+(7,0.0002)(8,0.0008)(9,0.0030)(10,0.0099)(11,0.0271)(12,0.0609)(13,0.1124)(14,0.1686)};
+\addlegendentry{alt.\ $\theta=0.75$: miss, $\beta=0.383$}
+\addplot[ybar, bar width=0.3cm, bar shift=0.16cm, area legend, fill=targetgreen!60, draw=targetgreen!60!black] coordinates {
+(15,0.2023)(16,0.1897)(17,0.1339)(18,0.0669)(19,0.0211)(20,0.0032)};
+\addlegendentry{alt.: detected, power $=0.617$}
+\draw[densityred, dashed, thick] (axis cs:14.5,0) -- (axis cs:14.5,0.22);
+\end{axis}
+\end{tikzpicture}
+\caption{Null world (left bars of each pair) and an alternative world where her true
+hit rate is $0.75$ (right bars). The dashed line is the rejection threshold. Red is
+the false-alarm probability; green is the power. Even a genuinely skilled friend
+fails this $20$-flip test $38\%$ of the time.}
+\label{fig:ht-coin-power}
+\end{figure}
+
+\subsection{The general picture}
+
+For a z-type statistic the two worlds are two bells. Under $H_0$ the statistic is
+$\Normal(0,1)$. Under an alternative with true effect $\delta$ it is $\Normal(\delta/\SE,
+1)$: the same bell, shifted by the effect measured in standard errors.
+Figure~\ref{fig:ht-power} shows a shift of $2.8$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm, domain=-3.5:6.5, samples=160, axis lines=left,
+  ymin=0, ymax=0.5, xlabel={test statistic $z$}, ytick=\empty,
+  xtick={0,1.96,2.8}, xticklabels={$0$,$1.96$,$2.8$}, clip=false,
+]
+\addplot[fill=bootorange!45, draw=none, domain=-1:1.96] {0.39894*exp(-0.5*(x-2.8)^2)} \closedcycle;
+\addplot[fill=targetgreen!35, draw=none, domain=1.96:6.5] {0.39894*exp(-0.5*(x-2.8)^2)} \closedcycle;
+\addplot[fill=trapred!70, draw=none, domain=1.96:3.5] {0.39894*exp(-0.5*x^2)} \closedcycle;
+\addplot[fill=trapred!70, draw=none, domain=-3.5:-1.96] {0.39894*exp(-0.5*x^2)} \closedcycle;
+\addplot[very thick, distblue] {0.39894*exp(-0.5*x^2)};
+\addplot[very thick, targetgreen!60!black] {0.39894*exp(-0.5*(x-2.8)^2)};
+\draw[densityred, dashed, thick] (axis cs:1.96,0) -- (axis cs:1.96,0.46);
+\node[distblue, font=\small, anchor=south] at (axis cs:-0.6,0.41) {$H_0$ world};
+\node[targetgreen!60!black, font=\small, anchor=south] at (axis cs:3.6,0.41) {$H_1$ world};
+\node[font=\small, anchor=west, targetgreen!50!black] at (axis cs:4.5,0.22) {power $=0.80$};
+\node[font=\small, anchor=south, bootorange!80!black] at (axis cs:1.0,0.45) {$\beta=0.20$};
+\draw[bootorange!80!black] (axis cs:1.0,0.45) -- (axis cs:1.6,0.05);
+\node[font=\small, anchor=south, trapred, align=center] at (axis cs:-2.5,0.2) {$\alpha/2=0.025$\\each tail};
+\draw[trapred] (axis cs:-2.5,0.2) -- (axis cs:-2.2,0.012);
+\end{axis}
+\end{tikzpicture}
+\caption{Two overlapping sampling distributions. Blue: the statistic if $H_0$ is true.
+Green: the statistic if the true effect is $2.8$ standard errors. Red tails: $\alpha$.
+Orange: $\beta$, the part of the $H_1$ world that falls short of the cut-off. Green
+fill: power. Moving the cut-off right lowers $\alpha$ but raises $\beta$.}
+\label{fig:ht-power}
+\end{figure}
+
+Reading the picture gives the power formula. Ignoring the tiny left tail,
+\[
+  \text{power} \approx \P\!\left(Z > z_{\alpha/2} - \frac{\delta}{\SE}\right)
+  = \Phi\!\left(\frac{\delta}{\SE} - z_{\alpha/2}\right),
+\]
+where $z_{\alpha/2}$ is the cut-off ($1.96$ for $\alpha = 0.05$). With $\delta/\SE =
+2.8$: $\Phi(2.8-1.96) = \Phi(0.84) = 0.80$. Three levers raise power:
+\begin{itemize}
+\item a larger effect $\delta$ (you rarely control this);
+\item a smaller $\SE$, which means more data ($\SE\propto 1/\sqrt n$), less noise, or
+a better design such as pairing;
+\item a larger $\alpha$ (more false alarms, the trade-off in the figure).
+\end{itemize}
+
+For comparing two groups of $n$ each with common SD $\sigma$, $\SE = \sigma\sqrt{2/n}$.
+Write the effect as $d = \delta/\sigma$, the difference in units of SD (``Cohen's
+$d$'', a scale-free effect size: $0.2$ is small, $0.5$ medium, $0.8$ large; see
+Chapter 11). Then $\delta/\SE = d\sqrt{n/2}$ and
+\[
+  \text{power} \approx \Phi\!\left(d\sqrt{n/2} - 1.96\right).
+\]
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6cm, xmin=0, xmax=200, ymin=0, ymax=1.05,
+  xlabel={sample size per group $n$}, ylabel={power}, axis lines=left,
+  legend style={font=\small}, legend pos=south east, grid=major, grid style={gray!20},
+]
+\addplot[thick, trapred] coordinates {(2,0.055) (5,0.062) (10,0.073) (15,0.085) (20,0.097) (25,0.109) (30,0.121) (40,0.145) (50,0.170) (60,0.195) (70,0.219) (80,0.244) (100,0.293) (120,0.341) (140,0.387) (160,0.432) (180,0.475) (200,0.516)};
+\addlegendentry{$d=0.2$}
+\addplot[thick, quotientorange] coordinates {(2,0.079) (5,0.124) (10,0.201) (15,0.278) (20,0.353) (25,0.424) (30,0.491) (40,0.609) (50,0.705) (60,0.782) (70,0.841) (80,0.885) (100,0.942) (120,0.972) (140,0.987) (160,0.994) (180,0.997) (200,0.999)};
+\addlegendentry{$d=0.5$}
+\addplot[thick, distblue] coordinates {(2,0.126) (5,0.244) (10,0.432) (15,0.591) (20,0.716) (25,0.807) (30,0.873) (40,0.947) (50,0.979) (60,0.992) (70,0.997) (80,0.999) (100,1.000) (120,1.000) (140,1.000) (160,1.000) (180,1.000) (200,1.000)};
+\addlegendentry{$d=0.8$}
+\draw[gray, dashed] (axis cs:0,0.8) -- (axis cs:200,0.8);
+\node[gray, font=\footnotesize, anchor=south west] at (axis cs:150,0.8) {power $0.8$};
+\draw[gray, dashed] (axis cs:0,0.05) -- (axis cs:200,0.05);
+\node[gray, font=\footnotesize, anchor=south west] at (axis cs:150,0.05) {$\alpha=0.05$};
+\end{axis}
+\end{tikzpicture}
+\caption{Power of a two-sided, two-sample test at $\alpha=0.05$ as the sample size
+grows (Normal approximation). A large effect ($d=0.8$) reaches $80\%$ power with about
+$25$ per group; a medium effect needs $63$; a small one needs about $390$. With no data at all,
+power would equal $\alpha$: you would reject only by chance.}
+\label{fig:ht-power-n}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6cm, xmin=0, xmax=1.2, ymin=0, ymax=1.05,
+  xlabel={true effect size $d$}, ylabel={power}, axis lines=left,
+  legend style={font=\small}, legend pos=south east, grid=major, grid style={gray!20},
+]
+\addplot[thick, trapred] coordinates {(0.00,0.050) (0.05,0.053) (0.10,0.062) (0.15,0.076) (0.20,0.097) (0.25,0.124) (0.30,0.158) (0.35,0.198) (0.40,0.244) (0.45,0.296) (0.50,0.353) (0.55,0.413) (0.60,0.475) (0.65,0.538) (0.70,0.600) (0.75,0.660) (0.80,0.716) (0.85,0.767) (0.90,0.812) (0.95,0.852) (1.00,0.885) (1.05,0.913) (1.10,0.936) (1.15,0.953) (1.20,0.967)};
+\addlegendentry{$n=20$ per group}
+\addplot[thick, quotientorange] coordinates {(0.00,0.050) (0.05,0.057) (0.10,0.079) (0.15,0.117) (0.20,0.170) (0.25,0.240) (0.30,0.323) (0.35,0.417) (0.40,0.516) (0.45,0.614) (0.50,0.705) (0.55,0.785) (0.60,0.851) (0.65,0.901) (0.70,0.938) (0.75,0.963) (0.80,0.979) (0.85,0.989) (0.90,0.994) (0.95,0.997) (1.00,0.999) (1.05,0.999) (1.10,1.000) (1.15,1.000) (1.20,1.000)};
+\addlegendentry{$n=50$}
+\addplot[thick, distblue] coordinates {(0.00,0.050) (0.05,0.079) (0.10,0.170) (0.15,0.323) (0.20,0.516) (0.25,0.705) (0.30,0.851) (0.35,0.938) (0.40,0.979) (0.45,0.994) (0.50,0.999) (0.55,1.000) (0.60,1.000) (0.65,1.000) (0.70,1.000) (0.75,1.000) (0.80,1.000) (0.85,1.000) (0.90,1.000) (0.95,1.000) (1.00,1.000) (1.05,1.000) (1.10,1.000) (1.15,1.000) (1.20,1.000)};
+\addlegendentry{$n=200$}
+\end{axis}
+\end{tikzpicture}
+\caption{Power curves: the probability of rejecting $H_0$ as a function of the true
+effect. At $d=0$ (the null is true) every curve equals $\alpha=0.05$. Bigger samples
+give steeper curves: $n=200$ per group detects $d=0.3$ with $85\%$ power, while $n=20$
+detects it only $16\%$ of the time.}
+\label{fig:ht-power-d}
+\end{figure}
+
+\subsection{Sample size for an A/B test}
+
+Power calculations are done \emph{before} the experiment, to decide how much data to
+collect. Here is the standard calculation.
+
+\begin{example}[How many users?]
+A checkout page converts $10\%$ of visitors. A redesign might lift that to $11\%$.
+How many users per variant do you need to detect that lift with $\alpha=0.05$
+(two-sided) and $80\%$ power?
+
+\textbf{Step 1: the SE.} With $n$ users per arm, the observed conversion rates
+$\hat p_1,\hat p_2$ have variances $p(1-p)/n$ (Chapter 6), so
+\[
+  \SE(\hat p_2-\hat p_1) = \sqrt{\frac{p_1(1-p_1) + p_2(1-p_2)}{n}} .
+\]
+\textbf{Step 2: the requirement.} From Figure~\ref{fig:ht-power}, power $1-\beta$
+requires the alternative bell to sit $z_{\alpha/2} + z_\beta$ standard errors from
+zero, where $z_\beta$ is the point with area $\beta$ above it ($0.8416$ for
+$\beta=0.2$). So $\delta/\SE = z_{\alpha/2}+z_\beta$. Solving for $n$:
+\[
+  n = \frac{(z_{\alpha/2} + z_\beta)^2\,\bigl[p_1(1-p_1)+p_2(1-p_2)\bigr]}{\delta^2}.
+\]
+\textbf{Step 3: the numbers.} $z_{\alpha/2}+z_\beta = 1.960+0.842 = 2.802$, whose
+square is $7.849$. Next, $p_1(1-p_1)+p_2(1-p_2) = 0.0900 + 0.0979 = 0.1879$, and
+$\delta^2 = 0.01^2 = 0.0001$. So
+\[
+  n = \frac{7.849 \times 0.1879}{0.0001} \approx 14{,}748 \text{ users per arm},
+\]
+about $29{,}500$ in total.
+\end{example}
+
+Two features of the formula drive every A/B planning conversation. First,
+$n\propto 1/\delta^2$: detecting a lift half as big ($0.5$ points) needs four times
+the users, about $59{,}000$ per arm. Second, the variance term $p(1-p)$ is largest
+near $50\%$, so low-conversion metrics are cheaper per user but their absolute lifts
+are tiny.
+
+\begin{lstlisting}[language=Python]
+from scipy.stats import norm
+p1, p2, alpha, power = 0.10, 0.11, 0.05, 0.80
+z = norm.ppf(1 - alpha/2) + norm.ppf(power)            # 1.960 + 0.842
+n = z**2 * (p1*(1-p1) + p2*(1-p2)) / (p2 - p1)**2
+print(round(n))                                        # 14748 per arm
+\end{lstlisting}
+
+\begin{trapbox}
+An underpowered study is not a cheap study; it is a wasted one. With $20\%$ power,
+four out of five real effects come back ``not significant'', and the ones that do
+reach significance tend to overstate the effect (only lucky, inflated estimates clear
+the bar). Always run the power calculation first.
+\end{trapbox}
+
+\begin{historybox}
+In the 1920s R.\,A.\ Fisher, working on crop experiments at Rothamsted in England,
+needed a way to say whether a fertilizer's apparent benefit could be due to chance
+variation between field plots. He introduced the p-value as a graded measure of
+surprise under a null hypothesis, and popularized $0.05$ as a convenient bar. His
+famous ``lady tasting tea'' example (1935), in which a woman claims she can tell
+whether milk was poured before the tea, is the first permutation test: count the
+ways the cups could be labelled by pure guessing. In 1933 Jerzy Neyman and Egon
+Pearson reframed testing as a decision rule. They added the alternative hypothesis,
+the two error types, and power, which made it possible to design an experiment
+with a known chance of finding an effect. Modern practice is a blend of the two
+views, which explains some of its confusions.
+\end{historybox}
+
+\section{Tests and confidence intervals are two views of one thing}
+\label{sec:ht-duality}
+
+Take the response-time data again: $\xbar = 129.3$, $\SE = 2.548$, df $=9$. The $95\%$
+confidence interval from Chapter 7 is
+\[
+  129.3 \pm 2.262 \times 2.548 = 129.3 \pm 5.76 = [123.54,\ 135.06].
+\]
+Now test $H_0\colon\mu=\mu_0$ for several values of $\mu_0$ at $\alpha=0.05$:
+
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+$\mu_0$ & $t$ & $p$ & decision\\
+\midrule
+$120$ & $3.65$ & $0.005$ & reject\\
+$125$ & $1.69$ & $0.126$ & do not reject\\
+$130$ & $-0.27$ & $0.790$ & do not reject\\
+$137$ & $-3.02$ & $0.014$ & reject\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.42cm]
+\draw[->] (0,0) -- (26.5,0) node[right, font=\small] {$\mu$ (ms)};
+\foreach \t in {115,120,...,140} \draw (\t-115,0.1) -- (\t-115,-0.1) node[below, font=\small] {\t};
+\draw[targetgreen!60!black, line width=3pt] (8.54,0.8) -- (20.06,0.8);
+\fill[targetgreen!60!black] (14.3,0.8) circle (3.5pt);
+\node[font=\small, targetgreen!50!black, anchor=south] at (14.3,1.0) {95\% CI $[123.5,\,135.1]$};
+\foreach \m/\c/\lab in {5/trapred/reject, 10/sourceblue/keep, 15/sourceblue/keep, 22/trapred/reject} {
+  \draw[\c, thick, -{Stealth}] (\m,-1.6) -- (\m,-0.75);
+  \node[\c, font=\footnotesize, anchor=north] at (\m,-1.65) {\lab};
+}
+\end{tikzpicture}
+\caption{Duality between tests and intervals. Candidate values $\mu_0=125$ and $130$
+lie inside the $95\%$ CI and are not rejected at $\alpha=0.05$; $120$ and $137$ lie
+outside and are rejected. The CI is exactly the set of null values the test would
+not reject.}
+\label{fig:ht-duality}
+\end{figure}
+
+\begin{theorem}[Duality]
+A two-sided test at level $\alpha$ rejects $H_0\colon\mu=\mu_0$ exactly when $\mu_0$ lies
+outside the $100(1-\alpha)\%$ confidence interval built from the same statistic.
+\end{theorem}
+
+\begin{whybox}
+The test does not reject when $|\xbar-\mu_0|/\SE \le t^*$, where $t^*$ is the
+cut-off. Rearranged, that is $\xbar - t^*\SE \le \mu_0 \le \xbar + t^*\SE$, which is
+the confidence interval. Same inequality, solved for a different variable.
+\end{whybox}
+
+This is why the interval is usually the better report. A p-value answers one
+question (``is $\mu=120$ plausible?''); the interval answers it for every $\mu_0$ at
+once, and also shows how big the effect is and how precisely it is known.
+
+\section{What a p-value is not}
+\label{sec:ht-not}
+
+\begin{trapbox}
+A p-value is $\P(\text{data this extreme} \mid H_0)$. It is \emph{not}:
+\begin{enumerate}
+\item \textbf{The probability that $H_0$ is true.} $p=0.03$ does not mean ``$3\%$
+chance of no effect''. That would be $\P(H_0\mid\text{data})$, a different conditional
+probability that needs a prior (Chapter 14).
+\item \textbf{The probability the result is a fluke.} Same mistake in different words.
+\item \textbf{One minus the probability that $H_1$ is true.} $p=0.01$ does not make
+the alternative $99\%$ likely.
+\item \textbf{A measure of effect size.} A trivial $0.1$ ms speedup gives a tiny p-value
+with enough data (Figure~\ref{fig:ht-absence}, right). Report the effect and its CI.
+\item \textbf{Evidence for $H_0$ when large.} $p=0.6$ means ``compatible with $H_0$'',
+not ``$H_0$ shown'' (Section~\ref{sec:ht-absence}).
+\item \textbf{A bright line.} $p=0.049$ and $p=0.051$ are essentially the same
+evidence.
+\item \textbf{The probability of replicating.} A study with $p=0.05$ has only about a
+$50\%$ chance that an exact repeat also gives $p<0.05$, if the true effect equals the
+observed one.
+\end{enumerate}
+\end{trapbox}
+
+The cleanest way to understand what a p-value \emph{is} comes from asking how it
+behaves when the null is true. Simulate $2000$ studies of $n=20$ Normal observations
+where $H_0\colon\mu=0$ holds exactly, run a t-test in each, and plot the p-values.
+Then do the same where the true mean is $0.5\sigma$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=nul, width=6.3cm, height=5cm, ybar interval, xmin=0, xmax=1, ymin=0, ymax=150,
+  xlabel={p-value}, ylabel={count (of 2000)}, title={$H_0$ true}, title style={font=\small},
+  axis lines=left, xtick={0,0.5,1}, x tick label as interval=false, xmajorgrids=false,
+  xticklabel style={/pgf/number format/fixed},
+]
+\addplot[fill=histfill, draw=distblue] coordinates {
+(0,87)(0.05,93)(0.10,96)(0.15,99)(0.20,101)(0.25,117)(0.30,96)(0.35,106)(0.40,94)(0.45,96)
+(0.50,82)(0.55,86)(0.60,120)(0.65,103)(0.70,119)(0.75,100)(0.80,107)(0.85,117)(0.90,83)(0.95,98)(1.0,98)};
+\draw[densityred, dashed, thick] (axis cs:0,100) -- (axis cs:1,100);
+\end{axis}
+\begin{axis}[
+  at={(nul.east)}, anchor=west, xshift=1.2cm,
+  width=6.3cm, height=5cm, ybar interval, xmin=0, xmax=1, ymin=0, ymax=1200,
+  xlabel={p-value}, title={True mean $0.5\sigma$}, title style={font=\small},
+  axis lines=left, xtick={0,0.5,1}, x tick label as interval=false, xmajorgrids=false,
+  xticklabel style={/pgf/number format/fixed},
+]
+\addplot[fill=targetgreen!50, draw=targetgreen!60!black] coordinates {
+(0,1102)(0.05,282)(0.10,146)(0.15,103)(0.20,69)(0.25,60)(0.30,35)(0.35,36)(0.40,30)(0.45,23)
+(0.50,21)(0.55,17)(0.60,15)(0.65,17)(0.70,10)(0.75,8)(0.80,6)(0.85,11)(0.90,4)(0.95,5)(1.0,5)};
+\end{axis}
+\end{tikzpicture}
+\caption{Left: when $H_0$ is true, p-values are uniformly spread over $[0,1]$ (about
+$100$ per bin of width $0.05$; dashed line). In theory exactly the fraction $\alpha$ of
+them fall below $\alpha$; here $87$ of $2000$ fell below $0.05$. Right: when there is a real effect, p-values pile up near $0$; the
+fraction below $0.05$ ($55\%$ here) is the power.}
+\label{fig:ht-uniform}
+\end{figure}
+
+\begin{whybox}
+Take a continuous statistic $T$ with null CDF $F$, and a right-tailed p-value
+$p = 1-F(T)$. Under $H_0$, $F(T)$ is uniform on $[0,1]$ (the probability integral
+transform: a variable plugged into its own CDF is uniform). So for any $u$,
+\[
+  \P_{H_0}(p \le u) = \P\bigl(F(T)\ge 1-u\bigr) = u .
+\]
+This is what makes $\alpha$ meaningful: ``reject when $p\le 0.05$'' raises false
+alarms in exactly $5\%$ of true-null studies. It also shows why p-values from true
+nulls are pure noise. A null study is as likely to give $p=0.04$ as $p=0.94$.
+\end{whybox}
+
+This uniformity is the root of the multiple-testing problem in Chapter 11: run
+$20$ tests of true nulls and you expect one $p<0.05$ by construction.
+
+\section{Assumptions and robustness of the t-test}
+\label{sec:ht-robust}
+
+Every t-test assumes:
+\begin{enumerate}
+\item \textbf{Independence.} Observations do not influence each other (within and,
+for two-sample tests, between groups). This is the assumption that matters most and
+cannot be fixed by a bigger sample. Repeated measurements of the same user, or
+requests sharing a cache, violate it and make $\SE$ too small.
+\item \textbf{Approximate Normality of the mean.} Exact for Normal data; otherwise
+supplied by the CLT once $n$ is large enough. How large depends on skewness.
+\item \textbf{Equal variances}, for the pooled test only. Welch drops this.
+\end{enumerate}
+
+How robust is the test to non-Normal data? Simulate it. Draw $40{,}000$ samples
+from a distribution whose true mean equals $\mu_0$, run a two-sided one-sample t-test
+at $\alpha=0.05$, and record how often it falsely rejects. A perfect test rejects
+$5\%$ of the time.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6cm, xmode=log, log basis x=2, xmin=4, xmax=200,
+  xtick={5,10,20,40,80,160}, xticklabels={5,10,20,40,80,160},
+  ymin=0, ymax=20, xlabel={sample size $n$}, ylabel={actual Type I error (\%)},
+  axis lines=left, legend style={font=\small}, legend pos=north east,
+  grid=major, grid style={gray!20},
+]
+\addplot[thick, mark=*, distblue] coordinates {(5,5.2)(10,5.0)(20,5.1)(40,4.8)(80,5.2)(160,5.1)};
+\addlegendentry{Normal data}
+\addplot[thick, mark=square*, quotientorange] coordinates {(5,11.9)(10,10.0)(20,7.9)(40,6.8)(80,5.8)(160,5.4)};
+\addlegendentry{Exponential (skewed)}
+\addplot[thick, mark=triangle*, trapred] coordinates {(5,17.9)(10,16.1)(20,13.1)(40,10.9)(80,9.0)(160,7.5)};
+\addlegendentry{Log-normal (very skewed)}
+\draw[gray, dashed] (axis cs:4,5) -- (axis cs:200,5);
+\end{axis}
+\end{tikzpicture}
+\caption{False-alarm rate of a nominal $5\%$ one-sample t-test, from simulation.
+For Normal data it is right at every $n$. For skewed data it is too high at small
+$n$ and slowly converges to $5\%$ as the CLT takes hold. Strong skew (latency-like
+data) needs well over $100$ observations.}
+\label{fig:ht-robust}
+\end{figure}
+
+The lesson for latency data, which are typically right-skewed with a long tail: a
+t-test on $10$ requests can be misleading, while a t-test on thousands is fine for
+the \emph{mean}. If the median or p99 is the real question, use the bootstrap
+(Chapter 8) or a permutation test on that statistic instead.
+
+Unequal variances combined with unequal group sizes are a sharper danger for the
+pooled test. Again by simulation ($H_0$ true, $40{,}000$ repetitions, $\alpha=0.05$):
+
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+group sizes & SDs & pooled rejects & Welch rejects\\
+\midrule
+$25,\ 25$ & $1,\ 1$ & $5.0\%$ & $5.0\%$\\
+$25,\ 25$ & $4,\ 1$ & $5.6\%$ & $5.2\%$\\
+$10,\ 40$ & $4,\ 1$ & $29.8\%$ & $5.1\%$\\
+$40,\ 10$ & $4,\ 1$ & $0.1\%$ & $5.1\%$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+When the small group has the large variance, pooling underestimates the SE (the big,
+quiet group dominates $s_p$) and the test rejects six times too often. When the large
+group has the large variance, the test becomes uselessly conservative. Welch stays at
+$5\%$ throughout.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  q/.style={draw, rounded corners, fill=structurepurple!10, align=center, font=\small, text width=3.1cm, minimum height=0.9cm},
+  a/.style={draw, rounded corners, fill=targetgreen!12, align=center, font=\small, text width=2.6cm, minimum height=0.9cm},
+  >={Stealth}, every edge quotes/.style={font=\footnotesize, auto}]
+\node[q] (q1) at (0,0) {Same units measured twice?};
+\node[a] (pair) at (4.3,0) {Paired t-test on the differences};
+\node[q] (q2) at (0,-1.7) {Comparing to a fixed value $\mu_0$?};
+\node[a] (one) at (4.3,-1.7) {One-sample t-test};
+\node[a] (welch) at (4.3,-3.4) {Welch two-sample t-test};
+\node[q] (q3) at (8.6,-1.7) {Small $n$ and heavy skew, or not the mean?};
+\node[a] (perm) at (8.6,-3.7) {Permutation test or bootstrap};
+\draw[->] (q1) edge["yes"] (pair);
+\draw[->] (q1) edge["no"] (q2);
+\draw[->] (q2) edge["yes"] (one);
+\draw[->] (q2) edge["no"] (welch);
+\draw[->, dashed] (one) -- (q3);
+\draw[->, dashed] (pair.east) -- (q3.north west);
+\draw[->, dashed] (welch.east) -- (q3.south west);
+\draw[->] (q3) edge["yes"] (perm);
+\end{tikzpicture}
+\caption{Choosing a test for a mean. Start top left. Whichever t-test you land on,
+check the robustness question on the right; if the answer is yes, switch to a
+resampling method.}
+\label{fig:ht-choose}
+\end{figure}
+
+\begin{lstlisting}[language=Python]
+from scipy import stats
+stats.ttest_1samp(x, 120)                   # t=3.65, p=0.0053
+stats.ttest_ind(old, new)                   # pooled: t=3.28, p=0.0083
+stats.ttest_ind(old, new, equal_var=False)  # Welch:  t=3.28, p=0.0099
+stats.ttest_rel(a, b)                       # paired: t=8.52, p=0.00006
+\end{lstlisting}
+
+\begin{connectionbox}
+Comparing two ML models on the same test set is a paired problem: both models see the
+same examples, so compare per-example losses (or per-fold scores) with a paired test
+or a paired bootstrap. Treating the two sets of scores as independent throws away the
+pairing and can hide a real improvement, exactly as in Section~\ref{sec:ht-paired}.
+\end{connectionbox}
+
+Chapter 10 extends these ideas from means to proportions, several groups and
+categorical tables; Chapter 11 deals with effect sizes and what happens when many
+tests are run at once.
+
+\section{Summary}
+
+\begin{center}
+\small
+\begin{tabular}{p{3.4cm}p{9.6cm}}
+\toprule
+Idea & In one line\\
+\midrule
+Null hypothesis & The ``nothing is going on'' world; chosen because it is specific enough to compute a distribution.\\
+Null distribution & What the test statistic looks like in that world (by simulation, shuffling, or formula).\\
+p-value & Fraction of the null world at least as extreme as the observed result.\\
+$\alpha$ & False-alarm rate fixed in advance; reject when $p\le\alpha$.\\
+Fail to reject & Absence of evidence, not evidence of absence.\\
+Permutation test & Shuffle labels to build the null world; needs only randomization.\\
+z-test / t-test & $(\text{estimate} - \text{null value})/\SE$, compared to $\Normal(0,1)$ or $t_{\text{df}}$.\\
+Two-sample & Welch by default: $\SE=\sqrt{s_1^2/n_1+s_2^2/n_2}$.\\
+Paired & One-sample test on differences; removes between-unit variance.\\
+Power & $1-\beta\approx\Phi(\delta/\SE - z_{\alpha/2})$; grows with effect size, $n$, $\alpha$.\\
+A/B sample size & $n=(z_{\alpha/2}+z_\beta)^2[p_1q_1+p_2q_2]/\delta^2$ per arm.\\
+Duality & Reject $\mu_0$ at level $\alpha$ $\iff$ $\mu_0$ outside the $(1-\alpha)$ CI.\\
+Under $H_0$ & p-values are uniform on $[0,1]$.\\
+Robustness & Independence is essential; skew needs large $n$; unequal variances need Welch.\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Exercises}
+
+\begin{exercise}
+IQ-style scores have $\sigma=15$. A sample of $n=36$ has $\xbar=104.5$. Test
+$H_0\colon\mu=100$ two-sided and one-sided ($H_1\colon\mu>100$). What do you conclude at
+$\alpha=0.05$ in each case?
+\end{exercise}
+
+\begin{exercise}
+Group A $=\{3,5,7\}$, group B $=\{1,2,4\}$. List the $\binom{6}{3}$ relabellings and find
+the exact one-sided permutation p-value for $\bar a-\bar b$. Why can this test never
+give $p<0.05$?
+\end{exercise}
+
+\begin{exercise}
+Five users rate an app before and after a redesign. The differences (after $-$ before)
+are $2, 4, 1, 3, 5$. Run a paired t-test of $H_0\colon\mu_d=0$ at $\alpha=0.05$.
+\end{exercise}
+
+\begin{exercise}
+You run $20$ independent tests at $\alpha=0.05$ and every null is true. What is the
+probability of at least one ``significant'' result?
+\end{exercise}
+
+\begin{exercise}
+In the A/B example ($10\%\to11\%$, $14{,}748$ per arm), by what factor does $n$ change
+if (a) you want $90\%$ power instead of $80\%$; (b) you want to detect a lift of
+$2$ points instead of $1$ (ignore the small change in $p(1-p)$)?
+\end{exercise}
+
+\begin{exercise}
+A $95\%$ CI for a mean difference is $(2.1, 5.3)$. At $\alpha=0.05$, do you reject
+$H_0\colon\delta=0$? $H_0\colon\delta=5$? Can you tell from this interval alone whether
+$H_0\colon\delta=0$ is rejected at $\alpha=0.01$?
+\end{exercise}
+
+\begin{exercise}
+A report says: ``$p=0.02$, so there is a $98\%$ chance the new feature increases
+engagement.'' Rewrite the sentence correctly.
+\end{exercise}
+
+\begin{exercise}
+In the robustness table, the pooled test rejects $29.8\%$ of the time with group
+sizes $10,40$ and SDs $4,1$. Compute $s_p$ and the pooled SE using the true SDs, compare
+with the Welch SE, and explain the inflation.
+\end{exercise}
+
+\subsection*{Answers}
+
+\begin{enumerate}
+\item $\SE=15/6=2.5$, $z=1.8$. Two-sided $p=0.072$: do not reject. One-sided
+$p=0.036$: reject. This is why sides must be fixed in advance.
+\item Over the $20$ labellings, the sum of group A takes the values
+6, 7, 8, 8, 9, 9, 10, 10, 10, 11, 11, 12, 12, 12, 13, 13, 14, 14, 15, 16.
+The observed sum is $15$; sums $\ge15$ occur $2$ times, so $p=2/20=0.10$. The smallest
+possible p-value is $1/20=0.05$, reached only by the single most extreme labelling.
+\item $\bar d=3$, $s_d=\sqrt{2.5}=1.581$, $\SE=0.707$, $t=4.24$ on $4$ df. The cut-off is
+$2.776$, and $p=0.013$: reject.
+\item $1-0.95^{20}=0.64$.
+\item (a) $(1.960+1.282)^2/(1.960+0.842)^2=10.51/7.85\approx1.34$, so about $34\%$ more
+users. (b) $n\propto1/\delta^2$, so a quarter as many: about $3{,}700$ per arm.
+\item Reject $\delta=0$ ($0$ is outside). Do not reject $\delta=5$ (inside). For
+$\alpha=0.01$ you would need the wider $99\%$ interval, which this one does not give;
+you cannot tell for sure.
+\item ``If the feature had no effect, data showing an increase this large or larger
+would occur about $2\%$ of the time.'' The probability that the feature works
+requires a prior and Bayes' rule (Chapter 14).
+\item $s_p^2=(9\cdot16+39\cdot1)/48=3.81$, $s_p=1.95$, pooled
+$\SE=1.95\sqrt{1/10+1/40}=0.690$. Welch $\SE=\sqrt{16/10+1/40}=1.275$. The pooled SE is
+about half the true one, so $|t|$ is about twice as large as it should be and the test
+rejects far too often.
+\end{enumerate}

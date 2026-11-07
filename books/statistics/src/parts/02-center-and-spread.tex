@@ -1,0 +1,1342 @@
+\chapter{Center and Spread}
+\label{ch:center-spread}
+
+A dashboard shows five request latencies from one server, in milliseconds:
+\[
+  20,\quad 22,\quad 25,\quad 28,\quad 35.
+\]
+Two questions come up immediately. What is a \emph{typical} latency? And how
+\emph{different} are the requests from each other? The first question asks for a
+measure of \textbf{center}; the second asks for a measure of \textbf{spread}. Every
+summary in this chapter answers one of those two questions, and each answer has a
+precise sense in which it is the ``right'' one. Chapter~1 drew the whole shape of a
+data set as a histogram; this chapter squeezes that shape into two or three numbers
+you can put on a dashboard.
+
+Notation: the data are $x_1, x_2, \dots, x_n$. Sorted in increasing order they are
+written $x_{(1)} \le x_{(2)} \le \dots \le x_{(n)}$. These are the \emph{order
+statistics}: $x_{(1)}$ is the smallest value, $x_{(n)}$ the largest, and the bracket
+in the subscript means ``position after sorting.''
+
+\section{The mean}
+\label{sec:center-spread-mean}
+
+\begin{definition}[Sample mean]
+The \textbf{mean} (arithmetic average) of $x_1,\dots,x_n$ is
+\[
+  \xbar = \frac{1}{n}\sum_{i=1}^n x_i .
+\]
+\end{definition}
+
+For the latencies,
+\[
+  \xbar = \frac{20+22+25+28+35}{5} = \frac{130}{5} = 26 \text{ ms}.
+\]
+No request actually took 26 ms. The mean need not be a data value; it is a
+summary, not a member.
+
+\subsection{The mean is the balance point}
+
+Put each observation as an equal weight on a weightless ruler. The ruler balances
+at exactly one place, and that place is $\xbar$. The reason is one line of algebra.
+Call $d_i = x_i - \xbar$ the \textbf{deviation} of observation $i$. Then
+\[
+  \sum_{i=1}^n d_i = \sum_{i=1}^n x_i - n\xbar = n\xbar - n\xbar = 0.
+\]
+Deviations to the left exactly cancel deviations to the right. For the latencies
+the deviations are $-6,-4,-1,+2,+9$: the left side totals $-11$ and the right side
+totals $+11$. In physics terms the total \emph{torque} (weight times signed distance
+from the pivot, the quantity that makes a seesaw tip) about $\xbar$ is zero.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.55cm,y=1cm]
+  \draw[thick] (18,0) -- (37,0);
+  \foreach \t in {18,20,...,36} {
+    \draw (\t,0) -- (\t,-0.12) node[below,font=\scriptsize] {\t};
+  }
+  \foreach \v in {20,22,25,28,35} {
+    \fill[sourceblue] (\v,0.22) circle (0.2);
+  }
+  \fill[quotientorange] (26,-0.55) -- (25.45,-1.25) -- (26.55,-1.25) -- cycle;
+  \node[quotientorange,anchor=west,font=\small] at (26.7,-0.95) {$\xbar=26$};
+  \draw[-{Stealth},trapred] (26,0.75) -- (20,0.75) node[midway,above,font=\scriptsize] {$-6$};
+  \draw[-{Stealth},trapred] (26,1.25) -- (22,1.25) node[midway,above,font=\scriptsize] {$-4$};
+  \draw[-{Stealth},trapred] (26,1.75) -- (25,1.75) node[left,font=\scriptsize] {$-1$};
+  \draw[-{Stealth},targetgreen] (26,1.25) -- (28,1.25) node[right,font=\scriptsize] {$+2$};
+  \draw[-{Stealth},targetgreen] (26,0.75) -- (35,0.75) node[midway,above,font=\scriptsize] {$+9$};
+  \draw[dashed,gray] (26,0) -- (26,2.1);
+  \node[font=\scriptsize,anchor=west] at (29.5,1.9) {left: $-11$,\; right: $+11$};
+  \node[font=\scriptsize] at (27.5,-1.85) {latency (ms)};
+\end{tikzpicture}
+\caption{The mean is where the ruler balances. Signed deviations from $\xbar=26$
+sum to zero: $-6-4-1+2+9=0$.}
+\label{fig:center-spread-balance}
+\end{figure}
+
+The balance picture explains the mean's main weakness. A weight far from the rest
+has a long lever arm. Move the 35 ms request to 180 ms and the balance point moves
+from 26 to $(20+22+25+28+180)/5 = 55$ ms, above four of the five values.
+
+\begin{recoverybox}
+Pause and think: add a sixth request that took exactly 26 ms. Where does the ruler
+balance now? (It stays at 26. The new weight sits on the pivot, so it adds no torque.)
+\end{recoverybox}
+
+\section{The median, the mode, and the trimmed mean}
+\label{sec:center-spread-median}
+
+\begin{definition}[Median]
+Sort the data. If $n$ is odd, the \textbf{median} is the middle value
+$x_{((n+1)/2)}$. If $n$ is even, it is the average of the two middle values,
+$\tfrac12\big(x_{(n/2)} + x_{(n/2+1)}\big)$.
+\end{definition}
+
+The five latencies have median $25$ (the third of five). Add a sixth request of
+180 ms. Now $n=6$, the middle pair is $25$ and $28$, and the median is $26.5$.
+The mean jumps from $26$ to $(130+180)/6 \approx 51.7$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.065cm,y=1cm]
+  \foreach \yy/\lab in {1.6/{$n=5$},0/{$n=6$}} {
+    \draw[thick] (10,\yy) -- (190,\yy);
+    \node[anchor=east,font=\small] at (8,\yy) {\lab};
+  }
+  \foreach \t in {20,40,...,180} {
+    \draw (\t,0) -- (\t,-0.1) node[below,font=\scriptsize] {\t};
+  }
+  \foreach \v in {20,22,25,28,35} {
+    \fill[sourceblue] (\v,1.75) circle (1.3pt);
+    \fill[sourceblue] (\v,0.15) circle (1.3pt);
+  }
+  \fill[trapred] (180,0.15) circle (1.3pt);
+  \draw[targetgreen,thick] (25,1.35) -- (25,2.15);
+  \node[targetgreen,font=\scriptsize,anchor=south] at (21,2.15) {median 25};
+  \draw[quotientorange,thick] (26,1.35) -- (26,2.15);
+  \node[quotientorange,font=\scriptsize,anchor=south west] at (30,1.95) {mean 26};
+  \draw[targetgreen,thick] (26.5,-0.25) -- (26.5,0.55);
+  \node[targetgreen,font=\scriptsize,anchor=south] at (26.5,0.55) {median 26.5};
+  \draw[quotientorange,thick] (51.7,-0.25) -- (51.7,0.55);
+  \node[quotientorange,font=\scriptsize,anchor=west] at (53,0.45) {mean 51.7};
+  \node[font=\scriptsize] at (100,-0.75) {latency (ms)};
+\end{tikzpicture}
+\caption{One slow request (red, 180 ms) drags the mean from 26 to 51.7 ms, past
+five of the six values. The median barely moves, from 25 to 26.5.}
+\label{fig:center-spread-median-outlier}
+\end{figure}
+
+The median ignores \emph{how far} the extreme values are. It only uses their
+\emph{rank}. That is why ``p50 latency'' (the 50th percentile: half of requests are faster) on a
+monitoring dashboard is the median: a
+single pathological request cannot distort it.
+
+\begin{definition}[Mode]
+The \textbf{mode} is the most frequent value.
+\end{definition}
+
+The mode is the only center that works for categorical data. In a log of HTTP
+status codes $200, 200, 404, 200, 500, 200, 404$ the mode is $200$. A mean of
+status codes is meaningless. For continuous measurements every value is usually
+distinct, so the mode is read off a histogram as the tallest bar (the ``modal
+class''), and a distribution with two clear peaks is called \textbf{bimodal}.
+
+\begin{definition}[Trimmed mean]
+The \textbf{$\alpha$-trimmed mean} sorts the data, deletes the $\lfloor \alpha n\rfloor$
+smallest and $\lfloor \alpha n \rfloor$ largest values, and averages what remains.
+\end{definition}
+
+The $0\%$ trimmed mean is the ordinary mean. Trimming just under $50\%$ from each
+end leaves only the middle and gives the median. A trimmed mean sits between the
+two: it uses the magnitudes of most of the data but discards the extremes.
+Olympic diving and figure-skating scores use exactly this rule.
+
+\section{Mean versus median: skew and outliers}
+\label{sec:center-spread-skew}
+
+\begin{example}[Salaries at a small company]
+Ten employees earn, in thousands of dollars per year,
+\[
+  40,\ 45,\ 48,\ 50,\ 52,\ 55,\ 58,\ 60,\ 65,\ 900.
+\]
+The last salary is the founder's. The sum is $473 + 900 = 1373$, so
+\[
+  \xbar = 137.3, \qquad \Med = \frac{52+55}{2} = 53.5 .
+\]
+Nine of the ten people earn less than the mean. The $10\%$ trimmed mean drops one
+value from each end (the 40 and the 900) and averages the remaining eight:
+$433/8 = 54.125$. Without the founder the mean would be $473/9 \approx 52.6$ and
+the median $52$.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.5cm, height=3.6cm,
+  xmin=0, xmax=1000, ymin=-0.5, ymax=2.2,
+  axis y line=none, axis x line=bottom,
+  xlabel={salary (\$ thousands)},
+  xtick={0,100,...,1000}, tick label style={font=\scriptsize},
+  clip=false,
+]
+\addplot[only marks, mark=*, mark size=2pt, sourceblue]
+  coordinates {(40,0.2)(45,0.45)(48,0.7)(50,0.95)(52,1.2)(55,0.2)(58,0.45)(60,0.7)(65,0.95)(900,0.2)};
+\draw[targetgreen,thick] (axis cs:53.5,0) -- (axis cs:53.5,1.7);
+\node[targetgreen,font=\scriptsize,anchor=south] at (axis cs:53.5,1.7) {median 53.5};
+\draw[quotientorange,thick] (axis cs:137.3,0) -- (axis cs:137.3,1.7);
+\node[quotientorange,font=\scriptsize,anchor=south west] at (axis cs:137.3,1.2) {mean 137.3};
+\node[trapred,font=\scriptsize,anchor=south] at (axis cs:900,0.4) {founder};
+\end{axis}
+\end{tikzpicture}
+\caption{Salaries at a ten-person company (points stacked to avoid overlap). One
+large value puts the mean far to the right of where nine people actually are. The
+median stays inside the cluster.}
+\label{fig:center-spread-salary}
+\end{figure}
+
+Which number is ``correct''? Both, for different questions. If the company wants
+to know its total payroll, the mean answers it: total $= n\xbar = 1373$. If a job
+candidate wants to know what a typical employee earns, the median answers it. The
+mean is the right summary for \emph{totals}; the median is the right summary for
+\emph{a typical individual}.
+
+\subsection{Skew moves the mean toward the tail}
+
+A distribution is \textbf{right-skewed} (positively skewed) if it has a long tail to
+the right: incomes, house prices, latencies, file sizes, city populations. The tail
+values pull the mean right while the median stays with the bulk. The typical
+ordering is
+\[
+  \text{mode} < \text{median} < \text{mean} \qquad\text{(right skew)},
+\]
+reversed for left skew (exam scores with a ceiling, age at death in rich countries).
+For a symmetric distribution all three coincide.
+
+\begin{recoverybox}
+Pause and think: a news story reports that the mean house price in a city is
+\$620{,}000 and the median is \$450{,}000. Which way is the distribution skewed, and
+roughly what share of houses sell for less than \$620{,}000? (Right-skewed; more than
+half, since the median is below the mean.)
+\end{recoverybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=5.6cm,
+  domain=0:8, samples=120,
+  xmin=0, xmax=8, ymin=0, ymax=0.48,
+  axis lines=left, xlabel={value}, ylabel={density},
+  tick label style={font=\scriptsize}, clip=false,
+]
+\addplot[fill=histfill!50, draw=distblue, thick] {x*exp(-x)} \closedcycle;
+\draw[structurepurple,thick] (axis cs:1,0) -- (axis cs:1,0.368);
+\draw[targetgreen,thick] (axis cs:1.678,0) -- (axis cs:1.678,0.314);
+\draw[quotientorange,thick] (axis cs:2,0) -- (axis cs:2,0.271);
+\node[structurepurple,font=\scriptsize,anchor=south] at (axis cs:1,0.375) {mode 1};
+\draw[targetgreen] (axis cs:1.678,0.30) -- (axis cs:3.2,0.36) node[anchor=west,font=\scriptsize] {median 1.68};
+\draw[quotientorange] (axis cs:2,0.25) -- (axis cs:3.5,0.27) node[anchor=west,font=\scriptsize] {mean 2};
+\node[font=\scriptsize,anchor=west] at (axis cs:4.3,0.09) {long right tail pulls the mean};
+\end{axis}
+\end{tikzpicture}
+\caption{A right-skewed density curve, $f(x)=xe^{-x}$ (area under the curve between
+two values is the share of data between them). The peak
+(mode) is at 1, half the area lies left of 1.68 (median), and the balance point
+(mean) is at 2. The tail drags the mean furthest.}
+\label{fig:center-spread-skew}
+\end{figure}
+
+\begin{trapbox}
+``The average household income is \$X'' does not say which center was used. If it
+is a mean, then because incomes are right-skewed, well over half of households earn
+less than \$X. When a distribution is skewed, ask which center was used. Government statistics on
+income and house prices usually report the median for this reason.
+\end{trapbox}
+
+\subsection{Robustness and the breakdown point}
+
+How much bad data can a statistic absorb before it becomes useless? Keep the nine
+ordinary salaries and let the founder's salary $v$ grow. The median stays at
+$53.5$ for every $v \ge 55$. The mean is $(473+v)/10$, which grows without bound.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5.4cm,
+  xmin=50, xmax=1000, ymin=0, ymax=160,
+  axis lines=left,
+  xlabel={founder's salary $v$ (\$ thousands)}, ylabel={summary value},
+  legend pos=north west, legend style={font=\scriptsize},
+  tick label style={font=\scriptsize},
+]
+\addplot[quotientorange, very thick, domain=65:1000] {(473+x)/10};
+\addlegendentry{mean $=(473+v)/10$}
+\addplot[targetgreen, very thick, domain=65:1000] {53.5};
+\addlegendentry{median $=53.5$}
+\addplot[structurepurple, very thick, dashed, domain=65:1000] {54.125};
+\addlegendentry{10\% trimmed mean}
+\end{axis}
+\end{tikzpicture}
+\caption{One contaminated value. The mean is a straight line in $v$ and can be made
+as large as you like. The median ($53.5$) and the trimmed mean ($54.1$) are flat and
+nearly on top of each other: no single value can move them far.}
+\label{fig:center-spread-breakdown}
+\end{figure}
+
+\begin{definition}[Breakdown point]
+The \textbf{breakdown point} of a statistic is the smallest fraction of the data
+that, if replaced by arbitrary values, can make the statistic arbitrarily large.
+\end{definition}
+
+\begin{itemize}
+  \item \textbf{Mean:} one bad value out of $n$ suffices, so the breakdown point is
+  $1/n$, which tends to $0$.
+  \item \textbf{Median:} you must corrupt half the data to drag the middle value
+  away. Breakdown point $\approx 50\%$, the maximum possible.
+  \item \textbf{$\alpha$-trimmed mean:} the trimming absorbs up to $\alpha n$ bad
+  values at each end. Breakdown point $\approx \alpha$.
+\end{itemize}
+
+A statistic with a high breakdown point is called \textbf{robust}. Robustness has a
+price: the median throws away the magnitudes of most observations, so for clean,
+symmetric, bell-shaped data it is noisier than the mean: from sample to sample its
+standard deviation is about $25\%$ larger (Chapter~6 shows this by simulation). Choose the mean when
+the data are clean and you care about totals; choose the median when outliers or
+heavy tails are plausible.
+
+\section{Deviations, variance, and standard deviation}
+\label{sec:center-spread-variance}
+
+Two servers can share a mean latency of 26 ms while one is steady and the other
+erratic. Spread measures how far observations typically sit from the center.
+
+The natural starting point is the deviations $d_i = x_i - \xbar$. Their average is
+useless: it is always $0$ (Section~\ref{sec:center-spread-mean}). Positive and
+negative deviations cancel. Two fixes remove the signs: take absolute values, or
+square. Squaring gives the variance.
+
+\begin{definition}[Sample variance and standard deviation]
+\[
+  s^2 = \frac{1}{n-1}\sum_{i=1}^n (x_i - \xbar)^2, \qquad s = \sqrt{s^2}.
+\]
+$s^2$ is the \textbf{sample variance}; $s$ is the \textbf{sample standard
+deviation} (SD). The divisor $n-1$ is explained in
+Section~\ref{sec:center-spread-bessel}.
+\end{definition}
+
+\subsection{A worked table}
+
+Build $s$ for the five latencies column by column.
+
+\begin{center}
+\begin{tabular}{c c r r}
+\toprule
+$i$ & $x_i$ (ms) & $d_i = x_i - 26$ & $d_i^2$ \\
+\midrule
+1 & 20 & $-6$ & 36 \\
+2 & 22 & $-4$ & 16 \\
+3 & 25 & $-1$ & 1 \\
+4 & 28 & $+2$ & 4 \\
+5 & 35 & $+9$ & 81 \\
+\midrule
+sum & 130 & $0$ & 138 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{enumerate}
+  \item Mean: $\xbar = 130/5 = 26$.
+  \item Deviations: subtract 26. Check that they sum to $0$.
+  \item Square each deviation and add: $\sum d_i^2 = 138$ (the \textbf{sum of
+  squares}).
+  \item Divide by $n-1 = 4$: $s^2 = 138/4 = 34.5 \text{ ms}^2$.
+  \item Take the square root: $s = \sqrt{34.5} \approx 5.87$ ms.
+\end{enumerate}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.55cm,y=0.55cm]
+  \draw[thick] (17,0) -- (37,0);
+  \foreach \t in {18,20,...,36} \draw (\t,0) -- (\t,-0.2) node[below,font=\scriptsize] {\t};
+  \draw[dashed,quotientorange] (26,-0.2) -- (26,9.6) node[above,font=\scriptsize] {$\xbar=26$};
+  \fill[trapred!25,draw=trapred] (20,0) rectangle (26,6);
+  \fill[trapred!45,draw=trapred] (22,0) rectangle (26,4);
+  \fill[trapred!70,draw=trapred] (25,0) rectangle (26,1);
+  \fill[targetgreen!30,draw=targetgreen] (26,0) rectangle (35,9);
+  \fill[targetgreen!60,draw=targetgreen] (26,0) rectangle (28,2);
+  \foreach \v in {20,22,25,28,35} \fill[sourceblue] (\v,0) circle (0.18);
+  \node[font=\scriptsize] at (21.1,5.4) {36};
+  \node[font=\scriptsize] at (23,3.4) {16};
+  \node[font=\scriptsize,anchor=south] at (25.5,1) {1};
+  \node[font=\scriptsize] at (27,1) {4};
+  \node[font=\scriptsize] at (31.5,6) {81};
+  \node[font=\scriptsize,anchor=west] at (29,2.5) {total area $=138$};
+\end{tikzpicture}
+\caption{Each squared deviation is the area of a square whose side is the distance
+from a point to the mean (left squares red, right squares green; they overlap near
+the mean). The variance is the total area, $138$, divided by $n-1=4$. The 35 ms
+point alone contributes $81/138 \approx 59\%$ of it.}
+\label{fig:center-spread-squares}
+\end{figure}
+
+The squares make one fact obvious: squaring weights large deviations heavily. A
+point twice as far from the mean contributes four times as much. So the variance
+and SD are \emph{not} robust: their breakdown point is $1/n$, like the mean. The
+salary data have $s \approx 268$ thousand with the founder and $s \approx 7.8$
+thousand without.
+
+\begin{intuitionbox}
+Variance is in squared units (ms$^2$, dollars$^2$), which no one can picture. The
+square root returns to the original units. Read $s \approx 5.9$ ms as ``a typical
+request is roughly 6 ms from the average.'' It is not exactly the average distance
+(that would be the mean absolute deviation, $22/5 = 4.4$ ms here); squaring then
+rooting gives extra weight to the far points.
+\end{intuitionbox}
+
+A useful shortcut for hand computation expands the square:
+\[
+  \sum (x_i - \xbar)^2 = \sum x_i^2 - n\xbar^2 .
+\]
+For the latencies, $\sum x_i^2 = 400+484+625+784+1225 = 3518$ and
+$n\xbar^2 = 5\cdot 676 = 3380$, giving $138$ again. On a computer, avoid this
+form: when $\xbar$ is large compared with $s$, the two big numbers nearly cancel and
+floating-point error destroys the answer.
+
+\section{Why divide by $n-1$?}
+\label{sec:center-spread-bessel}
+
+Dividing by $n$ would seem natural: the variance is ``the average squared
+deviation.'' Indeed the \textbf{population variance} of a finite population of $N$
+values with mean $\mu$ is
+\[
+  \sigma^2 = \frac{1}{N}\sum_{j=1}^N (x_j - \mu)^2 .
+\]
+Here the \textbf{population} is the whole collection we care about (every request
+the server will ever handle), $\mu$ is its mean, and $\sigma^2$ is its average
+squared distance from $\mu$. A \textbf{sample} is the handful of values we actually
+see. The goal is to guess $\sigma^2$ from the sample.
+
+The catch: we do not know $\mu$. We measure distances from $\xbar$ instead, and
+$\xbar$ was computed from the same points we are measuring. It sits in the middle of
+\emph{these} points, wherever they happen to fall, so they always look a little
+closer to their center than they really are to the true center. Take the most
+extreme case, two points. Their mean sits exactly halfway between them, so each is
+half the gap away from it. The true mean $\mu$ is usually somewhere else, and then at
+least one of the two points is more than half the gap from $\mu$. Distances from
+$\xbar$ come out too small, every time, in the same direction. The rest of this
+section measures exactly how much too small, and shows that the cure is to divide
+by $n-1$.
+
+\subsection{The sample mean hugs its own data}
+
+Define the sum of squares about an arbitrary point $c$:
+\[
+  S(c) = \sum_{i=1}^n (x_i - c)^2 .
+\]
+Write $x_i - c = (x_i - \xbar) + (\xbar - c)$ and expand:
+\[
+  S(c) = \sum (x_i-\xbar)^2 + 2(\xbar - c)\underbrace{\sum (x_i - \xbar)}_{=\,0}
+         + n(\xbar - c)^2
+       = S(\xbar) + n(\xbar - c)^2 .
+\]
+So $S(c)$ is a parabola in $c$ with minimum exactly at $c = \xbar$. Whatever the true
+mean $\mu$ is, $S(\mu) \ge S(\xbar)$, with a gap of $n(\xbar-\mu)^2$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10.5cm, height=5.8cm,
+  domain=19:33, samples=100,
+  xmin=19, xmax=33, ymin=60, ymax=420,
+  axis lines=left, xlabel={center $c$ (ms)}, ylabel={$S(c)=\sum(x_i-c)^2$},
+  tick label style={font=\scriptsize}, clip=false,
+]
+\addplot[distblue, thick] {138 + 5*(26-x)^2};
+\addplot[only marks, mark=*, quotientorange] coordinates {(26,138)};
+\addplot[only marks, mark=*, trapred] coordinates {(24,158)};
+\draw[dashed,gray] (axis cs:19,138) -- (axis cs:33,138);
+\draw[trapred,thick,{Stealth}-{Stealth}] (axis cs:24,140) -- (axis cs:24,156);
+\node[trapred,font=\scriptsize,anchor=west] at (axis cs:19.3,112) {red: $S(\mu)=158$ if $\mu=24$; gap $n(\xbar-\mu)^2=20$};
+\node[quotientorange,font=\scriptsize,anchor=west] at (axis cs:19.3,82) {orange: minimum $S(\xbar)=138$ at $c=\xbar=26$};
+\end{axis}
+\end{tikzpicture}
+\caption{For the latency data, $S(c)=138+5(26-c)^2$. The sum of squares about
+$\xbar$ is the smallest possible. If the true mean were $\mu=24$, the sum of squares
+about $\mu$ would be $158$. Using $\xbar$ in place of $\mu$ can only make the sum
+smaller, never larger.}
+\label{fig:center-spread-hug}
+\end{figure}
+
+The identity has a plain reading. The squared distances to the true center equal
+the squared distances to the sample's own center, \emph{plus} $n$ times the squared
+distance between the two centers. That extra term is exactly what $\xbar$ hides.
+
+\subsection{Every possible sample, listed}
+
+Before any algebra, here is the bias in a case small enough to check by hand. A
+population has three equally common values, $0$, $3$ and $6$. Its mean is $\mu=3$
+and its variance is
+\[
+  \sigma^2 = \tfrac13\big((0-3)^2 + (3-3)^2 + (6-3)^2\big) = \tfrac13(9+0+9) = 6 .
+\]
+Draw a sample of $n=2$ values, each drawn independently (so the same value can come
+up twice). There are $3\times 3 = 9$ equally likely ordered samples. For each one,
+compute the sum of squares about the true $\mu=3$ and about the sample's own mean.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{c c c c c}
+\toprule
+sample & $\xbar$ & $\sum (x_i-\mu)^2$ & $\sum (x_i-\xbar)^2$ & gap $2(\xbar-\mu)^2$ \\
+\midrule
+$0,0$ & $0$   & 18 & 0    & 18 \\
+$0,3$ & $1.5$ & 9  & 4.5  & 4.5 \\
+$0,6$ & $3$   & 18 & 18   & 0 \\
+$3,0$ & $1.5$ & 9  & 4.5  & 4.5 \\
+$3,3$ & $3$   & 0  & 0    & 0 \\
+$3,6$ & $4.5$ & 9  & 4.5  & 4.5 \\
+$6,0$ & $3$   & 18 & 18   & 0 \\
+$6,3$ & $4.5$ & 9  & 4.5  & 4.5 \\
+$6,6$ & $6$   & 18 & 0    & 18 \\
+\midrule
+average & $3$ & $12 = n\sigma^2$ & $6 = (n-1)\sigma^2$ & $6 = \sigma^2$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Read the bottom row. Measured from the true center, the sum of squares averages
+$12 = 2\sigma^2$, so dividing by $n=2$ would be exactly right. Measured from $\xbar$,
+it averages only $6$. In no row is it larger than the true-center column, and in
+six of the nine rows it is smaller. Dividing by $n=2$ gives an average estimate of $3$, half
+the truth. Dividing by $n-1=1$ gives $6$, exactly the truth.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1.1cm,y=0.9cm]
+  \foreach \yy/\lab in {2/{sample $0,6$},1/{sample $0,3$},0/{sample $0,0$}} {
+    \draw[gray] (-0.5,\yy) -- (6.5,\yy);
+    \node[anchor=east,font=\scriptsize] at (-0.6,\yy) {\lab};
+  }
+  \foreach \t in {0,3,6} \node[font=\scriptsize] at (\t,-0.55) {\t};
+  \draw[dashed,structurepurple] (3,-0.3) -- (3,2.45);
+  \node[structurepurple,font=\scriptsize,anchor=south] at (3,2.45) {true $\mu=3$};
+  \fill[sourceblue] (0,2) circle (0.09);
+  \fill[sourceblue] (6,2) circle (0.09);
+  \fill[quotientorange] (3,2) -- ++(-0.1,-0.17) -- ++(0.2,0) -- cycle;
+  \node[font=\scriptsize,anchor=west] at (6.7,2) {from $\xbar$: $18$; from $\mu$: $18$};
+  \fill[sourceblue] (0,1) circle (0.09);
+  \fill[sourceblue] (3,1) circle (0.09);
+  \fill[quotientorange] (1.5,1) -- ++(-0.1,-0.17) -- ++(0.2,0) -- cycle;
+  \node[font=\scriptsize,anchor=west] at (6.7,1) {from $\xbar$: $4.5$; from $\mu$: $9$};
+  \fill[sourceblue] (0,0.12) circle (0.09);
+  \fill[sourceblue] (0,-0.12) circle (0.09);
+  \fill[quotientorange] (0.35,0) -- ++(-0.1,-0.17) -- ++(0.2,0) -- cycle;
+  \node[font=\scriptsize,anchor=west] at (6.7,0) {from $\xbar$: $0$; from $\mu$: $18$};
+\end{tikzpicture}
+\caption{Three of the nine samples from the population $\{0,3,6\}$ (blue dots; the
+orange triangle marks $\xbar$, drawn just right of the dots in the bottom row where
+it coincides with them). When the sample happens to straddle $\mu$, nothing is lost.
+When it lands to one side, $\xbar$ follows it and the spread seems to shrink, in the
+bottom row all the way to zero.}
+\label{fig:center-spread-enumerate}
+\end{figure}
+
+\subsection{The derivation}
+
+Now do the same bookkeeping for any population and any $n$. Three words first.
+An \textbf{estimator} is a recipe that turns a sample into a guess for an unknown
+population number, such as ``divide the sum of squares by $n$.'' Because the sample
+is random, the guess is random too. Its \textbf{expectation}, written $\E[\cdot]$, is
+the long-run average of the guess over many repeated samples, exactly the
+``average'' row of the table above. The \textbf{variance} of a random quantity,
+$\Var(\cdot)$, is the expectation of its squared distance from its own expectation.
+
+Treat the data as random: $X_1,\dots,X_n$ independent, each with mean $\mu$ and
+variance $\sigma^2$ (capital letters mark values not yet drawn). Apply the identity
+with $c=\mu$ and rearrange:
+\[
+  \sum_{i=1}^n (X_i - \Xbar)^2 = \sum_{i=1}^n (X_i - \mu)^2 - n(\Xbar - \mu)^2 .
+\]
+Take expectations of each term. (Expectation of a sum is the sum of expectations.)
+\begin{itemize}
+  \item $\E\big[(X_i - \mu)^2\big] = \sigma^2$ by definition of variance, so the first
+  sum has expectation $n\sigma^2$.
+  \item $\E\big[(\Xbar-\mu)^2\big] = \Var(\Xbar)$, because $\Xbar$ has expectation
+  $\mu$. For independent values, variances add, so $\Var(X_1+\dots+X_n) = n\sigma^2$.
+  Dividing a quantity by $n$ divides its variance by $n^2$, so
+  $\Var(\Xbar) = n\sigma^2/n^2 = \sigma^2/n$. (Chapter~6 builds this result
+  carefully; Probability From the Ground Up proves that variances of independent
+  values add.) So the second term has expectation $n \cdot \sigma^2/n = \sigma^2$.
+\end{itemize}
+Therefore
+\[
+  \E\Big[\sum_{i=1}^n (X_i - \Xbar)^2\Big] = n\sigma^2 - \sigma^2 = (n-1)\sigma^2 .
+\]
+In the table: $n\sigma^2 = 12$, minus $\sigma^2 = 6$, leaves $(n-1)\sigma^2 = 6$.
+Dividing the sum of squares by $n$ gives an estimator whose average is
+$\frac{n-1}{n}\sigma^2$, too small. Dividing by $n-1$ gives
+\[
+  \E[s^2] = \sigma^2 .
+\]
+An estimator whose expectation equals the target is called \textbf{unbiased}; the
+difference (expectation minus target) is its \textbf{bias}. The divide-by-$n$
+estimator has bias $-\sigma^2/n$. The correction from $n$ to $n-1$ is
+\textbf{Bessel's correction}.
+
+\begin{historybox}
+In the early 1800s astronomers combined many slightly disagreeing telescope readings
+of a star's position and needed to report how precise the result was. Carl Friedrich
+Gauss, in an 1823 treatise on combining observations, showed that the sum of squared
+\emph{residuals} (each reading minus the fitted value) comes out too small, and that
+dividing by the number of readings \emph{minus the number of quantities fitted from
+them} removes the shortfall. For a single fitted mean that divisor is $n-1$. The name
+honours his contemporary Friedrich Bessel, an astronomer who studied observation
+errors. The same rule, ``subtract one per fitted parameter,'' gives the $n-2$ in
+simple regression (Chapter~12).
+\end{historybox}
+
+\begin{whybox}
+Two ways to see why exactly one $\sigma^2$ goes missing.
+
+\emph{The wander of the center.} $\Xbar$ misses $\mu$ by a random amount whose
+typical square is $\sigma^2/n$. Every one of the $n$ points is measured from the
+wrong center, and the identity says the shortfall is $n(\Xbar-\mu)^2$. On average
+that is $n\times\sigma^2/n = \sigma^2$: one data point's worth of variance.
+
+\emph{Degrees of freedom.} The $n$ deviations $X_i - \Xbar$ must sum to zero, so
+once you know any $n-1$ of them the last one is forced. With $n=2$ the two
+deviations are always $+a$ and $-a$: one free number, not two. The sum of squares
+contains only $n-1$ free pieces of information, called \textbf{degrees of freedom},
+and we average over those. Each quantity estimated from the data before measuring
+spread uses up one.
+\end{whybox}
+
+\subsection{Simulation}
+
+Draw $n=3$ values from a Normal population with $\sigma^2 = 4$, compute both the
+divide-by-$n$ estimate and $s^2$, and repeat. Figure~\ref{fig:center-spread-bessel-run}
+tracks the running average of each estimator. The $n-1$ version settles near $4$;
+the divide-by-$n$ version settles near $\tfrac{2}{3}\cdot 4 \approx 2.67$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6cm,
+  xmode=log, xmin=1, xmax=2000, ymin=0.8, ymax=5,
+  axis lines=left, xlabel={number of simulated samples (log scale)},
+  ylabel={running average of estimate},
+  legend pos=south east, legend style={font=\scriptsize},
+  tick label style={font=\scriptsize},
+]
+\addplot[densityred, thick, mark=none] coordinates {(1,3.045) (2,2.476) (3,1.755) (5,1.195) (8,1.092) (10,1.748) (15,2.075) (20,2.166) (30,2.188) (40,2.414) (50,2.525) (70,2.750) (100,2.626) (130,2.513) (160,2.558) (200,2.603) (250,2.614) (300,2.648) (400,2.566) (500,2.595) (600,2.636) (700,2.586) (800,2.615) (1000,2.601) (1200,2.599) (1400,2.639) (1600,2.638) (1800,2.621) (2000,2.629)};
+\addlegendentry{divide by $n$}
+\addplot[distblue, thick, mark=none] coordinates {(1,4.568) (2,3.713) (3,2.633) (5,1.793) (8,1.639) (10,2.623) (15,3.112) (20,3.250) (30,3.282) (40,3.620) (50,3.787) (70,4.126) (100,3.939) (130,3.769) (160,3.836) (200,3.904) (250,3.921) (300,3.971) (400,3.849) (500,3.892) (600,3.954) (700,3.878) (800,3.923) (1000,3.902) (1200,3.899) (1400,3.959) (1600,3.957) (1800,3.931) (2000,3.943)};
+\addlegendentry{divide by $n-1$ ($s^2$)}
+\addplot[distblue, dashed, domain=1:2000] {4};
+\addplot[densityred, dashed, domain=1:2000] {2.6667};
+\node[font=\scriptsize,distblue,anchor=south] at (axis cs:400,4.25) {true $\sigma^2=4$};
+\node[font=\scriptsize,densityred,anchor=north] at (axis cs:400,2.4) {$\tfrac{2}{3}\sigma^2\approx 2.67$};
+\end{axis}
+\end{tikzpicture}
+\caption{2000 simulated samples of size $n=3$ from $\Normal(10, 4)$. Individual
+estimates are noisy, but their long-run averages separate cleanly: $s^2$ averages
+to the true variance, while dividing by $n$ averages to $\frac{n-1}{n}\sigma^2$.}
+\label{fig:center-spread-bessel-run}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5.6cm,
+  xmin=1.5, xmax=10.5, ymin=1.5, ymax=4.6,
+  axis lines=left, xlabel={sample size $n$}, ylabel={average estimate},
+  xtick={2,...,10},
+  legend pos=south east, legend style={font=\scriptsize},
+  tick label style={font=\scriptsize},
+]
+\addplot[only marks, mark=square*, distblue] coordinates {(2,3.979) (3,4.013) (4,4.016) (5,3.977) (6,4.022) (7,4.004) (8,3.999) (9,3.987) (10,4.003)};
+\addlegendentry{$s^2$ (simulated)}
+\addplot[only marks, mark=*, densityred] coordinates {(2,1.990) (3,2.675) (4,3.012) (5,3.182) (6,3.352) (7,3.432) (8,3.499) (9,3.544) (10,3.603)};
+\addlegendentry{divide by $n$ (simulated)}
+\addplot[densityred, thin, domain=2:10, samples=50] {4*(x-1)/x};
+\addlegendentry{theory $4(n-1)/n$}
+\addplot[distblue, thin, dashed, domain=2:10] {4};
+\end{axis}
+\end{tikzpicture}
+\caption{Average of 50{,}000 estimates at each sample size. The divide-by-$n$
+estimator follows the theoretical curve $\sigma^2(n-1)/n$: half the true variance at
+$n=2$, still $10\%$ low at $n=10$. The bias vanishes as $n$ grows, which is why the
+choice matters most for small samples.}
+\label{fig:center-spread-bessel-n}
+\end{figure}
+
+\begin{trapbox}
+Software disagrees on the default. NumPy's \texttt{np.var} and \texttt{np.std}
+divide by $n$ unless you pass \texttt{ddof=1}; pandas' \texttt{.var()} and
+\texttt{.std()} divide by $n-1$. The same data give different answers. (\texttt{ddof}
+stands for ``delta degrees of freedom'': the divisor is $n-\texttt{ddof}$.) Also, $s$
+itself is \emph{not} unbiased for $\sigma$: the square root bends downward, so
+averaging and then rooting gives more than rooting and then averaging, and
+$\E[s] < \sqrt{\E[s^2]} = \sigma$. For Normal data $s$ runs about $20\%$ low on
+average at $n=2$, $6\%$ at $n=5$, and $3\%$ at $n=10$. Beyond small samples this is
+usually ignored.
+\end{trapbox}
+
+When do you divide by $n$? Two cases. If the data \emph{are} the whole population
+(every employee of the company, every request in the log you care about), there is
+nothing larger to estimate, and the divide-by-$n$ formula is the population
+variance. And if the true mean $\mu$ is known from outside the data, measure
+deviations from $\mu$, not $\xbar$; then $\frac1n\sum(x_i-\mu)^2$ is unbiased (the
+first column of the table). When the data are a sample used to learn about
+something larger and $\mu$ is estimated by $\xbar$, divide by $n-1$.
+
+\begin{recoverybox}
+Pause and think: what does $s^2$ give for a sample of size $n=1$? (Zero over zero:
+undefined.) Why is that the honest answer? (One value says nothing about spread;
+dividing by $n$ would claim the spread is exactly $0$.)
+\end{recoverybox}
+
+\section{The key link: which center minimises which error?}
+\label{sec:center-spread-loss}
+
+The identity $S(c) = S(\xbar) + n(\xbar - c)^2$ says more than Bessel's correction.
+It says:
+
+\begin{theorem}[Mean minimises squared error]
+For any data, $\displaystyle \xbar = \argmin_c \sum_{i=1}^n (x_i - c)^2$.
+\end{theorem}
+
+The median has the same property for a different loss.
+
+\begin{theorem}[Median minimises absolute error]
+For any data, a median minimises
+\[
+  A(c) = \sum_{i=1}^n \abs{x_i - c} .
+\]
+\end{theorem}
+
+\begin{whybox}
+Move $c$ a small step $\delta$ to the right. Every point to the right of $c$ gets
+$\delta$ closer; every point to the left gets $\delta$ farther. So $A(c)$ changes by
+$\delta \times (\#\text{left} - \#\text{right})$. While more points lie to the right,
+moving right helps. The improvement stops exactly when the counts balance, that is,
+at the median. Only the \emph{count} of points on each side matters, never their
+distances, which is the same reason the median is robust.
+\end{whybox}
+
+Take the data $1, 2, 3, 4, 10$ (mean 4, median 3). Here $\sum x_i = 20$ and
+$\sum x_i^2 = 130$, so
+\[
+  S(c) = 5c^2 - 40c + 130, \qquad S(4) = 50 .
+\]
+The absolute loss is piecewise linear: $A(0) = 20$, $A(1)=15$, $A(2)=12$, $A(3) = 11$,
+$A(4) = 12$, $A(10) = 30$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=left,
+  width=6.6cm, height=5.4cm,
+  xmin=0, xmax=10, ymin=0, ymax=240,
+  axis lines=left, xlabel={$c$}, title={squared loss $S(c)$}, title style={font=\small},
+  tick label style={font=\scriptsize},
+]
+\addplot[distblue, thick, domain=0:10, samples=80] {5*x^2-40*x+130};
+\addplot[only marks, mark=*, quotientorange] coordinates {(4,50)};
+\node[quotientorange,font=\scriptsize,anchor=north] at (axis cs:4,42) {min at mean $4$};
+\addplot[only marks, mark=|, mark size=4pt, black] coordinates {(1,0)(2,0)(3,0)(4,0)(10,0)};
+\end{axis}
+\begin{axis}[
+  at={(left.east)}, anchor=west, xshift=1.2cm,
+  width=6.6cm, height=5.4cm,
+  xmin=0, xmax=10, ymin=0, ymax=32,
+  axis lines=left, xlabel={$c$}, title={absolute loss $A(c)$}, title style={font=\small},
+  tick label style={font=\scriptsize},
+]
+\addplot[targetgreen, thick] coordinates {(0,20)(1,15)(2,12)(3,11)(4,12)(10,30)};
+\addplot[only marks, mark=*, quotientorange] coordinates {(3,11)};
+\node[quotientorange,font=\scriptsize,anchor=north] at (axis cs:3,9.5) {min at median $3$};
+\addplot[only marks, mark=|, mark size=4pt, black] coordinates {(1,0)(2,0)(3,0)(4,0)(10,0)};
+\end{axis}
+\end{tikzpicture}
+\caption{Total loss as a function of the summary $c$ for the data $1,2,3,4,10$
+(ticks on the axis). Squared loss is a smooth parabola minimised at the mean; the
+outlier at 10 pulls the minimum right. Absolute loss is piecewise linear with kinks
+at the data and is minimised at the median.}
+\label{fig:center-spread-loss}
+\end{figure}
+
+\begin{connectionbox}
+This is the most important idea in the chapter for machine learning. Choosing a
+loss function chooses which ``center'' your model predicts.
+\begin{itemize}
+  \item A regression model trained with \textbf{mean squared error} (MSE, $L_2$
+  loss) learns to predict the conditional \emph{mean} of the target: the average
+  label among inputs like the one in front of it. Linear
+  regression (Chapter~12) is this idea with $c$ replaced by a line.
+  \item A model trained with \textbf{mean absolute error} (MAE, $L_1$ loss) learns
+  the conditional \emph{median}, and is less sensitive to outlying labels.
+  \item \textbf{Quantile (pinball) loss} generalises $L_1$ to predict any quantile,
+  such as p90 latency (Chapter~3 defines quantiles).
+  \item \textbf{Huber loss} is quadratic near zero and linear far away: mean-like
+  for small errors, median-like for outliers.
+\end{itemize}
+Picking the prediction that makes the average loss over the training data as small
+as possible is called \emph{empirical risk minimisation}, and $\xbar$ is its
+simplest instance: a model that predicts one constant for everyone. Chapter~15 returns to it.
+\end{connectionbox}
+
+\section{Other measures of spread: range, IQR, MAD}
+\label{sec:center-spread-robust-spread}
+
+The SD inherits the mean's sensitivity to outliers. Three alternatives trade
+efficiency for robustness or simplicity. Take nine page-load times in ms, one of
+which hit a cold cache:
+\[
+  12,\ 14,\ 15,\ 15,\ 17,\ 18,\ 20,\ 23,\ 90 .
+\]
+Mean $\approx 24.9$, median $17$, SD $s \approx 24.6$. Without the 90 the SD is
+about $3.5$: one point inflated it sevenfold.
+
+\begin{definition}[Range]
+$\text{range} = x_{(n)} - x_{(1)}$.
+\end{definition}
+Here $90 - 12 = 78$. The range uses only the two most extreme values, so it has the
+worst possible robustness and it grows with $n$ (more data, more chances for an
+extreme). It is useful for sanity checks (``are all values physically
+possible?''), not as a summary.
+
+\begin{definition}[Interquartile range]
+$\IQR = Q_3 - Q_1$, where $Q_1$ and $Q_3$ are the first and third quartiles: the
+values below which $25\%$ and $75\%$ of the data fall.
+\end{definition}
+With nine sorted values the $25\%$ point is the 3rd value and the $75\%$ point is
+the 7th (the default convention in NumPy and R; Chapter~3 compares conventions). So
+$Q_1 = 15$, $Q_3 = 20$, and $\IQR = 5$. The IQR is the width of the middle half of
+the data. Its breakdown point is $25\%$.
+
+\begin{definition}[Median absolute deviation]
+$\text{MAD} = \Med\big(\abs{x_i - \Med(x)}\big)$: the median distance from the median.
+\end{definition}
+The absolute distances from $17$ are $5, 3, 2, 2, 0, 1, 3, 6, 73$. Sorted:
+$0,1,2,2,\mathbf{3},3,5,6,73$. The MAD is $3$. It is a median of a median, with
+breakdown point $50\%$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.13cm,y=0.8cm]
+  \draw[thick] (8,0) -- (95,0);
+  \foreach \t in {10,20,...,90} \draw (\t,0) -- (\t,-0.12) node[below,font=\scriptsize] {\t};
+  \foreach \v/\h in {12/0.2,14/0.2,15/0.2,15/0.45,17/0.2,18/0.2,20/0.2,23/0.2,90/0.2}
+    \fill[sourceblue] (\v,\h) circle (0.1cm);
+  \draw[|-|,trapred,thick] (12,2.6) -- (90,2.6) node[midway,above,font=\scriptsize] {range $=78$};
+  \draw[|-|,quotientorange,thick] (15,1.9) -- (20,1.9);
+  \node[quotientorange,font=\scriptsize,anchor=west] at (22,1.9) {$\IQR = 20-15 = 5$};
+  \draw[|-|,targetgreen,thick] (14,1.2) -- (20,1.2);
+  \node[targetgreen,font=\scriptsize,anchor=west] at (22,1.2) {median $\pm$ MAD $= 17 \pm 3$};
+  \draw[|-|,structurepurple,thick] (0.3,-1.1) -- (49.5,-1.1);
+  \node[structurepurple,font=\scriptsize,anchor=west] at (51,-1.1) {mean $\pm$ SD $= 24.9 \pm 24.6$};
+  \draw[dashed,gray] (17,0) -- (17,2.2);
+\end{tikzpicture}
+\caption{Four spread measures for the same nine values. The range and the SD band
+are dominated by the single 90 ms value; the IQR and MAD describe where the bulk of
+the data actually sits.}
+\label{fig:center-spread-spread-measures}
+\end{figure}
+
+\begin{remark}
+For Normal data the MAD is about $0.674\,\sigma$ and the IQR about $1.35\,\sigma$.
+So $1.4826 \times \text{MAD}$ and $\IQR/1.35$ are robust estimates of $\sigma$.
+Here $1.4826 \times 3 \approx 4.4$, close to the SD of the eight clean values
+($3.5$) and nowhere near $24.6$. Robust outlier detectors use this: flag a point if
+it is more than about $3 \times 1.4826 \times \text{MAD}$ from the median.
+\end{remark}
+
+\begin{lstlisting}[language=Python]
+import numpy as np
+from scipy import stats
+x = np.array([12, 14, 15, 15, 17, 18, 20, 23, 90])
+x.mean(), np.median(x)              # 24.89, 17.0
+stats.trim_mean(x, 0.1)             # drops 0 from each end here (floor(0.9)=0)
+x.std(ddof=1)                       # 24.64  (ddof=1 -> divide by n-1)
+q1, q3 = np.percentile(x, [25, 75]) # 15.0, 20.0
+stats.median_abs_deviation(x)       # 3.0
+\end{lstlisting}
+
+\section{Standardising: z-scores}
+\label{sec:center-spread-z}
+
+Alice scores 82 on an exam where the class mean is 70 and the SD is 8. Bob scores
+90 on a different exam with mean 80 and SD 5. Who did better relative to their class?
+Raw points cannot answer this: the exams have different centers and spreads.
+Measure each score in units of its own SD from its own mean.
+
+\begin{definition}[z-score]
+The \textbf{z-score} of $x$ in a data set with mean $\xbar$ and SD $s$ is
+\[
+  z = \frac{x - \xbar}{s} .
+\]
+It says how many standard deviations $x$ lies above ($z>0$) or below ($z<0$) the mean.
+\end{definition}
+
+\[
+  z_{\text{Alice}} = \frac{82 - 70}{8} = 1.5, \qquad
+  z_{\text{Bob}} = \frac{90 - 80}{5} = 2.0 .
+\]
+Bob is further above his class.
+
+\begin{recoverybox}
+Pause and think: a third student scores 61 on Exam A. What is her z-score, and what
+does its sign tell you? ($z = (61-70)/8 \approx -1.1$: about one SD below the mean.)
+\end{recoverybox}
+
+Standardising a whole data set (replacing every
+$x_i$ by its $z_i$) produces values with mean $0$ and SD $1$, whatever the original
+units; Section~\ref{sec:center-spread-linear} shows why.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  name=raw,
+  width=12cm, height=4.4cm,
+  xmin=40, xmax=105, ymin=0, ymax=0.095,
+  axis lines=left, axis y line=none, xlabel={raw score},
+  tick label style={font=\scriptsize}, clip=false,
+  title={raw scores}, title style={font=\small},
+]
+\addplot[sourceblue, thick, domain=40:100, samples=120] {exp(-(x-70)^2/128)/(8*2.5066)};
+\addplot[targetgreen, thick, domain=60:100, samples=120] {exp(-(x-80)^2/50)/(5*2.5066)};
+\draw[sourceblue,thick] (axis cs:82,0) -- (axis cs:82,0.0162);
+\draw[targetgreen,thick] (axis cs:90,0) -- (axis cs:90,0.0108);
+\node[sourceblue,font=\scriptsize,anchor=east] at (axis cs:60,0.04) {Exam A: $70\pm 8$};
+\node[targetgreen,font=\scriptsize,anchor=west] at (axis cs:86,0.075) {Exam B: $80\pm 5$};
+\draw[sourceblue] (axis cs:82,0.0162) -- (axis cs:97,0.05) node[anchor=west,font=\scriptsize] {Alice 82};
+\draw[targetgreen] (axis cs:90,0.0108) -- (axis cs:97,0.025) node[anchor=west,font=\scriptsize] {Bob 90};
+\end{axis}
+\begin{axis}[
+  at={(raw.south)}, anchor=north, yshift=-2.3cm,
+  width=12cm, height=4.4cm,
+  xmin=-3.5, xmax=3.5, ymin=0, ymax=0.45,
+  axis lines=left, axis y line=none, xlabel={z-score},
+  tick label style={font=\scriptsize}, clip=false,
+  title={after standardising, both classes lie on one scale}, title style={font=\small},
+]
+\addplot[black, thick, domain=-3.5:3.5, samples=120] {exp(-x^2/2)/2.5066};
+\draw[sourceblue,thick] (axis cs:1.5,0) -- (axis cs:1.5,0.1295);
+\draw[targetgreen,thick] (axis cs:2,0) -- (axis cs:2,0.054);
+\draw[sourceblue] (axis cs:1.5,0.1295) -- (axis cs:2.3,0.30) node[anchor=west,font=\scriptsize] {Alice $z=1.5$};
+\draw[targetgreen] (axis cs:2,0.054) -- (axis cs:2.6,0.17) node[anchor=west,font=\scriptsize] {Bob $z=2$};
+\end{axis}
+\end{tikzpicture}
+\caption{Top: two exams with different means and spreads. Bob's 90 and Alice's 82
+cannot be compared directly. Bottom: in SD units from each class mean, Bob ($z=2$)
+is further into the upper tail than Alice ($z=1.5$).}
+\label{fig:center-spread-z}
+\end{figure}
+
+\begin{connectionbox}
+Feature standardisation in ML (\texttt{StandardScaler} in scikit-learn) is
+exactly this: subtract each feature's mean, divide by its SD. Features measured in
+metres and in milligrams end up on the same scale, so gradient descent converges
+faster and size penalties on coefficients treat all features equally. Fit
+the mean and SD on the training set only, then apply the same numbers to test data.
+\end{connectionbox}
+
+\section{The 68--95--99.7 rule}
+\label{sec:center-spread-empirical}
+
+What does ``$z = 2$'' mean in terms of how unusual a value is? It depends on the
+shape. The most common shape is the \textbf{Normal} (or Gaussian) curve: a
+symmetric bell, highest at the mean and falling off quickly on both sides. Heights,
+measurement errors, and averages of many small effects tend to look like this
+(Chapter~6 explains why; Probability From the Ground Up derives it). For data whose
+histogram is roughly bell-shaped, the answer is fixed:
+
+\begin{itemize}
+  \item about $68\%$ of values lie within $1$ SD of the mean,
+  \item about $95\%$ lie within $2$ SD,
+  \item about $99.7\%$ lie within $3$ SD.
+\end{itemize}
+The exact Normal values are $68.27\%$, $95.45\%$, and $99.73\%$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.2cm, height=6.4cm,
+  xmin=-4, xmax=4, ymin=0, ymax=0.62,
+  axis lines=left, axis y line=none,
+  xtick={-3,-2,-1,0,1,2,3},
+  xticklabels={$\mu-3\sigma$,$\mu-2\sigma$,$\mu-\sigma$,$\mu$,$\mu+\sigma$,$\mu+2\sigma$,$\mu+3\sigma$},
+  tick label style={font=\scriptsize}, clip=false,
+]
+\addplot[fill=histfill!25, draw=none, domain=-3:3, samples=100] {exp(-x^2/2)/2.5066} \closedcycle;
+\addplot[fill=histfill!55, draw=none, domain=-2:2, samples=100] {exp(-x^2/2)/2.5066} \closedcycle;
+\addplot[fill=histfill, draw=none, domain=-1:1, samples=100] {exp(-x^2/2)/2.5066} \closedcycle;
+\addplot[distblue, thick, domain=-4:4, samples=140] {exp(-x^2/2)/2.5066};
+\draw[{Stealth}-{Stealth}] (axis cs:-1,0.45) -- (axis cs:1,0.45) node[midway,above,font=\scriptsize] {$68\%$};
+\draw[{Stealth}-{Stealth}] (axis cs:-2,0.51) -- (axis cs:2,0.51) node[midway,above,font=\scriptsize] {$95\%$};
+\draw[{Stealth}-{Stealth}] (axis cs:-3,0.57) -- (axis cs:3,0.57) node[midway,above,font=\scriptsize] {$99.7\%$};
+\draw[gray,dotted] (axis cs:-3,0) -- (axis cs:-3,0.57);
+\draw[gray,dotted] (axis cs:-2,0) -- (axis cs:-2,0.57);
+\draw[gray,dotted] (axis cs:-1,0) -- (axis cs:-1,0.57);
+\draw[gray,dotted] (axis cs:1,0) -- (axis cs:1,0.57);
+\draw[gray,dotted] (axis cs:2,0) -- (axis cs:2,0.57);
+\draw[gray,dotted] (axis cs:3,0) -- (axis cs:3,0.57);
+\node[font=\scriptsize] at (axis cs:0,0.15) {$34.1\%+34.1\%$};
+\node[font=\scriptsize] at (axis cs:1.5,0.04) {$13.6\%$};
+\node[font=\scriptsize] at (axis cs:-1.5,0.04) {$13.6\%$};
+\node[font=\scriptsize,anchor=south] at (axis cs:2.5,0.025) {$2.1\%$};
+\node[font=\scriptsize,anchor=south] at (axis cs:-2.5,0.025) {$2.1\%$};
+\end{axis}
+\end{tikzpicture}
+\caption{The 68--95--99.7 rule for a Normal distribution, with the exact share in
+each band. Darker bands are closer to the mean. Each tail beyond $2\sigma$ holds
+about $2.3\%$; the cut-off that leaves exactly $2.5\%$ in each tail is $1.96\sigma$,
+the ``$1.96$'' in 95\% confidence intervals (Chapter~7).}
+\label{fig:center-spread-6895997}
+\end{figure}
+
+\begin{example}
+Adult heights in a population are roughly Normal with mean 170 cm and SD 7 cm.
+Then about $68\%$ of adults are between 163 and 177 cm, about $95\%$ between 156 and
+184 cm, and a height of 191 cm ($z=3$) is rarer than $0.15\%$ (one tail of the
+$0.3\%$ outside $\pm 3$ SD).
+\end{example}
+
+\begin{trapbox}
+The rule is for bell-shaped data only. For skewed data such as latencies it can be
+badly wrong: a ``3-sigma'' alert threshold on a heavy-tailed metric fires far more
+often than $0.3\%$ of the time. Plot the histogram before you use the rule.
+\end{trapbox}
+
+\section{Chebyshev's inequality: the guarantee for any data}
+\label{sec:center-spread-chebyshev}
+
+If you do not know the shape, is there anything you can say? Yes, and it needs only
+the mean and SD.
+
+\begin{theorem}[Chebyshev's inequality]
+For any data set (or any distribution with finite variance) and any $k > 1$, the
+fraction of values more than $k$ standard deviations from the mean is at most
+$1/k^2$. Equivalently, at least $1 - 1/k^2$ lie within $k$ SDs.
+\end{theorem}
+
+\begin{whybox}
+Let $p$ be the fraction of the $n$ values with $\abs{x_i - \mu} \ge k\sigma$ (using
+the divide-by-$n$ $\sigma$ of the data). Each such value contributes at least
+$(k\sigma)^2$ to the sum of squares, and the others contribute at least $0$. So
+\[
+  n\sigma^2 = \sum_{i} (x_i - \mu)^2 \ \ge\ (pn)(k\sigma)^2
+  \quad\Longrightarrow\quad p \le \frac{1}{k^2}.
+\]
+The variance is a budget of squared distance. Far-away points are expensive, so
+only a few can afford to be far.
+\end{whybox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=5.8cm,
+  ybar, bar width=0.5cm,
+  ymin=0, ymax=112,
+  xtick={1,2,3,4}, xticklabels={1.5,2,3,4},
+  xlabel={$k$ (number of SDs)}, ylabel={\% within $k$ SDs},
+  enlarge x limits=0.18,
+  legend style={at={(0.5,1.03)},anchor=south,legend columns=2,font=\scriptsize},
+  nodes near coords, nodes near coords style={font=\tiny},
+  tick label style={font=\scriptsize},
+]
+\addplot[fill=trapred!60, draw=trapred] coordinates {(1,55.6) (2,75.0) (3,88.9) (4,93.8)};
+\addlegendentry{Chebyshev guarantee (any shape)}
+\addplot[fill=histfill, draw=distblue] coordinates {(1,86.6) (2,95.4) (3,99.7) (4,99.99)};
+\addlegendentry{Normal}
+\end{axis}
+\end{tikzpicture}
+\caption{Minimum share of data within $k$ SDs of the mean. Chebyshev's bound holds
+for every distribution, so it is conservative; Normal data do much better. At
+$k=2$ Chebyshev promises at least $75\%$, the Normal gives $95\%$.}
+\label{fig:center-spread-chebyshev}
+\end{figure}
+
+For the nine page-load times, $\xbar \approx 24.9$ and the population-style SD is
+$\sigma \approx 23.2$, so the point $90$ is at $z \approx 2.8$. Chebyshev says at most
+$1/2.8^2 \approx 13\%$ of points can be that far out; one of nine ($11\%$) is.
+Chebyshev is tight only for contrived distributions, but it never fails. That is the
+property you want when you know nothing about the shape. It also gives a one-line
+proof of the law of large numbers (Chapter~6), the fact that a sample mean settles
+down to the population mean as $n$ grows.
+
+\section{Linear transformations of data}
+\label{sec:center-spread-linear}
+
+Unit conversions, currency conversions, and standardisation all have the form
+$y_i = a + b x_i$. How do the summaries change?
+
+\begin{theorem}[Shift and scale]
+If $y_i = a + b\,x_i$ for all $i$, then
+\[
+  \ybar = a + b\,\xbar, \qquad s_y^2 = b^2 s_x^2, \qquad s_y = \abs{b}\, s_x .
+\]
+The median transforms like the mean, and the IQR, MAD, and range like the SD.
+\end{theorem}
+
+\begin{whybox}
+Averaging is linear: $\frac1n\sum(a+bx_i) = a + b\xbar$. For the spread, look at the
+deviations: $y_i - \ybar = (a+bx_i) - (a + b\xbar) = b(x_i - \xbar)$. The shift
+$a$ cancels completely, because adding a constant moves every point and the center
+together. The scale $b$ multiplies every deviation, so it multiplies the squared
+deviations by $b^2$ and the SD by $\abs{b}$.
+\end{whybox}
+
+\begin{example}[Celsius to Fahrenheit]
+Five daily highs in $^\circ$C: $18, 20, 21, 23, 28$. Mean $22^\circ$C, SD
+$s \approx 3.81^\circ$C. With $F = 32 + 1.8\,C$ the readings become
+$64.4, 68, 69.8, 73.4, 82.4$. Without recomputing,
+\[
+  \bar F = 32 + 1.8 \times 22 = 71.6^\circ\text{F}, \qquad
+  s_F = 1.8 \times 3.81 \approx 6.85^\circ\text{F}.
+\]
+The $32$ does not touch the SD: a difference of temperatures has no offset.
+\end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=5.6cm,
+  xmin=15, xmax=75, ymin=0.4, ymax=3.7,
+  axis x line=bottom, axis y line=none,
+  xlabel={value}, tick label style={font=\scriptsize}, clip=false,
+]
+\addplot[only marks, mark=*, sourceblue] coordinates {(20,3)(22,3)(25,3)(28,3)(35,3)};
+\draw[|-|,sourceblue,thick] (axis cs:20.13,3.3) -- (axis cs:31.87,3.3);
+\node[font=\scriptsize,anchor=west] at (axis cs:37,3) {$x$: mean 26, SD 5.87};
+\addplot[only marks, mark=*, targetgreen] coordinates {(30,2)(32,2)(35,2)(38,2)(45,2)};
+\draw[|-|,targetgreen,thick] (axis cs:30.13,2.3) -- (axis cs:41.87,2.3);
+\node[font=\scriptsize,anchor=west] at (axis cs:47,2) {$x+10$: mean 36, SD 5.87};
+\addplot[only marks, mark=*, quotientorange] coordinates {(40,1)(44,1)(50,1)(56,1)(70,1)};
+\draw[|-|,quotientorange,thick] (axis cs:40.25,1.3) -- (axis cs:63.75,1.3);
+\node[font=\scriptsize,anchor=east] at (axis cs:38,1) {$2x$: mean 52, SD 11.75};
+\end{axis}
+\end{tikzpicture}
+\caption{The latency data, shifted and scaled. Bars show mean $\pm 1$ SD. Adding 10
+slides everything right and leaves the spread unchanged. Doubling doubles both the
+mean and the SD.}
+\label{fig:center-spread-linear}
+\end{figure}
+
+Standardisation is the special case $a = -\xbar/s$, $b = 1/s$:
+$z_i = (x_i - \xbar)/s$. The theorem gives $\bar z = -\xbar/s + \xbar/s = 0$ and
+$s_z = s/s = 1$.
+
+\begin{trapbox}
+The shift-and-scale rule is for \emph{linear} maps only. For a nonlinear
+transformation such as $\log$, the mean of the logs is not the log of the mean.
+(The median does commute with any increasing function: the median of $\log x$ is
+$\log$ of the median of $x$, because ranks are preserved.)
+\end{trapbox}
+
+\section{The mean of grouped data}
+\label{sec:center-spread-grouped}
+
+Dashboards and reports often give only a frequency table, not the raw values. Fifty
+API response times were binned:
+
+\begin{center}
+\begin{tabular}{c c c r}
+\toprule
+bin (ms) & midpoint $m_j$ & count $f_j$ & $f_j m_j$ \\
+\midrule
+0--100   & 50  & 12 & 600 \\
+100--200 & 150 & 25 & 3750 \\
+200--300 & 250 & 8  & 2000 \\
+300--500 & 400 & 5  & 2000 \\
+\midrule
+total    &     & 50 & 8350 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Pretend every value in a bin sits at the bin's midpoint. Then
+\[
+  \xbar \approx \frac{\sum_j f_j m_j}{\sum_j f_j} = \frac{8350}{50} = 167 \text{ ms}.
+\]
+This is a \textbf{weighted mean}: each midpoint is weighted by how many observations
+it represents. The same idea gives a grouped variance,
+\[
+  s^2 \approx \frac{1}{n-1}\sum_j f_j (m_j - \xbar)^2 = \frac{498{,}050}{49}
+  \approx 10{,}164, \qquad s \approx 101 \text{ ms}.
+\]
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=5.6cm,
+  xmin=0, xmax=520, ymin=0, ymax=30,
+  axis lines=left, xlabel={response time (ms)},
+  ylabel={count per 100 ms},
+  xtick={0,100,200,300,400,500},
+  tick label style={font=\scriptsize}, clip=false,
+]
+\addplot[ybar interval, fill=histfill, draw=distblue] coordinates {(0,12) (100,25) (200,8) (300,2.5) (500,2.5)};
+\addplot[only marks, mark=*, mark size=1.8pt, black] coordinates {(50,12)(150,25)(250,8)(400,2.5)};
+\draw[quotientorange, very thick] (axis cs:167,0) -- (axis cs:167,28);
+\node[quotientorange, font=\scriptsize, anchor=west] at (axis cs:170,27) {grouped mean $\approx 167$};
+\node[font=\scriptsize, anchor=south] at (axis cs:400,3) {5 values in 300--500 ms};
+\end{axis}
+\end{tikzpicture}
+\caption{Histogram of the grouped response times. The last bin is twice as wide,
+so its height is the count per 100 ms ($5/2 = 2.5$) to keep area proportional to
+count. Dots mark the bin midpoints used to approximate the mean.}
+\label{fig:center-spread-grouped}
+\end{figure}
+
+The approximation is exact if values are spread symmetrically within each bin, and
+off otherwise. In the long right tail of skewed data the histogram falls across each
+bin, so values in a bin cluster near its left edge and the midpoint rule tends to
+overestimate. The grouped median can be read off by
+finding the bin containing the $25$th and $26$th values: the 100--200 bin (values 13
+through 37).
+
+\begin{connectionbox}
+The weighted mean $\sum_j w_j m_j$ with $w_j = f_j / n$ is an expectation in
+disguise: the $w_j$ are probabilities that sum to $1$, and the formula is
+$\E[X] = \sum_x x\, p(x)$. When an ML paper writes $\E_{x\sim p}[f(x)]$, read it as
+``the $p$-weighted average of $f$.'' The sample mean is the special case where each
+of the $n$ data points gets weight $1/n$.
+\end{connectionbox}
+
+\section{Choosing a summary}
+\label{sec:center-spread-choosing}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  node distance=0.9cm and 0.6cm,
+  q/.style={draw, rounded corners, fill=sourceblue!10, align=center, font=\small, text width=3.3cm},
+  a/.style={draw, fill=targetgreen!12, align=center, font=\small, text width=3.4cm},
+  >={Stealth}]
+  \node[q] (cat) {Categorical data?};
+  \node[a, right=1.2cm of cat] (mode) {mode\\(and counts)};
+  \node[q, below=of cat] (out) {Outliers or strong skew?};
+  \node[a, right=1.2cm of out] (rob) {median with IQR or MAD};
+  \node[q, below=of out] (tot) {Need totals or a model with squared error?};
+  \node[a, right=1.2cm of tot] (mean) {mean with SD};
+  \node[a, below=of tot] (both) {report both mean and median; look at the plot};
+  \draw[->] (cat) -- node[above,font=\scriptsize] {yes} (mode);
+  \draw[->] (cat) -- node[left,font=\scriptsize] {no} (out);
+  \draw[->] (out) -- node[above,font=\scriptsize] {yes} (rob);
+  \draw[->] (out) -- node[left,font=\scriptsize] {no} (tot);
+  \draw[->] (tot) -- node[above,font=\scriptsize] {yes} (mean);
+  \draw[->] (tot) -- node[left,font=\scriptsize] {unsure} (both);
+\end{tikzpicture}
+\caption{A rough guide for picking a center and spread. The pairing matters: the SD
+measures spread around the mean, and the IQR or MAD measure spread around the
+median.}
+\label{fig:center-spread-choose}
+\end{figure}
+
+When in doubt, compute both the mean and the median. If they are close, the data
+are roughly symmetric and either will do. If they differ a lot, that difference is
+itself the finding: the distribution is skewed or has outliers, and a single number
+will mislead someone. Chapter~3 goes beyond a single center and spread: quantiles
+such as p90 and p99, box plots that draw the IQR, and measures of shape.
+
+\section{Summary}
+\label{sec:center-spread-summary}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{l l l l}
+\toprule
+measure & formula & minimises / meaning & breakdown \\
+\midrule
+mean $\xbar$ & $\frac1n\sum x_i$ & $\sum (x_i-c)^2$ & $1/n$ \\
+median & middle sorted value & $\sum \abs{x_i-c}$ & $50\%$ \\
+$\alpha$-trimmed mean & mean of middle & between the two & $\alpha$ \\
+mode & most frequent & works for categories & -- \\
+\midrule
+variance $s^2$ & $\frac{1}{n-1}\sum (x_i-\xbar)^2$ & unbiased for $\sigma^2$ & $1/n$ \\
+SD $s$ & $\sqrt{s^2}$ & typical distance, original units & $1/n$ \\
+IQR & $Q_3 - Q_1$ & width of middle half & $25\%$ \\
+MAD & $\Med\abs{x_i - \Med(x)}$ & robust spread & $50\%$ \\
+range & $x_{(n)} - x_{(1)}$ & sanity check only & $1/n$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+  \item Deviations from the mean sum to zero: the mean is the balance point.
+  \item Skew pulls the mean toward the long tail; for right skew,
+  mode $<$ median $<$ mean.
+  \item $\E\big[\sum(X_i-\Xbar)^2\big] = (n-1)\sigma^2$, because $\Xbar$ is fitted to
+  the data. Hence divide by $n-1$.
+  \item Squared loss leads to the mean; absolute loss leads to the median. Your choice
+  of ML loss function chooses which one your model predicts.
+  \item $z = (x-\xbar)/s$ measures distance in SD units. Bell-shaped data:
+  $68/95/99.7\%$ within $1/2/3$ SDs. Any data: at least $1-1/k^2$ within $k$ SDs.
+  \item $y = a + bx$ gives $\ybar = a + b\xbar$ and $s_y = \abs{b}s_x$.
+  \item Grouped mean: $\sum f_j m_j / \sum f_j$, a weighted average of midpoints.
+\end{itemize}
+
+\section{Exercises}
+\label{sec:center-spread-exercises}
+
+\begin{enumerate}
+  \item For the data $3, 5, 7, 7, 8$, compute the mean, median, mode, sample
+  variance, and SD by hand using a deviations table.
+  \item A data set has $n=10$ values. What is the smallest number of values you must
+  replace to make the median arbitrarily large? What about the mean?
+  \item Prove that $\sum_{i=1}^n (x_i - \xbar) = 0$ for any data.
+  \item A city's daily highs over a month have mean $15^\circ$C and SD $4^\circ$C.
+  Give the mean, SD, and variance in $^\circ$F ($F = 32 + 1.8C$).
+  \item An IQ-style test has mean 100 and SD 15, and scores are roughly Normal. What
+  is the z-score of 130? Using the 68--95--99.7 rule, roughly what share of people
+  score above 130?
+  \item Without knowing the shape of a distribution, what is the minimum fraction of
+  values within $2.5$ SDs of the mean?
+  \item With $n=2$ observations $X_1, X_2$ (independent, variance $\sigma^2$), show
+  that $s^2 = (X_1 - X_2)^2/2$, and verify directly that $\E[s^2] = \sigma^2$.
+  \item Estimate the mean from the grouped data: bin 0--10 has 4 values, 10--20 has
+  10 values, 20--40 has 6 values.
+  \item For the data $1, 2, 3, 4$, which values of $c$ minimise $\sum \abs{x_i - c}$?
+  Which value minimises $\sum (x_i - c)^2$?
+  \item Compute the MAD of $2, 4, 4, 5, 6, 9, 30$. Why is it so much smaller than
+  the SD?
+\end{enumerate}
+
+\subsection*{Answers}
+
+\begin{enumerate}
+  \item Mean $30/5 = 6$; median $7$; mode $7$. Deviations $-3,-1,1,1,2$, squares
+  $9,1,1,1,4$, sum $16$. $s^2 = 16/4 = 4$, $s = 2$.
+  \item Five (half). With $5$ huge values they occupy sorted positions $6$--$10$, so
+  the 6th value, and hence the median, is huge; with only $4$ the 5th and 6th values
+  are untouched. For the mean, one value suffices.
+  \item $\sum(x_i - \xbar) = \sum x_i - n\xbar = n\xbar - n\xbar = 0$.
+  \item Mean $32 + 1.8 \times 15 = 59^\circ$F; SD $1.8 \times 4 = 7.2^\circ$F;
+  variance $7.2^2 = 51.84$ ($^\circ$F)$^2$.
+  \item $z = (130-100)/15 = 2$. About $5\%$ lie beyond $\pm 2$ SD, half of that above:
+  roughly $2.5\%$ (exact Normal value $2.3\%$).
+  \item $1 - 1/2.5^2 = 1 - 0.16 = 0.84$, so at least $84\%$.
+  \item $\Xbar = (X_1+X_2)/2$, so $X_1 - \Xbar = (X_1-X_2)/2 = -(X_2-\Xbar)$ and the
+  sum of squares is $2\cdot (X_1-X_2)^2/4$; dividing by $n-1 = 1$ gives
+  $(X_1-X_2)^2/2$. Since $X_1 - X_2$ has mean $0$ and variance $2\sigma^2$,
+  $\E[(X_1-X_2)^2] = 2\sigma^2$ and $\E[s^2] = \sigma^2$.
+  \item Midpoints $5, 15, 30$: $(4\cdot 5 + 10\cdot 15 + 6 \cdot 30)/20 = 350/20 = 17.5$.
+  \item Every $c$ in $[2, 3]$ minimises the absolute loss (two points on each side,
+  so the slope is $0$ there); the squared loss is minimised only at $\xbar = 2.5$.
+  \item Median $5$; absolute deviations $3,1,1,0,1,4,25$; sorted $0,1,1,1,3,4,25$;
+  MAD $= 1$. The SD squares the deviation of the outlier $30$, so that one point
+  dominates it (here $s \approx 9.7$); the MAD only uses the middle deviation.
+\end{enumerate}

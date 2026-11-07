@@ -43,6 +43,16 @@ export const BOOKS = [
     unit: 'chapter',
   },
   {
+    id: 'statistics',
+    short: 'Statistics',
+    title: 'Statistics From the Ground Up',
+    subtitle: 'Data, uncertainty, confidence intervals, the bootstrap, testing, regression, and the statistics behind machine learning',
+    main: 'books/statistics/src/main.tex',
+    root: 'books/statistics',
+    common: ['books/statistics/src/common.tex'],
+    unit: 'chapter',
+  },
+  {
     id: 'finance',
     short: 'Finance',
     title: 'Finance and Accounting From the Ground Up',
