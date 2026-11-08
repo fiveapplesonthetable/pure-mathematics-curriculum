@@ -41,10 +41,11 @@ to 50s and a long right tail ending at one 145 ms request.
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=12cm, height=4.6cm,
-  xmin=0, xmax=155, ymin=0, ymax=7.5,
-  axis lines=left, ytick={0,2,4,6}, xtick={0,20,...,140},
-  xlabel={latency (ms), grouped in 5 ms bins}, ylabel={count},
+  name=main, width=10.2cm, height=4.8cm,
+  xmin=8, xmax=88, ymin=0, ymax=7.6,
+  axis lines*=left, ytick={1,2,...,6}, xtick={10,20,...,80},
+  xlabel={latency (ms), dots stacked in 5 ms bins},
+  ylabel={requests in bin},
   clip=false,
 ]
 \addplot[only marks, mark=*, mark size=2.6pt, color=histfill, draw=distblue]
@@ -52,16 +53,32 @@ coordinates {(12.5,1) (17.5,1) (22.5,1) (22.5,2) (22.5,3) (22.5,4) (22.5,5) (22.
 (27.5,1) (27.5,2) (27.5,3) (32.5,1) (32.5,2) (32.5,3) (32.5,4) (37.5,1) (37.5,2)
 (37.5,3) (37.5,4) (42.5,1) (42.5,2) (42.5,3) (47.5,1) (52.5,1) (52.5,2) (52.5,3)
 (52.5,4) (52.5,5) (57.5,1) (57.5,2) (57.5,3) (62.5,1) (62.5,2) (67.5,1) (67.5,2)
-(72.5,1) (77.5,1) (77.5,2) (82.5,1) (147.5,1)};
-\draw[densityred, thick] (axis cs:41,0) -- (axis cs:41,6.6);
-\node[densityred, anchor=south, font=\small] at (axis cs:41,6.6) {median 41};
-\draw[targetgreen, thick, dashed] (axis cs:46.15,0) -- (axis cs:46.15,5.6);
-\node[targetgreen, anchor=west, font=\small] at (axis cs:47,5.9) {mean 46.15};
+(72.5,1) (77.5,1) (77.5,2) (82.5,1)};
+\draw[densityred, thick] (axis cs:41,0) -- (axis cs:41,6.7);
+\node[densityred, anchor=south east, font=\small] at (axis cs:41.5,6.7) {median 41};
+\draw[targetgreen, thick, dashed] (axis cs:46.15,0) -- (axis cs:46.15,6.7);
+\node[targetgreen, anchor=south west, font=\small] at (axis cs:45.6,6.7) {mean 46.15};
 \end{axis}
+\begin{axis}[
+  at={(main.south east)}, anchor=south west, xshift=0.9cm,
+  width=2.6cm, height=4.8cm,
+  xmin=143, xmax=152, ymin=0, ymax=7.6,
+  axis lines*=left, axis y line=none,
+  xtick={147.5}, xticklabels={145--150}, clip=false,
+]
+\addplot[only marks, mark=*, mark size=2.6pt, color=trapred!40, draw=trapred]
+coordinates {(147.5,1)};
+\node[font=\footnotesize, trapred, align=center, anchor=south] at (axis cs:147.5,1.5)
+  {slowest\\request:\\145 ms};
+\end{axis}
+\node[font=\footnotesize, gray] at ($(main.south east)+(0.45cm,0.0cm)$) {//};
 \end{tikzpicture}
-\caption{Forty latencies. The right tail pulls the mean above the median. We
-want an interval for the population median, and later for the p90, and no
-textbook formula gives one directly.}
+\caption{The 40 latencies, one dot per request, stacked within 5 ms bins. Most
+requests sit between 20 and 60 ms; one request at 145 ms makes a long right
+tail, and that tail pulls the mean (green, 46.15) above the median (red, 41).
+The axis is broken between 88 and 143 ms, where there are no requests. We want
+an interval for the population median, and later for the p90, and no textbook
+formula gives one directly.}
 \label{fig:bootstrap-dotplot}
 \end{figure}
 
@@ -176,7 +193,8 @@ Figure~\ref{fig:bootstrap-worlds} lays out the parallel.
 \node[box, fill=bootorange!15] (ts) at (6.5,-3.4) {replicate\\$\hat\theta^* = s(x^*)$};
 \draw[arr] (Fh) -- node[right, font=\footnotesize] {draw $n$ with replacement} (xs);
 \draw[arr] (xs) -- node[right, font=\footnotesize] {compute} (ts);
-\draw[arr, dashed, gray] (x) -- node[above, font=\footnotesize] {becomes} (Fh);
+\draw[arr, dashed, gray] (x) -- node[below right=-1pt and 2pt, font=\footnotesize,
+  align=left, text=black!70, pos=0.42] {the sample\\becomes the\\population} (Fh);
 \node[font=\footnotesize, align=center, text width=4.2cm] at (0,-4.6)
   {spread of $\hat\theta$ around $\theta$: what we want, cannot see};
 \node[font=\footnotesize, align=center, text width=4.2cm] at (6.5,-4.6)
@@ -233,7 +251,8 @@ and 5) is easy to read.
 }
 \end{tikzpicture}
 \caption{Five bootstrap resamples of the 8-point dataset (sorted; the red frame
-marks the two middle values). The outlier 110 appears twice in resamples 1 and
+marks the two middle values, whose average is the median; the outlier 110 is
+shaded pink). The outlier 110 appears twice in resamples 1 and
 5 and not at all in 2, 3, 4. The resample medians, $34.5, 19.5, 27, 19.5, 21$,
 spread around the original $22.5$, and that spread is what the bootstrap
 measures.}
@@ -296,21 +315,22 @@ print(np.quantile(med_star, [0.025, 0.975]))  # percentile CI  -> [33. 52.]
 \addplot[ybar interval, fill=bootorange!60, draw=bootorange!80!black]
 coordinates {(27,0) (29,3) (31,46) (33,67) (35,237) (37,270) (39,333) (41,338)
 (43,108) (45,170) (47,74) (49,261) (51,76) (53,12) (55,4) (57,0) (59,1) (61,0)};
-\draw[densityred, very thick] (axis cs:41,0) -- (axis cs:41,370);
-\node[densityred, anchor=south, font=\small] at (axis cs:41,370) {$\hat\theta = 41$};
+\draw[densityred, very thick] (axis cs:41,0) -- (axis cs:41,355);
+\node[densityred, anchor=south, font=\small] at (axis cs:41,355)
+  {sample median $\hat\theta = 41$};
 \draw[distblue, thick, dashed] (axis cs:33,0) -- (axis cs:33,300);
 \draw[distblue, thick, dashed] (axis cs:52,0) -- (axis cs:52,300);
-\draw[distblue, thick, {Stealth}-{Stealth}] (axis cs:33,300) -- (axis cs:52,300);
-\node[distblue, anchor=south west, font=\small] at (axis cs:52.3,300)
-  {95\% percentile interval};
-\node[distblue, anchor=north, font=\small] at (axis cs:33,-30) {33};
-\node[distblue, anchor=north, font=\small] at (axis cs:52,-30) {52};
+\draw[distblue, thick, {Stealth}-{Stealth}] (axis cs:33,300) -- (axis cs:41,300);
+\draw[distblue, thick, {Stealth}-{Stealth}] (axis cs:41,300) -- (axis cs:52,300);
+\node[distblue, anchor=west, font=\small, align=left] at (axis cs:52.5,300)
+  {95\% percentile interval\\33 to 52 ms\\(50 replicates cut\\off each end)};
 \end{axis}
 \end{tikzpicture}
-\caption{Bootstrap distribution of the median from 2000 resamples (bins 2 ms
-wide). The middle $95\%$ of the bars runs from 33 to 52 ms. The comb-like
-lumps are real: a median of 40 values can only be an average of two data
-values, so it takes few distinct values.}
+\caption{Bootstrap distribution of the median: one bar per 2 ms, counting how
+many of the 2000 resample medians fell there. The dashed blue lines cut off
+the lowest and highest $2.5\%$ of replicates; what is left, 33 to 52 ms, is the
+percentile interval. The comb-like lumps are real: a median of 40 values is an
+average of two data values, so it takes only a few distinct values.}
 \label{fig:bootstrap-median-hist}
 \end{figure}
 
@@ -325,7 +345,43 @@ The bootstrap distribution estimates the \emph{shape and spread} of the
 sampling distribution. It does not estimate where the truth is. Its centre sits
 near $\hat\theta$, not near $\theta$: the mean of the 2000 medians is $41.84$,
 close to the sample median 41. Nothing in resampling can move you toward a
-population value you never observed.
+population value you never observed. Figure~\ref{fig:bootstrap-vs-truth} puts
+the bootstrap histogram next to the true sampling distribution, which we can
+compute here only because the data were simulated.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6.2cm,
+  xmin=27, xmax=63, ymin=0, ymax=420,
+  axis lines=left, xlabel={median of a sample of 40 latencies (ms)},
+  ylabel={count per 2 ms (of 2000)}, xtick={29,33,...,61},
+  legend style={font=\small, at={(0.5,-0.3)}, anchor=north},
+  clip=false,
+]
+\addplot[ybar interval, area legend, fill=bootorange!45, draw=bootorange!80!black]
+coordinates {(27,0) (29,3) (31,46) (33,67) (35,237) (37,270) (39,333) (41,338)
+(43,108) (45,170) (47,74) (49,261) (51,76) (53,12) (55,4) (57,0) (59,1) (61,0)};
+\addlegendentry{bootstrap: 2000 resamples of our one sample}
+\addplot[distblue, very thick, smooth] coordinates {(28,5) (30,23) (32,69)
+(34,151) (36,254) (38,322) (40,339) (42,299) (44,224) (46,146) (48,85) (50,44)
+(52,22) (54,10) (56,4) (58,2) (60,1)};
+\addlegendentry{truth: fresh samples from the population}
+\draw[distblue, thick, dashed] (axis cs:40,0) -- (axis cs:40,370);
+\node[distblue, anchor=south east, font=\small] at (axis cs:40.3,370)
+  {true median 40};
+\draw[densityred, thick] (axis cs:41,0) -- (axis cs:41,370);
+\node[densityred, anchor=south west, font=\small] at (axis cs:40.7,370)
+  {sample median 41};
+\end{axis}
+\end{tikzpicture}
+\caption{The bootstrap histogram (orange) is centred on our sample's median,
+41, not on the true median, 40. What it gets roughly right is the width: SD
+$5.3$ ms against the true $4.7$ ms. That width, not the centre, is what the
+bootstrap is used for.}
+\label{fig:bootstrap-vs-truth}
+\end{figure}
 
 \begin{happeningbox}
 The bootstrap distribution measures how much the statistic changes when the
@@ -456,10 +512,10 @@ is the percentile interval reflected through $\hat\theta$
 \node[distblue, anchor=west, font=\small] at (52.5,1.6) {percentile $[33,52]$};
 \draw[quotientorange, line width=2.5pt] (30,0.8) -- (49,0.8);
 \node[quotientorange, anchor=east, font=\small] at (29.5,0.8) {basic $[30,49]$};
-\node[distblue, above, font=\footnotesize] at (37,1.65) {8};
-\node[distblue, above, font=\footnotesize] at (46.5,1.65) {11};
-\node[quotientorange, below, font=\footnotesize] at (35.5,0.75) {11};
-\node[quotientorange, below, font=\footnotesize] at (45,0.75) {8};
+\node[distblue, above, font=\footnotesize] at (37,1.65) {8 ms below};
+\node[distblue, above, font=\footnotesize] at (46.5,1.65) {11 ms above};
+\node[quotientorange, below, font=\footnotesize] at (35.5,0.75) {11 ms below};
+\node[quotientorange, below, font=\footnotesize] at (45,0.75) {8 ms above};
 \end{tikzpicture}
 \caption{The basic interval is the percentile interval flipped around
 $\hat\theta$: the long arm on the right becomes a long arm on the left. Which
@@ -577,7 +633,7 @@ thin, and Figure~\ref{fig:bootstrap-p90-hist} shows why.
 \begin{tikzpicture}
 \begin{axis}[
   width=12cm, height=6cm,
-  xmin=50, xmax=150, ymin=0, ymax=700,
+  xmin=50, xmax=150, ymin=0, ymax=720,
   axis lines=left, xlabel={bootstrap p90 $\hat\theta^*$ (ms)},
   ylabel={count (of 2000)}, xtick={50,60,...,150},
   clip=false,
@@ -586,18 +642,25 @@ thin, and Figure~\ref{fig:bootstrap-p90-hist} shows why.
 coordinates {(50,5) (55,82) (60,221) (65,561) (70,424) (75,597) (80,71) (85,29)
 (90,0) (95,0) (100,0) (105,0) (110,0) (115,0) (120,0) (125,0) (130,0) (135,0)
 (140,0) (145,10) (150,0)};
-\draw[densityred, very thick] (axis cs:70.9,0) -- (axis cs:70.9,650);
-\node[densityred, anchor=south, font=\small] at (axis cs:70.9,650) {$\hat\theta=70.9$};
-\draw[distblue, thick, {Stealth}-{Stealth}] (axis cs:59.4,450) -- (axis cs:83,450);
-\node[distblue, anchor=west, font=\small] at (axis cs:84,450) {percentile $[59.4, 83.0]$};
-\node[anchor=south, font=\small, align=center] at (axis cs:140,40)
-  {10 resamples drew the\\145 ms request $\ge 5$ times};
+\draw[densityred, very thick] (axis cs:70.9,0) -- (axis cs:70.9,690);
+\node[densityred, anchor=south, font=\small] at (axis cs:70.9,690)
+  {sample p90 $\hat\theta=70.9$};
+\draw[distblue, thick, dashed] (axis cs:59.4,0) -- (axis cs:59.4,640);
+\draw[distblue, thick, dashed] (axis cs:83,0) -- (axis cs:83,640);
+\draw[distblue, thick, {Stealth}-{Stealth}] (axis cs:59.4,640) -- (axis cs:83,640);
+\node[distblue, anchor=west, font=\small] at (axis cs:84,640)
+  {95\% percentile interval 59.4 to 83.0};
+\draw[gray, -{Stealth}] (axis cs:141,118) -- (axis cs:147.3,18);
+\node[anchor=south, font=\small, align=center] at (axis cs:128,120)
+  {10 of 2000 resamples: p90 = 145,\\because they drew the 145 ms\\request 5 or more times};
+\node[anchor=south, font=\small, align=center, gray] at (axis cs:116,25)
+  {no replicates between 90 and 145};
 \end{axis}
 \end{tikzpicture}
-\caption{Bootstrap distribution of the p90. Almost all replicates are
-interpolations between the handful of data values above 63 ms, so the
-histogram is lumpy and its right edge is pinned to the largest observations.
-The bootstrap cannot imagine a latency above 145 ms.}
+\caption{Bootstrap distribution of the p90 (bars 5 ms wide). Almost every
+replicate is built from the handful of data values above 63 ms, so the
+histogram is lumpy, has a gap from 90 to 145 ms, and stops dead at the largest
+observation. The bootstrap cannot imagine a latency above 145 ms.}
 \label{fig:bootstrap-p90-hist}
 \end{figure}
 
@@ -616,23 +679,34 @@ After a deploy, 35 latencies from the new version have median 24 ms, against
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=12cm, height=4.4cm,
-  xmin=0, xmax=155, ymin=0.4, ymax=2.6,
+  width=12cm, height=4.8cm,
+  xmin=0, xmax=155, ymin=0.4, ymax=2.75,
   ytick={1,2}, yticklabels={new ($n=35$), old ($n=40$)},
   xlabel={latency (ms)}, axis x line=bottom, axis y line=left,
+  clip=false,
 ]
 \addplot+[boxplot prepared={draw position=2, lower whisker=12,
   lower quartile=28.5, median=41, upper quartile=58.25, upper whisker=83,
-  box extend=0.45}, color=distblue, fill=histfill!50, mark=*]
+  box extend=0.45}, color=distblue, fill=histfill!50, mark=*,
+  mark options={fill=distblue, draw=distblue}]
   table[row sep=\\, y index=0] {145\\ };
 \addplot+[boxplot prepared={draw position=1, lower whisker=7,
   lower quartile=18, median=24, upper quartile=34, upper whisker=49,
-  box extend=0.45}, color=targetgreen, fill=targetgreen!25, mark=*]
+  box extend=0.45}, color=targetgreen, fill=targetgreen!25, mark=*,
+  mark options={fill=targetgreen, draw=targetgreen}]
   table[row sep=\\, y index=0] {60\\ 72\\ };
+\node[distblue, anchor=south, font=\footnotesize] at (axis cs:41,2.24) {median 41};
+\node[targetgreen!70!black, anchor=south, font=\footnotesize] at (axis cs:24,1.24)
+  {median 24};
+\node[distblue, anchor=south, font=\footnotesize] at (axis cs:145,2.08) {145};
+\node[targetgreen!70!black, anchor=south, font=\footnotesize] at (axis cs:66,1.08)
+  {60, 72};
 \end{axis}
 \end{tikzpicture}
-\caption{Old and new latencies. The new median sits 17 ms lower. Is that gap
-bigger than resampling noise?}
+\caption{Old and new latencies. Each box spans the middle half of a group, the
+line inside is its median, whiskers reach the furthest values within 1.5 box
+lengths, and dots are the slower requests beyond. The new median sits 17 ms
+lower. Is that gap bigger than resampling noise?}
 \label{fig:bootstrap-two-box}
 \end{figure}
 
@@ -658,7 +732,7 @@ print(d.std(ddof=1), np.quantile(d, [0.025, 0.975]))   # 5.96 [ 5. 27.5]
 \begin{tikzpicture}
 \begin{axis}[
   width=12cm, height=5.8cm,
-  xmin=-6, xmax=38, ymin=0, ymax=340,
+  xmin=-6, xmax=38, ymin=0, ymax=380,
   axis lines=left, xlabel={bootstrap difference in medians, old $-$ new (ms)},
   ylabel={count (of 2000)}, xtick={-4,0,...,36},
   clip=false,
@@ -667,17 +741,23 @@ print(d.std(ddof=1), np.quantile(d, [0.025, 0.975]))   # 5.96 [ 5. 27.5]
 coordinates {(-4,0) (-2,2) (0,12) (2,12) (4,37) (6,76) (8,153) (10,162) (12,281)
 (14,268) (16,246) (18,247) (20,144) (22,101) (24,85) (26,131) (28,30) (30,9)
 (32,3) (34,1) (36,0)};
-\draw[gray, thick, dashed] (axis cs:0,0) -- (axis cs:0,300);
-\node[gray, anchor=south, font=\small] at (axis cs:0,300) {no difference};
-\draw[densityred, very thick] (axis cs:17,0) -- (axis cs:17,310);
-\node[densityred, anchor=south, font=\small] at (axis cs:17,310) {observed 17};
-\draw[distblue, thick, {Stealth}-{Stealth}] (axis cs:5,220) -- (axis cs:27.5,220);
-\node[distblue, anchor=west, font=\small] at (axis cs:28,220) {$[5, 27.5]$};
+\draw[gray, thick, dashed] (axis cs:0,0) -- (axis cs:0,170);
+\node[gray, anchor=south, font=\small, align=center] at (axis cs:0,170)
+  {0 = no\\change};
+\draw[densityred, very thick] (axis cs:17,0) -- (axis cs:17,350);
+\node[densityred, anchor=south, font=\small] at (axis cs:17,350)
+  {observed drop 17};
+\draw[distblue, thick, dashed] (axis cs:5,0) -- (axis cs:5,310);
+\draw[distblue, thick, dashed] (axis cs:27.5,0) -- (axis cs:27.5,310);
+\draw[distblue, thick, {Stealth}-{Stealth}] (axis cs:5,310) -- (axis cs:27.5,310);
+\node[distblue, anchor=west, font=\small, align=left] at (axis cs:28,310)
+  {95\% percentile\\interval 5 to 27.5};
 \end{axis}
 \end{tikzpicture}
-\caption{Bootstrap distribution of the difference in medians. The $95\%$
-percentile interval $[5, 27.5]$ excludes 0; only 7 of the 2000 replicates
-($0.35\%$) are at or below zero.}
+\caption{Bootstrap distribution of the drop in median latency. The $95\%$
+percentile interval, 5 to 27.5 ms (between the dashed blue lines), does not
+reach 0 (dashed gray): only 7 of the 2000 replicates ($0.35\%$) are at or
+below zero.}
 \label{fig:bootstrap-diff-hist}
 \end{figure}
 
@@ -773,10 +853,12 @@ Figure~\ref{fig:bootstrap-binom20} shows where the number comes from.
 \addplot[fill=trapred!60, draw=trapred] coordinates {(0,0.0000) (1,0.0000)
 (2,0.0002) (3,0.0011) (4,0.0046) (5,0.0148) (15,0.0148) (16,0.0046)
 (17,0.0011) (18,0.0002) (19,0.0000) (20,0.0000)};
-\node[trapred, font=\small, align=center] at (axis cs:2.6,0.06)
-  {$K \le 5$: miss\\prob.\ 0.0207};
-\node[trapred, font=\small, align=center] at (axis cs:17.4,0.06)
-  {$K \ge 15$: miss\\prob.\ 0.0207};
+\node[trapred, font=\small, align=center] at (axis cs:2.6,0.07)
+  {$K \le 5$: interval lies\\entirely above $m$\\prob.\ 0.0207};
+\node[trapred, font=\small, align=center] at (axis cs:17.4,0.07)
+  {$K \ge 15$: interval lies\\entirely below $m$\\prob.\ 0.0207};
+\node[distblue, font=\small, align=center, anchor=south] at (axis cs:10,0.184)
+  {$6 \le K \le 14$: interval covers $m$, prob.\ 0.9586};
 \end{axis}
 \end{tikzpicture}
 \caption{$\Bin(20, 1/2)$. The interval $[x_{(6)}, x_{(15)}]$ misses the median
@@ -805,21 +887,29 @@ approximate.
 \draw[-{Stealth}] (5,0) -- (88,0) node[right, font=\small] {ms};
 \foreach \t in {10,20,...,80} { \draw (\t,0.1) -- (\t,-0.1)
   node[below, font=\footnotesize] {\t}; }
-\foreach \v/\h [count=\i] in {12/1,18/1,21/1,23/1,24/1,24/2,33/1,39/1,40/1,42/1,
+\foreach \v/\h [count=\i] in {12/1,18/1,21/1,23/1,24/2,24/3,33/1,39/1,40/2,42/1,
   43/2,48/1,50/1,53/1,63/1,64/2,68/1,68/2,70/1,79/1} {
-  \ifnum\i<6 \fill[gray!60] (\v,0.3*\h) circle (3pt);
-  \else\ifnum\i>15 \fill[gray!60] (\v,0.3*\h) circle (3pt);
-  \else \fill[distblue] (\v,0.3*\h) circle (3pt); \fi\fi }
+  \ifnum\i<6 \fill[gray!60] (\v,0.3*\h) circle (2.4pt);
+  \else\ifnum\i>15 \fill[gray!60] (\v,0.3*\h) circle (2.4pt);
+  \else \fill[distblue] (\v,0.3*\h) circle (2.4pt); \fi\fi }
 \draw[targetgreen, line width=2.5pt] (24,1.3) -- (63,1.3);
-\node[targetgreen, above, font=\small] at (43.5,1.4) {$[x_{(6)}, x_{(15)}] = [24, 63]$};
+\draw[targetgreen, thin, dashed] (24,1.05) -- (24,1.3);
+\draw[targetgreen, thin, dashed] (63,0.45) -- (63,1.3);
+\node[targetgreen!70!black, above, font=\small] at (43.5,1.4)
+  {95.86\% interval $[x_{(6)}, x_{(15)}] = [24, 63]$};
+\node[targetgreen!70!black, anchor=east, font=\footnotesize] at (23.5,1.3)
+  {6th smallest};
+\node[targetgreen!70!black, anchor=west, font=\footnotesize] at (63.5,1.3)
+  {15th smallest};
 \draw[densityred, thick] (42.5,-0.3) -- (42.5,1.0);
-\node[densityred, anchor=north, font=\footnotesize] at (42.5,-0.45) {median 42.5};
-\node[gray, font=\footnotesize] at (14,1.1) {5 below};
-\node[gray, font=\footnotesize] at (73,1.1) {5 above};
+\node[densityred, anchor=north, font=\footnotesize] at (42.5,-0.45) {sample median 42.5};
+\node[gray, font=\footnotesize, align=center] at (16,-0.95) {5 smallest: dropped};
+\node[gray, font=\footnotesize, align=center] at (72,-0.95) {5 largest: dropped};
 \end{tikzpicture}
-\caption{The order-statistic interval counts in from each end: drop 5
-points on each side and keep the range of the middle 10 (blue). Stacked dots
-are ties or near-ties.}
+\caption{The order-statistic interval counts in from each end of the sorted
+20 latencies: drop the 5 smallest and the 5 largest (gray) and keep the range
+of the middle 10 (blue). Dots are stacked where two values are equal or within
+1 ms of each other, so every one of the 20 can be counted.}
 \label{fig:bootstrap-orderstat}
 \end{figure}
 
@@ -973,34 +1063,50 @@ $B = 1000$ for the bootstrap ones), and count how often it contains 40.
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=12cm, height=7cm,
-  xmode=log, xmin=8, xmax=100, ymin=0.78, ymax=1.0,
-  xtick={10,20,40,80}, xticklabels={10,20,40,80},
-  axis lines=left, xlabel={sample size $n$ (log scale)},
+  name=top, width=8.6cm, height=6.4cm,
+  xmode=log, xmin=8, xmax=100, ymin=0.915, ymax=0.99,
+  xtick={10,20,40,80}, xticklabels={},
+  ytick={0.92,0.93,...,0.98},
+  axis x line*=bottom, axis y line*=left,
   ylabel={actual coverage of nominal 95\% CI},
   yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2},
-  legend style={font=\small, at={(0.5,-0.22)}, anchor=north, column sep=0.25cm},
-  legend columns=3,
+  clip=false,
 ]
+\addplot[black, dashed, domain=8:82] {0.95};
+\node[anchor=south west, font=\footnotesize] at (axis cs:8.2,0.9505) {target 0.95};
 \addplot[targetgreen, thick, mark=square*] coordinates {(10,0.979) (20,0.959) (40,0.957) (80,0.966)};
-\addlegendentry{exact order-statistic}
 \addplot[distblue, thick, mark=*] coordinates {(10,0.938) (20,0.942) (40,0.938) (80,0.946)};
-\addlegendentry{percentile}
 \addplot[structurepurple, thick, dashed, mark=o] coordinates {(10,0.923) (20,0.940) (40,0.934) (80,0.943)};
-\addlegendentry{BCa}
 \addplot[residgray, thick, mark=triangle*] coordinates {(10,0.930) (20,0.939) (40,0.930) (80,0.932)};
-\addlegendentry{$\hat\theta \pm 1.96\,\widehat{\SE}_{\text{boot}}$}
-\addplot[quotientorange, thick, mark=diamond*] coordinates {(10,0.806) (20,0.827) (40,0.854) (80,0.869)};
-\addlegendentry{basic}
-\addplot[black, dashed, domain=8:100] {0.95};
+\node[targetgreen!70!black, anchor=west, font=\small] at (axis cs:84,0.966) {exact order-statistic};
+\node[distblue, anchor=west, font=\small] at (axis cs:84,0.9455) {percentile};
+\node[structurepurple, anchor=west, font=\small] at (axis cs:84,0.9395) {BCa};
+\node[residgray, anchor=west, font=\small] at (axis cs:84,0.931)
+  {$\hat\theta \pm 1.96\,\widehat{\SE}_{\text{boot}}$};
 \end{axis}
+\begin{axis}[
+  at={(top.south west)}, anchor=north west, yshift=-0.35cm,
+  width=8.6cm, height=3.4cm,
+  xmode=log, xmin=8, xmax=100, ymin=0.79, ymax=0.88,
+  xtick={10,20,40,80}, xticklabels={10,20,40,80},
+  ytick={0.80,0.82,...,0.86},
+  axis x line*=bottom, axis y line*=left,
+  xlabel={sample size $n$ (log scale)},
+  yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=2},
+  clip=false,
+]
+\addplot[quotientorange, thick, mark=diamond*] coordinates {(10,0.806) (20,0.827) (40,0.854) (80,0.869)};
+\node[quotientorange, anchor=west, font=\small] at (axis cs:84,0.869) {basic};
+\end{axis}
+\node[font=\footnotesize, gray] at ($(top.south west)+(0,-0.12cm)$) {//};
 \end{tikzpicture}
 \caption{Coverage of five $95\%$ intervals for the median of a log-normal
 population (4000 simulated samples per point; Monte Carlo SD about $0.0035$).
-The exact interval never drops below $95\%$; its zig-zag comes from the
-binomial steps (Section~\ref{sec:boot-exact}). Percentile and BCa run 1 to 2
-points low and creep up slowly with $n$. The basic interval under-covers badly
-for the median.}
+The vertical axis is broken between 0.88 and 0.915 so the four upper lines can
+be told apart. The exact interval (green) never drops below $95\%$; its
+zig-zag comes from the binomial steps (Section~\ref{sec:boot-exact}).
+Percentile and BCa run 1 to 2 points low. The basic interval (bottom panel)
+under-covers badly for the median.}
 \label{fig:bootstrap-coverage}
 \end{figure}
 
@@ -1056,6 +1162,8 @@ bootstrap distribution is a single spike at the observed max.
 ]
 \addplot[fill=trapred!50, draw=trapred] coordinates {($\le 70$,0.015) (79,0.114)
 (83,0.235) (145,0.637)};
+\node[trapred, anchor=east, font=\small, align=right] at (axis cs:83,0.6)
+  {equals the observed\\maximum 145 ms\\in 63.7\% of resamples};
 \end{axis}
 \end{tikzpicture}
 \caption{Exact bootstrap distribution of the maximum of 40 latencies. The
@@ -1083,26 +1191,33 @@ $B = 1000$):
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=12cm, height=5.6cm,
-  ybar, bar width=0.9cm, ymin=0, ymax=1.08,
-  symbolic x coords={Pareto 3,Pareto 1.5,Pareto 1.1,AR(1) iid,AR(1) block},
-  xtick=data, x tick label style={font=\small, align=center},
-  axis lines=left, ylabel={coverage of nominal 95\%},
+  width=12cm, height=6.2cm,
+  ybar, bar width=0.9cm, xmin=0.4, xmax=5.6, ymin=0, ymax=1.08,
+  xtick={1,...,5},
+  xticklabels={{Pareto\\$\alpha=3$}, {Pareto\\$\alpha=1.5$}, {Pareto\\$\alpha=1.1$},
+    {AR(1)\\resample\\points}, {AR(1)\\resample\\blocks of 10}},
+  x tick label style={font=\small, align=center},
+  axis lines=left, ylabel={actual coverage of nominal 95\% CI},
   nodes near coords, nodes near coords style={font=\small, anchor=north,
     yshift=-2pt, /pgf/number format/fixed, /pgf/number format/fixed zerofill,
     /pgf/number format/precision=2},
-  enlarge x limits=0.13, clip=false,
+  clip=false,
 ]
-\addplot[fill=bootorange!60, draw=bootorange!80!black] coordinates {(Pareto 3,0.889)
-(Pareto 1.5,0.704) (Pareto 1.1,0.261) (AR(1) iid,0.585) (AR(1) block,0.876)};
-\draw[black, dashed] (rel axis cs:0,0.8796) -- (rel axis cs:1,0.8796);
-\node[anchor=south east, font=\small] at (rel axis cs:1,0.885) {target 0.95};
+\addplot[fill=bootorange!60, draw=bootorange!80!black] coordinates {(1,0.889)
+(2,0.704) (3,0.261) (4,0.585) (5,0.876)};
+\draw[black, dashed] (axis cs:0.4,0.95) -- (axis cs:5.6,0.95);
+\node[anchor=south west, font=\small] at (axis cs:0.55,0.955) {target 0.95};
+\draw[gray] (axis cs:3.5,0) -- (axis cs:3.5,1.0);
+\node[font=\small, gray, anchor=south] at (axis cs:2,1.03) {mean of 50 heavy-tailed values};
+\node[font=\small, gray, anchor=south] at (axis cs:4.6,1.03) {mean of 200 correlated values};
 \end{axis}
 \end{tikzpicture}
-\caption{Where the percentile bootstrap breaks. Left three bars: CI for the
-mean of 50 Pareto values with tail index 3, 1.5, 1.1. Right two: CI for the
-mean of 200 autocorrelated values, resampling single points versus blocks of
-10. Each bar is 1000--2000 simulated datasets.}
+\caption{Where the percentile bootstrap breaks: every bar falls short of the
+dashed $95\%$ target. Left three bars: CI for the mean of 50 Pareto values;
+the heavier the tail (smaller $\alpha$), the worse the coverage. Right two: CI
+for the mean of 200 autocorrelated values; resampling blocks of 10 instead of
+single points recovers most of the lost coverage. Each bar is 1000--2000
+simulated datasets.}
 \label{fig:bootstrap-failures}
 \end{figure}
 
@@ -1141,6 +1256,9 @@ around $n^{1/3}$, tuned up for strongly correlated series.
   structurepurple/D,trapred/E,distblue/F} {
   \node[blk, minimum width=1.6cm, fill=\c!25] at (1.65*\i-0.8,0) {block \lab}; }
 \node[anchor=west, font=\footnotesize] at (9.9,0) {time $\to$};
+\draw[decorate, decoration={brace, amplitude=4pt}] (0.05,0.38) -- (1.65,0.38);
+\node[anchor=south west, font=\footnotesize] at (0.05,0.58)
+  {one block = $\ell$ consecutive observations, kept in their original order};
 \node[anchor=east, font=\small] at (-0.2,-1.1) {resample 1};
 \foreach \c/\lab [count=\i] in {quotientorange/C,sourceblue/A,quotientorange/C,
   trapred/E,targetgreen/B,structurepurple/D} {
