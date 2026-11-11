@@ -1,11 +1,18 @@
 import type { Placement } from './index';
 
+// Figures for music chapter 3. See index.ts for how refs work.
 const placements: Placement[] = [
   {
-    ref: 'formalbox-1',
+    ref: 'tryitbox-1',
     where: 'after',
-    fig: 'piano-harmony-explorer',
-    caption: 'Tap any starting key, toggle between Major (4+3) and Minor (3+4) or scales, and flip through Root, 1st, and 2nd inversions.',
+    fig: 'music-chord-builder',
+    caption: 'Tap any key to build a chord on it, then choose major, minor or another type.',
+  },
+  {
+    ref: 'the-chords-that-belong-to-a-key/6',
+    where: 'after',
+    fig: 'music-key-chords',
+    caption: 'Choose a key, then tap a chord or play a famous progression.',
   },
 ];
 

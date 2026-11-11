@@ -66,7 +66,7 @@ export const BOOKS = [
     id: 'music',
     short: 'Music & piano',
     title: 'Music and the Piano From the Ground Up',
-    subtitle: 'Keys, scales, chords, inversions, rhythm, and reading sheet music without memorization',
+    subtitle: 'Notes, scales, chords, rhythm and reading music, explained for complete beginners, with every example playable',
     main: 'books/music/src/main.tex',
     root: 'books/music',
     common: ['books/music/src/common.tex'],

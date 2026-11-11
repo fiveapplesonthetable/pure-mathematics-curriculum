@@ -5,6 +5,7 @@ import libraryData from './content/library.json';
 import { chapters as chapterFigures, type Placement } from './chapters';
 import * as store from './store';
 import type { Mount } from './figures/lib';
+import { wireListenButtons, stopAll } from './audio';
 
 interface Block { refs: string[]; section: string; html: string }
 interface Chapter { book: string; key: string; label: string; title: string; titleHtml: string; blocks: Block[] }
@@ -161,6 +162,7 @@ function showBook(book: Book) {
     if (!loader) return;
     body.innerHTML = (await loader()).default.blocks.map((b) => b.html).join('');
     renderMath(body, book.macros);
+    wireListenButtons(body);
   });
   window.scrollTo(0, 0);
 }
@@ -223,6 +225,7 @@ async function showChapter(book: Book, key: string, anchor: string | null) {
     </nav>`;
   app.appendChild(main);
   renderMath(main.querySelector('article')!, book.macros);
+  wireListenButtons(main);
 
   await Promise.all([...main.querySelectorAll<HTMLElement>('figure.fig')].map((f) => mountFigure(f, f.dataset.fig!)));
 
@@ -268,6 +271,7 @@ function route() {
   }
   lastRoute = routeKey;
   current = null;
+  stopAll();
   if (parts.length === 1 && /^\d+$/.test(parts[0])) {
     location.replace(`#/proofs/${parts[0]}`);
     return;
