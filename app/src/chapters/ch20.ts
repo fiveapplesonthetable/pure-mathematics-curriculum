@@ -9,13 +9,13 @@ const ch20: Placement[] = [
     caption: 'Drag the band narrower. The first index after which every term stays inside is the N that works for this ε.',
   },
   {
-    ref: 'when-the-contract-breaks-proving-divergence/9',
+    ref: 'when-the-contract-breaks-proving-divergence/12',
     where: 'after',
     fig: 'no-limit',
     caption: 'A sequence that never settles. Move the candidate limit L and the tolerance: once ε is small, terms keep escaping however far you go.',
   },
   {
-    ref: 'understanding-the-quantifiers/3',
+    ref: 'understanding-the-quantifiers/4',
     where: 'after',
     fig: 'contract-game',
     caption: 'Play the contract one move at a time: pick ε, answer with N, and test whether any n ≥ N stays inside.',
@@ -45,7 +45,7 @@ const ch20: Placement[] = [
     caption: 'Step through the proof line by line: see how δ = ε/3 keeps the graph inside the target box.',
   },
   {
-    ref: 'non-linear-functions-and-provisional-bounds/9',
+    ref: 'non-linear-functions-and-provisional-bounds/13',
     where: 'after',
     fig: 'delta-depends-on-c',
     caption: 'For f(x) = x², keep ε fixed and move c. The steeper the graph, the narrower the δ that works: δ depends on c.',

@@ -138,7 +138,7 @@ const DEFAULT_BOXES = {
   historybox: 'History and connection', labbox: 'Proof lab',
 };
 // Asides start collapsed (progressive disclosure); the rest stay open.
-const COLLAPSED = new Set(['historybox', 'connectionbox', 'applicationbox', 'aestheticbox', 'marginnotebox', 'strangbox']);
+const COLLAPSED = new Set(['historybox', 'connectionbox', 'applicationbox', 'aestheticbox', 'marginnotebox', 'strangbox', 'curiousbox', 'answerbox']);
 
 function readPreamble(text) {
   const macros = {};
@@ -306,7 +306,7 @@ const SIMPLE = {
   '%': '%', '&': '&amp;', '#': '#', '_': '_', '{': '{', '}': '}', '$': '$', ' ': ' ', ',': '&thinsp;', ';': ' ', '!': '', '/': '', '-': '&shy;', '@': '',
   ldots: '…', dots: '…', textendash: '–', textemdash: '—', LaTeX: 'LaTeX', TeX: 'TeX', '\\': '<br>', newline: '<br>', linebreak: ' ',
   S: '§', P: '¶', checkmark: '✓', textbullet: '•', quad: '&emsp;', qquad: '&emsp;&emsp;', enspace: '&ensp;', thinspace: '&thinsp;', textasciitilde: '~', textbackslash: '\\',
-  times: '×', copyright: '©', dag: '†', textdegree: '°', ss: 'ß', ae: 'æ', o: 'ø', aa: 'å', i: 'ı', today: '', par: ' ', relax: '', textquotesingle: "'", pounds: '£', textsterling: '£', 
+  sh: '♯', fl: '♭', nat: '♮', times: '×', copyright: '©', dag: '†', textdegree: '°', ss: 'ß', ae: 'æ', o: 'ø', aa: 'å', i: 'ı', today: '', par: ' ', relax: '', textquotesingle: "'", pounds: '£', textsterling: '£', 
 };
 const IGNORE_TEXT = new Set(['small', 'footnotesize', 'scriptsize', 'tiny', 'large', 'Large', 'LARGE', 'huge', 'Huge', 'normalsize', 'centering', 'raggedright', 'raggedleft', 'noindent', 'indent', 'hfill', 'vfill', 'protect', 'medskip', 'bigskip', 'smallskip', 'newpage', 'clearpage', 'pagebreak', 'nopagebreak', 'chapterline', 'bfseries', 'itshape', 'em', 'normalfont', 'ttfamily', 'sffamily', 'rmfamily', 'upshape', 'mdseries', 'selectfont', 'break', 'allowbreak', 'nobreak', 'qed', 'hline', 'toprule', 'midrule', 'bottomrule', 'item', 'maketitle', 'tableofcontents', 'frontmatter', 'mainmatter', 'backmatter', 'appendix', 'null', 'leavevmode', 'strut', 'displaystyle', 'sloppy', 'qedhere']);
 const DROP_ARGS = { vspace: 1, hspace: 1, label: 1, addcontentsline: 3, needspace: 1, setlength: 2, addtocontents: 2, phantomsection: 0, markboth: 2, markright: 1, index: 1, rule: 2, color: 1, pagestyle: 1, thispagestyle: 1, setcounter: 2, addtocounter: 2, enlargethispage: 1, vskip: 0, fontsize: 2, addlinespace: 0 };
@@ -434,6 +434,15 @@ function textToHtml(s) {
         if (nm && nm !== '\\arraystretch') { B.macros[nm] = body; B.P.textMacros[nm] = { n: na ? +na : 0, body }; }
         if (nm && nm !== '\\arraystretch') B.bodyDefs[nm] = `\\providecommand{${nm}}${na ? `[${na}]` : ''}{${body}}`;
         i = e2;
+        continue;
+      }
+      if (bare === 'listen') {
+        // \listen{C4+E4+G4} -> a play button (src/audio.ts parses the spec). Invisible in the PDF.
+        const [[spec], e] = args(s, j, 1);
+        const clean = spec.replace(/\\sh/g, '#').replace(/\\fl/g, 'b').replace(/\s+/g, ' ').trim();
+        if (!/^[A-Ga-g0-9#b+:.\-rxX@~= ]+$/.test(clean)) warn(`bad \\listen spec: ${clean}`);
+        out += `<button type="button" class="listen" data-notes="${escAttr(clean)}" aria-label="Listen: ${escAttr(clean)}"></button>`;
+        i = e;
         continue;
       }
       if (bare in DROP_ARGS) {
@@ -569,6 +578,9 @@ function parseBlocks(body, level) {
     const nl = s.indexOf('\n');
     let line = nl < 0 ? s : s.slice(0, nl);
     s = nl < 0 ? '' : s.slice(nl + 1);
+    // A blank line ends the paragraph (LaTeX semantics). Without this, every
+    // paragraph of a section ran together into one long block.
+    if (/^[ \t\r]*$/.test(line)) { flush(); continue; }
     const mid = blockStart(line);
     if (mid > 0) {
       para.push(line.slice(0, mid));
@@ -1089,6 +1101,11 @@ else {
   const lib = existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : [];
   const merged = BOOKS.map((b) => library.find((x) => x.id === b.id) || lib.find((x) => x.id === b.id)).filter(Boolean);
   writeFileSync(p, JSON.stringify(merged));
+}
+// With --book, keep the other books' jobs: build-figures.mjs drops manifest
+// entries (and SVGs) that are not in this file.
+if (onlyBook && existsSync(TIKZ_JOBS)) {
+  for (const [k, v] of Object.entries(JSON.parse(readFileSync(TIKZ_JOBS, 'utf8')))) if (v.book !== onlyBook) tikzJobs[k] = v;
 }
 writeFileSync(TIKZ_JOBS, JSON.stringify(tikzJobs));
 writeFileSync(join(here, '../.content-warnings.json'), JSON.stringify(allWarnings, null, 1));

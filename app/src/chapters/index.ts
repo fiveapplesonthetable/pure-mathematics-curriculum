@@ -31,8 +31,13 @@ import probability5 from './probability-5';
 import linearAlgebra23 from './linear-algebra-23';
 import finance6 from './finance-6';
 import finance9 from './finance-9';
+import music1 from './music-1';
+import music2 from './music-2';
 import music3 from './music-3';
+import music4 from './music-4';
 import music5 from './music-5';
+import music6 from './music-6';
+import music7 from './music-7';
 
 // Keyed by "<book>/<chapter key>".
 export const chapters: Record<string, Placement[]> = {
@@ -51,6 +56,11 @@ export const chapters: Record<string, Placement[]> = {
   'probability/5': probability5,
   'finance/6': finance6,
   'finance/9': finance9,
+  'music/1': music1,
+  'music/2': music2,
   'music/3': music3,
+  'music/4': music4,
   'music/5': music5,
+  'music/6': music6,
+  'music/7': music7,
 };
