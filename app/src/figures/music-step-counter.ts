@@ -58,7 +58,7 @@ const mount: Mount = (root) => {
     } else if (Math.abs(d) === 2) {
       msg += ` It skips one key, the black key between them.`;
     } else if (isBlack(b.midi)) {
-      msg += d > 0 ? ` One key to the right is a sharp: ${pcName(b.midi)}.` : ` One key to the left is a flat: ${pcName(b.midi, true)}.`;
+      msg += d > 0 ? ` A black key one step up gets a sharp (♯) name: ${pcName(b.midi)}.` : ` A black key one step down gets a flat (♭) name: ${pcName(b.midi, true)}.`;
     }
     return msg;
   }

@@ -6,13 +6,13 @@ const placements: Placement[] = [
     ref: 'tryitbox-1',
     where: 'after',
     fig: 'music-chord-builder',
-    caption: 'Tap any key to build a chord on it, then choose major, minor or another type.',
+    caption: 'Tap a key to build a chord on it, then switch between major and minor.',
   },
   {
-    ref: 'the-chords-that-belong-to-a-key/6',
+    ref: 'famous-chord-progressions/5',
     where: 'after',
     fig: 'music-key-chords',
-    caption: 'Choose a key, then tap a chord or play a famous progression.',
+    caption: 'Choose a key to see its seven chords, then play a progression in that key.',
   },
 ];
 

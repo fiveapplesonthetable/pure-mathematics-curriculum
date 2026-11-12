@@ -34,6 +34,7 @@ const mount: Mount = (root) => {
   let noteG: SVGGElement | null = null;
   let hit: SVGRectElement | null = null;
   let geom = { yG2: 0, sp: 10 };
+  const ghostEls = new Map<number, SVGGElement>();
 
   const yOf = (d: number) => geom.yG2 - (d - BASS_BOTTOM) * (geom.sp / 2);
   const dMin = () => diatonic(from);
@@ -80,15 +81,19 @@ const mount: Mount = (root) => {
     clef(svg, 'bass', 27, yOf(BASS_BOTTOM), sp);
 
     kb = keyboard(svg, { from, to, onPress: (m) => select(m, false) });
-    kb.layout(L, H - kbH, W - L - 6, kbH);
+    // leave room on the right so ledger lines above the last key are not clipped
+    kb.layout(L, H - kbH, W - L - 6 - Math.round(sp * 0.6), kbH);
 
-    // landmark ghosts
+    // landmark ghosts (hidden while a black key on the same line or space is shown)
     const ghosts = s('g', {}, svg);
+    ghostEls.clear();
     for (const d of KEY_LANDMARKS) {
       if (d < dMin() || d > dMax()) continue;
       const k = kb.key(whiteMidi(d))!;
-      ledgers(ghosts, k.cx, d, d >= 28 ? TREBLE_BOTTOM : BASS_BOTTOM, sp, yOf, 'dim');
-      note(ghosts, { x: k.cx, y: yOf(d), sp, kind: 'whole', tone: 'dim' });
+      const gg = s('g', {}, ghosts);
+      ledgers(gg, k.cx, d, d >= 28 ? TREBLE_BOTTOM : BASS_BOTTOM, sp, yOf, 'dim');
+      note(gg, { x: k.cx, y: yOf(d), sp, kind: 'whole', tone: 'dim' });
+      ghostEls.set(d, gg);
     }
     noteG = s('g', {}, svg);
 
@@ -133,6 +138,7 @@ const mount: Mount = (root) => {
     const k = kb.key(isBlack(cur) ? cur - 1 : cur)!;
     const x = isBlack(cur) ? kb.key(cur)!.cx + sp * 0.5 : k.cx;
     const y = yOf(d);
+    for (const [gd, gEl] of ghostEls) gEl.style.display = isBlack(cur) && gd === d ? 'none' : '';
     const bottom = d >= 28 ? TREBLE_BOTTOM : BASS_BOTTOM;
     ledgers(noteG, x, d, bottom, sp, yOf, 'acc');
     note(noteG, { x, y, sp, kind: 'whole', tone: 'acc' });

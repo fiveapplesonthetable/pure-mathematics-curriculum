@@ -77,7 +77,12 @@ export const SONGS: Song[] = [
 ];
 
 const mount: Mount = (root) => {
-  let song = SONGS[0];
+  // The chapter places one player next to each piece: the n-th player on the
+  // page starts on the n-th song (the menu still offers all of them).
+  const fig = root.closest('figure');
+  const players = fig ? [...document.querySelectorAll('figure[data-fig="music-song-player"]')] : [];
+  const startIdx = Math.max(0, Math.min(SONGS.length - 1, fig ? players.indexOf(fig) : 0));
+  let song = SONGS[startIdx];
   let both = false;
   let bpm = song.bpm;
   let handle: Handle | null = null;
@@ -95,6 +100,7 @@ const mount: Mount = (root) => {
     style: 'font:inherit;font-size:0.95rem;min-height:40px;padding:0 8px;border-radius:6px;border:1px solid color-mix(in srgb, var(--muted) 70%, transparent);background:var(--bg);color:var(--fg);min-width:0;flex:1',
   }, lab);
   SONGS.forEach((sg, i) => h('option', { value: String(i) }, sel, sg.name));
+  (sel as HTMLSelectElement).value = String(startIdx);
 
   const svg = s('svg', { role: 'img', 'aria-label': 'Letters and finger numbers of the piece above a piano keyboard' }, root);
   const strip = s('g', {}, svg);

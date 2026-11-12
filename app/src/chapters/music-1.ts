@@ -15,10 +15,10 @@ const placements: Placement[] = [
     caption: 'Tap a starting key, then take half steps and whole steps.',
   },
   {
-    ref: 'a-first-look-at-intervals/7',
+    ref: 'a-first-look-at-intervals/6',
     where: 'after',
     fig: 'music-interval-listener',
-    caption: 'Tap two keys, or pick an interval, to count the half steps and hear it.',
+    caption: 'Tap two keys to count the half steps between them, or tap one key and pick an interval.',
   },
 ];
 

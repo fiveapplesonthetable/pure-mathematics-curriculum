@@ -1,9 +1,21 @@
 // Keyboard explorer (music chapter 1): tap any key to hear it and see its
-// name(s) and octave number. Toggles show every name, or mark each C and F
-// with the groups of two and three black keys above them.
+// name and octave number, with the black-key landmark that finds it. Toggles
+// show every name, or mark each C and F with the groups of two and three
+// black keys above them.
 
 import { responsiveSvg, row, button, h, s, type Mount } from './lib';
-import { keyboard, isBlack, midiName, octaveOf, type Mark } from './music-lib';
+import { keyboard, isBlack, midiName, octaveOf, pcName, type Mark } from './music-lib';
+
+// Where each white key sits relative to the groups of black keys (by pitch class).
+const LANDMARK: Record<number, string> = {
+  0: 'Directly left of a group of two black keys.',
+  2: 'Between the two black keys of a group of two.',
+  4: 'Directly right of a group of two black keys.',
+  5: 'Directly left of a group of three black keys.',
+  7: 'Between the first two black keys of a group of three.',
+  9: 'Between the last two black keys of a group of three.',
+  11: 'Directly right of a group of three black keys.',
+};
 
 const FROM = 48; // C3
 const TO = 72; // C5
@@ -47,16 +59,11 @@ const mount: Mount = (root) => {
   function describe(m: number) {
     const oct = octaveOf(m);
     if (isBlack(m)) {
-      nameEl.textContent = `${midiName(m)} = ${midiName(m, true)}`;
-      descEl.textContent = `A black key with two names. Octave ${oct}.`;
+      nameEl.textContent = `${midiName(m)} / ${midiName(m, true)}`;
+      descEl.textContent = `A black key, between ${pcName(m - 1)} and ${pcName(m + 1)}. It takes its two names from them.`;
     } else {
       nameEl.textContent = midiName(m);
-      const pc = m % 12;
-      const extra =
-        m === 60 ? 'Middle C.' :
-        pc === 0 ? 'Just left of a group of two black keys.' :
-        pc === 5 ? 'Just left of a group of three black keys.' : '';
-      descEl.textContent = `A white key, octave ${oct}. ${extra}`.trim();
+      descEl.textContent = `${m === 60 ? 'Middle C. ' : ''}${LANDMARK[m % 12]} Octave ${oct}.`;
     }
   }
 
