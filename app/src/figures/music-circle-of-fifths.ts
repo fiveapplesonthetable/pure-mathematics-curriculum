@@ -16,6 +16,18 @@ function signature(i: number): string {
   return `${n} flat${n > 1 ? 's' : ''}: ${FLATS.slice(0, n).join(', ')}`;
 }
 
+// What changed from the neighbor one step back toward C: the newest sharp is a
+// half step below the tonic; the newest flat is the fourth note.
+function newest(i: number): string {
+  if (i === 0) return '';
+  if (i === 6) return 'The newest sharp is E♯ (the white key F), a half step below F♯.';
+  if (i < 6) return `The newest sharp is ${SHARPS[i - 1]}, a half step below ${CIRCLE_MAJOR[i]}.`;
+  const n = 12 - i;
+  return `The newest flat is ${FLATS[n - 1]}, the fourth note of ${CIRCLE_MAJOR[i]} major.`;
+}
+// Name a key on the circle; the bottom key is F♯ on the sharp side, G♭ on the flat side.
+const keyName = (j: number, flatSide: boolean) => (j === 6 && flatSide ? 'G♭' : CIRCLE_MAJOR[j]);
+
 const mount: Mount = (root) => {
   const view = responsiveSvg(root, { label: 'The circle of fifths: twelve major keys around a circle, with their relative minors inside.', aspect: 0.8, minH: 300, maxH: 380 });
   const ringG = s('g', {}, view.el);
@@ -111,8 +123,9 @@ const mount: Mount = (root) => {
     const mi = CIRCLE_MINOR[sel];
     titleEl.textContent = sel === 6 ? 'F♯ major (same keys as G♭ major)' : `${CIRCLE_MAJOR[sel]} major`;
     sigEl.textContent = sel === 6 ? '6 sharps, or 6 flats as G♭ major' : signature(sel);
-    const left = CIRCLE_MAJOR[(sel + 11) % 12], right = CIRCLE_MAJOR[(sel + 1) % 12];
-    minorEl.textContent = `Relative minor: ${mi} minor. Neighbors: ${left} and ${right}, one note different each.`;
+    const flatSide = sel > 6;
+    const left = keyName((sel + 11) % 12, flatSide), right = keyName((sel + 1) % 12, flatSide);
+    minorEl.textContent = `${newest(sel)} Relative minor: ${mi} minor. Neighbors: ${left} and ${right}, one note different each.`.trim();
     const marks = new Map<number, Mark>();
     sc.midi.forEach((m, k) => marks.set(m, { kind: k === 0 || k === 7 ? 'on' : 'soft', label: sc.names[k] }));
     kb.mark(marks);

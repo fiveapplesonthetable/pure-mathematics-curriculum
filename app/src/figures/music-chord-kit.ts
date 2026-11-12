@@ -27,9 +27,9 @@ const SUS_ROOTS = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A',
 export const CHORD_TYPES: ChordType[] = [
   { id: 'maj', label: 'Major', suffix: '', words: 'major', semis: [0, 4, 7], steps: [0, 2, 4], fingers: [1, 3, 5], roots: MAJ_ROOTS },
   { id: 'min', label: 'Minor', suffix: 'm', words: 'minor', semis: [0, 3, 7], steps: [0, 2, 4], fingers: [1, 3, 5], roots: MIN_ROOTS },
+  { id: 'dim', label: 'dim', suffix: 'dim', words: 'diminished', semis: [0, 3, 6], steps: [0, 2, 4], fingers: [1, 3, 5], roots: DIM_ROOTS },
   { id: 'sus4', label: 'sus4', suffix: 'sus4', words: 'sus four', semis: [0, 5, 7], steps: [0, 3, 4], fingers: [1, 4, 5], roots: SUS_ROOTS },
   { id: 'sus2', label: 'sus2', suffix: 'sus2', words: 'sus two', semis: [0, 2, 7], steps: [0, 1, 4], fingers: [1, 2, 5], roots: SUS_ROOTS },
-  { id: 'dim', label: 'dim', suffix: 'dim', words: 'diminished', semis: [0, 3, 6], steps: [0, 2, 4], fingers: [1, 3, 5], roots: DIM_ROOTS },
   { id: 'maj7', label: 'maj7', suffix: 'maj7', words: 'major seven', semis: [0, 4, 7, 11], steps: [0, 2, 4, 6], fingers: [1, 2, 3, 5], roots: MAJ_ROOTS },
   { id: '7', label: '7', suffix: '7', words: 'seven', semis: [0, 4, 7, 10], steps: [0, 2, 4, 6], fingers: [1, 2, 3, 5], roots: MAJ_ROOTS },
   { id: 'm7', label: 'm7', suffix: 'm7', words: 'minor seven', semis: [0, 3, 7, 10], steps: [0, 2, 4, 6], fingers: [1, 2, 3, 5], roots: MIN_ROOTS },
@@ -38,8 +38,8 @@ export const CHORD_TYPES: ChordType[] = [
 /** "4, then 3" style recipe from the semitone offsets. */
 export function recipe(semis: number[]): string {
   const gaps = semis.slice(1).map((d, i) => d - semis[i]);
-  if (gaps.length === 2) return `count up ${gaps[0]} keys, then ${gaps[1]} more`;
-  return `count up ${gaps.slice(0, -1).join(', ')}, then ${gaps[gaps.length - 1]} more`;
+  if (gaps.length === 2) return `count up ${gaps[0]} half steps, then ${gaps[1]} more`;
+  return `count up ${gaps.slice(0, -1).join(', ')}, then ${gaps[gaps.length - 1]} half steps`;
 }
 
 export const NUMERALS = ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'];

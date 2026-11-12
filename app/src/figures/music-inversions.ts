@@ -1,7 +1,7 @@
 // Inversions (music chapter 4): one chord at a time in root position, first or
 // second inversion. Changing position moves the bottom note up to the top (the
-// moving note glides across), the root stays highlighted, and the wider gap
-// is marked.
+// moving note glides across), the root stays highlighted, and the half steps
+// between neighboring notes are counted, with the wider gap (5) accented.
 
 import { responsiveSvg, row, button, h, s, tween, lerp, type Mount } from './lib';
 import { keyboard, playMidi, unlock, type Mark, type Keyboard } from './music-lib';
@@ -98,19 +98,21 @@ const mount: Mount = (root) => {
     titleEl.textContent = `${c.name}: ${POS[inv].toLowerCase()}`;
     notesEl.textContent = v.map((n) => c.notes[n.k]).join(' – ');
     noteEl.textContent = inv === 0
-      ? `The root, ${c.notes[0]}, is at the bottom. Both gaps are small (3 or 4 keys).`
-      : `The root, ${c.notes[0]}, sits directly above the wider gap (5 keys).`;
+      ? `The root, ${c.notes[0]}, is at the bottom. Both gaps are thirds (3 or 4 half steps).`
+      : `The root, ${c.notes[0]}, sits directly above the wider gap (5 half steps).`;
+    // Arcs between neighboring notes with their counts; the wider gap (5) is accented.
     markG.replaceChildren();
-    if (inv > 0) {
-      const lo = inv === 1 ? v[1] : v[0];
-      const hi = inv === 1 ? v[2] : v[1];
-      const a = kb.key(lo.midi), b = kb.key(hi.midi);
-      if (a && b) {
-        const y = a.top - 12;
-        s('path', { d: `M ${a.cx} ${y + 5} V ${y} H ${b.cx} V ${y + 5}`, class: 'line-acc' }, markG);
-        const t = s('text', { x: (a.cx + b.cx) / 2, y: y - 7, 'text-anchor': 'middle', class: 'lbl-acc' }, markG);
-        t.textContent = 'wider gap';
-      }
+    for (let i = 1; i < v.length; i++) {
+      const a = kb.key(v[i - 1].midi), b = kb.key(v[i].midi);
+      if (!a || !b) continue;
+      const gap = v[i].midi - v[i - 1].midi;
+      const wide = gap > 4;
+      const y = a.top - 4;
+      const mid = (a.cx + b.cx) / 2;
+      const lift = Math.min(14, Math.max(8, (b.cx - a.cx) * 0.3));
+      s('path', { d: `M ${a.cx + 2} ${y} Q ${mid} ${y - lift * 2} ${b.cx - 2} ${y}`, class: wide ? 'line-acc' : 'line' }, markG);
+      const t = s('text', { x: mid, y: y - lift - 6, 'text-anchor': 'middle', class: wide ? 'lbl-acc' : 'lbl' }, markG);
+      t.textContent = String(gap);
     }
   }
 

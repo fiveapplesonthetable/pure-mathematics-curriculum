@@ -20,6 +20,7 @@ export const PRESETS: Preset[] = [
   { name: 'Quarter rests', meter: '4/4', items: [q(0), q(2, 2, true), q(4), q(6, 2, true)], say: 'Silent on beats 2 and 4, but the beat goes on.' },
   { name: 'Syncopation', meter: '4/4', items: [q(0, 1), q(1, 2), q(3, 1), q(4), q(6)], say: 'Notes on 1, the “and” of 1 and the “and” of 2: beat 2 is skipped.' },
   { name: '3/4: half and quarter', meter: '3/4', items: [q(0, 4), q(4)], say: 'Three beats in a bar, the first one strongest.' },
+  { name: '3/4: six eighths', meter: '3/4', items: [0, 1, 2, 3, 4, 5].map((i) => q(i, 1)), say: 'Six eighths in three pairs; your foot taps on 1, 2 and 3.' },
   { name: '6/8: six eighths', meter: '6/8', items: [0, 1, 2, 3, 4, 5].map((i) => q(i, 1)), say: 'Six eighths in two groups of three; your foot taps on 1 and 4.' },
 ];
 

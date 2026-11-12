@@ -1,6 +1,8 @@
 // Interval listener (music chapter 1): tap two keys, or pick a preset, to see
 // how many half steps apart they are, hear them apart and together, and read
 // the interval's name. Keys in between are numbered so the count is visible.
+// Presets build up from the current lower note, so the same interval can be
+// heard from any key (C to E, then D to F sharp).
 
 import { responsiveSvg, row, button, h, s, type Mount } from './lib';
 import { keyboard, midiName, play, unlock, type Mark, type Keyboard } from './music-lib';
@@ -66,7 +68,9 @@ const mount: Mount = (root) => {
   const presetBtns = PRESETS.map(([label, n]) =>
     button(r1, label, () => {
       unlock();
-      a = 60; b = 60 + n; waiting = false;
+      let base = lo();
+      if (base + n > TO) base -= 12;
+      a = base; b = base + n; waiting = false;
       paint();
       playBoth();
     }),
@@ -92,7 +96,7 @@ const mount: Mount = (root) => {
     marks.set(L, { kind: 'on', label: midiName(L, false, false) });
     if (n > 0) marks.set(H, { kind: 'on', label: midiName(H, false, false) });
     kb.mark(marks);
-    presetBtns.forEach((btn, i) => btn.setAttribute('aria-pressed', String(L === 60 && n === PRESETS[i][1])));
+    presetBtns.forEach((btn, i) => btn.setAttribute('aria-pressed', String(!waiting && n === PRESETS[i][1])));
     if (!waiting) {
       const nm = n <= 12 ? NAMES[n] : 'more than an octave';
       headEl.textContent = n === 0 ? `${midiName(L)} and ${midiName(H)}: the same key` : `${midiName(L)} to ${midiName(H)}: ${n} half step${n === 1 ? '' : 's'}, ${nm}`;
