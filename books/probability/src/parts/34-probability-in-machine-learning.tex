@@ -1,26 +1,13 @@
 \chapter{Probability in Machine Learning}
 
 In the previous chapter, we measured uncertainty through entropy, cross-entropy, and
-Kullback--Leibler divergence. We now take that currency into machine learning.
-There is a temptation, when you first
-meet machine learning, to picture it as a bag of clever tricks: a decision tree
-here, a neural network there, a gradient descent loop turning the crank. Useful,
-yes -- but it leaves you with a hundred disconnected recipes and no story. The goal
-of this chapter is to give you the story. And the story is short enough to state in
-one sentence:
+Kullback--Leibler divergence. We now apply these concepts to machine learning.
 
 \begin{focusbox}
-Almost every supervised and unsupervised learning method you will ever meet is,
-underneath, a \emph{probabilistic model} together with a rule for choosing its
-parameters from data. Learning \emph{is} estimation. Loss minimization \emph{is}
-cross-entropy reduction. Prediction \emph{is} computing a conditional distribution.
+Almost every supervised learning method (learning from labeled examples) and unsupervised learning method (finding patterns in unlabeled data) is, underneath, a \emph{probabilistic model} together with a rule for choosing its parameters from data. Learning is parameter estimation. Minimizing the error (the loss) is minimizing cross-entropy. Prediction is computing a conditional distribution.
 \end{focusbox}
 
-Once you believe that sentence, machine learning stops being a zoo and becomes a
-unified map with familiar landmarks. Maximum likelihood (Chapter~30),
-Bayes' theorem (Chapter~5), the normal distribution, the law of
-large numbers, and the KL divergence from information theory all find direct
-practical application here. Here those ideas turn directly into working algorithms.
+Machine learning builds directly on the tools we have developed: maximum likelihood (Chapter~30), Bayes' theorem (Chapter~5), the normal distribution (Chapter~12), the law of large numbers (Chapter~20), and the KL divergence (Chapter~33) all turn directly into working algorithms here.
 
 \section{The likelihood view of learning}
 \label{ch34:likelihood-view}
@@ -59,8 +46,7 @@ Fix the setup we will use all chapter. We observe a dataset
 \]
 $n$ examples, each a pair of an input (or \emph{feature vector}) $x_i$ and a
 label $y_i$. We posit a parametric model: a family of distributions
-$p(\,\cdot \given \theta)$. The single most common assumption -- so common it is
-often left unstated -- is that the examples are drawn \emph{independently from one
+$p(\,\cdot \given \theta)$. The most common assumption is that the examples are drawn \emph{independently from one
 fixed distribution}, i.i.d.:
 \[
   (x_i,y_i) \overset{\text{i.i.d.}}{\sim} p^\star, \qquad i=1,\dots,n.
@@ -72,8 +58,7 @@ model $p(\,\cdot\given\theta)$.
 \begin{trapbox}
 The i.i.d.\ assumption is a \emph{modeling choice}, not a law of nature. Time
 series are not i.i.d.\ (today depends on yesterday). Data with distribution
-shift -- the test set drawn from a different $p^\star$ than the training set --
-breaks every guarantee in this chapter. When a model fails mysteriously in
+shift (when the test set used to evaluate the model is drawn from a different $p^\star$ than the training set used to fit it) breaks every guarantee in this chapter. When a model fails mysteriously in
 production, ``the i.i.d.\ assumption was violated'' is the first suspect.
 \end{trapbox}
 
@@ -107,16 +92,16 @@ structure for free.
 \label{ch34:coin-mle}
 Model: $y_i \sim \Bern(p)$ i.i.d., so $p(y_i\given p) = p^{y_i}(1-p)^{1-y_i}$. With
 $k = \sum y_i$ heads out of $n$,
-\[
-  \ell(p) = \sum_{i=1}^n \big[y_i\log p + (1-y_i)\log(1-p)\big]
-          = k\log p + (n-k)\log(1-p).
-\]
+\begin{align*}
+  \ell(p) &= \sum_{i=1}^n \big[y_i\log p + (1-y_i)\log(1-p)\big] \\
+          &= k\log p + (n-k)\log(1-p).
+\end{align*}
 Differentiate and set to zero:
-\[
-  \ell'(p) = \frac{k}{p} - \frac{n-k}{1-p} = 0
-  \;\Longrightarrow\; k(1-p) = (n-k)p
-  \;\Longrightarrow\; \hat p = \frac{k}{n}.
-\]
+\begin{align*}
+  \ell'(p) &= \frac{k}{p} - \frac{n-k}{1-p} = 0 \\
+  &\Longrightarrow\; k(1-p) = (n-k)p \\
+  &\Longrightarrow\; \hat p = \frac{k}{n}.
+\end{align*}
 With $k=14$, $n=20$ we get $\hat p = 0.7$, precisely the gut answer. The second
 derivative is negative, confirming a maximum. Your instinct \emph{was} calculus
 on a log-likelihood all along.
@@ -168,10 +153,10 @@ arrived (the Bayesian stance).
 \subsection{Maximum likelihood is minimizing surprise}
 
 Define the maximum likelihood estimate
-\[
-  \hat\theta_{\text{MLE}} = \arg\max_\theta \ell(\theta)
-                          = \arg\max_\theta \sum_{i=1}^n \log p(\text{datum}_i\given\theta).
-\]
+\begin{align*}
+  \hat\theta_{\text{MLE}} &= \arg\max_\theta \ell(\theta) \\
+                          &= \arg\max_\theta \sum_{i=1}^n \log p(\text{datum}_i\given\theta).
+\end{align*}
 Flip the sign and you get a quantity machine learners love:
 \[
   \hat\theta_{\text{MLE}} = \arg\min_\theta \underbrace{\Big[-\tfrac{1}{n}\sum_{i=1}^n \log p(\text{datum}_i\given\theta)\Big]}_{\text{average negative log-likelihood}}.
@@ -181,7 +166,7 @@ The bracketed term is a \emph{loss function}. So ``maximize likelihood'' and
 the probability vocabulary and the optimization vocabulary of deep learning.
 
 \begin{happeningbox}
-What is the average negative log-likelihood really measuring? It is the
+What is the average negative log-likelihood measuring? It is the
 \emph{cross-entropy} between the empirical data distribution and your model (see
 Chapter~33). Minimizing it is the same as minimizing the KL
 divergence $\KL(\hat p_{\text{data}} \,\|\, p_\theta)$: you are pulling your
@@ -196,7 +181,7 @@ the true $p^\star$'' is justified by the law of large numbers: as $n\to\infty$,
 the empirical average $\frac1n\sum -\log p_\theta(\text{datum}_i)$ converges to
 its expectation $\E_{p^\star}[-\log p_\theta]$, which is minimized at the
 $\theta$ closest to $p^\star$. So MLE is consistent precisely \emph{because} of
-the LLN you proved earlier. The whole edifice rests on that one limit theorem.
+the LLN you proved earlier. The consistency of maximum likelihood rests on this limit theorem.
 \end{connectionbox}
 
 \subsection{Overfitting and the case for a prior}
@@ -223,18 +208,18 @@ evidence:
 
 If, instead of the value that maximizes the likelihood, we take the value that
 maximizes the \emph{posterior}, we get the maximum a posteriori estimate:
-\[
+\begin{align*}
   \hat\theta_{\text{MAP}}
-  = \arg\max_\theta \big[\log p(\mathcal{D}\given\theta) + \log p(\theta)\big]
-  = \arg\max_\theta \big[\ell(\theta) + \log p(\theta)\big].
-\]
+  &= \arg\max_\theta \big[\log p(\mathcal{D}\given\theta) + \log p(\theta)\big] \\
+  &= \arg\max_\theta \big[\ell(\theta) + \log p(\theta)\big].
+\end{align*}
 The prior contributes an \emph{additive penalty} $\log p(\theta)$ to the
 log-likelihood. This single line unifies two worlds.
 
 \begin{example}[The coin, regularized]
 \label{ch34:coin-map}
 Put a $\Bet(\alpha,\beta)$ prior on $p$: $p(p)\propto p^{\alpha-1}(1-p)^{\beta-1}$.
-The Beta is the conjugate prior for the Bernoulli (the posterior is again Beta),
+The beta distribution is the conjugate prior for the Bernoulli (meaning the posterior is again beta),
 which is why it is the natural choice. The posterior is
 $\Bet(\alpha+k,\ \beta+n-k)$, and its mode (the MAP estimate) is
 \[
@@ -250,6 +235,33 @@ one tail, added to the data. The Beta hyperparameters are ``pseudo-counts'': pri
 evidence measured in the same currency as real evidence.
 \end{example}
 
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.4cm,
+  xlabel={$p$ (probability of heads)},
+  ylabel={Density / Likelihood (scaled)},
+  domain=0:1, samples=120,
+  xmin=0, xmax=1, ymin=0, ymax=3,
+  ymajorgrids=true, grid style={gray!18},
+  title={MAP estimate balances the prior and the likelihood},
+  title style={font=\small},
+  legend pos=north west
+]
+\addplot[sourceblue, thick] {2.5 * x^3};
+\addlegendentry{Likelihood ($3$ heads, peak at $1.0$)}
+\addplot[quotientorange, thick] {6 * x * (1-x)};
+\addlegendentry{Prior $\Bet(2,2)$ (peak at $0.5$)}
+\addplot[densityred, very thick] {30 * x^4 * (1-x)};
+\addlegendentry{Posterior $\Bet(5,2)$ (peak at $0.8$)}
+\addplot[dashed, gray] coordinates {(0.8,0) (0.8,30*0.8^4*0.2)};
+\end{axis}
+\end{tikzpicture}
+\caption{When predicting from only $3$ heads, the maximum likelihood estimate sits at the extreme right ($1.0$). A gentle $\Bet(2,2)$ prior (peaking at $0.5$) pulls the posterior peak (the MAP estimate) to a sensible $0.8$.}
+\label{ch34:fig-map}
+\end{figure}
+
 \begin{recoverybox}
 \textbf{Pause and think: the pull of the prior.}
 In Example~\ref{ch34:coin-map}, the $\Bet(2,2)$ prior contributed two phantom flips (one head, one tail). What would a $\Bet(100, 100)$ prior represent? If you observed three heads in three flips under that strong prior, what would $\hat p_{\text{MAP}}$ be? Notice how the prior anchors your belief when real data is scarce, but gradually yields as data accumulates.
@@ -257,10 +269,9 @@ In Example~\ref{ch34:coin-map}, the $\Bet(2,2)$ prior contributed two phantom fl
 
 \begin{aestheticbox}
 MAP reveals that \emph{regularization corresponds to a prior distribution}. The standard
-$L^2$ penalty (ridge regression, weight decay) $\lambda\norm{\theta}^2$ is
+$L^2$ penalty (also known as ridge regression or weight decay, which penalizes large parameters) $\lambda\norm{\theta}^2$ is
 identically $-\log p(\theta)$ for a Gaussian prior
-$\theta\sim\Normal(0,\sigma^2 I)$ with $\lambda = 1/(2\sigma^2)$. The $L^1$
-penalty (lasso) corresponds to a Laplace prior. Adding regularization to
+$\theta\sim\Normal(0,\sigma^2 I)$ with $\lambda = 1/(2\sigma^2)$. The $L^1$ penalty (a penalty on the sum of absolute values, known as lasso) corresponds to a Laplace prior. Adding regularization to
 prevent overfitting is therefore mathematically equivalent to placing a
 prior distribution that concentrates near zero.
 \end{aestheticbox}
@@ -356,12 +367,12 @@ counts:
   \hat p(x_j=1\given y) = \frac{\#\{y\text{-emails with word } j\}}{\#\,y\text{-emails}}.
 \]
 A new email with word-presence vector $x$ is scored by
-\[
+\begin{align*}
   \log\frac{p(\texttt{spam}\given x)}{p(\texttt{ham}\given x)}
-  = \log\frac{p(\texttt{spam})}{p(\texttt{ham})}
+  &= \log\frac{p(\texttt{spam})}{p(\texttt{ham})}
    + \sum_{j} \log\frac{p(x_j\given\texttt{spam})}{p(x_j\given\texttt{ham})}.
-\]
-Each word casts an additive vote on the log-odds scale, and the votes simply add
+\end{align*}
+Each word casts an additive vote on the log-odds scale, and the votes add
 up. Classify as spam when the total exceeds zero.
 \end{example}
 
@@ -375,8 +386,7 @@ tally,
   \hat p(x_j=1\given y) = \frac{\#\{\dots\} + 1}{\#\,y\text{-emails} + 2}.
 \]
 This is not an ad hoc patch: it is precisely the MAP estimate under a
-$\Bet(2,2)$ prior. The same phantom counts from Example~\ref{ch34:coin-map}
-return to save us. Theory and the engineering hack are the same thing.
+$\Bet(2,2)$ prior. The engineering fix and the theoretical MAP estimate are mathematically identical.
 \end{trapbox}
 
 \begin{paradoxbox}
@@ -447,9 +457,7 @@ If the class-conditionals $p(x\given y)$ are Gaussians with a shared covariance,
 Bayes' theorem produces \emph{exactly} a logistic form for $p(y\given x)$. So
 Gaussian naive Bayes and logistic regression can describe the same boundary --
 but they fit it differently. Naive Bayes estimates the Gaussians (generative);
-logistic regression optimizes the boundary directly (discriminative). This is
-the cleanest example of the generative/discriminative pair in
-Section~\ref{ch34:gen-disc}.
+logistic regression optimizes the boundary directly (discriminative). This is an example of the generative/discriminative pair in Section~\ref{ch34:gen-disc}.
 \end{connectionbox}
 
 \subsection{Training: maximum likelihood again}
@@ -463,9 +471,7 @@ Negate it and you have the \emph{binary cross-entropy} loss, the standard object
 function for binary classification. Maximizing this likelihood corresponds to training the
 classifier; once more, parameter estimation is maximum likelihood.
 
-There is no closed form for $\hat w$ this time, but the news is good: $\ell$ is
-\emph{concave} in $(w,b)$, so gradient ascent cannot get stuck in a bad local
-optimum. The gradient is strikingly clean:
+There is no closed form for $\hat w$ this time, but $\ell$ is \emph{concave} in $(w,b)$, meaning gradient ascent (the standard optimization algorithm that takes steps uphill) cannot get stuck in a local optimum. The gradient is:
 \[
   \frac{\partial \ell}{\partial w} = \sum_{i=1}^n (y_i - \hat p_i)\,x_i.
 \]
@@ -478,8 +484,7 @@ the surprises do the teaching.
 Why is that gradient so simple? Two derivatives conspire. The sigmoid satisfies
 $\sigma'(z) = \sigma(z)(1-\sigma(z))$, and the cross-entropy's derivative with
 respect to $\hat p$ has a matching $\hat p(1-\hat p)$ in the denominator. They
-cancel exactly, leaving the bare residual $y_i-\hat p_i$. This cancellation is
-not luck -- it is the signature of \emph{matching the loss to the link} via the
+cancel exactly, leaving the bare residual $y_i-\hat p_i$. This cancellation is the signature of \emph{matching the loss to the link} via the
 exponential-family/canonical-link theory of generalized linear models. Use the
 right loss for your link and the gradient always reduces to (truth minus
 prediction) times input.
@@ -490,7 +495,7 @@ Logistic regression is still, in the 2020s, one of the most deployed models on
 Earth: credit scoring, click-through prediction, clinical risk scores, fraud
 detection. Why, in the age of deep nets? It is fast, its coefficients are
 interpretable (each $w_j$ is a log-odds change per unit feature), it produces
-genuine probabilities, and it is the final layer of essentially every neural
+genuine probabilities, and it is the final layer of almost every neural
 classifier -- a deep net is logistic regression on top of learned features. Master
 this and you have mastered the output end of modern deep learning.
 \end{applicationbox}
@@ -510,7 +515,7 @@ but cannot generate $x$.
  & \textbf{Generative} & \textbf{Discriminative} \\
 \midrule
 Models & $p(x,y)$ & $p(y\given x)$ \\
-Examples & naive Bayes, GMM, LDA & logistic regression, neural nets \\
+Examples & naive Bayes, Gaussian mixtures & logistic regression, neural nets \\
 Can sample new $x$? & yes & no \\
 Small-data behavior & often better & needs more data \\
 Large-data accuracy & can plateau & usually higher \\
@@ -528,6 +533,32 @@ there. The curves cross. Generative wins in the small-data regime; discriminativ
 wins once data is plentiful. Ng and Jordan proved this crossover rigorously for naive Bayes versus logistic regression:
 the generative model's stronger assumptions reduce variance at small $n$ while introducing asymptotic bias.
 \end{happeningbox}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.4cm,
+  xlabel={Training set size $n$},
+  ylabel={Test error},
+  domain=1:100, samples=100,
+  xmin=0, xmax=100, ymin=0, ymax=0.5,
+  ymajorgrids=true, grid style={gray!18},
+  title={Generative vs.\ Discriminative Error},
+  title style={font=\small},
+  legend pos=north east
+]
+\addplot[sourceblue, thick] {0.15 + 0.3 * exp(-x/10)};
+\addlegendentry{Generative (e.g.\ naive Bayes)}
+\addplot[quotientorange, thick] {0.05 + 0.45 * exp(-x/30)};
+\addlegendentry{Discriminative (e.g.\ logistic reg.)}
+\addplot[dashed, gray] coordinates {(30,0) (30,0.22)};
+\node[anchor=south west, font=\small] at (axis cs:32,0.05) {crossover};
+\end{axis}
+\end{tikzpicture}
+\caption{The classic crossover. The generative model learns quickly from few examples because its stronger assumptions restrict its search space, but those same false assumptions leave it with a higher asymptotic error. The discriminative model requires more data to fit its flexible boundary but ultimately reaches a lower error.}
+\label{ch34:fig-ng-jordan}
+\end{figure}
 
 \section{Gaussian mixtures and the EM algorithm}
 \label{ch34:gmm-em}
@@ -620,14 +651,14 @@ guessing, then alternating:
     r_{ik} = \frac{\pi_k\,\Normal(x_i\given\mu_k,\Sigma_k)}
                   {\sum_{j=1}^K \pi_j\,\Normal(x_i\given\mu_j,\Sigma_j)}.
   \]
-  This is just Bayes' theorem for the hidden label $z$.
+  This is Bayes' theorem for the hidden label $z$.
   \item \textbf{M-step.} Given the responsibilities, re-estimate each Gaussian by
   \emph{weighted} maximum likelihood:
-  \[
-    \mu_k = \frac{\sum_i r_{ik} x_i}{\sum_i r_{ik}}, \quad
-    \Sigma_k = \frac{\sum_i r_{ik}(x_i-\mu_k)(x_i-\mu_k)^\top}{\sum_i r_{ik}}, \quad
+  \begin{gather*}
+    \mu_k = \frac{\sum_i r_{ik} x_i}{\sum_i r_{ik}}, \qquad
+    \Sigma_k = \frac{\sum_i r_{ik}(x_i-\mu_k)(x_i-\mu_k)^\top}{\sum_i r_{ik}}, \qquad
     \pi_k = \frac{1}{n}\sum_i r_{ik}.
-  \]
+  \end{gather*}
 \end{itemize}
 Iterate E, M, E, M until the parameters stop moving.
 
@@ -894,9 +925,7 @@ Modern deep neural networks are notoriously overconfident -- far more so than th
 simpler logistic regression they end in (Guo et al., 2017). Practical fixes are
 cheap. \emph{Temperature scaling} divides the pre-sigmoid scores by a single
 learned constant $T>1$, softening the probabilities without changing the
-predicted class or the accuracy at all -- it only adjusts the confidence. \emph{Platt
-scaling} (a tiny logistic regression on the scores) and \emph{isotonic regression}
-do the same job nonparametrically. In any setting where the probability itself
+predicted class or the accuracy at all -- it only adjusts the confidence. \emph{Platt scaling} (fitting a tiny logistic regression to the model's outputs to recalibrate them) and \emph{isotonic regression} (fitting a strictly increasing step function) do the same job. In any setting where the probability itself
 drives a decision -- medicine, finance, autonomy -- calibration is not optional
 polish; it is a safety requirement.
 \end{applicationbox}
@@ -924,19 +953,7 @@ itself. That self-knowledge is what probability buys you.
 
 \section{The thread, pulled tight}
 
-Consider the single thread running through the chapter. We posit a
-probabilistic model $p(\text{data}\given\theta)$. We score parameters by the
-likelihood, optionally tempered by a prior. Maximizing that score -- by calculus
-when we are lucky, by gradient ascent or EM when we are not -- is what everyone
-calls ``training.'' Bayes' theorem turns a generative model into a classifier
-(naive Bayes) and turns priors into the regularizers practitioners reach for by
-instinct (MAP). When integrals defeat us we sample our way around them (MCMC).
-And throughout we insist the probabilities mean what they claim (calibration) and
-report uncertainty that means what it says. Maximum likelihood, Bayes, the normal distribution,
-KL divergence, the law of large numbers, Markov chains -- every tool you built
-earlier in this book reappears here, doing the real work of modern machine
-learning. The methods change with the decade; this probabilistic skeleton does
-not.
+In summary, we posit a probabilistic model $p(\text{data}\given\theta)$ and score parameters by the likelihood, optionally tempered by a prior. Maximizing that score is parameter estimation, often called training. Bayes' theorem turns a generative model into a classifier (naive Bayes) and turns priors into regularizers (MAP). When integrals are intractable, we sample our way around them (MCMC). Throughout, we require that the probabilities mean what they claim (calibration) and that uncertainty is reported accurately. Maximum likelihood, Bayes' theorem, the normal distribution, the KL divergence, the law of large numbers, and Markov chains all reappear here, forming the foundation of probabilistic machine learning.
 
 \section{Exercises}
 \label{ch34:exercises}
@@ -1020,9 +1037,9 @@ when a downstream decision depends on the probability itself.
 \end{exercise}
 
 \begin{exercise}[Generative vs.\ discriminative, proof-flavored]
-Assume two classes with class-conditional densities
-$p(x\given y=c) = \Normal(x\given\mu_c,\Sigma)$ sharing one covariance $\Sigma$,
-and class prior $p(y=1)=\pi$. Using Bayes' theorem, show that $p(y=1\given x)$ has
+Assume two classes with prior $p(y=1)=\pi$, and class-conditional densities
+$p(x\given y=c) = \Normal(x\given\mu_c,\Sigma)$ sharing a covariance matrix $\Sigma$.
+Using Bayes' theorem, show that $p(y=1\given x)$ has
 the logistic form $\sigma(w^\top x + b)$, and give $w$ and $b$ in terms of
 $\mu_0,\mu_1,\Sigma,\pi$. Comment on what this reveals about the relationship
 between Gaussian naive Bayes and logistic regression.

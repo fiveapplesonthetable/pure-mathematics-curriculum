@@ -2,35 +2,32 @@
 
 Imagine you have measured a thousand people and written down, for each one, their
 height and their arm span. You now have a cloud of a thousand dots floating in a
-two-dimensional plane: one axis is height, the other is arm span. If you actually
+two-dimensional plane: one axis is height, the other is arm span. If you
 plotted those dots, you would not see a shapeless blob. You would see a long,
 slanted, cigar-shaped smear, stretched out along the diagonal where ``tall'' meets
 ``long-armed,'' and thin in the perpendicular direction. The cloud has a
-\emph{grain} to it, like wood. There is one direction along which the data really
+\emph{grain} to it, like wood. There is one direction along which the data mostly
 varies, and another, perpendicular to it, along which it barely varies at all.
 
-\textbf{Principal Component Analysis} -- PCA -- finds that grain. It hands you the
+\textbf{Principal Component Analysis} (PCA) finds that grain. It hands you the
 directions in which your data spreads out the most, ranked from most spread to
-least, together with a number for ``how much spread'' each one carries.
+least, together with a number for ``how much spread'' each one carries. (That
+number will be the \emph{variance}, defined in Section~\ref{ch30:sec-cov}.)
 
-In the previous chapter, we dissected matrices using the Singular Value
-Decomposition: every matrix, regardless of its shape, acts by rotating space,
-stretching along orthogonal axes, and rotating again ($\mat A = \mat U\mat\Sigma\mat V\T$).
-What makes PCA a theorem of linear algebra rather than a purely statistical recipe
-is that those directions of greatest spread are the \emph{eigenvectors of a symmetric
-covariance matrix} -- or, equivalently and more stably, the \emph{right singular
-vectors} of the centered data matrix. Symmetric matrices, the spectral theorem,
-and the SVD all come together directly in PCA.
+In the previous chapter we met the singular value decomposition (SVD): every
+matrix, whatever its shape, acts by rotating space, stretching along perpendicular
+axes, and rotating again ($\mat A = \mat U\mat\Sigma\mat V\T$). PCA belongs to
+linear algebra, not only to statistics, because the directions of greatest spread
+turn out to be eigenvectors of a symmetric matrix built from the data. So the
+symmetric matrices of Chapter~26 and the SVD of Chapter~29 both reappear here.
 
-The approach here is slow, geometric, and visual. We learn to \emph{center} a cloud
-of data -- sliding it bodily so its balance point sits at the origin -- then build
-the \emph{covariance matrix}, the little symmetric matrix that records how the
-cloud spreads and how features vary together, and watch its eigenvectors pick out
-the grain. From there we unpack what ``variance explained'' means, showing how to
-drop dimensions without losing meaningful signal, and connect PCA to the SVD of the
-centered data matrix used in numerical software. Finally comes the practical payoff:
-compressing images, building ``eigenfaces,'' and making sense of the high-dimensional
-embedding vectors behind modern machine learning.
+The plan is to work slowly and with pictures. We first slide the cloud so that its
+balance point sits at the origin. Then we build a small symmetric matrix that records
+how the cloud spreads, and watch its eigenvectors pick out the grain. After that we
+see how to throw away the thin directions while keeping most of the information, how
+the SVD computes the same answer more accurately, and how the method is used to
+compress images, recognize faces, and inspect the lists of numbers that machine
+learning programs use to represent words and pictures.
 
 \chapterline
 
@@ -80,19 +77,19 @@ Here is a tiny dataset we will carry through the chapter: five points in the pla
     5 & 1
   \end{bmatrix}.
 \]
-Each row is a dot at $(x,y)$. Plot them and you see five points trending up and to
-the right -- a little cloud with a clear diagonal grain. We will find that grain by
+Each row is a dot at $(x,y)$. Plotted (Figure~\ref{ch30:cloud}, left), they are five
+points trending up and to the right: a little cloud with a clear diagonal grain. We will find that grain by
 hand before the chapter is done.
 \end{example}
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[scale=0.64,>=Latex]
+\begin{tikzpicture}[scale=0.6,>=Latex]
   % Left Panel: Raw Data
   \begin{scope}[shift={(0,0)}]
-    \node[anchor=south, font=\footnotesize\bfseries, spacegray] at (4.5, 6.2) {Raw Data (Shifted Cloud)};
-    \draw[->,gray!50] (-0.5,0) -- (9.5,0) node[right, font=\tiny]{$x_1$};
-    \draw[->,gray!50] (0,-0.5) -- (0,6.2) node[above, font=\tiny]{$x_2$};
+    \node[anchor=south, font=\small\bfseries, spacegray] at (4.5, 6.4) {Raw data};
+    \draw[->,gray!50] (-0.5,0) -- (9.5,0) node[right, font=\footnotesize]{$x$};
+    \draw[->,gray!50] (0,-0.5) -- (0,6.2) node[above, font=\footnotesize]{$y$};
     \foreach \x/\y in {2/1,4/3,6/5,8/5,5/1}{
       \fill[vecblue] (\x,\y) circle (4.5pt);
     }
@@ -100,48 +97,44 @@ hand before the chapter is done.
     \filldraw[vecred] (5,3) circle (3pt);
     \draw[vecred, thick] (4.6,3) -- (5.4,3);
     \draw[vecred, thick] (5,2.6) -- (5,3.4);
-    \node[vecred, font=\footnotesize, fill=white, inner sep=1.5pt, rounded corners=1pt] at (5,3.8) {mean $\vec{\mu}=(5,3)$};
-    \node[vecblue, font=\tiny] at (2,1) [below left] {$(2,1)$};
-    \node[vecblue, font=\tiny] at (8,5) [above right] {$(8,5)$};
+    \node[vecred, font=\footnotesize, fill=white, inner sep=1.5pt, rounded corners=1pt, anchor=east] at (4.6,3.6) {mean $\bar{\vec x}=(5,3)$};
+    \node[vecblue, font=\footnotesize] at (2,1) [below left] {$(2,1)$};
+    \node[vecblue, font=\footnotesize] at (8,5) [above] {$(8,5)$};
   \end{scope}
 
   % Centering arrow
-  \draw[->, thick, quotientorange] (10.2, 3) -- (11.6, 3)
-    node[midway, above, font=\scriptsize] {subtract $\vec{\mu}$}
-    node[midway, below, font=\tiny\itshape] {center};
+  \draw[->, thick, quotientorange] (9.9, 3) -- (11.5, 3)
+    node[midway, above, font=\footnotesize] {subtract $\bar{\vec x}$};
 
   % Right Panel: Centered Data
-  \begin{scope}[shift={(16.8,3.0)}]
-    \node[anchor=south, font=\footnotesize\bfseries, spacegray] at (0, 3.6) {Centered Data ($\vec{\mu}=\vec{0}$)};
-    \draw[->,gray!50] (-4.5,0) -- (4.5,0) node[right, font=\tiny]{$\tilde{x}_1$};
-    \draw[->,gray!50] (0,-3.2) -- (0,3.1) node[above, font=\tiny]{$\tilde{x}_2$};
+  \begin{scope}[shift={(16.0,3.0)}]
+    \node[anchor=south, font=\small\bfseries, spacegray] at (0, 3.8) {Centered data};
+    \draw[->,gray!50] (-4.3,0) -- (4.3,0) node[right, font=\footnotesize]{$\tilde x$};
+    \draw[->,gray!50] (0,-3.0) -- (0,3.1) node[above, font=\footnotesize]{$\tilde y$};
     % Centered points: (2-5, 1-3)=(-3,-2), (4-5, 3-3)=(-1,0), (6-5, 5-3)=(1,2), (8-5, 5-3)=(3,2), (5-5, 1-3)=(0,-2)
     \foreach \x/\y in {-3/-2,-1/0,1/2,3/2,0/-2}{
       \fill[targetgreen] (\x,\y) circle (4.5pt);
     }
     \filldraw[vecred] (0,0) circle (3pt);
-    \draw[vecred, thick] (-0.4,0) -- (0.4,0);
-    \draw[vecred, thick] (0,-0.4) -- (0,0.4);
-    \node[vecred, font=\footnotesize, fill=white, inner sep=1.5pt, rounded corners=1pt] at (1.1,-0.6) {origin $\vec{0}$};
-    \node[targetgreen, font=\tiny] at (-3,-2) [below left] {$(-3,-2)$};
-    \node[targetgreen, font=\tiny] at (3,2) [above right] {$(3,2)$};
+    \node[vecred, font=\footnotesize, fill=white, inner sep=1.5pt, rounded corners=1pt] at (1.6,-0.6) {mean $=\vec{0}$};
+    \node[targetgreen, font=\footnotesize] at (-3,-2) [below] {$(-3,-2)$};
+    \node[targetgreen, font=\footnotesize] at (3,2) [above] {$(3,2)$};
   \end{scope}
 \end{tikzpicture}
-\caption{The five-point data cloud of Example~\ref{ch30:tiny-data}. \emph{Left:} raw data points
-clustered around sample mean $\vec{\mu}=(5,3)$. \emph{Right:} centering subtracts the mean,
-sliding the center of gravity to the origin so that variances and covariances reflect genuine spread
-about zero.}
+\caption{The five-point data cloud of Example~\ref{ch30:tiny-data}. \emph{Left:} the
+raw points and their mean $\bar{\vec x}=(5,3)$ (red cross). \emph{Right:} after
+subtracting the mean from every point, the same cloud sits with its mean at the
+origin. The shape has not changed; only its position has.}
 \label{ch30:cloud}
 \end{figure}
 
 \subsection{The mean, and why we center}
 
 The first thing PCA does is move the cloud so that its center of mass sits at the
-origin. This step is so simple it is easy to dismiss, but it is the difference
-between measuring how data \emph{spreads} and measuring how big its numbers happen
-to be.
+origin. Without this step we would be measuring how big the numbers happen to be
+instead of how the data \emph{spreads}.
 
-The \textbf{mean} (or centroid) of the cloud is the average of all the points,
+The \textbf{mean} (or centroid, the center point of the cloud) is the average of all the points,
 \[
   \bar{\vec x} \;=\; \frac{1}{n}\sum_{i=1}^{n}\vec x_i
   \;=\;\frac{1}{n}\,\mat X\T\vec 1,
@@ -150,21 +143,24 @@ where $\vec 1\in\R^n$ is the all-ones vector (summing a matrix's rows is exactly
 right-multiplying its transpose by $\vec 1$). It is itself a point in $\R^d$ -- the
 balance point of the cloud, where it would sit perfectly level on a pin.
 
-\textbf{Centering} the data means subtracting the mean from every point:
+\textbf{Centering} the data means subtracting the mean from every point. Writing
+$\tilde{\vec x}_i$ (read ``$x_i$ tilde'') for the centered version of point $i$,
 \[
   \tilde{\vec x}_i \;=\; \vec x_i - \bar{\vec x},
   \qquad
   \mat B \;=\; \mat X - \vec 1\,\bar{\vec x}\T.
 \]
-The centered matrix $\mat B$ holds the same cloud, slid bodily over so its centroid
-lands on the origin. Distances between points, angles, the whole shape -- all
+Here $\vec 1\,\bar{\vec x}\T$ is the $n\times d$ matrix whose every row is
+$\bar{\vec x}\T$, so the subtraction removes the mean from each row at once. The
+centered matrix $\mat B$ holds the same cloud, slid over so its centroid
+lands on the origin (Figure~\ref{ch30:cloud}, right). Distances between points, angles, the whole shape -- all
 unchanged. Only the location moved.
 
 \begin{intuitionbox}
 PCA is about \emph{shape}, not \emph{position}. A cloud of stars looks the same
 whether you describe it from Earth or from Mars; only the coordinates of its center
 change. Centering throws away the arbitrary ``where is the origin'' information so
-that everything left over is about the cloud's intrinsic spread. Skipping this step
+that everything left over is about the cloud's own spread. Skipping this step
 is the single most common way to get nonsense out of PCA.
 \end{intuitionbox}
 
@@ -202,10 +198,11 @@ $(-2+0+2+2-2)=0$. That is exactly what ``centered at the origin'' means.
 A centered column sums to zero -- always check this. If after subtracting the mean
 your columns do not sum to (numerically) zero, you subtracted the wrong thing,
 subtracted a row mean instead of a column mean, or transposed your matrix. Every
-downstream formula in this chapter quietly assumes $\mat B$ is centered.
+later formula in this chapter assumes $\mat B$ is centered.
 \end{trapbox}
 
 \section{The covariance matrix}
+\label{ch30:sec-cov}
 
 \subsection{Variance along one feature}
 
@@ -216,15 +213,19 @@ average squared entry,
   s^2 \;=\; \frac{1}{n}\sum_{i=1}^{n} b_i^2
   \;=\; \frac{1}{n}\,\norm{\text{column}}^2.
 \]
-Variance is just ``average squared distance from the mean.'' A big variance means
-the feature is spread out; a small variance means it clusters tightly. Notice it is
-a squared length divided by $n$ -- a dot product of a column with itself.
+Variance is the average squared distance from the mean. A big variance means
+the feature is spread out; a small variance means it clusters tightly. It is
+a squared length divided by $n$, that is, the dot product of a column with itself
+divided by $n$. Its square root $s$ is the \textbf{standard deviation}, a typical
+distance from the mean measured in the feature's own units.
 
 (A note on the divisor: statisticians often use $\tfrac{1}{n-1}$ instead of
-$\tfrac1n$, which makes the variance an unbiased estimate of the true population
-variance. It changes every number below by the same constant factor $\tfrac{n}{n-1}$
-and so changes \emph{none} of the directions PCA finds. We use $\tfrac1n$ for clean
-arithmetic and will flag where the choice matters.)
+$\tfrac1n$. The reason: the $n$ samples are usually drawn from a much larger
+population, and dividing by $n-1$ makes the result \emph{unbiased}, meaning that
+averaged over many possible samples it equals the variance of the whole population.
+The choice changes every number below by the same constant factor $\tfrac{n}{n-1}$
+and so changes \emph{none} of the directions PCA finds. We use $\tfrac1n$ because the
+arithmetic is cleaner.)
 
 \subsection{Covariance: do two features move together?}
 
@@ -240,12 +241,40 @@ centered columns $\vec a$ and $\vec b$ of $\mat B$,
 There is the dot product again. Positive covariance: the features tend to be above
 or below their means \emph{together} (the cloud tilts up-and-to-the-right).
 Negative covariance: when one is high the other tends to be low (the cloud tilts
-down-and-to-the-right). Covariance near zero: no linear tilt; the cloud is round or
-axis-aligned. And covariance of a feature with \emph{itself} is exactly its
-variance.
+down-and-to-the-right). Covariance near zero: no straight-line tilt; the cloud is round or
+stretched only along the axes. Figure~\ref{ch30:cov-signs} shows the three cases.
+The covariance of a feature with \emph{itself} is its variance.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[scale=0.62,>=Latex]
+  \foreach \sx/\name/\pts/\lab in {
+      0/pos/{-2/-1.6,-1.4/-1.4,-0.8/-0.2,-0.2/-0.6,0.4/0.6,1/0.5,1.5/1.5,2/1.3}/{covariance $>0$},
+      7/zero/{-2/0.3,-1.2/-1.1,-0.6/1.2,0/-0.4,0.5/0.9,1.1/-1.2,1.6/0.5,2/-0.3}/{covariance $\approx 0$},
+      14/neg/{-2/1.5,-1.4/1.4,-0.8/0.3,-0.2/0.6,0.4/-0.5,1/-0.6,1.5/-1.4,2/-1.3}/{covariance $<0$}}{
+    \begin{scope}[shift={(\sx,0)}]
+      \draw[->,gray!50] (-2.6,0) -- (2.6,0) node[right,font=\footnotesize]{$a$};
+      \draw[->,gray!50] (0,-2.1) -- (0,2.1) node[above,font=\footnotesize]{$b$};
+      \foreach \x/\y in \pts { \fill[vecblue] (\x,\y) circle (3.5pt); }
+      \node[font=\small] at (0,-2.7) {\lab};
+    \end{scope}
+  }
+  % shading of quadrants for the positive case
+  \node[font=\footnotesize,targetgreen] at (1.6,1.9) {$a_ib_i>0$};
+  \node[font=\footnotesize,targetgreen] at (-1.6,-1.9) {$a_ib_i>0$};
+  \node[font=\footnotesize,trapred] at (15.6,-1.9) {$a_ib_i<0$};
+  \node[font=\footnotesize,trapred] at (12.4,1.9) {$a_ib_i<0$};
+\end{tikzpicture}
+\caption{Three centered clouds of two features $a$ and $b$. \emph{Left:} most points
+lie in the quadrants where $a_i$ and $b_i$ have the same sign, so the products $a_ib_i$
+are mostly positive and the covariance is positive. \emph{Middle:} positive and
+negative products cancel. \emph{Right:} most products are negative.}
+\label{ch30:cov-signs}
+\end{figure}
 
 \begin{intuitionbox}
-Covariance is an inner product normalized by sample size, measuring directional alignment.
+Covariance is a dot product divided by the number of samples, so it measures how
+much two columns point the same way.
 Two centered features have large positive covariance for the same
 reason two arrows have a large positive dot product -- they point ``the same way''
 across the samples. Variance is the special case where a feature is dotted with
@@ -264,7 +293,7 @@ main diagonal and the pairwise covariances off the diagonal:
   \boxed{\;\mat C \;=\; \frac{1}{n}\,\mat B\T \mat B\;}
   \qquad\in\R^{d\times d}.
 \]
-Notice how $\mat B\T\mat B$ multiplies every column of $\mat B$ against every
+The product $\mat B\T\mat B$ multiplies every column of $\mat B$ against every
 other column; entry $(j,k)$ is (column $j$) $\cdot$ (column $k$), which is exactly
 $n$ times the covariance. Divide by $n$ and you have the covariance matrix. The
 diagonal entries are the variances of the individual features; the off-diagonal
@@ -293,12 +322,14 @@ never be negative.
 
 \begin{connectionbox}
 The quantity $\vec w\T\mat C\vec w$ in the positive-semidefinite check is a
-\textbf{quadratic form}, the same object you met in Chapters~26 and~27
-and will meet again in Chapter~36. Here it has a direct geometric interpretation: $\vec w\T\mat C\vec
+\textbf{quadratic form} (an expression in which every term has degree two in the
+entries of $\vec w$), the same object you met in Chapters~26 and~27
+and will meet again in Chapter~36. Here it has a direct geometric meaning: $\vec w\T\mat C\vec
 w$ is the variance of the data \emph{after projecting it onto the direction}
-$\vec w$ (when $\vec w$ is a unit vector). The covariance matrix is precisely the
-machine that turns a direction into ``how much does the cloud spread that way.''
-Maximizing that variance over unit vectors is an eigenvalue problem for the symmetric matrix $\mat C$.
+$\vec w$ (when $\vec w$ is a unit vector); Section~\ref{ch30:sec-pc} shows why. The
+covariance matrix turns a direction into ``how much does the cloud spread that way.''
+Finding the direction where that spread is largest will turn out to be an eigenvalue
+problem for the symmetric matrix $\mat C$.
 \end{connectionbox}
 
 \begin{example}\label{ch30:cov-compute}
@@ -338,30 +369,34 @@ converting measurements from centimeters to millimeters).
 \begin{itemize}
   \item What happens to the mean $\bar{\vec x}$ and the centered matrix $\mat B$?
   \item What happens to the covariance matrix $\mat C$ and its eigenvalues?
-  \item What happens to the principal component directions $\vec v_k$?
+  \item What happens to the principal component directions $\vec v_k$ (the
+        directions of greatest spread, found in the next section as the
+        eigenvectors of $\mat C$)?
 \end{itemize}
 \emph{Answer:} The sample mean $\bar{\vec x}$ and the centered rows of $\mat B$
 are scaled by $10$. The covariance matrix $\mat C = \tfrac1n\mat B\T\mat B$ is
 scaled by $10^2 = 100$, so every eigenvalue $\lambda_k$ grows by a factor of $100$
-(since variance is a squared distance). But the eigenvectors $\vec v_k$ do not
-change at all. The grain of the cloud depends on its geometric shape and
+(since variance is a squared distance). The eigenvectors $\vec v_k$ do not
+change at all, because $10^2\mat C$ has the same eigenvectors as $\mat C$. The grain of the cloud depends on its geometric shape and
 orientation, not on whether you measure in centimeters or millimeters.
 \end{recoverybox}
 
 \begin{labbox}
-Build covariance intuition with three hand clouds, each centered. (a) Four points
-$(\pm1,0),(0,\pm1)$: a round cloud -- compute $\mat C$ and watch the off-diagonal
-vanish. (b) Four points $(\pm1,\pm1)$ with matching signs $(1,1),(-1,-1)$ doubled:
-strong positive covariance. (c) The same with opposite signs: strong negative
+Build covariance intuition with three small clouds, each already centered.
+(a) The four points $(1,0),(-1,0),(0,1),(0,-1)$: a round cloud. Compute $\mat C$ and
+watch the off-diagonal entry vanish. (b) The four points $(1,1),(-1,-1),(2,2),(-2,-2)$,
+all on the line $y=x$: strong positive covariance. (c) The same points with the sign
+of each second coordinate flipped, $(1,-1),(-1,1),(2,-2),(-2,2)$: strong negative
 covariance. In each case predict the sign of the off-diagonal entry \emph{before}
 you multiply $\mat B\T\mat B$, then check.
 \end{labbox}
 
 \section{Principal components: the directions of greatest spread}
+\label{ch30:sec-pc}
 
 \subsection{The variance of a projection}
 
-Here is the central question of the whole chapter, stated geometrically. Pick a
+The central question of the chapter, stated geometrically, is this. Pick a
 unit direction $\vec w$ (a unit vector in $\R^d$). Project every centered point
 onto the line through $\vec w$. The projection of point $\tilde{\vec x}_i$ is the
 scalar $\tilde{\vec x}_i\cdot\vec w = \tilde{\vec x}_i\T\vec w$ -- its signed
@@ -370,18 +405,20 @@ out are they?}
 
 Because the data is centered, those projected coordinates also have mean zero (the
 average of $\tilde{\vec x}_i\T\vec w$ is $\bar{\tilde{\vec x}}\T\vec w=\vec 0\T\vec
-w=0$). So their variance is just the average of their squares:
-\[
+w=0$). So their variance is the average of their squares:
+\begin{align*}
   \Var(\text{projection onto }\vec w)
-  =\frac1n\sum_{i=1}^n(\tilde{\vec x}_i\T\vec w)^2
-  =\frac1n\norm{\mat B\vec w}^2
-  =\vec w\T\Big(\tfrac1n\mat B\T\mat B\Big)\vec w
-  =\vec w\T\mat C\,\vec w .
-\]
-That short calculation is the hinge of PCA, so let us say in words what it says in
-symbols: \textbf{the variance of the data along a unit direction $\vec w$ equals
+  &=\frac1n\sum_{i=1}^n(\tilde{\vec x}_i\T\vec w)^2\\
+  &=\frac1n\norm{\mat B\vec w}^2
+    &&\text{(entry $i$ of $\mat B\vec w$ is $\tilde{\vec x}_i\T\vec w$)}\\
+  &=\vec w\T\Big(\tfrac1n\mat B\T\mat B\Big)\vec w
+    &&\text{(since $\norm{\vec y}^2=\vec y\T\vec y$)}\\
+  &=\vec w\T\mat C\,\vec w .
+\end{align*}
+This calculation is the basis of PCA. In words: \textbf{the variance of the data along a unit direction $\vec w$ equals
 $\vec w\T\mat C\vec w$.} The covariance matrix, sandwiched between a direction and
-itself, returns the spread in that direction.
+itself, returns the spread in that direction. Figure~\ref{ch30:project} shows the
+projected coordinates for one candidate direction.
 
 \begin{figure}[H]
 \centering
@@ -401,7 +438,7 @@ itself, returns the spread in that direction.
     \draw[gray!60,dashed] (\x,\y) -- (\px,\py);
     \fill[vecred] (\px,\py) circle (3pt);
   }
-  \node[vecred] at (-2,-2.6) {projections};
+  \node[vecred] at (-2.4,-3.3) {projections};
 \end{tikzpicture}
 \caption{Projecting the centered cloud onto a candidate direction $\vec w$. The red
 dots are the projected coordinates $\tilde{\vec x}_i\T\vec w$. PCA seeks the
@@ -468,11 +505,12 @@ each eigenvector down the sorted list. The principal components thus form a comp
 carries. They are a rotated coordinate system, custom fit to your cloud.
 
 \begin{intuitionbox}
-The covariance matrix stretches space. Feed it the unit circle of directions and it
-reports back a variance for each. The largest variance occurs along the top
-eigenvector of $\mat C$, which is the long axis of the elliptical cloud. The eigenvectors are the axes of the data
-ellipse; the eigenvalues are (the squares of) how far the ellipse reaches along
-each axis. PCA is ``find the axes of the ellipse your data traces out.''
+Feed the covariance matrix every unit direction $\vec w$ and it reports back a
+variance $\vec w\T\mat C\vec w$ for each. The largest variance occurs along the top
+eigenvector of $\mat C$, which is the long axis of the elliptical cloud
+(Figure~\ref{ch30:ellipse}). The eigenvectors are the axes of the data ellipse; the
+eigenvalues are the squares of how far the ellipse reaches along each axis. PCA
+finds the axes of the ellipse your data traces out.
 \end{intuitionbox}
 
 \begin{figure}[H]
@@ -488,7 +526,7 @@ each axis. PCA is ``find the axes of the ellipse your data traces out.''
   \draw[->,vecred,very thick] (0,0) -- (3.31,2.24) node[above right]{$\vec v_1$};
   \draw[->,targetgreen,very thick] (0,0) -- (-0.9,1.33) node[above left]{$\vec v_2$};
   \node[vecred] at (1.9,0.5) {\small$\sqrt{\lambda_1}$};
-  \node[targetgreen] at (-1.0,0.45) {\small$\sqrt{\lambda_2}$};
+  \node[targetgreen] at (-1.0,0.2) {\small$\sqrt{\lambda_2}$};
 \end{tikzpicture}
 \caption{The data ellipse. Its long axis is the first principal component $\vec
 v_1$, its short axis the second $\vec v_2$, and the axes are orthogonal because
@@ -499,38 +537,37 @@ standard deviation in that direction.}
 
 \subsection{Doing it by hand on the five points}
 
-Let us finish the running example: find the principal components of
+Now we finish the running example: find the principal components of
 \[
   \mat C=\begin{bmatrix}4 & 2.8\\ 2.8 & 3.2\end{bmatrix}
 \]
 from Example~\ref{ch30:cov-compute}. Eigenvalues come from
 $\det(\mat C-\lambda\mat I)=0$:
-\[
-  (4-\lambda)(3.2-\lambda)-2.8^2=0
-  \;\Longrightarrow\;
-  \lambda^2-7.2\lambda+(12.8-7.84)=0
-  \;\Longrightarrow\;
-  \lambda^2-7.2\lambda+4.96=0 .
-\]
+\begin{align*}
+  (4-\lambda)(3.2-\lambda)-2.8^2&=0\\
+  \lambda^2-7.2\lambda+(12.8-7.84)&=0\\
+  \lambda^2-7.2\lambda+4.96&=0 .
+\end{align*}
 The quadratic formula gives
-\[
-  \lambda=\frac{7.2\pm\sqrt{7.2^2-4(4.96)}}{2}
-        =\frac{7.2\pm\sqrt{51.84-19.84}}{2}
-        =\frac{7.2\pm\sqrt{32}}{2}
+\begin{align*}
+  \lambda&=\frac{7.2\pm\sqrt{7.2^2-4\cdot 4.96}}{2}
+        =\frac{7.2\pm\sqrt{51.84-19.84}}{2}\\
+        &=\frac{7.2\pm\sqrt{32}}{2}
         =3.6\pm 2\sqrt2 .
-\]
+\end{align*}
 So $\lambda_1=3.6+2\sqrt2\approx 6.43$ and $\lambda_2=3.6-2\sqrt2\approx 0.77$.
 Sanity checks: the eigenvalues sum to $7.2=\tr\mat C=4+3.2$, and their product is
 $\lambda_1\lambda_2=3.6^2-8=12.96-8=4.96=\det\mat C$. Both hold.
 
-For the top eigenvector, solve $(\mat C-\lambda_1\mat I)\vec v_1=\vec 0$. Using the
-first row, $(4-\lambda_1)v_{1}+2.8\,v_{2}=0$, so
+For the top eigenvector, solve $(\mat C-\lambda_1\mat I)\vec v_1=\vec 0$. Write
+$\vec v_1=(p,q)$. The first row gives $(4-\lambda_1)p+2.8\,q=0$, so
 \[
-  v_2/v_1=\frac{\lambda_1-4}{2.8}=\frac{2\sqrt2-0.4}{2.8}\approx\frac{2.428}{2.8}
+  \frac{q}{p}=\frac{\lambda_1-4}{2.8}=\frac{2\sqrt2-0.4}{2.8}\approx\frac{2.428}{2.8}
   \approx0.867 .
 \]
-Thus $\vec v_1\propto(1,\,0.867)$; normalized, $\vec v_1\approx(0.756,\,0.655)$.
-That points up and to the right at about $41^\circ$ -- precisely the grain we eyed
+Thus $\vec v_1$ is a multiple of $(1,\,0.867)$. Dividing by its length
+$\sqrt{1+0.867^2}\approx1.323$ gives the unit vector $\vec v_1\approx(0.756,\,0.655)$.
+That points up and to the right at about $41^\circ$ -- the grain we eyed
 in Figure~\ref{ch30:cloud}. The second component is orthogonal to it,
 $\vec v_2\approx(-0.655,\,0.756)$, the thin direction across the cloud.
 
@@ -554,16 +591,16 @@ which end you call positive.
 \subsection{The total variance is the trace}
 
 How much spread does the cloud have \emph{in total}? Add up the variances of all
-the features -- the diagonal of $\mat C$ -- which is $\tr\mat C$. But the trace is
-also the sum of the eigenvalues. So
+the features, which sit on the diagonal of $\mat C$; their sum is the trace
+$\tr\mat C$. The trace is also the sum of the eigenvalues (Theorem~\ref{ch23:thm-trace-det} in Chapter~23). So
 \[
   \text{total variance}=\tr\mat C=\sum_{j=1}^d \mat C_{jj}=\sum_{k=1}^d\lambda_k .
 \]
-This is the conservation law of PCA. Rotating to the principal-component axes does
-not create or destroy spread; it only \emph{redistributes} it. The $d$ messy,
-correlated feature-variances on the diagonal are repackaged into $d$ clean,
-independent component-variances $\lambda_k$ -- same total, but now sorted and
-uncorrelated.
+Rotating to the principal-component axes does not create or destroy spread; it
+only \emph{redistributes} it. The $d$ variances of the original features, which are
+tangled together by nonzero covariances, are repackaged into $d$ component variances
+$\lambda_k$ with the same total, now sorted and with zero covariance between any two
+components.
 
 The \textbf{fraction of variance explained} by component $k$ is therefore
 \[
@@ -574,20 +611,20 @@ and component 2 the remaining $0.77/7.2\approx 10.7\%$. Nearly nine tenths of
 everything the five points do is captured by a single direction.
 
 \begin{aestheticbox}
-This structural property explains why PCA is so effective in practice. Real high-dimensional datasets are
-rarely genuinely high-dimensional. A thousand pixels of a face, a hundred
-survey questions, the daily prices of five hundred stocks -- the underlying signal
-lives on a thin, gently curved, low-dimensional sheet, and most of the ambient
-dimensions carry almost no variance. PCA measures exactly how thin that sheet is.
-When the top few eigenvalues hold $95\%$ of the total, you have learned that your
-$1000$-dimensional data is, for all practical purposes, only a handful of
-dimensions deep. That fact -- the \emph{intrinsic dimension} is small -- is what
-makes learning from data possible at all.
+Real datasets with many features usually vary in only a few directions. A thousand
+pixels of a face, a hundred survey questions, the daily prices of five hundred
+stocks: the features move together, so the points lie close to a thin,
+low-dimensional sheet inside the big feature space, and most directions of that
+space carry almost no variance. PCA measures how thin that sheet is. When the top
+few eigenvalues hold $95\%$ of the total, your $1000$-dimensional data is, for
+practical purposes, only a handful of dimensions deep. That number of directions
+that matter is called the \emph{intrinsic dimension} of the data, and when it is
+small, a few numbers per sample are enough to describe it.
 \end{aestheticbox}
 
 \subsection{Reducing dimensions: 2D down to 1D}
 
-Now the payoff. If one direction holds almost all the variance, we can describe each
+If one direction holds almost all the variance, we can describe each
 point by its coordinate along that single direction and lose almost nothing. This
 is \textbf{dimensionality reduction}: replace each $d$-dimensional point by its few
 top principal-component coordinates.
@@ -599,23 +636,47 @@ coordinate along $\vec v_1$:
 \]
 Using $\vec v_1\approx(0.756,0.655)$ and the centered rows of $\mat B$:
 \[
-  \begin{array}{ll}
-  (-3,-2):& z=-3(.756)-2(.655)=-2.268-1.310=-3.58,\\
-  (-1,\ 0):& z=-1(.756)+0=-0.756,\\
-  (\ 1,\ 2):& z=\ \ .756+1.310=2.07,\\
-  (\ 3,\ 2):& z=2.268+1.310=3.58,\\
-  (\ 0,-2):& z=0-1.310=-1.31.
+  \begin{array}{rl}
+  (-3,-2): & z_1=-3\cdot0.756-2\cdot0.655=-2.268-1.310=-3.58,\\
+  (-1,\ 0): & z_2=-1\cdot0.756+0\cdot0.655=-0.76,\\
+  (1,\ 2): & z_3=1\cdot0.756+2\cdot0.655=0.756+1.310=2.07,\\
+  (3,\ 2): & z_4=3\cdot0.756+2\cdot0.655=2.268+1.310=3.58,\\
+  (0,-2): & z_5=0\cdot0.756-2\cdot0.655=-1.31.
   \end{array}
 \]
-Five 2D points have become five single numbers. To \emph{reconstruct} an
+Five 2D points have become five single numbers, shown on a number line in
+Figure~\ref{ch30:scores}.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[scale=1.3,>=Latex]
+  \draw[->,structurepurple,thick] (-4.2,0) -- (4.3,0) node[right,font=\small]{$z$ (coordinate along $\vec v_1$)};
+  \foreach \t in {-4,-3,-2,-1,0,1,2,3,4}{
+    \draw[gray] (\t,0.06) -- (\t,-0.06) node[below,font=\footnotesize,gray]{$\t$};
+  }
+  \foreach \z/\lab/\h in {-3.58/{(2,1)}/0.12,-1.31/{(5,1)}/0.12,-0.76/{(4,3)}/0.5,2.07/{(6,5)}/0.12,3.58/{(8,5)}/0.12}{
+    \fill[vecred] (\z,0) circle (2.2pt);
+    \draw[gray!60] (\z,0.06) -- (\z,\h);
+    \node[font=\footnotesize,vecblue,above,inner sep=1pt] at (\z,\h) {$\lab$};
+  }
+\end{tikzpicture}
+\caption{The five points of Example~\ref{ch30:tiny-data} after reduction to one
+dimension. Each red dot is the coordinate $z_i$ of one point along the first principal
+component; the label above it is the original point it came from. The order along
+the line follows the grain of the cloud, from lower left to upper right.}
+\label{ch30:scores}
+\end{figure}
+
+ To \emph{reconstruct} an
 approximate point, ride that coordinate back out along $\vec v_1$ and add the mean
 back:
 \[
   \hat{\vec x}_i=\bar{\vec x}+z_i\,\vec v_1 .
 \]
-Every reconstructed point lands exactly on the principal line through the centroid;
-the part we threw away was its small wobble in the $\vec v_2$ direction. That
-discarded wobble has total size $\lambda_2$ -- the $10.7\%$ we chose to forget.
+Every reconstructed point lands on the principal line through the centroid
+(Figure~\ref{ch30:reduce}); the part we threw away was its small wobble in the
+$\vec v_2$ direction. The average squared size of that discarded wobble is
+$\lambda_2\approx0.77$, the $10.7\%$ of the variance we chose to forget.
 
 \begin{figure}[H]
 \centering
@@ -637,7 +698,8 @@ discarded wobble has total size $\lambda_2$ -- the $10.7\%$ we chose to forget.
   \fill[black] (5,3) circle (2.5pt) node[below right]{\small mean};
 \end{tikzpicture}
 \caption{Dimensionality reduction from 2D to 1D. Each blue point collapses (dashed)
-onto its red reconstruction on the PC1 line. The reconstruction error is the dashed
+onto its red reconstruction on the PC1 line (the line through the mean in the
+direction of the first principal component $\vec v_1$). The reconstruction error is the dashed
 length, and PCA chooses the line that makes the \emph{total squared} dashed length
 as small as possible.}
 \label{ch30:reduce}
@@ -652,15 +714,19 @@ to their projections. These are the same optimum, and seeing why ties the chapte
 to the projection and least-squares chapters.
 
 \begin{formalbox}
-For each centered point, Pythagoras on the right triangle ``point, its projection,
-the origin'' reads
+Let $\vec w$ be a unit vector. For each centered point, Pythagoras on the right
+triangle with corners ``origin, point, projection of the point onto the line through
+$\vec w$'' (Figure~\ref{ch30:pythagoras}) reads
 \[
   \underbrace{\norm{\tilde{\vec x}_i}^2}_{\text{fixed}}
   =\underbrace{(\tilde{\vec x}_i\T\vec w)^2}_{\text{variance captured}}
   +\underbrace{\norm{\tilde{\vec x}_i-(\tilde{\vec x}_i\T\vec w)\vec w}^2}_{\text{squared error}} .
 \]
-Summing over all points and dividing by $n$: $(\text{total variance})=(\text{variance
-along }\vec w)+(\text{mean squared error})$. The left side does not depend on
+Summing over all points and dividing by $n$ gives
+\[
+  \text{total variance}=\bigl(\text{variance along }\vec w\bigr)+\bigl(\text{mean squared error}\bigr).
+\]
+The left side does not depend on
 $\vec w$. So \textbf{maximizing the variance captured is identical to minimizing the
 reconstruction error.}
 \end{formalbox}
@@ -671,63 +737,88 @@ reconstruction error.}
   \draw[structurepurple, thick] (-1.35, -0.66) -- (6.8, 3.32) node[above right, font=\footnotesize, structurepurple] {line $\operatorname{span}(\vec w)$};
   \draw[spacegray, thick] (3.640, 1.776) -- (3.487, 2.091) -- (3.802, 2.244);
   \draw[->, targetgreen, very thick] (0,0) -- (3.955, 1.929);
-  \node[targetgreen, font=\footnotesize, anchor=north west] at (2.0, 0.8) {projection $(\vec x_i\cdot\vec w)\vec w$};
+  \node[targetgreen, font=\footnotesize, anchor=north west] at (2.0, 0.8) {projection $(\tilde{\vec x}_i\cdot\vec w)\vec w$};
   \draw[->, trapred, very thick, dashed] (3.955, 1.929) -- (2.903, 4.086);
-  \node[trapred, font=\footnotesize, align=left, anchor=west] at (3.5, 3.2) {error\\$\vec x_i - (\vec x_i\cdot\vec w)\vec w$};
+  \node[trapred, font=\footnotesize, align=left, anchor=west] at (3.5, 3.2) {error\\$\tilde{\vec x}_i - (\tilde{\vec x}_i\cdot\vec w)\vec w$};
   \draw[->, vecblue, very thick] (0,0) -- (2.903, 4.086);
-  \node[vecblue, font=\footnotesize, anchor=south east] at (1.35, 2.1) {$\vec x_i$ (fixed length $\norm{\vec x_i}$)};
-  \fill[vecblue] (2.903, 4.086) circle (3.5pt) node[above, font=\footnotesize] {point $\vec x_i$};
+  \node[vecblue, font=\footnotesize, anchor=south east] at (1.35, 2.1) {$\tilde{\vec x}_i$ (fixed length $\norm{\tilde{\vec x}_i}$)};
+  \fill[vecblue] (2.903, 4.086) circle (3.5pt) node[above, font=\footnotesize] {point $\tilde{\vec x}_i$};
   \fill[targetgreen] (3.955, 1.929) circle (3pt) node[below right, font=\footnotesize] {projection foot};
-  \fill[black] (0,0) circle (2.5pt) node[below left, font=\footnotesize] {origin $\vec 0$};
+  \fill[black] (0,0) circle (2.5pt) node[above left, font=\footnotesize] {origin $\vec 0$};
   \draw[->, structurepurple, line width=1.3pt] (0,0) -- ({1.5*cos(26)}, {1.5*sin(26)}) node[above left, font=\scriptsize] {$\vec w$};
 \end{tikzpicture}
-\caption{The Pythagorean decomposition for a single centered point $\vec x_i$.
-The distance to the origin, $\norm{\vec x_i}$, is fixed. The projection along
-unit vector $\vec w$ forms the base of a right triangle, and the reconstruction error
-forms the perpendicular leg. Because $\text{base}^2 + \text{height}^2 = \text{hypotenuse}^2$,
-tilting the candidate line $\vec w$ to maximize projected spread (variance) is identical
-to minimizing perpendicular reconstruction error.}
+\caption{Pythagoras for a single centered point $\tilde{\vec x}_i$.
+Its distance to the origin, $\norm{\tilde{\vec x}_i}$, is fixed. The projection onto
+the line through the unit vector $\vec w$ is one leg of a right triangle (green), and
+the reconstruction error is the other leg (red, dashed). Because the squared legs
+add up to the fixed squared hypotenuse, turning the line to make the green leg longer
+makes the red leg shorter.}
 \label{ch30:pythagoras}
 \end{figure}
 
 \begin{strangbox}
 Strang teaches least squares as ``project $\vec b$ onto the column space of $\mat
-A$'' -- find the point in a \emph{given} subspace closest to your data. PCA is the
-striking inverse problem: the subspace itself is unknown, and you choose it to fit
+A$'': find the point in a \emph{given} subspace closest to your data. PCA is the
+reverse problem: the subspace itself is unknown, and you choose it to fit
 the data best. Least squares asks ``how close is the data to this line?''; PCA asks
 ``which line is the data closest to?'' Same orthogonality, same Pythagoras, but now
 the subspace is the answer instead of the question. Reading this after Strang, you
-will recognize the right triangle of the formal box as the very picture from his
-projection chapter -- only here we get to rotate the line until the error shrinks to
-its minimum.
+will recognize the right triangle of the formal box as the picture from his
+projection chapter; here we also get to rotate the line until the error is as small
+as possible.
 \end{strangbox}
 
 \subsection{How many components? The scree plot}
 
 To choose how many components to keep, plot the eigenvalues in decreasing order.
-This \textbf{scree plot} usually drops steeply and then flattens into a ``rubble''
-tail of tiny eigenvalues -- noise directions carrying negligible variance. You keep
-the components before the elbow. Equivalently, keep enough components to reach a
-target cumulative variance such as $90\%$ or $99\%$.
+This is called a \textbf{scree plot}, after the loose rubble (scree) that piles up at
+the foot of a cliff: the bars usually drop steeply and then flatten into a tail of
+tiny eigenvalues, directions that carry so little variance they are mostly noise
+(small random measurement errors). The point where the steep drop turns flat is the
+\textbf{elbow}, and you keep the components before it. Another rule, which usually
+gives a similar answer, is to keep enough components to reach a target
+\emph{cumulative} variance (the fraction explained by the first $r$ components
+together) such as $90\%$ or $99\%$. Figure~\ref{ch30:scree} shows both views of the
+same eigenvalues.
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[scale=0.8]
+\begin{tikzpicture}
 \begin{axis}[
-  width=9.5cm,height=5cm,
-  ybar, bar width=11pt,
-  title={Variance explained by principal component}, title style={font=\small},
+  width=6.6cm,height=5cm,
+  ybar, bar width=9pt,
+  title={Scree plot}, title style={font=\small},
   xlabel={component $k$}, ylabel={$\lambda_k$ (variance)},
-  ymin=0, xtick=data, xmin=0.3, xmax=8.7,
+  label style={font=\small}, tick label style={font=\footnotesize},
+  ymin=0, xtick=data,
   axis lines=left, enlarge x limits=0.08,
 ]
 \addplot[fill=vecblue!70,draw=vecblue] coordinates
   {(1,6.4)(2,2.9)(3,1.1)(4,0.45)(5,0.22)(6,0.12)(7,0.07)(8,0.04)};
+\draw[->,trapred,thick] (axis cs:5.2,3.2) -- (axis cs:3.4,1.4);
+\node[trapred,font=\footnotesize,anchor=west] at (axis cs:4.8,3.5) {elbow};
+\end{axis}
+\end{tikzpicture}\hspace{0.4cm}%
+\begin{tikzpicture}
+\begin{axis}[
+  width=6.6cm,height=5cm,
+  title={Cumulative variance explained}, title style={font=\small},
+  xlabel={number of components $r$}, ylabel={fraction of total},
+  label style={font=\small}, tick label style={font=\footnotesize},
+  ymin=0.5, ymax=1.02, xtick={1,...,8}, xmin=0.5, xmax=8.5,
+  axis lines=left,
+]
+\addplot[mark=*,thick,color=vecblue] coordinates
+  {(1,0.566)(2,0.823)(3,0.920)(4,0.960)(5,0.980)(6,0.990)(7,0.996)(8,1.0)};
+\addplot[dashed,trapred,domain=0.5:8.5] {0.9};
+\node[trapred,font=\footnotesize,anchor=north west] at (axis cs:4.3,0.89) {$90\%$ target};
 \end{axis}
 \end{tikzpicture}
-\caption{A scree plot. The first two or three components tower over a flat tail of
-noise. The ``elbow'' after component 3 says: three principal directions describe
-this dataset, the rest is rubble.}
+\caption{Two ways to choose how many components to keep, for the same eight
+eigenvalues. \emph{Left:} the scree plot drops steeply and then flattens; the elbow
+is at component~3. \emph{Right:} the running total $(\lambda_1+\cdots+\lambda_r)/
+(\lambda_1+\cdots+\lambda_8)$ first passes $90\%$ at $r=3$ (it reaches $92\%$). Both
+rules say: keep three components.}
 \label{ch30:scree}
 \end{figure}
 
@@ -736,25 +827,27 @@ this dataset, the rest is rubble.}
 \subsection{Why a practitioner never forms $\mat C$}
 
 We built PCA on the covariance matrix $\mat C=\tfrac1n\mat B\T\mat B$. That is
-perfect for understanding, but numerically it is a trap: forming $\mat B\T\mat B$
-\emph{squares} the data, and squaring squares the spread between large and small
-quantities, wrecking precision (a tiny eigenvalue can vanish entirely into rounding
-error). The professional route computes the principal components straight from
-$\mat B$ using the \textbf{singular value decomposition} -- no covariance matrix
-ever formed.
+good for understanding, but on a computer it loses accuracy. Forming $\mat B\T\mat B$
+squares the singular values of $\mat B$, and with them the condition number
+(Chapter~19). If the largest and smallest singular values of $\mat B$ differ by a
+factor of $10^4$, the eigenvalues of $\mat B\T\mat B$ differ by a factor of $10^8$,
+and the small ones can be swamped by rounding error. Numerical software therefore
+computes the principal components straight from $\mat B$ using the singular value
+decomposition, without ever forming the covariance matrix.
 
 Recall the SVD of the centered data: $\mat B=\mat U\mat\Sigma\mat V\T$, where $\mat
 U\in\R^{n\times n}$ and $\mat V\in\R^{d\times d}$ are orthogonal, and $\mat\Sigma$
 holds the singular values $\sigma_1\ge\sigma_2\ge\cdots\ge0$ on its diagonal. Now
 substitute into the covariance matrix:
-\[
-  \mat C=\frac1n\mat B\T\mat B
-        =\frac1n(\mat U\mat\Sigma\mat V\T)\T(\mat U\mat\Sigma\mat V\T)
-        =\frac1n\mat V\mat\Sigma\T\mat U\T\mat U\mat\Sigma\mat V\T
-        =\mat V\Big(\frac{\mat\Sigma\T\mat\Sigma}{n}\Big)\mat V\T .
-\]
+\begin{align*}
+  \mat C&=\frac1n\mat B\T\mat B
+        =\frac1n(\mat U\mat\Sigma\mat V\T)\T(\mat U\mat\Sigma\mat V\T)\\
+        &=\frac1n\mat V\mat\Sigma\T\mat U\T\mat U\mat\Sigma\mat V\T\\
+        &=\mat V\Big(\frac{\mat\Sigma\T\mat\Sigma}{n}\Big)\mat V\T
+        &&\text{(since $\mat U\T\mat U=\mat I$)}.
+\end{align*}
 The middle factor $\mat\Sigma\T\mat\Sigma/n$ is diagonal with entries
-$\sigma_k^2/n$. But $\mat V(\cdots)\mat V\T$ with a diagonal middle and orthogonal
+$\sigma_k^2/n$. A product $\mat V(\cdots)\mat V\T$ with a diagonal middle and orthogonal
 $\mat V$ is exactly an eigendecomposition. Therefore:
 
 \begin{formalbox}\label{ch30:pca-svd}
@@ -773,69 +866,72 @@ are the columns of $\mat U\mat\Sigma$, since $\mat B\mat V=\mat U\mat\Sigma$.
 
 So ``do PCA'' and ``take the SVD of the centered data, read off $\mat V$ and
 $\mat\Sigma$'' are the same instruction. Everything from the eigenvalue story
-survives, just expressed in singular values -- and computed without ever squaring
+survives, expressed in singular values and computed without squaring
 the data.
 
 \begin{intuitionbox}
 The SVD already told you that every matrix acts by \emph{rotate, stretch, rotate}.
-For the centered data $\mat B$, the final rotation $\mat V$ aligns the coordinate
-axes with the cloud's own axes, and the stretches $\sigma_k$ say how far the cloud
-reaches along each. That is the data ellipse of Figure~\ref{ch30:ellipse} all over
-again: the SVD hands you the ellipse's axes ($\mat V$) and radii ($\sigma_k$)
-directly, without the detour through covariance. Figure~\ref{ch30:svd-rss} traces
-the three motions in order.
+For the centered data $\mat B$, the first rotation $\mat V\T$ turns the cloud's own
+axes $\vec v_k$ into the coordinate axes, and the stretches $\sigma_k$ say how far the
+cloud reaches along each. This is the data ellipse of Figure~\ref{ch30:ellipse}
+again: the SVD hands you the ellipse's axes (the columns of $\mat V$) and radii
+($\sqrt{\lambda_k}=\sigma_k/\sqrt n$) directly, without the detour through
+covariance. Figure~\ref{ch30:svd-rss} traces the three motions in order.
 \end{intuitionbox}
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[scale=0.92,>=Latex]
-  % Stage 1: unit circle with two marked axes (the V^T frame)
+  % Stage 1: unit circle in R^d with the principal directions v1, v2 marked
   \begin{scope}[xshift=0cm]
-    \draw[gray!40] (0,0) circle (0.9);
-    \draw[->,vecblue,thick] (0,0) -- (0.9,0);
-    \draw[->,vecred,thick]  (0,0) -- (0,0.9);
-    \node[align=center] at (0,-1.5) {\small unit circle\\\small of directions};
+    \draw[gray!50] (0,0) circle (0.9);
+    \draw[->,vecblue,thick] (0,0) -- ({0.9*cos(35)},{0.9*sin(35)}) node[above right,font=\small,inner sep=1pt]{$\vec v_1$};
+    \draw[->,vecred,thick]  (0,0) -- ({0.9*cos(125)},{0.9*sin(125)}) node[above left,font=\small,inner sep=1pt]{$\vec v_2$};
+    \node[align=center,font=\small] at (0,-1.6) {unit circle in $\R^d$};
   \end{scope}
-  \draw[->,gray!70] (1.2,0) -- (2.0,0) node[midway,above]{\small$\mat V\T$};
-  % Stage 2: still a circle, but axes rotated (rotate by V^T)
-  \begin{scope}[xshift=3.2cm]
-    \draw[gray!40] (0,0) circle (0.9);
-    \draw[->,vecblue,thick] (0,0) -- ({0.9*cos(35)},{0.9*sin(35)});
-    \draw[->,vecred,thick]  (0,0) -- ({0.9*cos(125)},{0.9*sin(125)});
-    \node[align=center] at (0,-1.5) {\small rotated\\\small frame};
+  \draw[->,gray!70] (1.35,0) -- (2.15,0) node[midway,above]{\small$\mat V\T$};
+  % Stage 2: V^T has turned v1, v2 into the standard axes
+  \begin{scope}[xshift=3.4cm]
+    \draw[gray!50] (0,0) circle (0.9);
+    \draw[->,vecblue,thick] (0,0) -- (0.9,0) node[right,font=\small,inner sep=1pt]{$\vec e_1$};
+    \draw[->,vecred,thick]  (0,0) -- (0,0.9) node[above,font=\small,inner sep=1pt]{$\vec e_2$};
+    \node[align=center,font=\small] at (0,-1.6) {$\vec v_k$ moved to $\vec e_k$};
   \end{scope}
-  \draw[->,gray!70] (4.4,0) -- (5.2,0) node[midway,above]{\small$\mat\Sigma$};
-  % Stage 3: stretch into an ellipse along those axes
-  \begin{scope}[xshift=6.6cm]
-    \draw[vecblue,thick,rotate=35] (0,0) ellipse (1.4 and 0.55);
-    \draw[->,vecblue,thick] (0,0) -- ({1.4*cos(35)},{1.4*sin(35)});
-    \draw[->,vecred,thick]  (0,0) -- ({0.55*cos(125)},{0.55*sin(125)});
-    \node[above left, font=\small, inner sep=1pt] at ({0.75*cos(35)},{0.75*sin(35)}) {$\sigma_1$};
-    \node[below left, font=\small, inner sep=1pt] at ({0.35*cos(125)},{0.35*sin(125)}) {$\sigma_2$};
-    \node[align=center] at (0,-1.5) {\small data\\\small ellipse};
+  \draw[->,gray!70] (4.65,0) -- (5.45,0) node[midway,above]{\small$\mat\Sigma$};
+  % Stage 3: Sigma stretches along the standard axes
+  \begin{scope}[xshift=7.0cm]
+    \draw[vecblue,thick] (0,0) ellipse (1.4 and 0.55);
+    \draw[->,vecblue,thick] (0,0) -- (1.4,0);
+    \draw[->,vecred,thick]  (0,0) -- (0,0.55);
+    \node[below,font=\small,inner sep=2pt] at (0.75,0) {$\sigma_1$};
+    \node[left,font=\small,inner sep=2pt] at (0,0.3) {$\sigma_2$};
+    \node[align=center,font=\small] at (0,-1.6) {stretched by $\sigma_k$};
   \end{scope}
-  \draw[->,gray!70] (8.1,0) -- (8.9,0) node[midway,above]{\small$\mat U$};
-  % Stage 4: final rotation into sample space (schematic re-tilt)
-  \begin{scope}[xshift=10.3cm]
+  \draw[->,gray!70] (8.55,0) -- (9.35,0) node[midway,above]{\small$\mat U$};
+  % Stage 4: U turns the ellipse into the sample space R^n (drawn schematically)
+  \begin{scope}[xshift=10.9cm]
     \draw[targetgreen,thick,rotate=-20] (0,0) ellipse (1.4 and 0.55);
-    \node[align=center] at (0,-1.5) {\small in sample\\\small space};
+    \draw[->,targetgreen,thick] (0,0) -- ({1.4*cos(-20)},{1.4*sin(-20)}) node[below right,font=\small,inner sep=1pt]{$\sigma_1\vec u_1$};
+    \draw[->,targetgreen,thick] (0,0) -- ({0.55*cos(70)},{0.55*sin(70)});
+    \node[font=\small,targetgreen] at (-0.8,1.0) {$\sigma_2\vec u_2$};
+    \node[align=center,font=\small] at (0,-1.6) {in $\R^n$ (sketch)};
   \end{scope}
 \end{tikzpicture}
-\caption{PCA is the SVD $\mat B=\mat U\mat\Sigma\mat V\T$ read right to left as
-\emph{rotate, stretch, rotate}. The rotation $\mat V$ turns the standard axes into
-the cloud's own principal axes; $\mat\Sigma$ stretches the unit circle into the data
-ellipse, reaching $\sigma_k$ along principal component $\vec v_k$; the final rotation
-$\mat U$ places that ellipse among the samples. The principal directions are the
-columns of $\mat V$, and the reach of the data ellipse along each is given by the singular values.}
+\caption{The SVD $\mat B=\mat U\mat\Sigma\mat V\T$ read right to left as
+\emph{rotate, stretch, rotate}. $\mat V\T$ turns the principal directions
+$\vec v_1,\vec v_2$ into the standard axes $\vec e_1,\vec e_2$; $\mat\Sigma$ stretches
+those axes by $\sigma_1$ and $\sigma_2$; $\mat U$ turns the result into the sample
+space $\R^n$ (one coordinate per sample), so that $\mat B\vec v_k=\sigma_k\vec u_k$.
+The principal directions are the columns of $\mat V$.}
 \label{ch30:svd-rss}
 \end{figure}
 
 \begin{remark}
 The connection runs deeper than convenience. The eigenvectors of $\mat B\T\mat B$
 \emph{are} the right singular vectors of $\mat B$, with eigenvalues $\sigma_k^2$ --
-a fact you proved when you first built the SVD. PCA is simply that theorem applied
-to centered data and renamed in the language of variance. If the SVD chapter felt
-abstract, PCA is its concrete reason to exist.
+a fact you proved when you first built the SVD. PCA is that theorem applied
+to centered data and restated in the language of variance. It is one of the most
+common practical uses of the SVD.
 \end{remark}
 
 \subsection{Low-rank approximation is dimensionality reduction}
@@ -846,21 +942,24 @@ SVD to its top $r$ terms,
   \mat B \approx \mat B_r=\sum_{k=1}^r \sigma_k\,\vec u_k\vec v_k\T ,
 \]
 and the Eckart--Young theorem (Theorem~\ref{ch29:thm-eckart-young}) says $\mat B_r$ is the
-\emph{best} rank-$r$ approximation of $\mat B$ in the least-squares sense -- no
-other rank-$r$ matrix is closer. Reducing your data to its top $r$ principal
+\emph{best} rank-$r$ approximation of $\mat B$: no other rank-$r$ matrix has a smaller
+sum of squared entry-by-entry differences from $\mat B$. That sum is the squared
+Frobenius norm $\norm{\mat B-\mat B_r}_F^2$ of Chapter~29. Reducing your data to its top $r$ principal
 components is exactly forming this best low-rank approximation. The error you incur
 is governed by the singular values you dropped:
-\[
+\begin{align*}
   \frac{\norm{\mat B-\mat B_r}_F^2}{\norm{\mat B}_F^2}
-  =\frac{\sigma_{r+1}^2+\cdots+\sigma_d^2}{\sigma_1^2+\cdots+\sigma_d^2}
-  =\frac{\lambda_{r+1}+\cdots+\lambda_d}{\lambda_1+\cdots+\lambda_d}
-  =1-(\text{variance explained by top }r).
-\]
+  &=\frac{\sigma_{r+1}^2+\cdots+\sigma_d^2}{\sigma_1^2+\cdots+\sigma_d^2}\\
+  &=\frac{\lambda_{r+1}+\cdots+\lambda_d}{\lambda_1+\cdots+\lambda_d}
+   &&\text{(divide top and bottom by $n$)}\\
+  &=1-(\text{fraction of variance explained by the top $r$}).
+\end{align*}
 ``Keep $95\%$ of the variance'' and ``make the best rank-$r$ approximation with
-$5\%$ squared error'' are literally the same sentence.
+$5\%$ relative squared error'' say the same thing.
 
 \begin{recoverybox}
-\textbf{Pause and think: More features than samples ($d \gg n$).}
+\textbf{Pause and think: More features than samples ($d \gg n$, read ``$d$ much
+larger than $n$'').}
 Suppose you sequence genetic markers for $n=50$ patients, measuring $d=20{,}000$
 gene expression levels for each. The covariance matrix $\mat C = \tfrac1n\mat B\T\mat B$
 has size $20{,}000\times 20{,}000$. How many nonzero eigenvalues can $\mat C$
@@ -871,9 +970,10 @@ possibly have?
 they sum to zero, so $\rank\mat B \le n-1 = 49$. By the rank properties from
 Chapter~16, $\rank(\mat B\T\mat B) = \rank\mat B \le 49$. The remaining $19{,}951$
 eigenvalues are exactly zero. Computing the SVD of the $50\times 20{,}000$ matrix
-$\mat B$ directly finds those $49$ non-trivial directions in a fraction of a second,
-whereas forming and diagonalizing a $20{,}000\times 20{,}000$ covariance matrix
-would waste gigabytes of memory on thousands of zeros.
+$\mat B$ directly finds those $49$ nonzero-variance directions in a fraction of a
+second, whereas forming and diagonalizing the $20{,}000\times 20{,}000$ covariance
+matrix would need about $3$ gigabytes of memory just to store its
+$4\times10^8$ entries.
 \end{recoverybox}
 
 \section{PCA in the wild}
@@ -881,17 +981,48 @@ would waste gigabytes of memory on thousands of zeros.
 \subsection{Compressing and denoising images}
 
 A grayscale image is a matrix of pixel brightnesses. Take its SVD and keep the top
-$r$ singular triplets: you reconstruct a recognizable image from a tiny fraction of
-the numbers. An $800\times600$ image has $480{,}000$ pixels, but its rank-$50$
-approximation needs only $50\,(800+600+1)\approx 70{,}000$ numbers -- a $7{\times}$
-compression -- and often looks nearly identical, because natural images have a few
-dominant singular values and a long thin tail. Drop the tail and you have not only
-compressed the image but also \emph{denoised} it: random noise spreads its energy
+$r$ terms $\sigma_k\vec u_k\vec v_k\T$; each term needs one number $\sigma_k$, one
+column $\vec u_k$ and one row $\vec v_k\T$. From these few numbers you can rebuild a
+recognizable image. An $800\times600$ image has $480{,}000$ pixels, but its rank-$50$
+approximation needs only $50\,(800+600+1)\approx 70{,}000$ numbers, about seven times
+fewer (Figure~\ref{ch30:storage}). It often looks nearly identical, because natural
+images have a few large singular values and a long tail of small ones. Dropping the
+tail also \emph{denoises} the image (removes some of the random speckle added by
+the camera): random noise spreads its size, measured as a sum of squares, roughly
 evenly across all singular directions, so the small-$\sigma$ tail you discard is
-disproportionately noise.
+mostly noise.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[scale=0.5]
+  % full image 800 x 600 drawn as 8 x 6
+  \fill[vecblue!15] (0,0) rectangle (6,8);
+  \draw[vecblue,thick] (0,0) rectangle (6,8);
+  \node[font=\small,align=center] at (3,4) {image\\$800\times600$\\$480{,}000$ numbers};
+  \node[font=\small] at (7,4) {$\approx$};
+  % U_r: 800 x 50
+  \fill[targetgreen!20] (8,0) rectangle (8.5,8);
+  \draw[targetgreen,thick] (8,0) rectangle (8.5,8);
+  \node[font=\footnotesize,align=center,below] at (8.25,0) {$800\times50$};
+  % Sigma_r: 50 numbers
+  \fill[quotientorange!30] (9.2,7.5) rectangle (9.7,8);
+  \draw[quotientorange,thick] (9.2,7.5) rectangle (9.7,8);
+  \node[font=\footnotesize,above] at (9.45,8) {$50$};
+  % V_r^T: 50 x 600
+  \fill[structurepurple!20] (10.4,7.5) rectangle (16.4,8);
+  \draw[structurepurple,thick] (10.4,7.5) rectangle (16.4,8);
+  \node[font=\footnotesize,below] at (13.4,7.5) {$50\times600$};
+  \node[font=\small,align=left,anchor=west] at (9.2,4.5) {$40{,}000+50+30{,}000$};
+  \node[font=\small,align=left,anchor=west] at (9.2,3.4) {$\approx 70{,}000$ numbers};
+\end{tikzpicture}
+\caption{Storing a rank-$50$ approximation of an $800\times600$ image. Instead of
+all the pixels (left) you keep $50$ columns $\vec u_k$ of length $800$ (green),
+$50$ singular values (orange) and $50$ rows $\vec v_k\T$ of length $600$ (purple).}
+\label{ch30:storage}
+\end{figure}
 
 \begin{labbox}
-Make a $3\times3$ image $\mat M$ with rows $(1,2,3),(2,4,6),(3,6,9)$. Notice every
+Make a $3\times3$ image $\mat M$ with rows $(1,2,3),(2,4,6),(3,6,9)$. Every
 row is a multiple of $(1,2,3)$, so $\rank\mat M=1$: one singular value is nonzero
 and the other two are exactly $0$. The rank-$1$ approximation is the image itself,
 with zero error -- this picture compresses perfectly. Now nudge one entry by
@@ -914,28 +1045,30 @@ hairline, the breadth of the jaw, the set of the eyes. Any face is then
 approximately the average face plus a short weighted sum of eigenfaces, so a face
 that once needed $4096$ numbers is now described by perhaps $50$ coordinates. To
 recognize a new face, project it into eigenface coordinates and find the nearest
-stored neighbor. Recognition in a $50$-dimensional space, not a $4096$-dimensional
-one -- that compression is what made it run on early-1990s hardware.
+stored neighbor. Working in $50$ dimensions instead of $4096$ is what made this
+fast enough for early-1990s computers.
 
 \begin{applicationbox}
-\textbf{PCA inside modern machine learning.} The eigenface concept applies directly
-across modern representation learning. Today neural networks map words, images, and user features into
-high-dimensional \textbf{embedding} vectors, and those embeddings are routinely
-analyzed and compressed with PCA. Three live uses:
+\textbf{PCA inside modern machine learning.} The eigenface idea carries over to
+today's systems. Neural networks turn words, images, and users into long lists of
+numbers called \textbf{embedding} vectors (Chapter~2), and those embeddings are
+routinely analyzed and compressed with PCA. Three common uses:
 \begin{itemize}
   \item \textbf{Visualization.} Embeddings live in hundreds or thousands of
         dimensions. Project onto the top $2$ or $3$ principal components and you can
         \emph{plot} them -- synonyms cluster, categories separate -- a sanity check
-        practitioners run constantly. (Nonlinear cousins like t-SNE and UMAP refine
-        the picture, but PCA is the plain linear first look.)
+        practitioners run constantly. (Nonlinear methods with names like t-SNE and UMAP,
+        which can follow curved structure, give more detailed pictures, but PCA is
+        the plain linear first look.)
   \item \textbf{Whitening and preprocessing.} Rotating data into its
         principal-component axes and rescaling each by $1/\sqrt{\lambda_k}$
         produces \emph{whitened} features with identity covariance -- uncorrelated
-        and unit-variance -- which makes downstream training faster and better
-        conditioned.
-  \item \textbf{Compression at scale.} A retrieval system storing billions of
-        embeddings shrinks each one with PCA before indexing, trading a little
-        accuracy for a large cut in memory and a faster nearest-neighbor search.
+        and unit-variance. Training a model on whitened features is often faster,
+        because the condition number (Chapter~19) of the problem is smaller.
+  \item \textbf{Compression at scale.} A search system storing billions of
+        embeddings shrinks each one with PCA before building its search index (the
+        data structure used to look items up quickly), trading a little accuracy
+        for a large cut in memory and a faster nearest-neighbor search.
 \end{itemize}
 The throughline of this book: the linear algebra under the newest models is the
 same spectral theorem you can verify on a $2\times2$ matrix by hand.
@@ -944,11 +1077,13 @@ same spectral theorem you can verify on a $2\times2$ matrix by hand.
 \begin{trapbox}
 \textbf{Scale your features first.} PCA maximizes numerical variance, and variance
 depends on units. If one feature is measured in millimeters and another in
-kilometers, the millimeter column has a much larger numerical variance simply
+kilometers, the millimeter column has a much larger numerical variance only
 because of the smaller unit, so the first principal component will align almost
 entirely with that axis. When features carry different units or wildly different scales,
-\emph{standardize} each to unit variance before running PCA (this replaces the
-covariance matrix with the \emph{correlation} matrix). Centering removes the
+\emph{standardize} each one before running PCA: divide each centered column by its
+standard deviation, so every feature has variance $1$ and no units. The covariance
+matrix of standardized features is called the \emph{correlation matrix}; its entries
+are the correlation coefficients (Chapter~19), numbers between $-1$ and $1$. Centering removes the
 location; standardizing removes the arbitrary choice of units.
 \end{trapbox}
 
@@ -958,8 +1093,10 @@ direction, all eigenvalues equal. What does PCA return? (Every direction is a ti
 for ``most spread,'' so the principal components are not unique -- any orthonormal
 basis works.) Now squash the cloud slightly along one axis. Suddenly there is a
 unique answer. Which way does $\vec v_1$ swing, and why did a tiny squash break a
-perfect tie? Notice how sensitive the individual eigenvectors of a near-multiple of the identity are -- a first feel for why nearly-equal eigenvalues make PCA
-directions unstable, even as the subspace they span stays perfectly stable.
+perfect tie? A tiny change in the data decided the direction completely. This is why,
+when two eigenvalues are nearly equal, the individual principal directions are
+unreliable (a little noise can swing them around), while the plane the two of them
+span hardly moves.
 \end{walkbox}
 
 \section{The recipe, start to finish}
@@ -976,7 +1113,8 @@ directions unstable, even as the subspace they span stays perfectly stable.
         vectors $\vec v_k$; variances are $\lambda_k=\sigma_k^2/n$, sorted descending.
   \item Choose $r$ from the scree plot or a cumulative-variance target.
   \item Reduce: project each centered point onto the top $r$ components,
-        $\vec z_i=\mat V_r\T\tilde{\vec x}_i$.
+        $\vec z_i=\mat V_r\T\tilde{\vec x}_i$, where $\mat V_r$ holds the first
+        $r$ columns of $\mat V$.
   \item Reconstruct when needed: $\hat{\vec x}_i=\bar{\vec x}+\mat V_r\vec z_i$, the
         best rank-$r$ fit to the original.
 \end{enumerate}
@@ -1002,43 +1140,38 @@ regression and orthogonal regression. Standard linear regression treats one vari
 special, minimizing vertical distances along an arbitrary dependent axis $y$. Pearson
 argued that in observational science and biology, nature does not label one variable as
 an ``input'' and another as an ``output''; true geometric fitting requires minimizing
-perpendicular distances, treating every feature symmetrically. Another classic pitfall
-is the failure to center data: if you forget to subtract the feature means before
-computing components, PCA points its first axis directly from the origin toward the
-center of the cloud rather than along the true grain of variance. A second classic trap
-is scale: because variance depends on units of measurement, measuring one feature in
-millimeters and another in kilometers causes the big-number feature to hijack the first
-component entirely, requiring features to be standardized to unit variance before
-analysis.
+perpendicular distances, treating every feature symmetrically. (If you forget to
+center the data, PCA's first axis points from the origin toward the center of the
+cloud instead of along its grain.)
 
-PCA gives optimal linear dimensionality reduction, projecting high-dimensional
-data onto a low-dimensional subspace that retains maximum variance while
-decorrelating the coordinates. Its limitations are equally clear. It is blind to nonlinear
+Among all ways of projecting data onto a subspace of a given dimension, PCA keeps
+the most variance, and the new coordinates are uncorrelated. Its limitations are
+also clear. It is blind to nonlinear
 geometry: if data lies on a curved surface---such as the classic ``Swiss roll,'' a
 two-dimensional sheet curled up into a three-dimensional coil---PCA flattens the roll
 onto a flat plane, crushing distant points on adjacent layers together. It is also
 unsupervised, meaning it inspects only the cloud's geometric spread without knowing any
 class labels or categories; as a result, its directions of greatest variance can fail to
-separate distinct classes of data. These boundaries spurred the development of nonlinear
-manifold learning and neural autoencoders (which we explore in Chapter~34), while the
-underlying optimization of variance via the Rayleigh quotient $\vec w\T\mat C\vec w / \norm{\vec w}^2$
-takes center stage in Chapter~36.
+separate distinct classes of data. These limits led to nonlinear methods that
+follow curved surfaces (``manifold learning'') and to neural autoencoders (networks
+trained to squeeze data through a small layer and rebuild it).
+The ratio $\vec w\T\mat C\vec w / \norm{\vec w}^2$ whose maximum PCA
+finds, called the Rayleigh quotient, is the main subject of Chapter~36.
 \end{historybox}
 
 \begin{aestheticbox}
-We asked a statistical question -- which direction maximizes variance -- and the
-answer is an eigenvector of the sample covariance matrix. We asked for the best
-low-rank summary in mean squared error, and the solution is given by the SVD.
-Centering, covariance, variance explained, denoising, eigenfaces, and embedding
-compression are all practical realizations of the spectral theorem and the
-singular value decomposition applied to empirical data matrices.
+We asked a statistical question (which direction has the most variance?) and the
+answer was an eigenvector of the covariance matrix. We asked for the best
+low-rank summary of the data in mean squared error, and the answer was the truncated
+SVD. Image compression, eigenfaces, and embedding compression are all the spectral
+theorem and the SVD applied to a centered data matrix.
 \end{aestheticbox}
 
 \subsection*{Looking ahead: from data axes to change of basis}
 
 Throughout this chapter, we worked with data points described in the coordinate
-system of our measuring tools---centimeters, dollars, pixel values. Those
-measurement axes are arbitrary, whereas the cloud has its own principal
+system of our measuring tools: centimeters, dollars, pixel values. Those
+measurement axes are arbitrary, while the cloud has its own principal
 directions. Finding $\vec v_1,\dots,\vec v_d$ gives an orthonormal coordinate
 frame aligned with the spread of the data.
 When we expressed each point $\vec x_i$ by its projected coordinates
@@ -1046,13 +1179,12 @@ $(z_1,\dots,z_d)$ along those principal axes, all
 off-diagonal covariances vanished. The variables decoupled completely, and the
 covariance matrix in the new basis became purely diagonal.
 
-That is our first live encounter with a foundational theme of linear algebra:
-\emph{a change of basis}. In Chapter~31, we turn from empirical data clouds to
-general linear transformations. A linear transformation is an intrinsic coordinate-free
-mapping between spaces, while a matrix representation depends on the chosen basis.
-Just as PCA finds a basis that diagonalizes the empirical covariance matrix, Chapter~31
-develops how to construct coordinate systems that make the matrix representation of an
-arbitrary linear operator as simple and direct as possible.
+This is a \emph{change of basis}: the same points, described in new coordinates.
+Chapter~31 studies change of basis for general linear transformations. A linear
+transformation is defined without reference to any coordinates, but the matrix that
+represents it depends on the basis you choose. Just as PCA finds a basis in which the
+covariance matrix is diagonal, Chapter~31 looks for bases in which the matrix of a
+linear transformation is as simple as possible.
 
 \section*{Exercises}
 \addcontentsline{toc}{section}{Exercises}

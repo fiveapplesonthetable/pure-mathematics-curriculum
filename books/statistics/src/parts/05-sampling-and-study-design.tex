@@ -2,10 +2,10 @@
 \label{ch:sampling}
 
 Chapters 1--4 described the data in front of us. This chapter asks where the data came
-from. Every later formula (standard errors, confidence intervals, p-values, regression
-coefficients) assumes something about how the numbers were collected. If that assumption
+from. Every formula in later chapters for drawing conclusions from data assumes
+something about how the numbers were collected. If that assumption
 is false, the formula still produces a number, and the number is wrong. No amount of
-arithmetic repairs a bad sample or a confounded comparison.
+arithmetic repairs a bad sample or a bad comparison.
 
 Two questions organise the chapter:
 \begin{itemize}
@@ -30,7 +30,7 @@ few and reason about the rest.
 
 \begin{definition}[Population, sample, parameter, statistic]
 The \textbf{population} is the full set of units you want to learn about. A
-\textbf{sample} is the subset you actually observe. A \textbf{parameter} is a number
+\textbf{sample} is the subset you observe. A \textbf{parameter} is a number
 describing the population (fixed, usually unknown). A \textbf{statistic} is a number
 computed from the sample (known, but it changes from sample to sample).
 \end{definition}
@@ -54,6 +54,7 @@ Size & $N$ & $n$ & fleet vs.\ sample size \\
 \bottomrule
 \end{tabular}
 \end{center}
+(A conversion rate is the fraction of users who take a desired action, like buying or signing up.)
 
 \begin{figure}[H]
 \centering
@@ -83,7 +84,7 @@ Size & $N$ & $n$ & fleet vs.\ sample size \\
     node[below]{inference} (3.0,-0.55);
 \end{tikzpicture}
 \caption{Sampling goes from population to sample; inference goes back. The statistic
-is computed; the parameter is what we actually want. How the arrow labelled
+is computed; the parameter is what we want. How the arrow labelled
 ``sampling'' was carried out decides whether the return arrow is justified.}
 \label{fig:sampling-pop-sample}
 \end{figure}
@@ -423,6 +424,7 @@ Convenience & whoever is easy & exploration only \\
 \bottomrule
 \end{tabular}
 \end{center}
+(A conversion rate is the fraction of users who take a desired action, like buying or signing up.)
 
 \section{Bias: errors that do not average out}
 \label{sec:sampling-bias}
@@ -582,6 +584,25 @@ is usually more reliable than self-report for the same question. Wording effects
 large: changing ``forbid'' to ``not allow'' in otherwise identical questions has shifted
 survey answers by more than $20$ percentage points.
 
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=5cm, ybar, bar width=0.8cm,
+  ymin=0, ymax=70, ylabel={Respondents wanting the action stopped (\%)},
+  symbolic x coords={Forbid,Not allow},
+  xticklabels={{``Should we \textbf{forbid} X?''\\(answering Yes)},{``Should we \textbf{allow} X?''\\(answering No)}},
+  xtick=data, enlarge x limits=0.4, axis lines*=left,
+  nodes near coords, nodes near coords style={font=\footnotesize},
+  x tick label style={align=center},
+]
+\addplot[fill=distblue, draw=distblue!60!black] coordinates {(Forbid,46) (Not allow,62)};
+\end{axis}
+\end{tikzpicture}
+\caption{Response bias from question wording (Rugg, 1941). Both bars represent people who want to stop a behavior, but people are far more willing to ``not allow'' something than to actively ``forbid'' it. The words chosen change the parameter being measured.}
+\label{fig:sampling-wording}
+\end{figure}
+
 \section{Size does not cure bias: the Literary Digest poll}
 \label{sec:sampling-digest}
 
@@ -736,6 +757,7 @@ All & $1000$ & $850$ ($85\%$) & $1000$ & $450$ ($45\%$) \\
 \bottomrule
 \end{tabular}
 \end{center}
+(A conversion rate is the fraction of users who take a desired action, like buying or signing up.)
 
 Within each engagement group, feature users and non-users retain at exactly the same
 rate. The $40$-point gap comes entirely from \emph{who} adopts the feature: $90\%$ of
@@ -916,6 +938,7 @@ Difference & 8 & 5 & 12 & 4 & 5 & 12 \\
 \bottomrule
 \end{tabular}
 \end{center}
+(A conversion rate is the fraction of users who take a desired action, like buying or signing up.)
 
 The old and new means are $138.3$ and $130.7$ ms; the SDs across servers are about $49$
 and $47$ ms. Compared as two separate groups, a $7.7$ ms gap is buried in $48$ ms of
@@ -992,6 +1015,24 @@ def variant(user_id: str, experiment: str = "checkout_v2") -> str:
 # Deterministic per user (same user, same variant on every visit),
 # but unrelated to anything about the user: effectively random.
 \end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small, node distance=1.2cm and 1.5cm,
+  box/.style={draw, thick, rounded corners, minimum height=0.7cm, align=center, inner sep=3pt}]
+  \node[box, fill=gray!8] (uid) {\texttt{user\_id} +\\\texttt{experiment}};
+  \node[box, fill=structurepurple!10, draw=structurepurple, right=of uid] (hash) {hash function\\(e.g.\ SHA-256)};
+  \node[box, fill=gray!8, right=of hash] (mod) {modulo 100\\gives $0$ to $99$};
+  \node[box, fill=quotientorange!10, draw=quotientorange, above right=0.2cm and 1.2cm of mod] (a) {$50$ to $99$:\\Variant A};
+  \node[box, fill=histfill!25, draw=distblue, below right=0.2cm and 1.2cm of mod] (b) {$0$ to $49$:\\Variant B};
+  \draw[-{Stealth}, thick] (uid) -- (hash);
+  \draw[-{Stealth}, thick] (hash) -- (mod);
+  \draw[-{Stealth}, thick] (mod.east) -- (a.west);
+  \draw[-{Stealth}, thick] (mod.east) -- (b.west);
+\end{tikzpicture}
+\caption{Deterministic assignment in an A/B test. The hash function scatters users uniformly and unpredictably between $0$ and $99$, acting like a random coin flip. Because it is a pure function, the same user gets the same variant on every visit without needing a database lookup.}
+\label{fig:sampling-hash}
+\end{figure}
 
 \begin{trapbox}
 Common ways A/B tests stop being randomised experiments:

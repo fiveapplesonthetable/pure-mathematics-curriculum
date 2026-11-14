@@ -2,35 +2,32 @@
 
 Two chapters ago, you learned to solve $\mat{A}\vec{x} = \vec{b}$ by Gaussian elimination:
 sweep down the matrix, knocking out the entries below each pivot, until what remains is
-upper triangular and easy to back-solve. In the last chapter, you saw that row operations
-can be packaged as matrix multiplications, and that solving a system is intimately tied to
-inverses.
-Elimination works. But there is a quiet flaw hidden inside the standard pencil-and-paper
-routine: every time someone hands you a new right-hand side $\vec{b}$, you seem forced to
-start the entire elimination sweep again from scratch.
+upper triangular and easy to solve from the bottom up (back-substitution). In the last
+chapter, you saw that row operations can be packaged as matrix multiplications, and that
+solving a system is closely tied to inverses.
+Elimination works, but the pencil-and-paper routine has a flaw: every time someone hands you
+a new right-hand side $\vec{b}$, you seem forced to start the entire elimination sweep again
+from scratch.
 
-This chapter fixes that. The key insight is simple once you see it: \emph{the work of
-elimination can be bottled up and reused}. All the row
+This chapter fixes that. \emph{The work of elimination can be stored and reused.} All the row
 operations you performed -- every ``subtract $3$ times row $1$ from row $2$'' -- can be
-recorded once, packaged into a single matrix, and replayed instantly on any new $\vec{b}$.
-That packaging is the LU factorization. We will discover that elimination
-factors the matrix into two triangular pieces,
+recorded once, packaged into a single matrix, and replayed on any new $\vec{b}$.
+That packaging is the LU factorization. (To \emph{factor} a matrix means to write it as a
+product of simpler matrices, the way $12 = 3\cdot 4$ factors a number.) We will find that
+elimination factors the matrix into two triangular pieces,
 \[
   \mat{A} = \mat{L}\,\mat{U},
 \]
 a \textbf{l}ower triangular matrix $\mat{L}$ (nonzero entries only on and below the main
 diagonal) times an \textbf{u}pper triangular matrix $\mat{U}$ (nonzero entries only on and
 above the main diagonal). Once you have $\mat{L}$ and $\mat{U}$, solving a system takes two fast triangular solves instead
-of a full elimination sweep. This factorization is the standard algorithm that solves linear systems
-inside scientific and engineering software.
-
-We will build it picture first, show how the multipliers form $\mat{L}$, handle row exchanges,
-and count operations to see why factoring once and reusing beats recomputing.
+of a full elimination sweep. This is how scientific and engineering software solves linear
+systems.
 
 \section{The picture: triangular machines are easy machines}
 \label{ch09:triangular-picture}
 
-Before any formulas, hold onto a feeling for what triangular matrices \emph{do} to space.
+Start with what triangular matrices \emph{do} to space.
 
 A matrix is a machine that takes a vector in and pushes a vector out. An \emph{upper
 triangular} matrix
@@ -49,39 +46,45 @@ A \emph{lower triangular} matrix
   \mat{L} = \begin{bmatrix} 1 & 0 \\ 3 & 1 \end{bmatrix}
 \]
 is the mirror image. Here $\colvec{1\\0}$ goes to $\colvec{1\\3}$ (the first axis spills
-\emph{upward} into the second) while $\colvec{0\\1}$ stays put as $\colvec{0\\1}$. This particular $\mat{L}$, with $1$'s on the diagonal, is a \textbf{shear}: it slides the plane
-vertically, keeping the vertical direction fixed while preserving area. We met shears as one of the basic
-deformations a matrix can apply; now they take on a starring role.
+\emph{upward} into the second) while $\colvec{0\\1}$ stays put as $\colvec{0\\1}$. This
+particular $\mat{L}$, with $1$'s on the diagonal, is a \textbf{shear}: it slides each point
+of the plane straight up by $3$ times its $x$-coordinate, so the vertical direction stays
+fixed and areas do not change. We met shears as one of the basic deformations a matrix can
+apply; in this chapter they do most of the work. Figure~\ref{ch09:fig-triangular} shows both
+matrices acting on the unit square.
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[scale=1.05,>=Stealth]
+\begin{tikzpicture}[scale=0.8,>=Stealth]
   \begin{scope}[xshift=0cm]
     \draw[->,gray!60] (-0.3,0)--(2.6,0);
-    \draw[->,gray!60] (0,-0.3)--(0,3.4);
+    \draw[->,gray!60] (0,-0.3)--(0,4.5);
+    \fill[vecred!10] (0,0)--(1,3)--(1,4)--(0,1)--cycle;
+    \draw[vecred,thick] (0,0)--(1,3)--(1,4)--(0,1)--cycle;
     \draw[vecblue,thick] (0,0)--(1,0)--(1,1)--(0,1)--cycle;
-    \node[vecblue] at (0.5,-0.35) {\small unit square};
-    \draw[vecred,thick] (0,0)--(1,1)--(1,2)--(0,1)--cycle;
-    \draw[->,vecred,thick] (0.5,0.5)--(0.95,1.45);
-    \node[vecred] at (1.7,1.9) {\small image};
-    \node at (1.0,-1.0) {\small lower triangular: shear};
+    \node[vecblue] at (0.6,-0.45) {\small unit square};
+    \draw[->,vecred,thick] (1.05,0.5)--(1.05,2.7);
+    \node[vecred,right] at (1.1,3.4) {\small image};
+    \node[vecred,right,font=\small] at (1.1,1.6) {$\colvec{1\\0}\mapsto\colvec{1\\3}$};
+    \node at (1.1,-1.3) {\small $\mat{L}=\begin{bmatrix}1&0\\3&1\end{bmatrix}$: shear};
   \end{scope}
-  \begin{scope}[xshift=6.5cm]
-    \draw[->,gray!60] (-0.3,0)--(3.2,0);
-    \draw[->,gray!60] (0,-0.3)--(0,3.4);
+  \begin{scope}[xshift=7cm]
+    \draw[->,gray!60] (-0.3,0)--(3.6,0);
+    \draw[->,gray!60] (0,-0.3)--(0,4.5);
+    \fill[vecred!10] (0,0)--(2,0)--(3,3)--(1,3)--cycle;
+    \draw[vecred,thick] (0,0)--(2,0)--(3,3)--(1,3)--cycle;
     \draw[vecblue,thick] (0,0)--(1,0)--(1,1)--(0,1)--cycle;
-    \node[vecblue] at (0.5,-0.35) {\small unit square};
-    \draw[vecred,thick] (0,0)--(2,0)--(3,1.5)--(1,1.5)--cycle;
-    \draw[->,vecred,thick] (0.5,0.5)--(1.5,0.75);
-    \node[vecred] at (2.4,1.8) {\small image};
-    \node at (1.5,-1.0) {\small upper triangular: stretch + lean};
+    \node[vecblue] at (0.6,-0.45) {\small unit square};
+    \node[vecred,above] at (2,3) {\small image};
+    \node[vecred,right,font=\small] at (2.6,1.2) {$\colvec{0\\1}\mapsto\colvec{1\\3}$};
+    \node at (1.6,-1.3) {\small $\mat{U}=\begin{bmatrix}2&1\\0&3\end{bmatrix}$: stretch and lean};
   \end{scope}
 \end{tikzpicture}
-\caption{Triangular matrices are the simplest non-trivial deformations. A lower triangular
-matrix with unit diagonal is a pure shear (left): one axis stays fixed, the other slides
-along it. An upper triangular matrix stretches the first axis and lets later axes lean into
-it (right). Factoring $\mat{A}=\mat{L}\mat{U}$ writes a general distortion as a stretch-and-lean
-followed by a shear.}
+\caption{The two triangular matrices from the text acting on the unit square (blue); the
+red shape is where the square lands. Left: $\mat{L}$ keeps the vertical axis fixed and slides
+each point straight up, a shear. Right: $\mat{U}$ stretches the $x$-axis by $2$ but keeps it
+horizontal, and tips the vertical side over to the vector $(1,3)$. Factoring
+$\mat{A}=\mat{L}\mat{U}$ writes a general matrix as a stretch-and-lean followed by a shear.}
 \label{ch09:fig-triangular}
 \end{figure}
 
@@ -89,27 +92,27 @@ followed by a shear.}
 LU factorization says: \emph{any} (nice enough) square matrix's action can be done in two
 simple stages. First apply $\mat{U}$ -- stretch the space and let later coordinates lean
 into earlier ones. Then apply $\mat{L}$ -- a shear that slides earlier coordinates into
-later ones. Two triangular slides, composed, can reproduce any general matrix. Elimination
-is the act of \emph{discovering} those two slides.
+later ones. For such matrices, these two triangular stages done one after the other
+reproduce the whole matrix. Elimination is how we \emph{find} the two stages.
 \end{intuitionbox}
 
 Why do we care that the pieces are triangular? Because triangular systems are the easiest
-systems in the world to solve. If $\mat{U}$ is upper triangular, the bottom equation
+systems to solve. If $\mat{U}$ is upper triangular, the bottom equation
 involves only the last unknown, so you read it off directly; the second-to-last equation
 then involves only the last two, and you already know one of them; and so on \emph{up} the
 list. That is \textbf{back substitution}. If $\mat{L}$ is lower triangular, the same trick
-runs top-to-bottom: \textbf{forward substitution}. No searching, no choices -- just a slide.
-LU's whole strategy is to trade one hard system for two trivial ones.
+runs top-to-bottom: \textbf{forward substitution}. Neither involves any choices or row
+operations. LU's strategy is to trade one hard system for two easy ones.
 
 \begin{recoverybox}
-\textbf{Pause and think:} Look at the upper triangular system $\begin{bmatrix}2 & 1 \\ 0 & 3\end{bmatrix} \begin{bmatrix}x_1 \\ x_2\end{bmatrix} = \begin{bmatrix}5 \\ 6\end{bmatrix}$. Can you see why it takes zero elimination steps to solve? The bottom equation $3x_2 = 6$ immediately gives $x_2 = 2$. With $x_2$ in hand, the top equation $2x_1 + (2) = 5$ gives $x_1 = 3/2$. Back substitution is simply reading off answers from bottom to top without ever modifying the matrix.
+\textbf{Pause and think:} Look at the upper triangular system $\begin{bmatrix}2 & 1 \\ 0 & 3\end{bmatrix} \begin{bmatrix}x_1 \\ x_2\end{bmatrix} = \begin{bmatrix}5 \\ 6\end{bmatrix}$. Can you see why it takes zero elimination steps to solve? The bottom equation $3x_2 = 6$ gives $x_2 = 2$. With $x_2$ in hand, the top equation $2x_1 + x_2 = 5$ becomes $2x_1 + 2 = 5$, so $x_1 = 3/2$. Back substitution reads off the answers from bottom to top without ever modifying the matrix.
 \end{recoverybox}
 
 \section{Elimination, watched closely}
 \label{ch09:elim-watched}
 
-Let us do a single careful elimination and \emph{watch what we throw away}, because the
-thing we usually throw away is exactly $\mat{L}$.
+We now run one elimination slowly and keep track of the numbers we usually throw away,
+because those numbers make up $\mat{L}$.
 
 Take
 \[
@@ -124,6 +127,8 @@ acts on row $2$ using row $1$):
   \ell_{21} = \frac{4}{2} = 2, \qquad
   R_2 \leftarrow R_2 - 2\,R_1.
 \]
+Here $R_2$ stands for row $2$, and the arrow means ``replace by'': row $2$ is replaced by
+row $2$ minus twice row $1$.
 Likewise to kill the $8$ in row $3$ we need $\ell_{31} = 8/2 = 4$, and
 $R_3 \leftarrow R_3 - 4\,R_1$. After these two operations:
 \[
@@ -152,20 +157,20 @@ was used:
   \mat{L} = \begin{bmatrix} 1 & 0 & 0 \\ \ell_{21} & 1 & 0 \\ \ell_{31} & \ell_{32} & 1 \end{bmatrix}
           = \begin{bmatrix} 1 & 0 & 0 \\ 2 & 1 & 0 \\ 4 & 3 & 1 \end{bmatrix}.
 \]
-Claim: $\mat{A} = \mat{L}\mat{U}$. Let us check by direct multiplication.
+Claim: $\mat{A} = \mat{L}\mat{U}$. Check by direct multiplication:
 \[
   \mat{L}\mat{U}
   = \begin{bmatrix} 1 & 0 & 0 \\ 2 & 1 & 0 \\ 4 & 3 & 1 \end{bmatrix}
     \begin{bmatrix} 2 & 1 & 1 \\ 0 & 1 & 1 \\ 0 & 0 & 2 \end{bmatrix}.
 \]
-Row $1$ of $\mat{L}$ is $(1,0,0)$, so row $1$ of the product is just row $1$ of $\mat{U}$:
+Row $1$ of $\mat{L}$ is $(1,0,0)$, so row $1$ of the product is row $1$ of $\mat{U}$:
 $(2,1,1)$. Row $2$ of $\mat{L}$ is $(2,1,0)$, so row $2$ of the product is
 $2\cdot(2,1,1) + 1\cdot(0,1,1) = (4,3,3)$. Row $3$ of $\mat{L}$ is $(4,3,1)$, so row $3$ is
 $4\cdot(2,1,1) + 3\cdot(0,1,1) + 1\cdot(0,0,2) = (8,7,9)$. Stacking,
 \[
   \mat{L}\mat{U} = \begin{bmatrix} 2 & 1 & 1 \\ 4 & 3 & 3 \\ 8 & 7 & 9 \end{bmatrix} = \mat{A}. \checkmark
 \]
-It worked for a clean structural reason. The multipliers you used to \emph{destroy} the
+It worked for a structural reason. The multipliers you used to \emph{destroy} the
 lower part of $\mat{A}$ are exactly the numbers that, placed in $\mat{L}$,
 \emph{rebuild} it.
 
@@ -193,9 +198,9 @@ $\mat{L}$ should be all positive below the diagonal.
 \section{Why it works: elimination is left-multiplication by shears}
 \label{ch09:why-it-works}
 
-The claim ``$\mat{L}$ stores the multipliers'' deserves a real derivation. The idea behind
-it is clean: each elementary row operation is itself a matrix, and undoing it simply
-requires reversing the sign of the multiplier.
+The claim ``$\mat{L}$ stores the multipliers'' deserves a real derivation. The idea: each
+elementary row operation is itself a matrix, and undoing it means reversing the sign of the
+multiplier.
 
 Recall that performing a row operation on $\mat{A}$ is the same as \emph{left}-multiplying
 $\mat{A}$ by an \textbf{elementary matrix} -- the identity matrix with a single modification
@@ -204,8 +209,10 @@ $R_2 \leftarrow R_2 - 2R_1$ on a $3\times 3$ matrix is multiplication by
 \[
   \mat{E}_{21} = \begin{bmatrix} 1 & 0 & 0 \\ -2 & 1 & 0 \\ 0 & 0 & 1 \end{bmatrix}.
 \]
-(Read it row by row: new row $2$ $=$ $-2\cdot$ old row $1$ $+1\cdot$ old row $2$. Exactly
-the operation.) Our full elimination was three such steps, applied left to right:
+(Read it row by row: new row $2$ $=$ $-2\cdot$ old row $1$ $+1\cdot$ old row $2$, which is
+the operation.) Our full elimination was three such steps. Each new matrix multiplies on the
+left, so the first step $\mat{E}_{21}$ sits next to $\mat{A}$ and the last step is written
+leftmost:
 \[
   \mat{E}_{32}\,\mat{E}_{31}\,\mat{E}_{21}\,\mat{A} = \mat{U},
 \]
@@ -215,10 +222,11 @@ with
   \mat{E}_{31} = \begin{bmatrix} 1&0&0\\0&1&0\\-4&0&1 \end{bmatrix},\;
   \mat{E}_{32} = \begin{bmatrix} 1&0&0\\0&1&0\\0&-3&1 \end{bmatrix}.
 \]
+Figure~\ref{ch09:fig-shear-sequence} shows the matrix after each step.
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[scale=0.88,>=Stealth,every node/.style={font=\small}]
+\begin{tikzpicture}[scale=0.8,>=Stealth,every node/.style={font=\small}]
   % State 0: Original matrix A
   \node[draw=sourceblue,thick,rounded corners=2pt,fill=sourceblue!8,inner sep=5pt,align=center] (A0) at (0,0) {
     $\begin{bmatrix}
@@ -226,57 +234,57 @@ with
       \color{trapred}4 & 3 & 3 \\
       \color{trapred}8 & 7 & 9
     \end{bmatrix}$\\[4pt]
-    \footnotesize $\mat{A}$
+    \small $\mat{A}$
   };
 
   % State 1: After E_21
-  \node[draw=sourceblue,thick,rounded corners=2pt,fill=sourceblue!8,inner sep=5pt,align=center] (A1) at (4.0,0) {
+  \node[draw=sourceblue,thick,rounded corners=2pt,fill=sourceblue!8,inner sep=5pt,align=center] (A1) at (4.8,0) {
     $\begin{bmatrix}
       \mathbf{2} & 1 & 1 \\
       \color{targetgreen!80!black}\mathbf{0} & \mathbf{1} & 1 \\
       \color{trapred}8 & 7 & 9
     \end{bmatrix}$\\[4pt]
-    \footnotesize $\mat{E}_{21}\mat{A}$
+    \small $\mat{E}_{21}\mat{A}$
   };
 
   % State 2: After E_31
-  \node[draw=sourceblue,thick,rounded corners=2pt,fill=sourceblue!8,inner sep=5pt,align=center] (A2) at (8.0,0) {
+  \node[draw=sourceblue,thick,rounded corners=2pt,fill=sourceblue!8,inner sep=5pt,align=center] (A2) at (9.6,0) {
     $\begin{bmatrix}
       \mathbf{2} & 1 & 1 \\
       \color{targetgreen!80!black}\mathbf{0} & \mathbf{1} & 1 \\
       \color{targetgreen!80!black}\mathbf{0} & \color{trapred}3 & 5
     \end{bmatrix}$\\[4pt]
-    \footnotesize $\mat{E}_{31}\mat{E}_{21}\mat{A}$
+    \small $\mat{E}_{31}\mat{E}_{21}\mat{A}$
   };
 
   % State 3: Final U
-  \node[draw=targetgreen!80!black,thick,rounded corners=2pt,fill=targetgreen!10,inner sep=5pt,align=center] (A3) at (12.0,0) {
+  \node[draw=targetgreen!80!black,thick,rounded corners=2pt,fill=targetgreen!10,inner sep=5pt,align=center] (A3) at (15.2,0) {
     $\begin{bmatrix}
       \mathbf{2} & 1 & 1 \\
       \color{targetgreen!80!black}\mathbf{0} & \mathbf{1} & 1 \\
       \color{targetgreen!80!black}\mathbf{0} & \color{targetgreen!80!black}\mathbf{0} & \mathbf{2}
     \end{bmatrix}$\\[4pt]
-    \footnotesize $\mat{U}$\\[-2pt]
-    \tiny (upper triangular)
+    \small $\mat{U}$\\[-2pt]
+    \footnotesize (upper triangular)
   };
 
   % Transitions
   \draw[->,thick,sourceblue] (A0) -- (A1)
-    node[midway,above,font=\scriptsize]{\color{sourceblue} $\mat{E}_{21}$}
-    node[midway,below,font=\tiny]{$R_2 - 2R_1$};
+    node[midway,above,font=\small]{\color{sourceblue} $\mat{E}_{21}$}
+    node[midway,below,font=\footnotesize]{$R_2 - 2R_1$};
   \draw[->,thick,sourceblue] (A1) -- (A2)
-    node[midway,above,font=\scriptsize]{\color{sourceblue} $\mat{E}_{31}$}
-    node[midway,below,font=\tiny]{$R_3 - 4R_1$};
+    node[midway,above,font=\small]{\color{sourceblue} $\mat{E}_{31}$}
+    node[midway,below,font=\footnotesize]{$R_3 - 4R_1$};
   \draw[->,thick,sourceblue] (A2) -- (A3)
-    node[midway,above,font=\scriptsize]{\color{sourceblue} $\mat{E}_{32}$}
-    node[midway,below,font=\tiny]{$R_3 - 3R_2$};
+    node[midway,above,font=\small]{\color{sourceblue} $\mat{E}_{32}$}
+    node[midway,below,font=\footnotesize]{$R_3 - 3R_2$};
 
   % Bottom corridor: Inverting and bundling into L
-  \draw[<-,ultra thick,quotientorange] (0.0,-1.9) -- (12.0,-1.9)
-    node[midway,above=3pt,font=\small]{\bfseries Inverting the shears: $\mat{A} = \mat{L}\mat{U}$ with $\mat{L} = \mat{E}_{21}^{-1}\mat{E}_{31}^{-1}\mat{E}_{32}^{-1}$}
-    node[midway,below=3pt,font=\scriptsize]{\color{quotientorange!90!black} Multipliers $\ell_{21}=2$, $\ell_{31}=4$, $\ell_{32}=3$ drop cleanly into the lower triangle};
+  \draw[<-,ultra thick,quotientorange] (0.0,-2.9) -- (15.2,-2.9)
+    node[midway,above=3pt,font=\small]{Undo the steps in reverse: $\mat{A} = \mat{L}\mat{U}$ with $\mat{L} = \mat{E}_{21}^{-1}\mat{E}_{31}^{-1}\mat{E}_{32}^{-1}$}
+    node[midway,below=3pt,font=\small]{\color{quotientorange!90!black} The multipliers $\ell_{21}=2$, $\ell_{31}=4$, $\ell_{32}=3$ fill the lower triangle of $\mat{L}$};
 \end{tikzpicture}
-\caption{Gaussian elimination as a sequence of elementary shears. Each elementary matrix $\mat{E}_{ij}$ applies a shear that zeroes out the entry below the diagonal in position $(i,j)$ (marked in green). Inverting the sequence in reverse order reconstitutes $\mat{A} = \mat{L}\mat{U}$, where the lower-triangular matrix $\mat{L}$ bundles all the positive multipliers with no mutual interference.}
+\caption{Gaussian elimination as a sequence of shears. Each elementary matrix $\mat{E}_{ij}$ turns the entry in position $(i,j)$ into a zero (green); red marks entries still to be cleared and bold marks the pivots. Undoing the steps in reverse order (orange arrow) rebuilds $\mat{A} = \mat{L}\mat{U}$, and $\mat{L}$ holds the three multipliers, each with a plus sign, in the positions where they were used.}
 \label{ch09:fig-shear-sequence}
 \end{figure}
 Solve for $\mat{A}$ by moving the $\mat{E}$'s to the other side. Each one is invertible
@@ -284,15 +292,15 @@ Solve for $\mat{A}$ by moving the $\mat{E}$'s to the other side. Each one is inv
 \[
   \mat{A} = \mat{E}_{21}\inv\,\mat{E}_{31}\inv\,\mat{E}_{32}\inv\,\mat{U}.
 \]
-Now the two gifts. \textbf{Gift one:} inverting a single shear just flips the sign of its
+Two facts make this simple. \textbf{Fact one:} inverting a single shear flips the sign of its
 off-diagonal entry, because to undo ``subtract $2$ times row $1$'' you ``add $2$ times row
 $1$'':
 \[
   \mat{E}_{21}\inv = \begin{bmatrix} 1&0&0\\ +2&1&0\\0&0&1 \end{bmatrix}.
 \]
-There is the plus sign the trap warned about. \textbf{Gift two:} multiplying these
-particular inverse shears together does not mix anything up -- the multipliers simply drop
-into their slots with no interaction. Watch:
+There is the plus sign the trap warned about. \textbf{Fact two:} multiplying these
+particular inverse shears together does not mix anything up -- the multipliers drop
+into their slots with no interaction:
 \[
   \mat{E}_{21}\inv\,\mat{E}_{31}\inv\,\mat{E}_{32}\inv
   = \begin{bmatrix} 1&0&0\\2&1&0\\0&0&1 \end{bmatrix}
@@ -300,18 +308,23 @@ into their slots with no interaction. Watch:
     \begin{bmatrix} 1&0&0\\0&1&0\\0&3&1 \end{bmatrix}
   = \begin{bmatrix} 1&0&0\\2&1&0\\4&3&1 \end{bmatrix} = \mat{L}.
 \]
-Observe this result. If you had multiplied the original forward elementary matrices together in the order they were applied,
+Compare what happens if you multiply the original forward elementary matrices together in the order they were applied:
 \[
   \mat{E}_{32}\mat{E}_{31}\mat{E}_{21}
   = \begin{bmatrix} 1&0&0\\0&1&0\\0&-3&1 \end{bmatrix}
     \begin{bmatrix} 1&0&0\\0&1&0\\-4&0&1 \end{bmatrix}
     \begin{bmatrix} 1&0&0\\-2&1&0\\0&0&1 \end{bmatrix}
-  = \begin{bmatrix} 1&0&0\\-2&1&0\\+2&-3&1 \end{bmatrix},
+  = \begin{bmatrix} 1&0&0\\-2&1&0\\+2&-3&1 \end{bmatrix}.
 \]
-an unexpected $+2$ appears in position $(3,1)$: $(-3)(-2) - 4 = +2$. The row operations scrambled each other. But when you \emph{invert} each matrix and \emph{reverse} the product order to form $\mat{L} = \mat{E}_{21}\inv\mat{E}_{31}\inv\mat{E}_{32}\inv$, that interaction vanishes completely. Every multiplier $\ell_{ij}$ drops cleanly into its own position $(i,j)$ with a positive sign. This is why Strang calls $\mat{L}$ the ``clean'' matrix and $\mat{E}$ the ``messy'' one.
+An unexpected $+2$ appears in position $(3,1)$: $(-3)(-2) - 4 = +2$. The row operations
+interfered with each other. But when you \emph{invert} each matrix and \emph{reverse} the
+product order to form $\mat{L} = \mat{E}_{21}\inv\mat{E}_{31}\inv\mat{E}_{32}\inv$, that
+interaction disappears. Every multiplier $\ell_{ij}$ lands in its own position $(i,j)$ with a
+positive sign. This is why $\mat{L}$, not the product of the $\mat{E}$'s, is the matrix
+worth storing.
 
 So $\mat{A} = \mat{L}\mat{U}$, with $\mat{L}$ exactly the multiplier table. The reason no
-cross-terms appear is worth stating once, because it is the key reason this works.
+cross-terms appear is worth stating once.
 
 \begin{formalbox}
 \textbf{Why the multipliers do not interfere.} When you eliminate in the natural order --
@@ -320,12 +333,18 @@ matrix $\mat{E}_{ij}\inv$ adds a multiple of an \emph{earlier} row $j$ to a \emp
 $i$ (so $i>j$). Multiplying two such matrices, the entry $\ell_{ij}$ of one never gets
 touched by the other, because the second factor only modifies rows using columns that the
 first factor has already finished with. Concretely, for unit lower triangular elementary
-matrices that each have a single off-diagonal entry below the diagonal, the product is just
-the matrix containing \emph{all} those entries at once:
+matrices (ones on the diagonal) that each have a single off-diagonal entry below the
+diagonal, the product is the matrix containing \emph{all} those entries at once:
 \[
   \prod (\mat{E}_{ij}\inv) = \mat{I} + \sum_{i>j} \ell_{ij}\,\vec{e}_i \vec{e}_j\T = \mat{L}.
 \]
-Here $\vec{e}_i$ denotes the $i$-th standard basis vector (with $1$ in row $i$ and zeros elsewhere), so the outer product matrix $\vec{e}_i \vec{e}_j\T$ has a single $1$ in row $i$, column $j$ and zeros everywhere else. This is special to the with-the-grain ordering. Eliminate out of order and the clean
+On the left, $\prod$ means the product of all the inverse elementary matrices, in the order
+above. On the right, the sum runs over every position $(i,j)$ below the diagonal. Here
+$\vec{e}_i$ is the $i$-th standard basis vector (a column with $1$ in row $i$ and zeros
+elsewhere), and $\vec{e}_j\T$ is $\vec{e}_j$ written as a row (the transpose of
+Chapter~2). So the outer product $\vec{e}_i \vec{e}_j\T$ is the
+matrix with a single $1$ in row $i$, column $j$ and zeros everywhere else. This only works for
+the natural column-by-column order. Eliminate out of order and the
 ``read off the multipliers'' rule breaks.
 \end{formalbox}
 
@@ -339,7 +358,7 @@ A step writes to a row no later step ever reads.)
 \end{walkbox}
 
 \begin{strangbox}
-\emph{Before Strang:} if you have not yet taken his course, just absorb the slogan
+\emph{Before Strang:} if you have not yet taken his course, absorb the slogan
 ``$\mat{A}=\mat{L}\mat{U}$, where $\mat{U}$ is elimination's output and $\mat{L}$ is the
 multipliers.'' That single sentence will make his Lecture on elimination feel like a story
 whose ending you already know.
@@ -355,7 +374,7 @@ both triangular factors have unit diagonals and the asymmetry between them disap
 \section{Solving \texorpdfstring{$\mat{A}\vec{x}=\vec{b}$}{Ax=b}: two slides instead of one sweep}
 \label{ch09:two-slides}
 
-Now we collect the payoff. We want $\mat{A}\vec{x}=\vec{b}$, and we know $\mat{A}=\mat{L}\mat{U}$,
+We want $\mat{A}\vec{x}=\vec{b}$, and we know $\mat{A}=\mat{L}\mat{U}$,
 so
 \[
   \mat{L}\mat{U}\vec{x} = \vec{b}.
@@ -367,8 +386,8 @@ chain of two triangular problems:
   \qquad
   \mat{U}\vec{x} = \vec{c} \quad(\text{backward, solve for }\vec{x}).
 \]
-First slide down through $\mat{L}$ to find $\vec{c}$, then slide up through $\mat{U}$ to find
-$\vec{x}$. Let us do it with our matrix and a concrete right-hand side
+First work down through $\mat{L}$ to find $\vec{c}$, then up through $\mat{U}$ to find
+$\vec{x}$ (Figure~\ref{ch09:fig-twoslides}). Here it is with our matrix and the right-hand side
 $\vec{b} = \colvec{5\\11\\27}$.
 
 \textbf{Forward substitution, $\mat{L}\vec{c}=\vec{b}$.}
@@ -377,8 +396,8 @@ $\vec{b} = \colvec{5\\11\\27}$.
   \begin{bmatrix} c_1 \\ c_2 \\ c_3 \end{bmatrix}
   = \begin{bmatrix} 5 \\ 11 \\ 27 \end{bmatrix}.
 \]
-Row $1$: $c_1 = 5$. Row $2$: $2c_1 + c_2 = 11 \Rightarrow c_2 = 11 - 2(5) = 1$. Row $3$:
-$4c_1 + 3c_2 + c_3 = 27 \Rightarrow c_3 = 27 - 20 - 3 = 4$. So
+Row $1$: $c_1 = 5$. Row $2$: $2c_1 + c_2 = 11$, so $c_2 = 11 - 2(5) = 1$. Row $3$:
+$4c_1 + 3c_2 + c_3 = 27$, so $c_3 = 27 - 20 - 3 = 4$. So
 $\vec{c} = \colvec{5\\1\\4}$.
 
 \textbf{Back substitution, $\mat{U}\vec{x}=\vec{c}$.}
@@ -387,14 +406,17 @@ $\vec{c} = \colvec{5\\1\\4}$.
   \begin{bmatrix} x_1 \\ x_2 \\ x_3 \end{bmatrix}
   = \begin{bmatrix} 5 \\ 1 \\ 4 \end{bmatrix}.
 \]
-Row $3$: $2x_3 = 4 \Rightarrow x_3 = 2$. Row $2$: $x_2 + x_3 = 1 \Rightarrow x_2 = 1 - 2 = -1$.
-Row $1$: $2x_1 + x_2 + x_3 = 5 \Rightarrow 2x_1 = 5 - (-1) - 2 = 4 \Rightarrow x_1 = 2$. So
+Row $3$: $2x_3 = 4$, so $x_3 = 2$. Row $2$: $x_2 + x_3 = 1$, so $x_2 = 1 - 2 = -1$.
+Row $1$: $2x_1 + x_2 + x_3 = 5$, so $2x_1 = 5 - (-1) - 2 = 4$ and $x_1 = 2$. So
 \[
   \vec{x} = \begin{bmatrix} 2 \\ -1 \\ 2 \end{bmatrix}.
 \]
-Check against the original: $\mat{A}\vec{x} = \colvec{2\\4\\8}\!(2) + \colvec{1\\3\\7}\!(-1)
-+ \colvec{1\\3\\9}\!(2) = \colvec{4-1+2 \\ 8-3+6 \\ 16-7+18} = \colvec{5\\11\\27}
-= \vec{b}$. \checkmark
+Check against the original, writing $\mat{A}\vec{x}$ as a combination of the columns of
+$\mat{A}$:
+\[
+  \mat{A}\vec{x} = 2\colvec{2\\4\\8} - 1\colvec{1\\3\\7} + 2\colvec{1\\3\\9}
+  = \colvec{4-1+2 \\ 8-3+6 \\ 16-7+18} = \colvec{5\\11\\27} = \vec{b}. \checkmark
+\]
 
 \begin{figure}[H]
 \centering
@@ -406,18 +428,17 @@ Check against the original: $\mat{A}\vec{x} = \colvec{2\\4\\8}\!(2) + \colvec{1\
   \draw[->,thick] (b) -- node[above,font=\small]{$\mat{L}\vec{c}=\vec{b}$} node[below,font=\small\itshape]{forward} (c);
   \draw[->,thick] (c) -- node[above,font=\small]{$\mat{U}\vec{x}=\vec{c}$} node[below,font=\small\itshape]{backward} (x);
 \end{tikzpicture}
-\caption{Solving with a factorization is a two-stop journey. Slide forward through the lower
-triangular $\mat{L}$ to convert $\vec{b}$ into the intermediate $\vec{c}$, then slide
-backward through the upper triangular $\mat{U}$ to land on the answer $\vec{x}$. Both slides
-are mechanical; neither involves any elimination.}
+\caption{Solving with a factorization takes two steps. Work forward (top to bottom) through
+the lower triangular $\mat{L}$ to turn $\vec{b}$ into the intermediate $\vec{c}$, then
+backward (bottom to top) through the upper triangular $\mat{U}$ to reach the answer
+$\vec{x}$. Neither step involves any elimination.}
 \label{ch09:fig-twoslides}
 \end{figure}
 
-The key structural benefit lies in the computational cost. Building $\mat{L}$ and
-$\mat{U}$ requires the full elimination effort -- once. The two triangular substitutions
-require far fewer operations and can be repeated for each new right-hand side $\vec{b}$.
-We will quantify this cost soon, but the practical advantage is clear:
-\textbf{factor once, substitute many times}.
+The benefit is in the cost. Building $\mat{L}$ and $\mat{U}$ requires the full elimination
+effort, once. The two triangular substitutions require far fewer operations and can be
+repeated for each new right-hand side $\vec{b}$. Section~\ref{ch09:cost} counts the
+operations; the rule is \textbf{factor once, substitute many times}.
 
 \begin{labbox}
 By hand, factor
@@ -434,76 +455,82 @@ $\mat{L}\mat{U}$ back out and watch $\mat{A}$ reappear.
 
 \begin{recoverybox}
 \textbf{Pause and think:} Suppose you only ever had to solve $\mat{A}\vec{x}=\vec{b}$ for a \emph{single} right-hand side $\vec{b}$, and never again. Does LU factorization save any arithmetic over ordinary Gaussian elimination?
-\textbf{Answer:} No. Factoring $\mat{A}$ into $\mat{L}\mat{U}$ costs $\sim \tfrac13 n^3$ operations, which is exactly the cost of running elimination on the augmented matrix $[\mat{A}\mid\vec{b}]$. The two triangular substitutions cost $\sim n^2$, identical to updating $\vec{b}$ and back-substituting. LU does not make a single solve faster; its advantage is that for every \emph{subsequent} right-hand side, the $\tfrac13 n^3$ elimination cost does not need to be repeated.
+\textbf{Answer:} No. For an $n\times n$ matrix, factoring $\mat{A}$ into $\mat{L}\mat{U}$ costs about $\tfrac13 n^3$ arithmetic operations (Section~\ref{ch09:cost} does the count), which is the same as running elimination on the augmented matrix $[\mat{A}\mid\vec{b}]$. The two triangular substitutions cost about $n^2$, the same as updating $\vec{b}$ during elimination and back-substituting. LU does not make a single solve faster; its advantage is that for every \emph{later} right-hand side, the $\tfrac13 n^3$ elimination cost does not need to be repeated.
 \end{recoverybox}
 
 \section{Many right-hand sides: the real reason to factor}
 \label{ch09:many-rhs}
 
-Here is the situation that makes LU indispensable. Suppose you must solve
+Here is the situation that makes LU so useful. Suppose you must solve
 \[
   \mat{A}\vec{x}_1 = \vec{b}_1,\quad \mat{A}\vec{x}_2 = \vec{b}_2,\quad \dots,\quad
   \mat{A}\vec{x}_k = \vec{b}_k,
 \]
 with the \emph{same} matrix $\mat{A}$ but many different right-hand sides. This is the
-common case, not the exception. In circuit simulation $\mat{A}$ is the network and each
-$\vec{b}$ is a different set of driving voltages. In a Newton solver for a nonlinear
-problem, $\mat{A}$ is a Jacobian reused across iterations. In finite-element structural
-analysis $\mat{A}$ is the stiffness matrix and each $\vec{b}$ is a different load case.
+common case, not the exception. In circuit simulation $\mat{A}$ describes the network and each
+$\vec{b}$ is a different set of driving voltages. Newton's method solves a nonlinear problem
+by solving a long series of linear approximations to it; often the same matrix (the
+Jacobian, the matrix of partial derivatives) is reused across many of those steps. In
+finite-element structural analysis, where a bridge or a wing is modeled as many small
+connected pieces, $\mat{A}$ is the \emph{stiffness matrix} (how strongly the pieces resist
+being pushed) and each $\vec{b}$ is a different set of loads.
 
-The naive approach re-runs elimination $k$ times: a recompute. The LU approach factors
+The naive approach re-runs elimination $k$ times. The LU approach factors
 $\mat{A}=\mat{L}\mat{U}$ \emph{once} and then does $k$ cheap forward/back pairs. Since
 elimination is far more expensive than substitution, the savings grow without bound as $k$
 grows.
 
-There is a clean way to package ``all the right-hand sides at once.'' Put them as columns of
+There is a compact way to handle all the right-hand sides at once. Put them as columns of
 a matrix $\mat{B}=[\vec{b}_1\ \vec{b}_2\ \cdots\ \vec{b}_k]$ and solve $\mat{A}\mat{X}=\mat{B}$
-column by column, reusing the one factorization. A particularly important special case is
-$\mat{B}=\mat{I}$: solving $\mat{A}\mat{X}=\mat{I}$ gives $\mat{X}=\mat{A}\inv$. So the
-matrix inverse is just LU applied to the $n$ right-hand sides $\vec{e}_1,\dots,\vec{e}_n$.
+column by column, reusing the one factorization; column $j$ of $\mat{X}$ is the solution
+$\vec{x}_j$. An important special case is
+$\mat{B}=\mat{I}$: solving $\mat{A}\mat{X}=\mat{I}$ gives $\mat{X}=\mat{A}\inv$. So computing
+the inverse is LU applied to the $n$ right-hand sides $\vec{e}_1,\dots,\vec{e}_n$, the
+columns of the identity.
 
 \begin{trapbox}
 This last fact is also a warning. To \emph{solve} $\mat{A}\vec{x}=\vec{b}$ you almost never
 want to form $\mat{A}\inv$ first and multiply. Computing $\mat{A}\inv$ is like doing $n$ full
-solves and then throwing in an extra matrix-vector multiply at the end -- more work, and
-numerically worse. The professional habit is: factor once, then forward/back-substitute. If
-someone's code contains \texttt{inv(A)*b}, they are doing it the slow, fragile way; the
-right call is a triangular solve. ``Never invert; always factor.''
+solves and then an extra matrix-vector multiply at the end. That is more work, and the
+extra arithmetic adds more rounding error. The professional habit is: factor once, then
+forward/back-substitute. If someone's code contains \texttt{inv(A)*b}, they are doing it the
+slow, less accurate way; the right call is a solver that factors and substitutes (such as
+\texttt{A\textbackslash b} in MATLAB or \texttt{numpy.linalg.solve(A, b)} in Python).
+``Never invert; always factor.''
 \end{trapbox}
 
 \begin{applicationbox}
 \textbf{Real-time engineering and the power grid.} An electrical power grid is modeled by a
-large sparse system $\mat{A}\vec{x}=\vec{b}$, where $\mat{A}$ encodes the network admittances
-(which buses connect to which, and how strongly) and $\vec{b}$ encodes the loads and
-generation at this instant. The grid's wiring -- the matrix $\mat{A}$ -- changes only when a
-line trips or a switch flips, which is rare. But the loads $\vec{b}$ change every few
+large sparse system $\mat{A}\vec{x}=\vec{b}$. The matrix $\mat{A}$ records which connection
+points (substations, called \emph{buses}) are linked by power lines and how easily current
+flows along each line. The vector $\vec{b}$ records the power drawn and generated at each
+bus at this instant. The grid's wiring -- the matrix $\mat{A}$ -- changes only when a
+line is switched off or a switch flips, which is rare. But the loads $\vec{b}$ change every few
 seconds as demand fluctuates. So operators factor $\mat{A}=\mat{L}\mat{U}$ once (for sparse
 matrices a specialized sparse LU keeps $\mat{L}$ and $\mat{U}$ almost as sparse as $\mat{A}$)
 and then re-solve thousands of times a day with fresh $\vec{b}$'s by cheap substitution.
-This same ``factor once, substitute often'' pattern drives implicit time-stepping in fluid
-and climate simulation, interior-point optimization, real-time robotics control, and the
-linear solves buried inside training large statistical models. LU is one of the most-executed
-numerical algorithms in human history precisely because of this reuse.
+The same ``factor once, substitute often'' pattern appears in fluid and climate simulation,
+optimization software, robot control, and the training of large statistical models. Because
+of this reuse, LU is among the most frequently run numerical algorithms.
 \end{applicationbox}
 
 \section{Row exchanges: when a pivot is missing}
 \label{ch09:pivoting}
 
 Everything above assumed elimination glided through without ever hitting a zero where it
-needed a pivot. Real matrices are not so polite. Consider
+needed a pivot. Many matrices do not allow that. Consider
 \[
   \mat{A} = \begin{bmatrix} 0 & 1 \\ 2 & 3 \end{bmatrix}.
 \]
 The would-be first pivot is the top-left $0$. You cannot divide by zero to form a
-multiplier, so elimination stalls -- not because the matrix is bad (it is perfectly
-invertible) but because the rows are simply in an inconvenient order. The cure is obvious:
-swap the two rows.
+multiplier, so elimination stalls -- not because the matrix is bad (it is invertible) but
+because the rows are in an inconvenient order. The fix is to swap the two rows.
 \[
   \begin{bmatrix} 0 & 1 \\ 2 & 3 \end{bmatrix}
   \xrightarrow{\ R_1 \leftrightarrow R_2\ }
   \begin{bmatrix} 2 & 3 \\ 0 & 1 \end{bmatrix}.
 \]
-Now there is a healthy pivot $2$, and the matrix is already upper triangular
+Now there is a nonzero pivot $2$, and the matrix is already upper triangular
 (Figure~\ref{ch09:fig-swap}). A row swap is
 itself a matrix -- a \textbf{permutation matrix} $\mat{P}$, which is the identity with its
 rows reordered:
@@ -513,10 +540,10 @@ rows reordered:
   \mat{P}\mat{A} = \begin{bmatrix} 0&1\\1&0 \end{bmatrix}\begin{bmatrix} 0&1\\2&3 \end{bmatrix}
   = \begin{bmatrix} 2 & 3 \\ 0 & 1 \end{bmatrix}.
 \]
-Left-multiplying by $\mat{P}$ reorders the rows of whatever it hits. Permutation matrices
-are wonderfully simple: each row and each column has exactly one $1$ and the rest $0$, they
-just shuffle, and their inverse is their transpose ($\mat{P}\inv = \mat{P}\T$, since undoing
-a shuffle is a shuffle).
+Left-multiplying by $\mat{P}$ reorders the rows of whatever it hits. In a permutation matrix
+each row and each column has exactly one $1$ and the rest $0$. Its inverse is its
+transpose $\mat{P}\T$, the matrix flipped across its main diagonal (Chapter~8): $\mat{P}\inv = \mat{P}\T$. Undoing a shuffle is another shuffle, and flipping
+$\mat{P}$ gives exactly the shuffle that sends every row back.
 
 \begin{figure}[H]
 \centering
@@ -527,7 +554,6 @@ a shuffle is a shuffle).
     0 & 1 \\
     2 & 3 \\
   };
-  \node at (3.0,0) {$\xrightarrow{\;R_1\leftrightarrow R_2\;}$};
   \matrix (n) [matrix of math nodes, left delimiter={[}, right delimiter={]},
                row sep=2pt, column sep=10pt, xshift=5.6cm,
                nodes={minimum width=6mm}] {
@@ -535,23 +561,24 @@ a shuffle is a shuffle).
     0 & 1 \\
   };
   % arrows showing the swap of rows
-  \draw[->,vecred,thick] ($(m.east)+(0.05,0.22)$) to[bend left=28] node[above,font=\scriptsize,vecred] {top row $\downarrow$} ($(n.west)+(-0.05,-0.22)$);
-  \draw[->,vecblue,thick] ($(m.east)+(0.05,-0.22)$) to[bend right=28] node[below,font=\scriptsize,vecblue] {bottom row $\uparrow$} ($(n.west)+(-0.05,0.22)$);
-  \node[font=\scriptsize,gray] at (n.south)[below=4mm] {pivot $2\neq0$ now in place};
+  \draw[->,vecred,thick] ($(m.east)+(0.05,0.22)$) to[bend left=28] node[above,font=\footnotesize,vecred] {top row $\downarrow$} ($(n.west)+(-0.05,-0.22)$);
+  \draw[->,vecblue,thick] ($(m.east)+(0.05,-0.22)$) to[bend right=28] node[below,font=\footnotesize,vecblue] {bottom row $\uparrow$} ($(n.west)+(-0.05,0.22)$);
+  \node[font=\footnotesize,gray] at (n.south)[below=4mm] {$R_1\leftrightarrow R_2$: pivot $2\neq0$ now in place};
 \end{tikzpicture}
-\caption{A row exchange is the whole content of a permutation matrix $\mat{P}$. The
+\caption{A row exchange is all a permutation matrix $\mat{P}$ does. The
 zero in the top-left pivot slot is swapped out for a nonzero entry by interchanging the two
 rows; left-multiplying by $\mat{P}=\protect\begin{bmatrix}0&1\\1&0\protect\end{bmatrix}$ does
 exactly this. After the swap the matrix is already upper triangular, so elimination is done.}
 \label{ch09:fig-swap}
 \end{figure}
 
-The fully general statement of the factorization, valid for \emph{every} invertible matrix,
-builds the permutation in:
+The general statement of the factorization, valid for \emph{every} invertible matrix,
+builds the permutation in. Its name, \emph{partial pivoting}, refers to choosing row swaps as
+elimination goes (Section~\ref{ch09:pivot-stability} explains the rule software uses).
 
 \begin{formalbox}
 \textbf{LU with partial pivoting.} For any invertible square matrix $\mat{A}$ there is a
-permutation matrix $\mat{P}$, a unit lower triangular $\mat{L}$ (ones on the diagonal), and
+permutation matrix $\mat{P}$, a unit lower triangular $\mat{L}$ (lower triangular with ones on the diagonal), and
 an upper triangular $\mat{U}$ such that
 \[
   \mat{P}\mat{A} = \mat{L}\mat{U}.
@@ -562,28 +589,31 @@ all the swaps elimination chose to make.
 \end{formalbox}
 
 To solve $\mat{A}\vec{x}=\vec{b}$ from $\mat{P}\mat{A}=\mat{L}\mat{U}$, multiply the system
-by $\mat{P}$ first: $\mat{P}\mat{A}\vec{x}=\mat{P}\vec{b}$, i.e.
+by $\mat{P}$ first: $\mat{P}\mat{A}\vec{x}=\mat{P}\vec{b}$, that is,
 $\mat{L}\mat{U}\vec{x}=\mat{P}\vec{b}$. So you permute the right-hand side the same way, then
-do the usual forward/back substitution. Permuting $\vec{b}$ is free -- it is just reading its
-entries in a different order.
+do the usual forward/back substitution. Permuting $\vec{b}$ costs no arithmetic: it is
+reading its entries in a different order.
 
 \subsection{Pivoting for Numerical Stability}
 \label{ch09:pivot-stability}
 
-Here is the deeper reason real software \emph{always} pivots, even when no pivot is exactly
-zero. A \emph{tiny} pivot is nearly as bad as a zero pivot. Suppose
+Real software \emph{always} pivots, even when no pivot is exactly
+zero, because a \emph{tiny} pivot is nearly as bad as a zero pivot. Suppose
 \[
   \mat{A} = \begin{bmatrix} 0.0001 & 1 \\ 1 & 1 \end{bmatrix}.
 \]
 Use the tiny $0.0001$ as a pivot: the multiplier is $\ell_{21}=1/0.0001 = 10000$, and
-clearing row $2$ gives $u_{22} = 1 - 10000\cdot 1 = -9999$. That huge multiplier amplifies
+clearing row $2$ gives $u_{22} = 1 - 10000\cdot 1 = -9999$ (we write $u_{ij}$ for the entry of
+$\mat{U}$ in row $i$, column $j$). That huge multiplier amplifies
 any rounding error in the data by a factor of $10^4$. The fix is \textbf{partial pivoting}:
-before using a column, swap the row with the \emph{largest} available entry into the pivot
+before using a column, swap the row with the \emph{largest} available entry (in absolute
+value, among the rows not yet used as pivot rows) into the pivot
 position, so every multiplier satisfies $|\ell_{ij}|\le 1$. Swapping rows here puts the $1$
-on top, the multiplier becomes a tame $0.0001$, and the computation stays accurate. So
-$\mat{P}$ is doing double duty: it rescues you from exact zeros, and it keeps the arithmetic
-numerically stable. We return to this in the numerical chapter; for now, just know that
-$\mat{P}\mat{A}=\mat{L}\mat{U}$ is what your computer actually does.
+on top, the multiplier becomes $0.0001$, and the computation stays accurate. So
+$\mat{P}$ does two jobs: it rescues you from exact zeros, and it keeps rounding errors from
+growing (it keeps the computation \emph{numerically stable}). We return to this in the
+numerical chapter; for now, know that $\mat{P}\mat{A}=\mat{L}\mat{U}$ is what your computer
+does.
 
 \begin{example}[A full $\mat{P}\mat{A}=\mat{L}\mat{U}$]
 \label{ch09:ex-palu}
@@ -605,27 +635,32 @@ Verify: $\mat{L}\mat{U} = \begin{bmatrix} 3 & 4 \\ 1 & \tfrac43 + \tfrac23 \end{
 
 \begin{connectionbox}
 \textbf{The sign of a permutation, and the determinant.} A permutation matrix is the matrix
-face of a permutation of $\{1,\dots,n\}$, the objects group theory calls the symmetric group
-$S_n$ (the set of all $n!$ ways to reorder $n$ distinct items). Every permutation is a product
+form of a permutation of $\{1,\dots,n\}$, that is, a reordering of the numbers $1$ to $n$.
+Group theory calls the collection of all $n! = 1\cdot 2\cdots n$ such reorderings the
+\emph{symmetric group} $S_n$. Every permutation is a product
 of swaps, and although the number of swaps is not unique, its \emph{parity} (even or odd)
-is -- a fixed fact about the permutation. That parity is the \emph{sign}, $\det\mat{P}=\pm 1$.
-This links straight to determinants: $\mat{P}\mat{A}=\mat{L}\mat{U}$ gives
+is -- a fixed fact about the permutation. That parity is the \emph{sign}: $\det\mat{P}=+1$
+for an even number of swaps and $-1$ for an odd number. Recall that the determinant $\det$
+measures the factor by which a matrix scales areas (or volumes); its chapter later in the
+book proves the two rules used here: the determinant of a product is the product of the
+determinants, and the determinant of a triangular matrix is the product of its diagonal
+entries. With those rules, $\mat{P}\mat{A}=\mat{L}\mat{U}$ gives
 \[
-  \det\mat{A} = (\det\mat{P})\,(\det\mat{L})\,(\det\mat{U})
-              = (\pm 1)\cdot 1 \cdot (u_{11}u_{22}\cdots u_{nn}),
+  (\det\mat{P})\,(\det\mat{A}) = (\det\mat{L})\,(\det\mat{U})
+  = 1 \cdot (u_{11}u_{22}\cdots u_{nn}),
 \]
-because $\det$ of a triangular matrix is the product of its diagonal, and $\mat{L}$ has unit
-diagonal. So the determinant is just $\pm$ the product of the pivots -- which is exactly how
-numerical libraries compute determinants: factor, multiply the pivots, fix the sign from the
-swaps. One $\mat{P}\mat{A}=\mat{L}\mat{U}$ factorization hands us the solver, the row-swap
-sign, and the determinant at once.
+since $\mat{L}$ has unit diagonal. Because $\det\mat{P} = \pm 1$, this means
+$\det\mat{A} = \pm\, u_{11}u_{22}\cdots u_{nn}$: the determinant is $\pm$ the product of
+the pivots. This is how numerical libraries compute determinants: factor, multiply the
+pivots, fix the sign from the swaps. One $\mat{P}\mat{A}=\mat{L}\mat{U}$ factorization gives
+the solver, the row-swap sign, and the determinant at once.
 \end{connectionbox}
 
 \section{Pulling out the pivots: \texorpdfstring{$\mat{A}=\mat{L}\mat{D}\mat{U}$}{A=LDU}}
 \label{ch09:ldu}
 
-There is a mild asymmetry in $\mat{A}=\mat{L}\mat{U}$ that bothers people, and fixing it
-reveals structure. In our example
+The two factors of $\mat{A}=\mat{L}\mat{U}$ are not treated alike, and evening them out
+shows more structure. In our example
 \[
   \mat{L} = \begin{bmatrix} 1&0&0\\2&1&0\\4&3&1 \end{bmatrix}, \qquad
   \mat{U} = \begin{bmatrix} 2&1&1\\0&1&1\\0&0&2 \end{bmatrix},
@@ -637,23 +672,30 @@ $\mat{U}$ with unit diagonal too:
   \mat{U} = \underbrace{\begin{bmatrix} 2&0&0\\0&1&0\\0&0&2 \end{bmatrix}}_{\mat{D}}
             \underbrace{\begin{bmatrix} 1 & \tfrac12 & \tfrac12 \\ 0 & 1 & 1 \\ 0 & 0 & 1 \end{bmatrix}}_{\mat{U}'},
 \]
-where each row of $\mat{U}$ was divided by its pivot. So
+where each row of $\mat{U}$ was divided by its pivot. (Recall that $\diag(2,1,2)$ is the
+diagonal matrix with $2,1,2$ on its diagonal and zeros elsewhere.) So
 \[
   \mat{A} = \mat{L}\,\mat{D}\,\mat{U}', \qquad
   \mat{D}=\diag(2,1,2),
 \]
-with $\mat{L}$ and $\mat{U}'$ both unit-triangular and all the scaling living in $\mat{D}$.
-This $\mat{L}\mat{D}\mat{U}$ form is the symmetric-looking sibling of $\mat{L}\mat{U}$, and it
-pays off for symmetric matrices ($\mat{A} = \mat{A}\T$, matrices that are mirror images of
-themselves across the main diagonal): if $\mat{A}=\mat{A}\T$ then $\mat{U}'=\mat{L}\T$ and the
-factorization collapses to $\mat{A}=\mat{L}\mat{D}\mat{L}\T$. When all pivots in
-$\mat{D}$ are strictly positive as well (meaning the matrix is \textbf{positive definite}, stretching
-every nonzero vector without flattening or reflecting any direction), you can split
-$\mat{D}=\sqrt{\mat{D}}\sqrt{\mat{D}}$ and absorb the square roots into the triangular factors.
-That yields $\mat{A}=\mat{R}\T\mat{R}$ (or $\mat{L}_C\mat{L}_C\T$ with lower triangular
-$\mat{L}_C = \mat{L}\sqrt{\mat{D}}$): the \textbf{Cholesky factorization}, a symmetric,
-half-the-work specialization of LU that powers least squares and Gaussian statistics. We will
-meet it again with positive definite matrices.
+with $\mat{L}$ and $\mat{U}'$ both unit triangular and all the scaling living in $\mat{D}$.
+This $\mat{L}\mat{D}\mat{U}$ form treats the two triangular factors alike, and it
+pays off for \textbf{symmetric} matrices ($\mat{A} = \mat{A}\T$, matrices that are mirror
+images of themselves across the main diagonal): if $\mat{A}=\mat{A}\T$ then
+$\mat{U}'=\mat{L}\T$ and the factorization becomes $\mat{A}=\mat{L}\mat{D}\mat{L}\T$.
+
+Suppose in addition that all pivots in $\mat{D}$ are positive. (For a symmetric matrix this
+is what \textbf{positive definite} means in practice; such a matrix stretches space along
+perpendicular axes by positive factors, never flattening or flipping any direction. A later
+chapter gives the full definition.) Then write $\sqrt{\mat{D}}$ for the diagonal matrix of
+the square roots of the pivots, so $\mat{D}=\sqrt{\mat{D}}\sqrt{\mat{D}}$, and absorb one
+square root into each triangular factor.
+That yields $\mat{A}=\mat{L}_C\mat{L}_C\T$ with lower triangular
+$\mat{L}_C = \mat{L}\sqrt{\mat{D}}$ (often written $\mat{A}=\mat{R}\T\mat{R}$ with
+$\mat{R}=\mat{L}_C\T$): the \textbf{Cholesky factorization}. It is the version of LU for
+symmetric positive definite matrices and needs about half the work. It is widely used in
+least squares (fitting the best line or curve to data) and in statistics with the normal
+(bell-curve) distribution. We will meet it again with positive definite matrices.
 
 \begin{aestheticbox}
 Writing $\mat{A}=\mat{L}\mat{U}$ turns a list of row-reduction steps into an equation
@@ -666,45 +708,79 @@ let us split $\mat{D}$ in half to get the Cholesky form $\mat{L}_C\mat{L}_C\T$.
 \section{The cost of elimination, counted exactly}
 \label{ch09:cost}
 
-We have been saying ``elimination is expensive, substitution is cheap.'' Let us make that
-quantitative, because the numbers are the entire justification for the LU strategy.
+We have been saying ``elimination is expensive, substitution is cheap.'' Here are the
+numbers behind that claim.
 
-Count multiply-and-subtract operations (``flops''). To clear column $1$ of an $n\times n$
+Count \textbf{flops} (floating-point operations: one arithmetic operation on stored
+decimal numbers, such as one multiplication or one subtraction). We count each
+multiply-and-subtract pair as one step. To clear column $1$ of an $n\times n$
 matrix you process rows $2$ through $n$ -- that is $n-1$ rows -- and for each you compute one
 multiplier and update about $n$ entries, so roughly $(n-1)\cdot n$ operations. Clearing
 column $2$ works on the remaining $(n-1)\times(n-1)$ block, costing about $(n-2)(n-1)$. In
-general, eliminating column $k$ costs about $(n-k)(n-k+1)$. Summing,
+general, eliminating column $k$ costs about $(n-k)(n-k+1)$.
+Figure~\ref{ch09:fig-active-block} shows the shrinking block. Adding up over all columns
+(and writing $j = n-k$),
 \[
-  \text{elimination cost} \;\approx\; \sum_{k=1}^{n-1} (n-k)^2 \;\approx\; \sum_{j=1}^{n-1} j^2
+  \text{elimination cost} \;\approx\; \sum_{k=1}^{n-1} (n-k)^2 \;=\; \sum_{j=1}^{n-1} j^2
   \;\approx\; \frac{n^3}{3}.
 \]
-The leading term is $\tfrac13 n^3$. \textbf{Cubic.} Double the size of the matrix and
-elimination costs eight times as much.
+(The last step uses $1^2 + 2^2 + \cdots + m^2 = m(m+1)(2m+1)/6$, which is about
+$m^3/3$ for large $m$.) The leading term is $\tfrac13 n^3$, and we write ``factoring costs $\sim\tfrac13 n^3$'' (read
+$\sim$ as ``about, for large $n$''). The cost is
+\emph{cubic}, growing like the cube of $n$. Double the size of the matrix and elimination
+costs eight times as much.
 
-Now count a triangular solve. Back substitution on $\mat{U}$: the last unknown is free, the
-next costs $1$ multiply, the next $2$, and so on up to about $n$, giving
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[scale=0.42]
+  \foreach \k/\lab in {0/{clear column 1},1/{clear column 2},2/{clear column 3}} {
+    \begin{scope}[shift={(\k*9,0)}]
+      % pivot row k+1 (blue), block below it that gets updated (orange),
+      % finished rows above and finished columns to the left (green)
+      \fill[quotientorange!25] (\k,0) rectangle (6,6-\k-1);
+      \fill[vecblue!25] (\k,6-\k-1) rectangle (6,6-\k);
+      \fill[targetgreen!20] (0,0) rectangle (\k,6-\k);
+      \fill[targetgreen!20] (0,6-\k) rectangle (6,6);
+      \draw[gray!60] (0,0) grid (6,6);
+      \draw[thick] (0,0) rectangle (6,6);
+      \draw[very thick,quotientorange!80!black] (\k,0) rectangle (6,6-\k-1);
+      \node[font=\small] at (3,-1.0) {\lab};
+    \end{scope}
+  }
+\end{tikzpicture}
+\caption{Where the work happens on a $6\times 6$ matrix. In each step the blue row is the
+pivot row; every entry in the orange block below it gets updated (one multiply-and-subtract
+each). Green entries are finished. The orange block shrinks from $5\times 6$ to $4\times 5$ to
+$3\times 4$, so the total work is a sum of shrinking rectangles, about $\tfrac13 n^3$.}
+\label{ch09:fig-active-block}
+\end{figure}
+
+Now count a triangular solve. Back substitution on $\mat{U}$: the last unknown needs only a
+division, the next costs $1$ multiply, the next $2$, and so on up to about $n$, giving
 \[
   \sum_{k=1}^{n} k \approx \frac{n^2}{2}.
 \]
 Forward substitution on $\mat{L}$ costs the same $\tfrac12 n^2$. So one full solve from a
-finished factorization is about $n^2$ operations. \textbf{Quadratic.}
+finished factorization is about $n^2$ operations: the cost is \emph{quadratic}, growing like
+the square of $n$. Figure~\ref{ch09:fig-cost} compares the two curves.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
 \begin{axis}[
   width=10.5cm, height=6.4cm,
-  title={Factoring is Cubic, Solving is Quadratic},
+  title={Factoring is cubic, solving is quadratic},
   title style={font=\small},
-  xlabel={matrix size $n$}, ylabel={operations},
+  xlabel={matrix size $n$}, ylabel={operations (thousands)},
   domain=1:60, samples=80,
   legend pos=north west, legend cell align=left,
-  ymin=0, ymax=72000,
+  legend style={font=\small},
+  ymin=0, ymax=72,
   grid=both, grid style={gray!18},
   every axis plot/.append style={very thick},
 ]
-\addplot[vecred]   {x^3/3};   \addlegendentry{$\tfrac13 n^3$ \ (factor once)}
-\addplot[vecblue]  {x^2};     \addlegendentry{$n^2$ \ (each extra solve)}
+\addplot[vecred]   {x^3/3000};   \addlegendentry{$\tfrac13 n^3$ \ (factor once)}
+\addplot[vecblue]  {x^2/1000};     \addlegendentry{$n^2$ \ (each extra solve)}
 \end{axis}
 \end{tikzpicture}
 \caption{The two costs that justify LU. Building the factorization is cubic ($\sim\tfrac13
@@ -714,7 +790,7 @@ where the savings live.}
 \label{ch09:fig-cost}
 \end{figure}
 
-The ratio of these tells the whole story. The expensive factorization costs about
+Compare the two costs directly. The expensive factorization costs about
 $\tfrac13 n^3$; each additional solve costs about $n^2$. Their ratio is
 \[
   \frac{\tfrac13 n^3}{n^2} = \frac{n}{3}.
@@ -722,9 +798,34 @@ $\tfrac13 n^3$; each additional solve costs about $n^2$. Their ratio is
 So one factorization ``is worth'' roughly $n/3$ solves. For a modest $n=300$, the factor
 step costs as much as a hundred substitution steps. If you have a hundred right-hand sides
 and you re-eliminate each time, you do a hundred cubic operations; if you factor once and
-substitute, you do one cubic plus a hundred quadratics -- essentially the cost of a
-\emph{single} naive solve. That is the difference between a job finishing in a second and
-finishing in a minute.
+substitute, you do one cubic plus a hundred quadratics -- about the cost of a
+\emph{single} naive solve. That is roughly the difference between a job finishing in a
+second and finishing in a minute. Figure~\ref{ch09:fig-cost-vs-k} plots both strategies as the
+number of right-hand sides grows.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10.5cm, height=6.4cm,
+  xlabel={number of right-hand sides $k$}, ylabel={operations (millions)},
+  domain=1:50, samples=50,
+  legend pos=north west, legend cell align=left,
+  legend style={font=\small},
+  ymin=0, ymax=18, xmin=0, xmax=50,
+  grid=both, grid style={gray!18},
+  every axis plot/.append style={very thick},
+]
+\addplot[vecred]  {x/3};          \addlegendentry{re-eliminate each time: $k\cdot\tfrac13 n^3$}
+\addplot[vecblue] {1/3 + 0.01*x}; \addlegendentry{factor once: $\tfrac13 n^3 + k\cdot n^2$}
+\end{axis}
+\end{tikzpicture}
+\caption{Total cost of solving $\mat{A}\vec{x}=\vec{b}$ for $k$ different right-hand sides
+with a $100\times 100$ matrix. Re-running elimination (red) costs about a third of a million
+operations per right-hand side. Factoring once (blue) pays that cost a single time, and each
+extra right-hand side then adds only $10{,}000$ operations, so the blue line is nearly flat.}
+\label{ch09:fig-cost-vs-k}
+\end{figure}
 
 \begin{example}[Counting the win]
 \label{ch09:ex-count}
@@ -737,21 +838,18 @@ side is nearly free.
 \end{example}
 
 \begin{focusbox}
-Summary of LU complexity: \textbf{factoring is cubic, solving is quadratic.} The
-cubic cost is paid once, after which each additional right-hand side requires
-only a quadratic triangular solve. Whenever the same matrix appears with multiple
-right-hand sides, factorization provides substantial computational savings.
+\textbf{Factoring is cubic, solving is quadratic.} The cubic cost is paid once, after
+which each additional right-hand side requires only a quadratic triangular solve. Whenever
+the same matrix appears with many right-hand sides, factoring saves a large amount of work.
 \end{focusbox}
 
 \section{When LU fails, and when it does not}
 \label{ch09:existence}
 
-A short, careful accounting of the boundaries.
-
 \textbf{Pure $\mat{L}\mat{U}$ (no permutation) exists} exactly when elimination never needs a
-swap, i.e. when every pivot turns out nonzero without reordering. A clean sufficient
+swap, that is, when every pivot turns out nonzero without reordering. A sufficient
 condition: if every \emph{leading principal submatrix} of $\mat{A}$ (the top-left
-$1\times 1$, $2\times 2$, \dots, $k\times k$ blocks) is invertible, then $\mat{A}=\mat{L}\mat{U}$
+$1\times 1$, $2\times 2$, \dots, $n\times n$ blocks, the last being $\mat{A}$ itself) is invertible, then $\mat{A}=\mat{L}\mat{U}$
 exists and is unique. Uniqueness is easy to believe: if $\mat{L}_1\mat{U}_1=\mat{L}_2\mat{U}_2$
 then $\mat{L}_2\inv\mat{L}_1=\mat{U}_2\mat{U}_1\inv$; the left side is unit lower triangular,
 the right side is upper triangular, and the only matrix that is both is the identity -- so
@@ -761,18 +859,18 @@ $\mat{L}_1=\mat{L}_2$ and $\mat{U}_1=\mat{U}_2$.
 always \emph{some} reordering of the rows that makes pivots appear, because invertibility
 guarantees a nonzero entry to promote in each column as you go.
 
-\textbf{Singular matrices} can still be reduced to an upper triangular $\mat{U}$, but $\mat{U}$
+\textbf{Singular matrices} (square matrices that are not invertible) can still be reduced to an upper triangular $\mat{U}$, but $\mat{U}$
 will have a zero pivot somewhere, signaling that $\mat{A}\vec{x}=\vec{b}$ either has no
-solution or infinitely many. That is a story for the chapters on rank and the four
-subspaces; LU's clean two-slide solve assumes the pivots are all there.
+solution or infinitely many. The chapters on rank and the four fundamental subspaces deal
+with that case; LU's two-step solve assumes all the pivots are nonzero.
 
 \begin{remark}
-A subtle point worth flagging: the matrix $\begin{bmatrix}0&1\\2&3\end{bmatrix}$ from
+The matrix $\begin{bmatrix}0&1\\2&3\end{bmatrix}$ from
 Section~\ref{ch09:pivoting} is invertible yet has \emph{no} plain $\mat{L}\mat{U}$
 factorization -- its leading $1\times 1$ block is the zero matrix $[0]$, which is not
 invertible, so the leading-submatrix test fails at the very first step. This is precisely
-the case the permutation rescues. ``No $\mat{L}\mat{U}$'' is a statement about row order, not
-about the matrix being defective.
+the case the permutation rescues. ``No $\mat{L}\mat{U}$'' is a statement about the order of
+the rows, not about the matrix itself.
 \end{remark}
 
 \begin{strangbox}
@@ -781,7 +879,7 @@ exchanges?'', the answer is the leading-submatrix condition above. He frames the
 case as $\mat{P}\mat{A}=\mat{L}\mat{U}$ and emphasizes that this is the version your software
 performs. He also connects $\mat{A}=\mat{L}\mat{U}$ to the \emph{four subspaces} later: the
 pivots in $\mat{U}$ reveal the rank, and the columns of $\mat{L}$ relate to the column space.
-Keep this chapter handy -- it is the computational engine those structural chapters run on.
+The computations in those later chapters run on this factorization.
 \end{strangbox}
 
 \section{What to carry forward}
@@ -791,10 +889,10 @@ Keep this chapter handy -- it is the computational engine those structural chapt
   \item \textbf{Elimination is factorization.} Running Gaussian elimination on $\mat{A}$
         produces $\mat{A}=\mat{L}\mat{U}$: $\mat{U}$ is the upper triangular result,
         and $\mat{L}$ collects the multipliers (with a plus sign) below a unit diagonal.
-  \item \textbf{Solve in two slides.} $\mat{A}\vec{x}=\vec{b}$ becomes $\mat{L}\vec{c}=\vec{b}$
-        (forward) then $\mat{U}\vec{x}=\vec{c}$ (backward). Each slide is mechanical.
-  \item \textbf{Factor once, reuse forever.} New right-hand sides need only the two cheap
-        substitutions. This is the entire reason LU dominates practical computing.
+  \item \textbf{Solve in two steps.} $\mat{A}\vec{x}=\vec{b}$ becomes $\mat{L}\vec{c}=\vec{b}$
+        (forward substitution) then $\mat{U}\vec{x}=\vec{c}$ (back substitution).
+  \item \textbf{Factor once, reuse many times.} New right-hand sides need only the two cheap
+        substitutions. This reuse is why LU is used so widely in practice.
   \item \textbf{Row exchanges give $\mat{P}\mat{A}=\mat{L}\mat{U}$.} Pivoting handles missing
         pivots and prevents numerical errors from blowing up by keeping multipliers
         $\le 1$ in magnitude.
@@ -804,67 +902,66 @@ Keep this chapter handy -- it is the computational engine those structural chapt
         factor and substitute. It is faster and more accurate.
 \end{itemize}
 
-You now own the algorithm that quietly sits underneath ``solve this linear system'' in every
-serious numerical library. When the theories of linear algebra need to compute, this is the
-engine they reach for.
+This is the algorithm that numerical libraries run when you ask them to solve a linear
+system.
 
-Notice what this journey required: whenever a zero blocked our path, we had to swap rows
-using a permutation matrix $\mat{P}$, arriving at $\mat{P}\mat{A}=\mat{L}\mat{U}$. And when
-$\mat{A}$ was symmetric, we factored it into $\mat{L}\mat{D}\mat{L}\T$, where the transpose
-operation $\T$ appeared naturally. But what \emph{is} a transpose geometrically? And how do
-permutation matrices behave as algebraic objects under multiplication, inversion, and signs?
-The next chapter, \emph{Transposes and Permutations}, steps squarely into that world: flipping
-matrices across their main diagonals, reordering coordinates, and establishing the formal
-rules for the inner products, orthogonality, and symmetric decompositions that power the
-rest of the book.
+Two tools appeared in this chapter without a full treatment. Whenever a zero blocked a pivot,
+we swapped rows using a permutation matrix $\mat{P}$, arriving at
+$\mat{P}\mat{A}=\mat{L}\mat{U}$. And when $\mat{A}$ was symmetric, we factored it into
+$\mat{L}\mat{D}\mat{L}\T$, using the transpose. What \emph{is} a transpose geometrically? And
+how do permutation matrices behave under multiplication and inversion? The next chapter,
+\emph{Transposes and Permutations}, answers these questions: flipping matrices across their
+main diagonals, reordering coordinates, and setting out the rules for transposes that the
+later chapters on orthogonality and symmetric matrices depend on.
 
 \begin{historybox}
 The modern formulation of elimination as matrix factorization ($\mat{A} = \mat{L}\mat{U}$) was established
 by Alan Turing in his 1948 paper, \emph{Rounding-Off Errors in Matrix Processes}. Turing, working on the design
 of the ACE (Automatic Computing Engine) at the British National Physical Laboratory, wanted to know whether
-early digital computers could solve systems of one hundred linear equations without roundoff error destroying
-the results. In 1947, John von Neumann and Herman Goldstine had published an alarming theoretical analysis
-suggesting that rounding errors might grow exponentially, convincing many mathematicians that solving large
-systems on digital computers was doomed to produce nonsense.
+early digital computers could solve systems of one hundred linear equations without rounding error destroying
+the results. In 1943 the statistician Harold Hotelling had published an analysis suggesting that rounding
+errors might grow exponentially with the number of equations, and many concluded that solving large systems
+on digital computers would produce nonsense. (John von Neumann and Herman Goldstine's 1947 analysis was more
+hopeful, but only for symmetric positive definite matrices.)
 
-Turing answered that pessimism directly. With access only to slow electromechanical calculators and acoustic
-delay-line computer memory holding mere hundreds of numbers, Turing introduced the matrix condition number
+Turing answered that pessimism directly. Working with slow electromechanical calculators and
+early computer designs whose memory held only hundreds of numbers, Turing introduced the matrix condition number
 (a single number measuring how sensitive a system's output is to tiny perturbations in its inputs) and proved
 that Gaussian elimination is mathematically equivalent to factoring a matrix into triangular pieces:
-$\mat{A} = \mat{L}\mat{U}$. By pairing factorization with partial pivoting, Turing showed that multipliers stay
-bounded by $1$ and that elimination is highly stable. In 1961, James Wilkinson completed the mathematical
-circle by establishing backward error bounds -- rigorous proofs that the computed floating-point answer is the
-exact mathematical solution to a slightly perturbed physical problem.
+$\mat{A} = \mat{L}\mat{U}$. He noted that with partial pivoting the multipliers stay bounded by $1$, and argued
+that in practice the errors are far smaller than the pessimistic estimates. In 1961, James Wilkinson made this
+rigorous with \emph{backward error bounds}: proofs that the computer's rounded answer is the exact solution
+of a slightly changed problem.
 
 An important precursor came from military geodesy (the science of measuring Earth's curvature to triangulate
 positions and draft accurate maps). In 1910, the French artillery officer and surveyor André-Louis Cholesky
-developed an ingenious method for solving the symmetric, positive-definite normal equations ($\mat{A}\T\mat{A}\vec{x}=\mat{A}\T\vec{b}$,
+developed a method for solving the symmetric, positive-definite normal equations ($\mat{A}\T\mat{A}\vec{x}=\mat{A}\T\vec{b}$,
 which arise when finding best-fit lines through experimental data). Cholesky was killed in action in August 1918
 during the closing months of World War~I, but his fellow officer Commandant Benoit published Cholesky's manuscript
 posthumously in 1924. The Cholesky factorization ($\mat{A} = \mat{L}\mat{L}\T$) remains the gold standard for
-symmetric positive-definite systems, requiring only half the arithmetic and half the memory of standard $LU$.
+symmetric positive-definite systems, requiring only half the arithmetic and half the memory of standard $\mat{L}\mat{U}$.
 
 In early computers, memory was so scarce that storing a second $n\times n$ matrix during elimination was
-impossible. Programmers used a clean structural fact: the diagonal of $\mat{L}$ is entirely $1$'s, so
+impossible. Programmers used a simple fact: the diagonal of $\mat{L}$ is entirely $1$'s, so
 it never needs to be stored. As elimination creates each zero below the pivot in column $j$, the multiplier
-$\ell_{ij}$ can be written directly into the memory register where that zero was just created. At the end of the
+$\ell_{ij}$ can be written directly into the memory location where that zero was just created. At the end of the
 sweep, the original array $\mat{A}$ holds both $\mat{L}$ (below the diagonal) and $\mat{U}$ (on and above the diagonal)
-in place with zero additional memory overhead.
+with no extra memory.
 
-A fascinating theoretical puzzle remains open to this day: Wilkinson proved that in the mathematical worst case,
-partial pivoting allows errors to grow by a factor of $2^{n-1}$, which would render a $100\times 100$ solve
-completely inaccurate. Yet in over seventy years of practical computing, an authentic physical matrix that triggers
-this exponential catastrophe has almost never appeared in the wild. Why physical systems are so immune to this
-worst-case behavior remains an active research topic, partially explained by the smoothed analysis of Daniel
-Spielman and Shang-Hua Teng. At the same time, whether an $n\times n$ system can ultimately be solved in
-near-quadratic $\mathcal{O}(n^2)$ time or strictly requires the full complexity of matrix multiplication
-(currently $\mathcal{O}(n^{2.37})$) remains one of the deepest open problems in theoretical computer science.
+A puzzle remains open: Wilkinson showed that in the worst case, partial pivoting allows the entries (and
+with them the errors) to grow by a factor of $2^{n-1}$, which would make a $100\times 100$ solve
+completely inaccurate. Yet in over seventy years of practical computing, matrices from real problems that
+trigger this growth have almost never appeared. Why remains a research topic; part of the explanation comes
+from \emph{smoothed analysis}, an approach of Daniel Spielman and Shang-Hua Teng that asks how an algorithm
+behaves on worst-case inputs after small random changes. A second open problem concerns speed: the fastest
+known methods solve a general $n\times n$ system in about $n^{2.37}$ steps (the same as the fastest known
+matrix multiplication), and whether about $n^2$ steps is possible is one of the major open questions in
+theoretical computer science.
 
-Even with pivoting, the triangular factors $\mat{L}$ and $\mat{U}$ are not orthogonal -- they can distort lengths
-and angles. Handling general rectangular data, least squares, and symmetric systems demands permutations and
-transposes: Chapter~10 (Definition~\ref{ch10:def-transpose}) introduces transposes and permutations systematically, completing the
-full decomposition $\mat{P}\mat{A} = \mat{L}\mat{U}$ and opening the path to symmetric matrices, orthogonality,
-and the geometry of subspaces in Part~III.
+Even with pivoting, the triangular factors $\mat{L}$ and $\mat{U}$ can distort lengths and angles. Factorizations
+that preserve them, and the tools for rectangular data, least squares, and symmetric systems, need transposes:
+Chapter~10 (Definition~\ref{ch10:def-transpose}) treats transposes and permutations systematically, opening the
+path to symmetric matrices, orthogonality, and the geometry of subspaces in Part~III.
 \end{historybox}
 
 \section{Exercises}
@@ -970,8 +1067,11 @@ and argue about what kind of matrix each side must be.)
 
 \begin{exercise}[Block thinking, a challenge]
 \label{ch09:ex-block}
-Let $\mat{A}=\begin{bmatrix} \mat{A}_{11} & \mat{A}_{12} \\ \mat{A}_{21} & \mat{A}_{22}
-\end{bmatrix}$ in $2\times 2$ block form with $\mat{A}_{11}$ invertible. Show that
+Split a square matrix into four smaller matrices (\emph{blocks}) by cutting it with one
+horizontal and one vertical line, the top-left block being square:
+$\mat{A}=\begin{bmatrix} \mat{A}_{11} & \mat{A}_{12} \\ \mat{A}_{21} & \mat{A}_{22}
+\end{bmatrix}$, with $\mat{A}_{11}$ invertible. Blocks multiply like ordinary entries, as
+long as you keep the order of each product. Show that
 \[
   \mat{A} = \begin{bmatrix} \mat{I} & \mat{0} \\ \mat{A}_{21}\mat{A}_{11}\inv & \mat{I} \end{bmatrix}
             \begin{bmatrix} \mat{A}_{11} & \mat{A}_{12} \\ \mat{0} & \mat{S} \end{bmatrix},

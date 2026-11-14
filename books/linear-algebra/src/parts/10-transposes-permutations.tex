@@ -6,28 +6,24 @@ and ground to a halt. The rescue was simple: swap two rows and keep going. We co
 those row exchanges into a single shuffle matrix $\mat{P}$, producing the complete factorization
 $\mat{P}\mat{A} = \mat{L}\mat{U}$.
 
-At the time, $\mat{P}$ seemed like mere emergency housekeeping. But row swaps and their
-constant partner, the \emph{transpose}, are far from bookkeeping: they carry an enormous
-amount of geometry. The first operation is the \emph{transpose}: flip a matrix across its
-main diagonal so that rows become columns. The second is a \emph{permutation}: shuffle the
-rows (or columns) of a matrix without changing any of the numbers, only their addresses.
+At the time, $\mat{P}$ looked like emergency housekeeping. This chapter studies it properly,
+together with a second operation that turns out to be closely tied to it. The first operation
+is the \emph{transpose}: flip a matrix across its main diagonal so that rows become columns.
+The second is a \emph{permutation}: shuffle the rows (or columns) of a matrix without changing
+any of the numbers, only their positions.
 
-The transpose is the operation that connects a matrix to the dot product. It is the reason
-$\inner{\mat{A}\vec{x}}{\vec{y}} = \inner{\vec{x}}{\mat{A}\T\vec{y}}$, which is the single most
-useful identity in all of applied linear algebra. It is the source of symmetric matrices and of
-$\mat{A}\T\mat{A}$, the matrix behind least squares, covariance, and the singular value
-decomposition. And permutations are our \emph{first} orthogonal matrices --- rigid rearrangements
-of space that preserve every length and every angle. By the end of this chapter you will see the
-transpose not as a typographical flip but as the geometric ``adjoint'': the matrix that does to the
-output space exactly what $\mat{A}$ does to the input space, but in reverse.
-
-Let us build all of this from the ground up, pictures first.
+The transpose is what connects a matrix to the dot product. We will see that you can move a
+matrix from one side of a dot product to the other if you transpose it on the way, and that
+this one rule explains a great deal: why some matrices are mirror images of themselves, why
+the product $\mat{A}\T\mat{A}$ appears whenever data is fitted, and how a matrix can be ``run
+backward''. Permutation matrices will give us our first examples of matrices that move space
+without stretching it: every length and every angle stays the same.
 
 \section{The transpose: flipping across the diagonal}
 
 \subsection{The definition, with a picture}
 
-Start with the most concrete possible thing. Take a matrix and reflect it across the diagonal that
+Take a matrix and reflect it across the \emph{main diagonal}, the diagonal that
 runs from the top-left corner down to the bottom-right. Whatever was in row $i$, column $j$ lands in
 row $j$, column $i$.
 
@@ -48,14 +44,14 @@ Here is a $2\times 3$ matrix and its $3\times 2$ transpose:
 \]
 Look at where each number went. The first \emph{row} of $\mat{A}$, namely $(1,2,3)$, became the first
 \emph{column} of $\mat{A}\T$. The first column of $\mat{A}$, namely $\colvec{1\\4}$, became the first
-row of $\mat{A}\T$. The diagonal entries that sit on the fold --- here only $a_{11}=1$ and $a_{22}=5$ ---
+row of $\mat{A}\T$. The diagonal entries that sit on the fold (here only $a_{11}=1$ and $a_{22}=5$)
 do not move. Everything else swaps across the fold.
 
 \begin{intuitionbox}
 Picture the matrix as a grid of tiles. Lay a mirror along the main diagonal (top-left to
 bottom-right) and the transpose is what you see in the mirror. A tall thin matrix becomes a short
-wide one. A row vector becomes a column vector. Nothing is added, scaled, or destroyed --- the same
-numbers just trade places across the fold.
+wide one. A row vector becomes a column vector. Nothing is added, scaled, or destroyed; the same
+numbers trade places across the fold.
 \end{intuitionbox}
 
 \begin{figure}[H]
@@ -100,11 +96,11 @@ becomes the first column of $\mat{A}\T$. The shape flips from $2\times 3$ to $3\
 \label{ch10:fig-flip}
 \end{figure}
 
-A few immediate sanity checks. If $\mat{A}$ is $m\times n$ then $\mat{A}\T$ is $n\times m$ --- the
+Three quick checks. If $\mat{A}$ is $m\times n$ then $\mat{A}\T$ is $n\times m$: the
 shape flips. Transposing twice brings you home: $(\mat{A}\T)\T = \mat{A}$, because reflecting across
 the diagonal and then reflecting again undoes itself. And a single column vector $\vec{x}$ (which we
 think of as $n\times 1$) transposes into a single \emph{row}, $\vec{x}\T$, of shape $1\times n$. That
-last fact is the key, because a row times a column is exactly a dot product.
+last fact matters most, because a row times a column is a dot product.
 
 \begin{focusbox}
 Hold onto three reflexes:
@@ -125,7 +121,7 @@ with column index $i$ leaves the address unchanged.
 
 \subsection{The transpose turns a column into a dot-product machine}
 
-Why should anyone care about flipping a grid? Here is the first real reason. Recall the dot product
+Why flip a grid at all? Here is the first reason. Recall the dot product
 of two column vectors $\vec{u},\vec{v}\in\R^n$:
 \[
   \inner{\vec{u}}{\vec{v}} \;=\; u_1 v_1 + u_2 v_2 + \cdots + u_n v_n.
@@ -139,10 +135,10 @@ $\vec{v}$:
   = u_1v_1 + u_2v_2 + \cdots + u_nv_n
   = \inner{\vec{u}}{\vec{v}}.
 \]
-So the dot product \emph{is} a transpose-times-a-vector. The little operation ``$\vec{u}\T\vec{v}$''
+So the dot product \emph{is} a transposed vector times a vector. The product ``$\vec{u}\T\vec{v}$''
 is matrix multiplication of a $1\times n$ row by an $n\times 1$ column, producing a $1\times 1$
-number. This is more than a notational convenience; it lets every dot-product fact be
-written as a matrix product and back again. We will lean on it constantly.
+matrix, which we treat as a number. This lets every dot-product fact be
+written as a matrix product and back again, and we will use it throughout the chapter.
 
 \begin{example}[A dot product as $\vec{u}\T\vec{v}$]\label{ch10:ex-dot}
 Let $\vec{u}=\colvec{2\\-1\\3}$ and $\vec{v}=\colvec{1\\4\\2}$. Then
@@ -152,21 +148,61 @@ Let $\vec{u}=\colvec{2\\-1\\3}$ and $\vec{v}=\colvec{1\\4\\2}$. Then
   = (2)(1)+(-1)(4)+(3)(2) = 2-4+6 = 4.
 \]
 And $\norm{\vec{u}}^2 = \vec{u}\T\vec{u} = 4+1+9 = 14$. A vector dotted with itself, written
-$\vec{u}\T\vec{u}$, is the squared length. Remember that --- $\mat{A}\T\mat{A}$ later is just this
-idea applied to every pair of columns at once.
+$\vec{u}\T\vec{u}$, is the squared length. Remember this: $\mat{A}\T\mat{A}$ later in the chapter is
+the same idea applied to every pair of columns at once.
 
-Notice the order of multiplication carefully. Row times column, $(1\times n)(n\times 1)$, produces
-a $1\times 1$ scalar: the inner product (dot product). If you reverse the order to column times row,
-$(n\times 1)(1\times n)$, you obtain an $n\times n$ grid of numbers: the \emph{outer product} $\vec{u}\vec{v}\T$.
-Every row of an outer product is a scaled copy of $\vec{v}\T$, and every column is a scaled copy of $\vec{u}$.
-Keep row-times-column (number) sharply distinct from column-times-row (rank-one matrix).
+The order of multiplication matters. Row times column, $(1\times n)(n\times 1)$, produces
+a $1\times 1$ result: the dot product, also called the \emph{inner product}. Reverse the order to
+column times row, $(n\times 1)(1\times n)$, and you get an $n\times n$ grid of numbers: the
+\emph{outer product} $\vec{u}\vec{v}\T$ from Chapter~8. Every row of an outer product is a scaled
+copy of $\vec{v}\T$, and every column is a scaled copy of $\vec{u}$, which is what makes it a
+rank-one matrix. Figure~\ref{ch10:fig-inner-outer} puts the two side by side. Keep
+row-times-column (a number) distinct from column-times-row (a rank-one matrix).
 \end{example}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[every node/.style={font=\small}]
+  % inner product: row (1x3) times column (3x1) = 1x1
+  \begin{scope}
+    \draw[sourceblue,thick,fill=sourceblue!12] (0,1.0) rectangle (2.1,1.7);
+    \node at (1.05,1.35) {$\vec{u}\T$};
+    \node[sourceblue,above] at (1.05,1.7) {\footnotesize $1\times 3$};
+    \draw[targetgreen,thick,fill=targetgreen!12] (2.4,0) rectangle (3.1,2.1);
+    \node at (2.75,1.05) {$\vec{v}$};
+    \node[targetgreen,above] at (2.75,2.1) {\footnotesize $3\times 1$};
+    \node at (3.55,1.35) {$=$};
+    \draw[quotientorange,thick,fill=quotientorange!15] (4.0,1.0) rectangle (4.7,1.7);
+    \node[quotientorange,above] at (4.35,1.7) {\footnotesize $1\times 1$};
+    \node[below,align=center] at (2.35,-0.25) {row times column:\\ one number (inner product)};
+  \end{scope}
+  % outer product: column (3x1) times row (1x3) = 3x3
+  \begin{scope}[shift={(7.0,0)}]
+    \draw[targetgreen,thick,fill=targetgreen!12] (0,0) rectangle (0.7,2.1);
+    \node at (0.35,1.05) {$\vec{u}$};
+    \node[targetgreen,above] at (0.35,2.1) {\footnotesize $3\times 1$};
+    \draw[sourceblue,thick,fill=sourceblue!12] (1.0,1.4) rectangle (3.1,2.1);
+    \node at (2.05,1.75) {$\vec{v}\T$};
+    \node[sourceblue,above] at (2.05,2.1) {\footnotesize $1\times 3$};
+    \node at (3.55,1.05) {$=$};
+    \draw[quotientorange,thick,fill=quotientorange!15] (4.0,0) rectangle (6.1,2.1);
+    \foreach \t in {0.7,1.4} {\draw[quotientorange!60] (4.0,\t) -- (6.1,\t);
+                              \draw[quotientorange!60] (4.0+\t,0) -- (4.0+\t,2.1);}
+    \node[quotientorange,above] at (5.05,2.1) {\footnotesize $3\times 3$};
+    \node[below,align=center] at (3.05,-0.25) {column times row:\\ a full grid (outer product)};
+  \end{scope}
+\end{tikzpicture}
+\caption{The same two vectors multiplied in the two possible orders. Row times column gives a
+single number, the dot product. Column times row gives a $3\times 3$ matrix whose $(i,j)$ entry
+is $u_i v_j$.}
+\label{ch10:fig-inner-outer}
+\end{figure}
 
 \section{The algebra of transposes}
 
-Before we go further geometrically we need the rulebook. There are four rules; three are easy and
-one is the famous ``socks and shoes'' reversal. We will derive each, because a formula you can
-derive in three lines is a formula you will never misremember.
+Before going further we need the rules for computing with transposes. There are four; three are
+easy and one reverses the order of a product. We derive each, because a formula you can
+derive in three lines is a formula you will not misremember.
 
 \begin{theorem}[Rules of the transpose]\label{ch10:thm-rules}
 For matrices of compatible sizes and a scalar $c$:
@@ -179,12 +215,12 @@ For matrices of compatible sizes and a scalar $c$:
 \end{theorem}
 
 \begin{proof}
-Rules 1--3 are entry-chasing. For (1), the $(i,j)$ entry of $(\mat{A}+\mat{B})\T$ is by definition the
+Rules 1--3 follow by comparing entries. For (1), the $(i,j)$ entry of $(\mat{A}+\mat{B})\T$ is by definition the
 $(j,i)$ entry of $\mat{A}+\mat{B}$, which is $a_{ji}+b_{ji}$, which is the $(i,j)$ entry of
 $\mat{A}\T+\mat{B}\T$. Rule (2) is the same with a scalar pulled along. Rule (3) we already saw:
 reflecting twice is the identity.
 
-Rule (4) is the one worth doing carefully. Let $\mat{A}$ be $m\times n$ and $\mat{B}$ be $n\times p$,
+Rule (4) needs more care. Let $\mat{A}$ be $m\times n$ and $\mat{B}$ be $n\times p$,
 so $\mat{A}\mat{B}$ is $m\times p$ and $(\mat{A}\mat{B})\T$ is $p\times m$. The $(i,j)$ entry of
 $(\mat{A}\mat{B})\T$ is the $(j,i)$ entry of $\mat{A}\mat{B}$:
 \[
@@ -203,18 +239,24 @@ The two sums are identical (multiplication of scalars commutes), so the matrices
 \end{proof}
 
 \begin{trapbox}
-The order really does reverse. $(\mat{A}\mat{B})\T = \mat{B}\T\mat{A}\T$, \emph{not}
+The order does reverse. $(\mat{A}\mat{B})\T = \mat{B}\T\mat{A}\T$, \emph{not}
 $\mat{A}\T\mat{B}\T$. A quick way to see why it \emph{has} to reverse: if $\mat{A}$ is $2\times 3$ and
 $\mat{B}$ is $3\times 4$, then $\mat{A}\T\mat{B}\T$ tries to multiply a $3\times 2$ by a $4\times 3$ ---
 the inner dimensions $2$ and $4$ do not match, so it is not even defined. Only $\mat{B}\T\mat{A}\T$
 ($4\times 3$ times $3\times 2$) makes sense.
 \end{trapbox}
 
-A standard mnemonic illustrates the reversal: to take off your socks and shoes you reverse the order in which you put
-them on: shoes first, then socks. Transposing a product is the same --- whatever went on last comes
-off first. Combined with the inverse rule $(\mat{A}\mat{B})\inv = \mat{B}\inv\mat{A}\inv$ from
-Chapter~8, you get a clean fact: transpose and inverse commute with each other,
-$(\mat{A}\T)\inv = (\mat{A}\inv)\T$, a matrix so common it gets its own name, $\mat{A}^{-\mathsf{T}}$.
+A standard memory aid: to take off your socks and shoes you reverse the order in which you put
+them on, shoes first, then socks. Transposing a product works the same way: whatever went on last
+comes off first. The inverse of a product reverses in the same way,
+$(\mat{A}\mat{B})\inv = \mat{B}\inv\mat{A}\inv$ (Chapter~8). The two rules combine into a useful
+fact. If $\mat{A}$ is invertible, transpose both sides of $\mat{A}\mat{A}\inv=\mat{I}$ using rule (4):
+\[
+  (\mat{A}\inv)\T\mat{A}\T = \mat{I}\T = \mat{I}.
+\]
+So $(\mat{A}\inv)\T$ is the inverse of $\mat{A}\T$: transposing and inverting can be done in
+either order, $(\mat{A}\T)\inv = (\mat{A}\inv)\T$. This matrix comes up often enough to have its
+own short name, $\mat{A}^{-\mathsf{T}}$.
 
 \begin{labbox}
 Verify the reversal rule directly. Take
@@ -227,12 +269,38 @@ match. Then compute the wrong thing, $\mat{A}\T\mat{B}\T$, and watch it disagree
 $(\mat{A}\mat{B})\T = \begin{bsmallmatrix}11&4\\10&5\end{bsmallmatrix}$.)
 \end{labbox}
 
-Why does this reversal happen geometrically? Think of $\mat{A}\mat{B}\vec{x}$ as a two-stage assembly
+Why does the order reverse, geometrically? Think of $\mat{A}\mat{B}\vec{x}$ as a two-stage assembly
 line: first $\mat{B}$ transforms $\vec{x}$, and then $\mat{A}$ transforms $\mat{B}\vec{x}$.
-When we want to pull a measurement backward from the final output space back to the starting space
-(as we are about to see), we must pull it backward through $\mat{A}$ first, and only then backward
-through $\mat{B}$. The last operation to act in the forward direction is the first that must be
-undone in the backward direction.
+In the next section we will see that $\mat{A}\T$ carries vectors backward, from the output space of
+$\mat{A}$ to its input space. To travel backward along the whole line we must go back through
+$\mat{A}$ first, and only then back through $\mat{B}$: the last stage going forward is the first
+stage going back (Figure~\ref{ch10:fig-reversal}).
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[every node/.style={font=\small}]
+  \node[draw,thick,rounded corners,minimum width=1.6cm,minimum height=0.9cm] (s1) at (0,0) {start};
+  \node[draw,thick,rounded corners,minimum width=1.6cm,minimum height=0.9cm] (s2) at (4,0) {middle};
+  \node[draw,thick,rounded corners,minimum width=1.6cm,minimum height=0.9cm] (s3) at (8,0) {end};
+  % forward
+  \draw[-{Latex[length=2.5mm]},thick,sourceblue] (s1.north east) to[bend left=25]
+    node[above]{first $\mat{B}$} (s2.north west);
+  \draw[-{Latex[length=2.5mm]},thick,sourceblue] (s2.north east) to[bend left=25]
+    node[above]{then $\mat{A}$} (s3.north west);
+  % backward
+  \draw[-{Latex[length=2.5mm]},thick,targetgreen] (s3.south west) to[bend left=25]
+    node[below]{first $\mat{A}\T$} (s2.south east);
+  \draw[-{Latex[length=2.5mm]},thick,targetgreen] (s2.south west) to[bend left=25]
+    node[below]{then $\mat{B}\T$} (s1.south east);
+  \node[sourceblue,above] at (4,1.25) {forward: $\mat{A}\mat{B}$ (read right to left)};
+  \node[targetgreen,below] at (4,-1.25) {backward: $(\mat{A}\mat{B})\T=\mat{B}\T\mat{A}\T$};
+\end{tikzpicture}
+\caption{Forward, $\mat{B}$ acts first and $\mat{A}$ second. Going backward, the stages are passed
+in the opposite order: $\mat{A}\T$ first, then $\mat{B}\T$. Written as a product (rightmost factor
+acts first) that is $\mat{B}\T\mat{A}\T$. The transposes go in the reverse direction; they are not
+inverses in general.}
+\label{ch10:fig-reversal}
+\end{figure}
 
 \begin{recoverybox}
 \textbf{Pause and think:} What is the transpose of a three-matrix product $(\mat{A}\mat{B}\mat{C})\T$?
@@ -242,8 +310,8 @@ The reversal rule applies to products of any length: reverse the factor order co
 
 \section{The transpose is the adjoint}
 
-Now comes the identity that explains \emph{why} the transpose is the right notion and not just a
-formatting trick.
+The next identity shows that the transpose is more than a way of rearranging a table: it tells
+you how a matrix can be moved from one side of a dot product to the other.
 
 \begin{theorem}[The transpose moves across the inner product]\label{ch10:thm-adjoint}
 Let $\mat{A}$ be an $m\times n$ real matrix, $\vec{x}\in\R^n$, and $\vec{y}\in\R^m$. Then
@@ -265,16 +333,18 @@ using rule (4): $(\mat{A}\vec{x})\T = \vec{x}\T\mat{A}\T$. The right side is
   = \vec{x}\T(\mat{A}\T\vec{y})
   = \vec{x}\T\mat{A}\T\vec{y}.
 \]
-Both equal the same $1\times 1$ quantity $\vec{x}\T\mat{A}\T\vec{y}$. Done.
+Both equal the same $1\times 1$ quantity $\vec{x}\T\mat{A}\T\vec{y}$.
 \end{proof}
 
-The proof is two lines, but its meaning is large. The matrix $\mat{A}$ takes vectors from the input
+Here is what the theorem says. The matrix $\mat{A}$ takes vectors from the input
 space $\R^n$ over to the output space $\R^m$. The
-transpose $\mat{A}\T$ runs the other way, from $\R^m$ back to $\R^n$. The theorem says: it does not
-matter whether you push $\vec{x}$ forward through $\mat{A}$ and then measure it against $\vec{y}$ in
-the output space, or pull $\vec{y}$ backward through $\mat{A}\T$ and then measure it against $\vec{x}$
-in the input space. You get the same number. The transpose is the unique matrix that lets you
-``hand the matrix across'' the inner product.
+transpose $\mat{A}\T$ runs the other way, from $\R^m$ back to $\R^n$. It does not
+matter whether you push $\vec{x}$ forward through $\mat{A}$ and then take its dot product with
+$\vec{y}$ in the output space, or pull $\vec{y}$ backward through $\mat{A}\T$ and then take its
+dot product with $\vec{x}$ in the input space. You get the same number
+(Figure~\ref{ch10:fig-adjoint}). The transpose is the only matrix with this property for all
+$\vec{x}$ and $\vec{y}$. A matrix that partners $\mat{A}$ in this way is called the
+\emph{adjoint} of $\mat{A}$; for real matrices the adjoint is the transpose.
 
 \begin{figure}[H]
 \centering
@@ -296,10 +366,10 @@ in the input space. You get the same number. The transpose is the unique matrix 
   % backward A^T
   \draw[-{Latex[length=2.5mm]},thick,targetgreen] (y) to[bend left=18] node[below]{$\mat{A}\T$} (ATy);
   % the two inner products
-  \draw[densely dotted,quotientorange,thick] (Ax) -- (y)
-    node[midway,right]{$\inner{\mat{A}\vec{x}}{\vec{y}}$};
-  \draw[densely dotted,quotientorange,thick] (x) -- (ATy)
-    node[midway,left]{$\inner{\vec{x}}{\mat{A}\T\vec{y}}$};
+  \draw[densely dotted,quotientorange,thick] (Ax) -- (y);
+  \node[quotientorange,right] at (6.65,0) {$\inner{\mat{A}\vec{x}}{\vec{y}}$};
+  \draw[densely dotted,quotientorange,thick] (x) -- (ATy);
+  \node[quotientorange,left] at (-1.65,0) {$\inner{\vec{x}}{\mat{A}\T\vec{y}}$};
 \end{tikzpicture}
 \caption{The adjoint relation. Push $\vec{x}$ forward by $\mat{A}$ and pair with $\vec{y}$ on the
 right; or pull $\vec{y}$ back by $\mat{A}\T$ and pair with $\vec{x}$ on the left. The two dotted
@@ -308,39 +378,46 @@ pairings give the same number.}
 \end{figure}
 
 \begin{aestheticbox}
-This is the reason mathematicians often call $\mat{A}\T$ the \emph{adjoint} of $\mat{A}$. In more
-advanced settings (infinite-dimensional spaces, differential operators, quantum mechanics) the
-matrix entries vanish entirely and the \emph{only} thing that survives is exactly this relation:
-the adjoint $\mat{A}^{*}$ of an operator $\mat{A}$ is \emph{defined} as the operator satisfying
-$\inner{\mat{A}\vec{x}}{\vec{y}}=\inner{\vec{x}}{\mat{A}^{*}\vec{y}}$ for all $\vec{x},\vec{y}$. The
-matrix transpose is the finite-dimensional foundation of this general concept in analysis. When you meet
-$\frac{d}{dx}$ and its adjoint $-\frac{d}{dx}$ later, you will recognize this same picture.
+In more advanced settings the ``vectors'' can be functions and the ``matrices'' can be
+\emph{operators}, rules that turn one function into another, such as taking a derivative. There are
+no tables of entries to flip, so the transpose cannot be defined by swapping indices. What survives
+is this relation: the adjoint $\mat{A}^{*}$ of an operator $\mat{A}$ is \emph{defined} as the
+operator satisfying $\inner{\mat{A}\vec{x}}{\vec{y}}=\inner{\vec{x}}{\mat{A}^{*}\vec{y}}$ for all
+$\vec{x},\vec{y}$. The matrix transpose is the first and simplest case. For example, with a suitable
+dot product for functions, the adjoint of the derivative $\frac{d}{dx}$ turns out to be
+$-\frac{d}{dx}$, a fact you will meet in courses on differential equations and quantum mechanics.
 \end{aestheticbox}
 
 \begin{strangbox}
-\textbf{Before Strang:} when he writes $\mat{A}\T$, do not read it merely as a flipped array of
-numbers. Read it as the matrix that maps outputs back to inputs while preserving dot products.
-That reading makes the four fundamental subspaces (coming a few chapters from now) feel inevitable
-rather than mysterious: the column space of $\mat{A}\T$ is the row space of $\mat{A}$, and
-orthogonality between the subspaces is just Theorem~\ref{ch10:thm-adjoint} with one side set to
-zero. \textbf{After Strang:} this identity is the engine of backpropagation, of the normal
-equations, and of the adjoint method in optimization and PDEs.
+\textbf{Before Strang:} when he writes $\mat{A}\T$, do not read it only as a flipped array of
+numbers. Read it as the matrix that carries vectors from the output space of $\mat{A}$ back to its
+input space, linked to $\mat{A}$ by Theorem~\ref{ch10:thm-adjoint}. That reading prepares you for
+the four fundamental subspaces of Chapter~15 (four sets of vectors attached to every matrix). For
+instance, the column space of $\mat{A}\T$ (all the vectors $\mat{A}\T\vec{y}$ can produce) is the
+row space of $\mat{A}$ (all combinations of the rows of $\mat{A}$), and the right angles between
+these subspaces come from Theorem~\ref{ch10:thm-adjoint} with one side set to zero.
+\textbf{After Strang:} the same identity drives backpropagation in neural networks (next box) and
+the \emph{normal equations} $\mat{A}\T\mat{A}\vec{x}=\mat{A}\T\vec{b}$ used for least-squares
+fitting in Chapter~19.
 \end{strangbox}
 
 \begin{applicationbox}
-\textbf{Backpropagation is a transpose.} A layer of a neural network computes
-$\vec{z}=\mat{W}\vec{x}$ (followed by a nonlinearity we will ignore here). Training needs the
-gradient of a scalar loss $L$ with respect to the input, given the gradient with respect to the
-output. The chain rule says: if $\vec{g}=\partial L/\partial \vec{z}$ is the ``upstream gradient'' in
-the output space, then the gradient in the input space is
+\textbf{Backpropagation is a transpose.} A neural network is built from layers; a basic layer takes
+an input vector $\vec{x}$ and computes $\vec{z}=\mat{W}\vec{x}$ for a matrix $\mat{W}$ of adjustable
+numbers (followed by a simple nonlinear function that we ignore here). Training adjusts $\mat{W}$ to
+make a single number $L$, the \emph{loss} (a measure of how wrong the network's answers are), as
+small as possible. For that, it needs the \emph{gradient} of $L$ with respect to $\vec{x}$: the
+vector of rates of change $\partial L/\partial x_i$, one for each entry of $\vec{x}$. Suppose the
+gradient with respect to the output, $\vec{g}=\partial L/\partial \vec{z}$, is already known. The
+chain rule from calculus then gives the gradient with respect to the input:
 \[
   \frac{\partial L}{\partial \vec{x}} = \mat{W}\T \vec{g}.
 \]
-The forward pass multiplies by $\mat{W}$; the backward pass multiplies by $\mat{W}\T$. That is
-exactly Theorem~\ref{ch10:thm-adjoint}: gradients are covectors that live in the output space, and
-the transpose is what pulls them back to the input space. Every deep-learning framework implements
-``the backward of a matmul is a matmul by the transpose'' --- the whole training loop is the adjoint
-relation applied layer by layer.
+The forward pass multiplies by $\mat{W}$; the backward pass multiplies by $\mat{W}\T$, carrying
+the gradient from the output space back to the input space, as in Figure~\ref{ch10:fig-adjoint}.
+Deep-learning software implements this rule for every matrix product: ``to go backward through a
+multiplication by $\mat{W}$, multiply by $\mat{W}\T$.'' Training a network applies it layer by
+layer, from the last layer to the first.
 \end{applicationbox}
 
 \begin{recoverybox}
@@ -357,12 +434,11 @@ number is identical.
 
 \section{Symmetric matrices}
 
-Now that we understand how the transpose moves operators across inner products, a natural question
-arises: what happens when transposing a matrix does not change it at all?
+A natural question: what if transposing a matrix does not change it at all?
 
 \subsection{When a matrix equals its own mirror image}
 
-A matrix that is unchanged by transposing is the most important special case in the entire subject.
+Matrices that are unchanged by transposing turn up throughout the rest of the book.
 
 \begin{definition}[Symmetric matrix]\label{ch10:def-symmetric}
 A square matrix $\mat{A}$ is \emph{symmetric} if $\mat{A}\T=\mat{A}$, that is, $a_{ij}=a_{ji}$ for all
@@ -374,22 +450,27 @@ For example,
   \mat{S}=\begin{bmatrix} 2 & 7 & -1 \\ 7 & 0 & 3 \\ -1 & 3 & 5 \end{bmatrix}
 \]
 is symmetric: the entry above the diagonal at position $(1,2)$ is $7$, and so is the entry below at
-$(2,1)$. The whole matrix is determined by its diagonal and the triangle above it; the lower triangle
-is just a copy folded over. An $n\times n$ symmetric matrix has only $n + \binom{n}{2}=\binom{n+1}{2}$
-free numbers instead of $n^2$.
+$(2,1)$; likewise $s_{13}=s_{31}=-1$ and $s_{23}=s_{32}=3$. The whole matrix is determined by its
+diagonal and the triangle above it; the lower triangle is a copy folded over. Counting the $n$
+diagonal entries plus the $n(n-1)/2$ entries above the diagonal, an $n\times n$ symmetric matrix
+has only
+\[
+  n + \frac{n(n-1)}{2} = \frac{n(n+1)}{2}
+\]
+free numbers instead of $n^2$ (for $n=3$: six instead of nine).
 
 \begin{intuitionbox}
 A symmetric matrix is one where ``the influence of $i$ on $j$ equals the influence of $j$ on $i$.''
-Think of a spring connecting two masses: the force the first exerts on the second equals the force
-the second exerts on the first. Or a road network where the distance from town $i$ to town $j$ is
-the same as from $j$ to $i$. Symmetry encodes a two-way, reciprocal relationship --- and it is no
-accident that such matrices have the nicest possible eigenvectors (real, orthogonal), a fact we will
-prove in the spectral-theorem chapter.
+Think of a table of road distances, where the distance from town $i$ to town $j$ is
+the same as from $j$ to $i$, or a table recording who is friends with whom. Symmetry encodes a
+two-way relationship. Such matrices also have especially well-behaved \emph{eigenvectors}
+(the directions a matrix only stretches, without turning; see Chapter~1): they can always be chosen
+perpendicular to each other, a fact proved in Chapter~26.
 \end{intuitionbox}
 
-\subsection{\texorpdfstring{$\mat{A}\T\mat{A}$}{ATA} is always symmetric --- and it is everywhere}
+\subsection{\texorpdfstring{$\mat{A}\T\mat{A}$}{ATA} is always symmetric}
 
-Here is a manufacturing process for symmetric matrices that works on \emph{any} matrix, square or
+There is a way to build a symmetric matrix from \emph{any} matrix, square or
 not. Take any $m\times n$ matrix $\mat{A}$ and form $\mat{A}\T\mat{A}$.
 
 \begin{proposition}[The fundamental symmetric matrices]\label{ch10:prop-ATA}
@@ -427,8 +508,8 @@ Then
 Read the entries: the $(1,1)$ entry $2=\vec{a}_1\T\vec{a}_1=\norm{\vec{a}_1}^2$; the $(2,2)$ entry
 $5=\norm{\vec{a}_2}^2$; the off-diagonal $1=\vec{a}_1\T\vec{a}_2=\vec{a}_2\T\vec{a}_1$. In general the
 $(i,j)$ entry of $\mat{A}\T\mat{A}$ is the dot product $\vec{a}_i\T\vec{a}_j$ of column $i$ with column
-$j$. The matrix is symmetric precisely because $\vec{a}_i\T\vec{a}_j=\vec{a}_j\T\vec{a}_i$. This grid
-of all pairwise dot products is so useful it has a name: the \emph{Gram matrix} of the columns.
+$j$. The matrix is symmetric because $\vec{a}_i\T\vec{a}_j=\vec{a}_j\T\vec{a}_i$. This grid
+of all pairwise dot products is called the \emph{Gram matrix} of the columns.
 \end{example}
 
 \begin{focusbox}
@@ -471,23 +552,26 @@ because $\vec{a}_i\T\vec{a}_j=\vec{a}_j\T\vec{a}_i$: the matrix is symmetric by 
 \end{figure}
 
 \begin{applicationbox}
-\textbf{Covariance matrices and PCA.} Suppose you have a data set: $m$ samples, each with $n$
-measured features, stacked as the rows of a matrix $\mat{X}$ (so $\mat{X}$ is $m\times n$). After
-subtracting the mean of each column, the matrix
+\textbf{Covariance matrices and PCA.} Suppose you have a data set: $m$ samples (say, $m$ people),
+each with $n$ measured features (height, weight, age, \dots), stacked as the rows of a matrix
+$\mat{X}$ (so $\mat{X}$ is $m\times n$). First subtract from each column its average, so that every
+feature is measured as a deviation from its mean. Then the matrix
 \[
-  \mat{C} = \tfrac{1}{m-1}\,\mat{X}\T\mat{X}
+  \mat{C} = \frac{1}{m-1}\,\mat{X}\T\mat{X}
 \]
-is the \emph{covariance matrix} of the features. Its $(i,j)$ entry is the covariance between feature
-$i$ and feature $j$; its diagonal holds the variances. It is symmetric for exactly the reason in
-Example~\ref{ch10:ex-ATA}, and that symmetry guarantees real eigenvalues and orthogonal eigenvectors
---- the principal components. Principal Component Analysis, the core tool for dimensionality
-reduction, is exactly the spectral analysis of a symmetric $\mat{X}\T\mat{X}$. The transpose is
-what turns raw data into reciprocal, analyzable structure.
+is the \emph{covariance matrix} of the features. Its diagonal entry $(i,i)$ is the \emph{variance}
+of feature $i$, the average squared deviation, which measures how spread out that feature is. Its
+off-diagonal entry $(i,j)$ is the \emph{covariance} of features $i$ and $j$: positive when the two
+tend to be above average together, negative when one tends to be high while the other is low. It
+is symmetric for the same reason as in Example~\ref{ch10:ex-ATA}. Because it is symmetric, its
+eigenvectors can be chosen perpendicular to each other; these are the \emph{principal components},
+the directions in which the data varies most. \emph{Principal component analysis} (PCA) uses them
+to describe data with many features using only a few directions (Chapter~30).
 \end{applicationbox}
 
 \subsection{Splitting any square matrix into symmetric plus antisymmetric}
 
-A nice structural fact, and a good exercise in the rules. A matrix with $\mat{A}\T=-\mat{A}$ is called
+This fact is a good exercise in the rules. A matrix with $\mat{A}\T=-\mat{A}$ is called
 \emph{antisymmetric} (or skew-symmetric); its diagonal must be zero and entries flip sign across the
 fold. Every square matrix splits uniquely into a symmetric part and an antisymmetric part:
 \[
@@ -495,30 +579,40 @@ fold. Every square matrix splits uniquely into a symmetric part and an antisymme
   = \underbrace{\tfrac12(\mat{A}+\mat{A}\T)}_{\text{symmetric}}
   + \underbrace{\tfrac12(\mat{A}-\mat{A}\T)}_{\text{antisymmetric}}.
 \]
-Check the first piece is symmetric: $\big(\tfrac12(\mat{A}+\mat{A}\T)\big)\T
-=\tfrac12(\mat{A}\T+\mat{A})$, the same thing. Check the second is antisymmetric:
-$\big(\tfrac12(\mat{A}-\mat{A}\T)\big)\T=\tfrac12(\mat{A}\T-\mat{A})$, which is the negative of the
-original. Add the two pieces and the $\mat{A}\T$ terms cancel, returning $\mat{A}$.
+Check the first piece is symmetric:
+\[
+  \Bigl(\tfrac12(\mat{A}+\mat{A}\T)\Bigr)\T = \tfrac12(\mat{A}\T+\mat{A}),
+\]
+the same matrix. Check the second is antisymmetric:
+\[
+  \Bigl(\tfrac12(\mat{A}-\mat{A}\T)\Bigr)\T = \tfrac12(\mat{A}\T-\mat{A}),
+\]
+which is the negative of the original. Add the two pieces and the $\mat{A}\T$ terms cancel,
+returning $\mat{A}$.
 
 \begin{connectionbox}
-This decomposition is the matrix mirror of even-plus-odd in calculus. Any function splits as
-$f(x)=\tfrac12\big(f(x)+f(-x)\big)+\tfrac12\big(f(x)-f(-x)\big)$, an even part plus an odd part,
-exactly as a matrix splits into a transpose-even (symmetric) part plus a transpose-odd
-(antisymmetric) part. In both cases an \emph{involution} --- an operation that serves as its own undo
-when applied twice, like negating an input ($x \mapsto -x$) or reflecting across a mirror --- carves
-the space into a $+1$ piece and a $-1$ piece. The antisymmetric $3\times 3$
-matrices, by the way, are exactly the cross-product operators $\vec{v}\mapsto \vec{w}\times\vec{v}$,
-which is why rotations in $\R^3$ come from antisymmetric generators. Symmetry and antisymmetry under
-the transpose are a recurring theme you will keep meeting.
+This decomposition mirrors a familiar fact about functions. A function is \emph{even} if
+$f(-x)=f(x)$ (like $x^2$) and \emph{odd} if $f(-x)=-f(x)$ (like $x^3$). Any function splits as
+\[
+  f(x)=\tfrac12\bigl(f(x)+f(-x)\bigr)+\tfrac12\bigl(f(x)-f(-x)\bigr),
+\]
+an even part plus an odd part, in the same way a matrix splits into a part the transpose leaves
+alone (symmetric) plus a part the transpose negates (antisymmetric). In both cases the operation
+involved (replacing $x$ by $-x$, or transposing) undoes itself when done twice; an operation with
+that property is called an \emph{involution}, and every involution splits things this way.
+Antisymmetric $3\times 3$ matrices also have a geometric meaning: each one multiplies a vector
+$\vec{v}$ the way a cross product $\vec{w}\times\vec{v}$ does, for some fixed vector $\vec{w}$, and
+they describe how a rotating object in $\R^3$ is turning at each instant.
 \end{connectionbox}
 
 \section{Permutation matrices: shuffling without distorting}
 
 \subsection{Reordering the rows of the identity}
 
-We now switch to the second star of the chapter. A permutation matrix is what you get by taking the
-identity matrix and rearranging its rows. Nothing more. Yet these matrices are the cleanest possible
-example of an \emph{orthogonal} matrix, our first rigid motion of space.
+Now the second operation of the chapter. A permutation matrix is what you get by taking the
+identity matrix and rearranging its rows. These simple matrices move space without stretching,
+squashing, or bending it, and they will be our first examples of the \emph{orthogonal} matrices
+defined later in this chapter.
 
 \begin{definition}[Permutation matrix]\label{ch10:def-perm}
 A \emph{permutation matrix} $\mat{P}$ is a square matrix obtained by permuting the rows (equivalently,
@@ -540,9 +634,9 @@ permutation can do something more interesting, a \emph{cycle}:
   \mat{P}\colvec{x\\y\\z}=\colvec{z\\x\\y}.
 \]
 The old third coordinate becomes the new first, the old first becomes the new second, and the old
-second becomes the new third: a $3$-cycle. Notice that whatever $\mat{P}$ does, it never adds,
-scales, or blends coordinates. It only relocates them. A permutation does only one thing:
-it rigidly relabels the coordinate axes.
+second becomes the new third: a $3$-cycle. Whatever $\mat{P}$ does, it never adds,
+scales, or blends coordinates. It only moves them to new positions, which amounts to relabeling
+the coordinate axes.
 
 Because $\mat{P}\vec{e}_j$ is the $j$th column of $\mat{P}$, the action on the standard basis is the
 fastest way to read a permutation. Here the columns of $\mat{P}$ are $\vec{e}_2,\vec{e}_3,\vec{e}_1$,
@@ -610,7 +704,7 @@ and $\vec{e}_2$ trade places.}
 
 \subsection{Multiplying by $\mat{P}$ on the left vs. on the right}
 
-Remember the handedness of this action: multiplying \emph{on the left} by $\mat{P}$ permutes the \emph{rows} of
+Keep track of which side $\mat{P}$ is on: multiplying \emph{on the left} by $\mat{P}$ permutes the \emph{rows} of
 whatever it hits; multiplying \emph{on the right} permutes the \emph{columns}. Watch it with the swap
 matrix:
 \[
@@ -624,35 +718,60 @@ matrix:
   = \begin{bmatrix}b&a\\d&c\end{bmatrix}
   \quad(\text{columns swapped}).
 \]
-This is exactly the row-exchange operation you met during elimination: when a pivot is zero you swap
+This is the row-exchange operation you met during elimination: when a pivot is zero you swap
 rows, and that swap is recorded as a left multiplication by a permutation matrix. (In $\mat{P}\mat{A}=\mat{L}\mat{U}$
-the $\mat{P}$ is precisely the bookkeeping of which rows got exchanged.)
+the $\mat{P}$ records which rows got exchanged.)
 
 \subsection{How many are there, and how do they multiply?}
 
-There are exactly $n!$ permutation matrices of size $n\times n$, one for each way to reorder $n$
-items: $\mat{P}$ for $n=2$ has $2!=2$ members (identity and the swap), $n=3$ has $3!=6$, and so on.
+There are exactly $n!$ (``$n$ factorial'', $n\cdot(n-1)\cdots 2\cdot 1$) permutation matrices of
+size $n\times n$, one for each way to reorder $n$ items: for $n=2$ there are $2!=2$ (the identity
+and the swap), for $n=3$ there are $3!=6$ (Figure~\ref{ch10:fig-six-perms}), and so on.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[every node/.style={font=\small}]
+  \foreach \k/\m/\lab/\col in {
+      0/{1&0&0\\0&1&0\\0&0&1}/{identity}/spacegray,
+      1/{0&1&0\\1&0&0\\0&0&1}/{swap 1,2}/sourceblue,
+      2/{0&0&1\\0&1&0\\1&0&0}/{swap 1,3}/sourceblue,
+      3/{1&0&0\\0&0&1\\0&1&0}/{swap 2,3}/sourceblue,
+      4/{0&0&1\\1&0&0\\0&1&0}/{cycle}/targetgreen,
+      5/{0&1&0\\0&0&1\\1&0&0}/{cycle back}/targetgreen} {
+    \node (p\k) at ({2.25*\k},0) {$\begin{bmatrix}\m\end{bmatrix}$};
+    \node[\col,below=1mm of p\k] {\lab};
+  }
+\end{tikzpicture}
+\caption{All six $3\times 3$ permutation matrices. Each has exactly one $1$ in every row and every
+column. Blue: the three swaps of two rows. Green: the two $3$-cycles; the first is the matrix
+$\mat{P}$ above, and the second is its transpose.}
+\label{ch10:fig-six-perms}
+\end{figure}
+
 The product of two permutation matrices is another permutation matrix (do one shuffle, then the
-other --- still a shuffle). The identity matrix is a permutation (the do-nothing shuffle). And every
+other: still a shuffle). The identity matrix is a permutation (the do-nothing shuffle). And every
 permutation matrix has an inverse that is also a permutation matrix (reversing the shuffle undoes it).
-A collection of operations with these properties --- closure under multiplication, associativity, an
-identity element, and an inverse for every member --- is what mathematicians call a \emph{group}:
-a self-contained algebraic system describing symmetries.
+Matrix multiplication is also \emph{associative}: $(\mat{P}_1\mat{P}_2)\mat{P}_3=\mat{P}_1(\mat{P}_2\mat{P}_3)$.
+A collection with these four properties (products stay in the collection, the product is associative,
+there is an identity, and every member has an inverse in the collection) is what mathematicians call
+a \emph{group}, as in Chapter~1.
 
 \begin{connectionbox}
 The $n\times n$ permutation matrices form a group under multiplication, and it is an exact copy of
-the \emph{symmetric group} $S_n$ --- the group of all rearrangements of $n$ symbols. This is the
-historical birthplace of group theory (Galois, permuting the roots of a polynomial). So when you
-multiply two permutation matrices you are composing two shuffles, and the noncommutativity you may
-notice (doing swap-then-cycle differs from cycle-then-swap) is the same noncommutativity that makes
-$S_3$ the smallest nonabelian group. In fact, by Cayley's theorem, every finite group can be
-realized as a group of permutation matrices.
+the \emph{symmetric group} $S_n$, the group of all rearrangements of $n$ symbols (met briefly in
+Chapter~9). Group theory began here: in the 1830s \'Evariste Galois studied how the roots of a
+polynomial equation can be rearranged. When you multiply two permutation matrices you are
+composing two shuffles, and the order matters: doing swap-then-cycle generally differs from
+cycle-then-swap (Exercise~\ref{ch10:ex-count}). A group in which order can matter like this is
+called \emph{nonabelian} (noncommutative), and $S_3$, with its six members, is the smallest
+nonabelian group. In fact, by a theorem of Cayley, every finite group can be realized as a group of
+permutation matrices.
 \end{connectionbox}
 
 \section{The inverse of a permutation is its transpose}
 
-Here the two halves of the chapter meet. To undo a shuffle you shuffle back, and the ``shuffle
-back'' matrix is precisely the \emph{transpose} of the original.
+To undo a shuffle you shuffle back, and the ``shuffle back'' matrix is the \emph{transpose} of the
+original. This is where the two operations of the chapter meet.
 
 \begin{theorem}[Permutations are orthogonal]\label{ch10:thm-perm-orth}
 Every permutation matrix $\mat{P}$ satisfies
@@ -665,23 +784,26 @@ Every permutation matrix $\mat{P}$ satisfies
 
 \begin{proof}
 The columns of $\mat{P}$ are the standard basis vectors $\vec{e}_1,\dots,\vec{e}_n$ in \emph{some}
-order; say column $j$ of $\mat{P}$ is $\vec{e}_{\sigma(j)}$ for some rearrangement $\sigma$. The
-$(i,j)$ entry of $\mat{P}\T\mat{P}$ is the dot product of column $i$ with column $j$ of $\mat{P}$:
+order; say column $j$ of $\mat{P}$ is $\vec{e}_{\sigma(j)}$, where $\sigma(j)$ is the row in which
+column $j$ has its $1$. The $(i,j)$ entry of $\mat{P}\T\mat{P}$ is the dot product of column $i$
+with column $j$ of $\mat{P}$:
 \[
   (\mat{P}\T\mat{P})_{ij} = \vec{e}_{\sigma(i)}\T\,\vec{e}_{\sigma(j)}.
 \]
-Standard basis vectors are orthonormal: $\vec{e}_a\T\vec{e}_b$ is $1$ when $a=b$ and $0$ otherwise.
-Since $\sigma$ is a one-to-one rearrangement, $\sigma(i)=\sigma(j)$ exactly when $i=j$. So the dot
-product is $1$ on the diagonal and $0$ off it. That is the identity: $\mat{P}\T\mat{P}=\mat{I}$.
-Hence $\mat{P}\T$ is a left inverse of the square matrix $\mat{P}$, so it is the inverse.
+Standard basis vectors have length $1$ and are perpendicular to each other: $\vec{e}_a\T\vec{e}_b$
+is $1$ when $a=b$ and $0$ otherwise. Different columns have their $1$ in different rows, so
+$\sigma(i)=\sigma(j)$ exactly when $i=j$. So the dot product is $1$ on the diagonal and $0$ off
+it. That is the identity: $\mat{P}\T\mat{P}=\mat{I}$. For a square matrix, a one-sided inverse is
+automatically the two-sided inverse (Chapter~8), so $\mat{P}\inv=\mat{P}\T$.
 \end{proof}
 
 This is your \emph{first orthogonal matrix}. A square matrix $\mat{Q}$ is called \emph{orthogonal} when
-$\mat{Q}\T\mat{Q}=\mat{I}$, which means its columns are \emph{orthonormal}: every column has length $1$
-(normal) and every pair of distinct columns is perpendicular (orthogonal, with dot product zero).
+$\mat{Q}\T\mat{Q}=\mat{I}$. Since the $(i,j)$ entry of $\mat{Q}\T\mat{Q}$ is the dot product of
+columns $i$ and $j$, this means its columns are \emph{orthonormal}: every column has length $1$
+and every pair of distinct columns is perpendicular (dot product zero).
 Theorem~\ref{ch10:thm-perm-orth} says
-permutation matrices are orthogonal, and they are the most transparent example: their columns are
-literally the standard basis, shuffled, which is the most orthonormal a set of vectors can be.
+permutation matrices are orthogonal, and they are the simplest example: their columns are
+the standard basis vectors, shuffled.
 
 \begin{example}[Transpose undoes the cycle]\label{ch10:ex-cycle-inverse}
 Take the $3$-cycle from before and its transpose:
@@ -700,20 +822,23 @@ opposite cycle. Compose them:
 \]
 Shuffle forward, shuffle back, home again. For a plain swap like
 $\left[\begin{smallmatrix}0&1\\1&0\end{smallmatrix}\right]$ the matrix equals its own transpose, so
-the swap is its own inverse --- which matches the picture: reflecting across $y=x$ twice does nothing.
+the swap is its own inverse, which matches the picture: reflecting across $y=x$ twice does nothing.
 \end{example}
 
 \begin{aestheticbox}
-Notice how the two halves of this chapter lock together. The transpose was defined so that
-$\inner{\mat{Q}\vec{x}}{\mat{Q}\vec{y}} = \inner{\vec{x}}{\mat{Q}\T\mat{Q}\vec{y}}$.
-Preserving every dot product therefore requires $\mat{Q}\T\mat{Q}=\mat{I}$, which immediately
-forces $\mat{Q}\inv=\mat{Q}\T$. Permutations are the discrete prototype of this rule, preserving
-lengths by shuffling axes; in Chapter~17, rotations and reflections will do the same thing
-continuously.
+Here the two halves of this chapter fit together. By Theorem~\ref{ch10:thm-adjoint} (with
+$\mat{Q}\vec{x}$ in the role of $\mat{A}\vec{x}$ and $\mat{Q}\vec{y}$ in the role of $\vec{y}$),
+\[
+  \inner{\mat{Q}\vec{x}}{\mat{Q}\vec{y}} = \inner{\vec{x}}{\mat{Q}\T\mat{Q}\vec{y}}.
+\]
+So if $\mat{Q}\T\mat{Q}=\mat{I}$, the matrix $\mat{Q}$ preserves every dot product, and then
+$\mat{Q}\inv=\mat{Q}\T$. (The converse also holds: a matrix that preserves every dot product must
+have $\mat{Q}\T\mat{Q}=\mat{I}$.) Permutations preserve lengths by shuffling axes; in Chapter~17,
+rotations and reflections at any angle will do the same.
 \end{aestheticbox}
 
-The geometric payoff is that orthogonal matrices --- and permutations in particular --- preserve
-lengths. Here is the direct verification.
+Orthogonal matrices, and permutations in particular, preserve lengths and angles. The proof is
+short.
 
 \begin{proposition}[Orthogonal matrices preserve length and angle]\label{ch10:prop-isometry}
 If $\mat{Q}\T\mat{Q}=\mat{I}$, then for all $\vec{x},\vec{y}$,
@@ -725,7 +850,7 @@ If $\mat{Q}\T\mat{Q}=\mat{I}$, then for all $\vec{x},\vec{y}$,
 \end{proposition}
 
 \begin{proof}
-Use the adjoint relation (Theorem~\ref{ch10:thm-adjoint}) directly:
+Use the reversal rule $(\mat{Q}\vec{x})\T=\vec{x}\T\mat{Q}\T$:
 \[
   (\mat{Q}\vec{x})\T(\mat{Q}\vec{y})
   = \vec{x}\T\mat{Q}\T\mat{Q}\,\vec{y}
@@ -733,16 +858,18 @@ Use the adjoint relation (Theorem~\ref{ch10:thm-adjoint}) directly:
   = \vec{x}\T\vec{y}.
 \]
 Setting $\vec{y}=\vec{x}$ gives $\norm{\mat{Q}\vec{x}}^2=\norm{\vec{x}}^2$, and lengths are
-nonnegative, so $\norm{\mat{Q}\vec{x}}=\norm{\vec{x}}$.
+nonnegative, so $\norm{\mat{Q}\vec{x}}=\norm{\vec{x}}$. Angles are preserved too, because the angle
+between two vectors is computed from their dot product and lengths (Chapter~4), and $\mat{Q}$
+changes none of these.
 \end{proof}
 
-For a permutation this is obvious in hindsight: $\mat{P}\vec{x}$ has the same numbers as $\vec{x}$,
-just in a different order, and reordering the entries cannot change $\sqrt{x_1^2+\cdots+x_n^2}$
+For a permutation you can see this directly: $\mat{P}\vec{x}$ has the same numbers as $\vec{x}$
+in a different order, and reordering the entries cannot change $\sqrt{x_1^2+\cdots+x_n^2}$
 (Figure~\ref{ch10:fig-isometry}). The
-proposition says the abstract reason (orthogonality) agrees with the concrete one (same numbers,
-reshuffled). The determinant of a permutation matrix is therefore $\pm 1$ --- it is $+1$ for an even
-number of swaps and $-1$ for an odd number, the ``sign of the permutation'' that will reappear when
-we build determinants.
+proposition gives the general reason (orthogonality), and it agrees with the concrete one (same
+numbers, reshuffled). The determinant of a permutation matrix is $\pm 1$: as Chapter~9 noted, it
+is $+1$ if the permutation can be done by an even number of swaps and $-1$ for an odd number. This
+``sign of the permutation'' returns in Chapter~22, where it gives the sign of each term in a formula for the determinant.
 
 \begin{figure}[H]
 \centering
@@ -779,37 +906,40 @@ length preservation.}
 \end{figure}
 
 \begin{walkbox}
-Take a walk and turn this over. A permutation matrix preserves all lengths and angles, so as a
-rigid motion it is some rotation or reflection of space. Question: which permutations are pure
-rotations (determinant $+1$) and which include a reflection (determinant $-1$)? Try the $2\times 2$
-swap (is exchanging $x$ and $y$ a rotation, or a flip?) and the $3$-cycle. Can a single transposition
-ever be a rotation of the plane? What does its determinant tell you?
+Take a walk and turn this over. A permutation matrix preserves all lengths and angles, so it moves
+space rigidly, like a solid object: it is a rotation, a reflection, or a combination of the two.
+Question: which permutations are pure rotations (determinant $+1$) and which include a reflection
+(determinant $-1$)? Try the $2\times 2$ swap (is exchanging $x$ and $y$ a rotation, or a flip?) and
+the $3$-cycle. Can a single \emph{transposition} (a permutation that swaps two entries and leaves
+the rest alone) ever be a rotation? What does its determinant tell you?
 \end{walkbox}
 
 \begin{recoverybox}
 \textbf{Pause and think:} Why must every orthogonal matrix have determinant equal to $+1$ or $-1$?
 \emph{Answer:} Take the determinant of both sides of $\mat{Q}\T\mat{Q}=\mat{I}$.
-Using $\det(\mat{A}\mat{B})=\det(\mat{A})\det(\mat{B})$ and $\det(\mat{Q}\T)=\det(\mat{Q})$,
-we find $\big(\det(\mat{Q})\big)^2 = \det(\mat{I}) = 1$, which forces $\det(\mat{Q}) = \pm 1$.
+Using two facts proved in Chapters~21 and~22, $\det(\mat{A}\mat{B})=\det(\mat{A})\det(\mat{B})$ and
+$\det(\mat{Q}\T)=\det(\mat{Q})$, we find $\big(\det(\mat{Q})\big)^2 = \det(\mat{I}) = 1$, which
+forces $\det(\mat{Q}) = \pm 1$.
 A determinant of $+1$ means the transformation preserves orientation (like a pure rotation);
-a determinant of $-1$ means orientation is reversed (including a reflection).
+a determinant of $-1$ means orientation is reversed (it includes a reflection, turning a left hand
+into a right hand).
 \end{recoverybox}
 
 \section{Putting transposes and permutations together}
 
-The two ideas interlock in elimination, which plays a central role in subsequent chapters.
-When Gaussian elimination needs to avoid a zero pivot, it swaps rows --- a left multiplication
-by a permutation $\mat{P}$. The clean statement of elimination ``with row exchanges'' is the
+The two ideas meet in elimination.
+When Gaussian elimination needs to avoid a zero pivot, it swaps rows, which is a left multiplication
+by a permutation $\mat{P}$. Elimination ``with row exchanges'' is summed up by the
 factorization
 \[
   \mat{P}\mat{A} = \mat{L}\mat{U},
 \]
 where $\mat{P}$ is a permutation collecting all the swaps, $\mat{L}$ is lower triangular, and
 $\mat{U}$ is upper triangular. Because $\mat{P}\inv=\mat{P}\T$, you can move the permutation to the
-other side for free: $\mat{A}=\mat{P}\T\mat{L}\mat{U}$. No inverse needs computing; the transpose
-\emph{is} the inverse. This is the practical payoff of Theorem~\ref{ch10:thm-perm-orth} and it is why
-numerical libraries store a permutation as a list of swaps rather than as a matrix --- transposing a
-list of swaps is just reading it backward.
+other side at no cost: $\mat{A}=\mat{P}\T\mat{L}\mat{U}$. No inverse needs computing; the transpose
+\emph{is} the inverse. Numerical software goes one step further and stores a permutation as a list
+of row swaps rather than as a full matrix of mostly zeros; applying $\mat{P}\T$ then means
+performing the same swaps in reverse order.
 
 \begin{example}[A row swap rescuing a pivot]\label{ch10:ex-pivot}
 Consider
@@ -823,9 +953,9 @@ $\mat{P}=\left[\begin{smallmatrix}0&1\\1&0\end{smallmatrix}\right]$:
   = \begin{bmatrix} 0&1\\1&0 \end{bmatrix}\begin{bmatrix} 0 & 2 \\ 3 & 4 \end{bmatrix}
   = \begin{bmatrix} 3 & 4 \\ 0 & 2 \end{bmatrix},
 \]
-which now has a healthy pivot $3$ in the top-left and is already upper triangular (here $\mat{L}=\mat{I}$,
+which now has a nonzero pivot $3$ in the top-left and is already upper triangular (here $\mat{L}=\mat{I}$,
 $\mat{U}=\mat{P}\mat{A}$). To recover $\mat{A}$ itself, multiply by $\mat{P}\T=\mat{P}$ on the left
-again --- the swap is its own undo (Figure~\ref{ch10:fig-pivot-rescue}).
+again: the swap is its own undo (Figure~\ref{ch10:fig-pivot-rescue}).
 \end{example}
 
 \begin{figure}[H]
@@ -871,19 +1001,18 @@ again --- the swap is its own undo (Figure~\ref{ch10:fig-pivot-rescue}).
     \node[below=1.4cm] at (1.0,-0.15) {$\mat{P}\mat{A} = \mat{U}$};
   \end{scope}
 \end{tikzpicture}
-\caption{Permutation matrix as an elimination pivot rescue. In $\mat{A}$ (left), the top-left pivot
-is $0$, so Gaussian elimination cannot proceed without division by zero. Multiplying on the left by
+\caption{A row swap rescues elimination. In $\mat{A}$ (left), the top-left pivot
+is $0$, so Gaussian elimination would have to divide by zero. Multiplying on the left by
 the row-swap permutation $\mat{P}$ exchanges row 1 and row 2 (right). The resulting matrix $\mat{P}\mat{A}$
-has a valid pivot $3$ in place and is already in upper-triangular echelon form $\mat{U}$.}
+has pivot $3$ in the top-left and is already upper triangular, so it is $\mat{U}$.}
 \label{ch10:fig-pivot-rescue}
 \end{figure}
 
 \begin{trapbox}
-A subtle but common error: people write $\mat{A}=\mat{L}\mat{U}\mat{P}$ or sprinkle the permutation
+A common error is to write $\mat{A}=\mat{L}\mat{U}\mat{P}$ or otherwise put the permutation
 on the right. The swaps in elimination act on \emph{rows}, so $\mat{P}$ must sit on the \emph{left}:
 $\mat{P}\mat{A}=\mat{L}\mat{U}$. Putting it on the right would permute columns, which is a different
-operation (it reorders the unknowns, not the equations). Left for rows, right for columns --- keep
-that straight and the factorization comes out right.
+operation (it reorders the unknowns, not the equations). Left for rows, right for columns.
 \end{trapbox}
 
 \begin{formalbox}
@@ -907,65 +1036,55 @@ Throughout the first ten chapters, our calculations have revolved around concret
 and grids of numbers: row reductions, matrix products, inverses, factorizations like $\mat{L}\mat{U}$
 and $\mat{P}\mat{A}=\mat{L}\mat{U}$, and now the transpose $\mat{A}\T$.
 
-Yet every rectangular matrix $\mat{A}$ of shape $m\times n$ connects two geometric worlds at once:
-it pushes vectors forward from $\R^n$ to $\R^m$, while its transpose $\mat{A}\T$ pulls vectors backward
+Every rectangular matrix $\mat{A}$ of shape $m\times n$ connects two spaces:
+it pushes vectors forward from $\R^n$ to $\R^m$, while its transpose $\mat{A}\T$ carries vectors back
 from $\R^m$ to $\R^n$. Some inputs get stretched into new directions; others get squashed completely to zero.
-What are the shapes of the regions formed by all reachable outputs? What are the shapes of the directions
-that get crushed?
+What shape does the set of all reachable outputs have? What shape does the set of inputs that get
+squashed to zero have?
 
-To answer these questions, we must leave behind mechanical entry-by-entry arithmetic and step into the
-conceptual foundation of the entire subject: \emph{vector spaces and subspaces}. In Chapter~11, we begin
-Part~III by exploring these geometric worlds where vectors live, add, and scale. That path leads directly to
-Gilbert Strang's celebrated ``Big Picture of Linear Algebra'' in Chapter~15, where the transpose $\mat{A}\T$
-returns to claim center stage: proving that the directions $\mat{A}$ squashes to zero are strictly perpendicular
-to the directions $\mat{A}\T$ can reach.
+To answer these questions we move from entry-by-entry arithmetic to \emph{vector spaces and
+subspaces}, the subject of Part~III, starting in Chapter~11. That path leads to Gilbert Strang's
+``big picture of linear algebra'' in Chapter~15, where the transpose returns: the inputs that
+$\mat{A}$ squashes to zero turn out to be perpendicular to every output that $\mat{A}\T$ can produce.
 
 \begin{historybox}
-The transpose began as a humble bookkeeping device for organizing algebraic formulas. In 1855, the British
-mathematician Arthur Cayley introduced matrices to study how algebraic equations transform when you change
-geometric coordinates. Cayley was tired of writing out endless systems of equations variable by variable;
-he realized that flipping a rectangular table across its main diagonal turned row equations into column
-equations, calling the result the ``transposed matrix.'' For decades, textbooks treated Cayley's transpose
-as little more than a convenient typing shortcut.
+The transpose began as a bookkeeping device. In the 1850s the British mathematician Arthur Cayley
+introduced matrices as a compact way to record how algebraic equations change when you change
+coordinates. Flipping a table across its main diagonal turned the equations' rows into columns, and
+Cayley called the result the ``transposed matrix.'' For decades it was treated mainly as a
+convenient piece of notation.
 
-The true depth of the transpose emerged in the early twentieth century, when David Hilbert, Stefan Banach,
-and Frigyes Riesz developed \emph{functional analysis} --- the study of infinite-dimensional spaces where
-the ``vectors'' are continuous functions and the ``matrices'' are differential equations or integrals.
-In continuous spaces, there are no grid tiles to flip across a diagonal. How do you transpose a
-derivative? Riesz and Banach answered by looking at \emph{dual spaces} --- collections of linear measurement
-probes that turn vectors into scalars, like measuring the temperature or velocity of a system at a point.
-The \emph{Riesz Representation Theorem} showed that in any space equipped with an inner product (a dot product
-for functions), every linear measurement probe corresponds to taking the inner product with a unique vector.
-This led to the modern definition of the \emph{adjoint}: the transpose $\mat{A}\T$ is not defined by its
-table of entries, but by the fundamental balance $\inner{\mat{A}\vec{x}}{\vec{y}} = \inner{\vec{x}}{\mat{A}\T\vec{y}}$.
-The finite matrix transpose is simply the Euclidean coordinate shadow of this universal geometric relationship.
+Its deeper meaning emerged in the early twentieth century, when David Hilbert, Stefan Banach,
+and Frigyes Riesz developed \emph{functional analysis}, the study of spaces whose ``vectors'' are
+functions and whose ``matrices'' are operations such as differentiation or integration. In such
+spaces there is no table of entries to flip, so how do you transpose a derivative? The answer was
+to define the \emph{adjoint} by the balance
+$\inner{\mat{A}\vec{x}}{\vec{y}} = \inner{\vec{x}}{\mat{A}^{*}\vec{y}}$ from
+Theorem~\ref{ch10:thm-adjoint}, using a dot product for functions. (A key result here, the
+\emph{Riesz representation theorem}, says that in such a space every linear way of turning a
+vector into a number is the dot product with some fixed vector.) The matrix transpose is the
+special case of this definition for ordinary vectors in $\R^n$.
 
-In numerical computation, permutation matrices sparked a fierce debate during the dawn of electronic computers
-in the 1950s. Pioneers like Alan Turing and John von Neumann feared that Gaussian elimination was fundamentally
-unstable, warning that tiny floating-point rounding errors would cascade and ruin the solution. In 1961, the
-British numerical analyst James Wilkinson proved that keeping pivots large via row swaps --- Gaussian elimination
-with partial pivoting, $\mat{P}\mat{A} = \mat{L}\mat{U}$ --- controls this error growth. Yet Wilkinson uncovered
-a famous controversy: in the theoretical worst case, partial pivoting can amplify errors by a factor of
-$2^{n-1}$, an exponential worst-case bound. To this day, mathematicians and computer scientists analyze why
-this worst-case behavior almost never occurs in practice: on real-world engineering problems, $\mat{P}\mat{A}=\mat{L}\mat{U}$
-behaves with reliable numerical stability.
+Permutation matrices became important when electronic computers arrived in the 1940s. Computers
+store numbers with a fixed number of digits, so every arithmetic step rounds slightly. Some early
+analyses, Harold Hotelling's in 1943 for one, predicted that these rounding errors would grow so
+fast during Gaussian elimination that the answers for large systems would be worthless. In 1961
+the British numerical analyst James Wilkinson showed that swapping rows to keep each pivot as large
+as possible (\emph{partial pivoting}, recorded as $\mat{P}\mat{A} = \mat{L}\mat{U}$) keeps the
+error under control in practice. He also showed that in the worst case, partial pivoting can still
+let errors grow by a factor of $2^{n-1}$ for an $n\times n$ matrix. Such bad cases almost never
+occur in real problems, and explaining exactly why is still a research question.
 
-Through the transpose we define symmetric matrices ($\mat{A}\T = \mat{A}$), which represent observables in quantum
-mechanics, stress tensors in continuum mechanics, and covariance matrices in statistics, as well as the
-Gram matrix $\mat{A}\T\mat{A}$, which is always symmetric and \emph{positive semidefinite} --- meaning it
-never assigns negative energy to any vector, $\vec{x}\T(\mat{A}\T\mat{A})\vec{x}=\norm{\mat{A}\vec{x}}^2 \ge 0$.
-This identity is the foundation of least-squares data fitting, the normal equations, and backpropagation
-in deep learning.
-
-Yet deep questions about permutations and transposes remain active research frontiers today. The celebrated
-\emph{Graph Isomorphism} problem asks whether two network graphs share the exact same connection structure ---
-which is mathematically identical to asking whether their connection matrices $\mat{A}$ and $\mat{B}$ are
-related by a permutation matrix: $\mat{P}\T\mat{A}\mat{P} = \mat{B}$. In 2015, László Babai shook theoretical
-computer science by proving that graph isomorphism can be solved in quasipolynomial time, but whether a truly
-efficient polynomial-time algorithm exists remains a famous open question. Meanwhile, in massive scientific
-simulations, finding the ideal row permutation $\mat{P}$ to minimize ``fill-in'' (preventing zero entries from
-accidentally turning into expensive nonzeros during $\mat{P}\mat{A}=\mat{L}\mat{U}$) is known to be NP-complete,
-driving ongoing research into heuristic graph algorithms for supercomputers.
+Two open problems involve permutations directly. A network (a \emph{graph}: dots joined by lines)
+can be recorded as a matrix with a $1$ in position $(i,j)$ when dots $i$ and $j$ are joined.
+Asking whether two networks have the same structure with the dots renamed is the
+\emph{graph isomorphism} problem; in matrix terms it asks whether $\mat{P}\T\mat{A}\mat{P} = \mat{B}$
+for some permutation matrix $\mat{P}$ (Exercise~\ref{ch10:ex-graph-iso}). In 2015 L\'aszl\'o Babai
+announced a method much faster than anything known before, but whether there is a truly efficient
+method is still unknown. And when elimination is run on huge matrices that are mostly zeros, the
+order of the rows and columns decides how many of those zeros turn into nonzeros (``fill-in'') and
+so how much memory and time the computation needs. Finding the best order is known to be
+computationally hard, so practical software relies on good rules of thumb instead.
 \end{historybox}
 
 \section{Exercises}
@@ -1064,12 +1183,14 @@ Consider the matrix
 \end{exercise}
 
 \begin{exercise}[Permutation similarity and graph isomorphism]\label{ch10:ex-graph-iso}
-Let a $3$-node network (graph) have connections given by the symmetric adjacency matrix
+Let a $3$-node network (a \emph{graph}: nodes joined by lines called \emph{edges}) be recorded by
+its \emph{adjacency matrix}, the table with a $1$ where two nodes are joined and $0$ elsewhere:
 \[
-  \mat{A} = \begin{bmatrix} 0 & 1 & 0 \\ 1 & 0 & 1 \\ 0 & 1 & 0 \end{bmatrix},
+  \mat{A} = \begin{bmatrix} 0 & 1 & 0 \\ 1 & 0 & 1 \\ 0 & 1 & 0 \end{bmatrix}.
 \]
-where entry $a_{ij}=1$ indicates an undirected edge connecting node $i$ and node $j$
-(a line network: node 1 is connected to node 2, which is connected to node 3).
+Here $a_{ij}=1$ means there is an edge between node $i$ and node $j$; edges have no direction, so
+$\mat{A}$ is symmetric. This is a line network: node 1 is connected to node 2, which is connected
+to node 3.
 \begin{enumerate}[label=(\alph*)]
   \item Let $\mat{P}=\left[\begin{smallmatrix}0&1&0\\1&0&0\\0&0&1\end{smallmatrix}\right]$ be the
         permutation that exchanges node 1 and node 2. Compute $\mat{B} = \mat{P}\T\mat{A}\mat{P}$.

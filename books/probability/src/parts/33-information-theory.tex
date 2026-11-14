@@ -10,17 +10,17 @@ random variables, yet their behavior differs substantially. With a fair coin, ou
 before each flip. With the biased coin, predicting ``heads'' succeeds almost always; observing the outcome
 provides little new information. One distribution has high uncertainty; the other has very little.
 
-Information theory is the branch of probability that formalizes this distinction quantitatively. It
+Information theory is the branch of probability that formalizes this distinction. It
 gives us a single number---the \emph{entropy}---that measures how much uncertainty a distribution holds,
 how surprised we should expect to be on average, and how many bits are required, on average, to
-encode draws from it. From that core concept develops a family of related quantities: conditional entropy, mutual
+encode draws from it. From entropy develops a family of related quantities: conditional entropy, mutual
 information, Kullback--Leibler (KL) divergence, and cross-entropy. Cross-entropy is the loss
-function used to train standard classification models. KL divergence is central to variational
-inference. Mutual information quantifies general statistical dependence beyond linear correlation.
-And, as we will see, maximizing likelihood is equivalent to minimizing an empirical cross-entropy.
+function (the error metric minimized during training) used to train classification models. KL divergence
+measures the penalty for using a wrong model, which is used in approximate Bayesian methods (variational
+inference). Mutual information quantifies general statistical dependence beyond linear correlation.
+Maximizing likelihood is equivalent to minimizing an empirical cross-entropy.
 
-This chapter was born in 1948, in a single paper by Claude Shannon, and it has the rare quality of being
-both deep and \emph{usable on the first day}. Let us build it from the ground up, starting with a single
+Claude Shannon developed this framework in 1948. We build it from a single
 question: how surprised should you be?
 
 \chapterline
@@ -40,9 +40,9 @@ nothing. Rare events tell you a lot.
 \end{intuitionbox}
 
 So we want a function $S(p)$, the ``surprise'' of an event of probability $p$, that is large when $p$ is
-small and small when $p$ is large. But there are infinitely many decreasing functions. What pins down the
-\emph{right} one? Shannon's move was to write down a few properties that any sensible measure of surprise
-\emph{must} have, and then discover that those properties leave essentially no freedom.
+small and small when $p$ is large. There are infinitely many decreasing functions. What pins down the
+\emph{right} one? Shannon wrote down three properties that any measure of surprise
+must have, and proved that only one function satisfies them.
 
 \begin{focusbox}
 We demand three things of surprise $S(p)$, where $p \in (0,1]$ is the probability of an event:
@@ -65,17 +65,16 @@ discount, because the events have nothing to do with each other. Their joint pro
 probabilities: that is a functional equation, and it has a famous solution.
 
 \begin{whybox}
-\textbf{Why surprise must be a logarithm.} We want $S(pq) = S(p) + S(q)$ for all $p,q \in (0,1]$. Turn
-products into sums and sums stay sums---that is the defining property of the logarithm. Let us prove it is
-forced, not just convenient.
+\textbf{Why surprise must be a logarithm.} We want $S(pq) = S(p) + S(q)$ for all $p,q \in (0,1]$. Turning
+products into sums is the defining property of the logarithm. Here is the proof that the logarithm is the only solution.
 
 Substitute $p = e^{-x}$, $q = e^{-y}$ (so $x,y \ge 0$), and define $g(x) = S(e^{-x})$. The functional
 equation becomes
 \[
   g(x + y) \;=\; S(e^{-(x+y)}) \;=\; S(e^{-x} e^{-y}) \;=\; S(e^{-x}) + S(e^{-y}) \;=\; g(x) + g(y).
 \]
-This is \emph{Cauchy's functional equation}, $g(x+y) = g(x) + g(y)$---an equation where a function maps
-addition directly to addition. Under any mild regularity condition such as monotonicity (axiom 2), its
+This is \emph{Cauchy's functional equation}, $g(x+y) = g(x) + g(y)$, an equation where a function maps
+addition directly to addition. Under monotonicity (axiom 2), its
 only solutions are straight lines through the origin, $g(x) = c\,x$ for a constant $c$. Unwinding,
 $S(p) = g(-\ln p) = -c\,\ln p$. Axiom 2 (decreasing) forces $c > 0$, and axiom 1 ($S(1)=0$) is then
 automatic since $\ln 1 = 0$. So
@@ -84,6 +83,34 @@ automatic since $\ln 1 = 0$. So
 \]
 is the \emph{unique} measure of surprise, up to the positive scale constant $c$.
 \end{whybox}
+
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=6cm,
+  title={Surprise of an event $S(p) = \log_2(1/p)$},
+  title style={font=\small},
+  xlabel={probability $p$},
+  ylabel={surprise (bits)},
+  domain=0.01:1, samples=150,
+  xmin=0, xmax=1.05, ymin=0, ymax=7,
+  axis lines=left,
+  grid=both, grid style={gray!18},
+  x label style={font=\footnotesize},
+  y label style={font=\footnotesize},
+  tick label style={font=\scriptsize},
+]
+\addplot[sourceblue, very thick] {-log2(x)};
+\node[sourceblue, font=\scriptsize, anchor=south west] at (axis cs:0.1,3.5) {rare events are highly surprising};
+\node[sourceblue, font=\scriptsize, anchor=south] at (axis cs:0.8,0.5) {$S(1)=0$ (certainty is unsurprising)};
+\end{axis}
+\end{tikzpicture}
+\caption{The surprise function $S(p)$. As an event becomes less probable, the information (surprise) you gain from observing it grows logarithmically. Certain events ($p=1$) provide zero surprise.}
+\label{ch33:fig-surprise}
+\end{figure}
+
 
 The constant $c$ is just a choice of \emph{units}, exactly like choosing meters versus feet. Two choices
 dominate practice:
@@ -135,7 +162,7 @@ We adopt the convention $0\log 0 = 0$ (justified because $p\log p \to 0$ as $p \
 zero-probability outcomes contribute nothing. With $\log = \log_2$ the units are bits; with $\ln$, nats.
 \end{definition}
 
-Notice an essential structural property: entropy depends strictly on the \emph{probabilities}, not on the labels or physical values of the outcomes. The faces of a die could be marked with pips, colors, animals, or prime numbers; relabeling them does not alter how uncertain the roll is. Entropy is a functional of the probability distribution vector $(p_1, \dots, p_n)$, and we write $H(p_1, \dots, p_n)$ when highlighting this geometric dependence.
+Entropy depends strictly on the \emph{probabilities}, not on the labels or physical values of the outcomes. The faces of a die could be marked with pips, colors, animals, or prime numbers; relabeling them does not alter how uncertain the roll is. Entropy is a function of the probability distribution vector $(p_1, \dots, p_n)$, and we write $H(p_1, \dots, p_n)$ when highlighting this dependence.
 
 \begin{intuitionbox}
 \textbf{The 20-Questions guessing game.}
@@ -145,7 +172,7 @@ If instead the distribution is highly uneven---say one candidate accounts for $9
 \end{intuitionbox}
 
 \begin{happeningbox}
-\textbf{Entropy is an expectation.} Notice the formula is
+\textbf{Entropy is an expectation.} The formula is
 $\E[\,\log(1/p(X))\,]$---the expected surprise of the outcome. Standard properties of
 expectations apply directly. This is why entropy behaves like a center of mass of
 surprise. When one outcome dominates, almost all probability is placed on an outcome with very little
@@ -311,14 +338,18 @@ The key observation is that $e^{-(1+\lambda)}$ does not depend on the index $i$.
   \quad\Longrightarrow\quad
   p_i \;=\; \frac{1}{n} \quad\text{for all } i=1,\dots,n.
 \]
-The second derivative matrix $\frac{\partial^2 \mathcal{L}}{\partial p_i \partial p_j} = -\frac{1}{p_i}\delta_{ij}$ is strictly negative definite on the interior of the simplex, confirming that this uniform distribution is the unique global maximum.
+The second derivative matrix is strictly negative definite on the interior of the simplex, since its elements are
+\[
+  \frac{\partial^2 \mathcal{L}}{\partial p_i \partial p_j} \;=\; -\frac{1}{p_i}\delta_{ij},
+\]
+confirming that this uniform distribution is the unique global maximum.
 \end{whybox}
 
 \begin{aestheticbox}
 This is the ``maximum entropy principle'': among all distributions on $n$ symbols,
 the one that assumes the least---commits to nothing beyond ``these $n$ things can happen''---is the
-uniform one, and it has the most entropy. Maximizing entropy subject to constraints is a deep modeling
-principle: it produces the distribution that is maximally noncommittal given what you actually know. With
+uniform one, and it has the most entropy. Maximizing entropy subject to constraints is a modeling
+principle: it produces the distribution that is maximally noncommittal given what you know. With
 a fixed mean it yields the exponential; with a fixed mean and variance it yields the Gaussian. The bell
 curve is, in this sense, the least presumptuous distribution with a given spread.
 \end{aestheticbox}
@@ -334,15 +365,14 @@ To solve it, Shannon built an entirely new mathematical apparatus: he treated me
 \label{ch33:source-coding}
 
 Beyond the interpretation of entropy as average surprise, Shannon's source coding theorem provides an
-exact operational meaning: \emph{entropy is the minimum average number of bits needed to
-encode draws from a distribution.} Measuring entropy in bits represents the fundamental
-theoretical limit of lossless compression.
+operational meaning: \emph{entropy is the minimum average number of bits needed to
+encode draws from a distribution.} Measuring entropy in bits gives the theoretical limit of lossless compression.
 
 \begin{intuitionbox}
 Suppose you must transmit a long sequence of draws from $X$ over a channel that only speaks $0$s and $1$s,
 using as few symbols as possible. The trick is to give \emph{short codewords to frequent outcomes and
 long codewords to rare ones}---exactly what Morse code does (``E'' is a single dot; ``Q'' is dash-dash-dot-dash).
-The surprise $\log_2(1/p(x))$ turns out to be the ideal length, in bits, for the codeword of an outcome
+The surprise $\log_2(1/p(x))$ is the ideal length, in bits, for the codeword of an outcome
 that occurs with probability $p(x)$. Averaging those ideal lengths gives the entropy.
 \end{intuitionbox}
 
@@ -355,7 +385,7 @@ $H(X)$. The entropy is the fundamental limit of lossless compression.
 \end{theorem}
 
 \begin{walkbox}
-Why can't a code beat the assignment ``length $\approx \log_2(1/p(x))$''? Because of a budget. In any
+Why can't a code beat the assignment ``length $\approx \log_2(1/p(x))$''? There is a budget. In any
 prefix-free binary code (no codeword is the start of another, so decoding is unambiguous), the codeword
 lengths $\ell(x)$ must satisfy \emph{Kraft's inequality} $\sum_x 2^{-\ell(x)} \le 1$---there is only so
 much ``room'' in the tree of binary strings. Minimizing the average length $\sum_x p(x)\ell(x)$ subject to
@@ -380,6 +410,44 @@ integers. A naive fixed-length code would spend $2$ bits per symbol ($\log_2 4$)
 surprise saves $0.25$ bits per symbol, forever.
 \end{example}
 
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  level distance=1.5cm,
+  level 1/.style={sibling distance=4cm},
+  level 2/.style={sibling distance=2cm},
+  level 3/.style={sibling distance=2cm},
+  edge from parent/.style={draw, thick},
+  node/.style={circle, draw=black, thick, minimum size=0.6cm, inner sep=1pt},
+  leaf/.style={rectangle, draw=sourceblue, thick, fill=sourceblue!10, rounded corners, minimum width=0.8cm, minimum height=0.6cm, font=\small},
+  edge label/.style={font=\scriptsize, fill=white, inner sep=1pt}
+]
+\node[node] {}
+  child { node[leaf] {$a$ ($p=\frac{1}{2}$)}
+    edge from parent node[edge label] {\texttt{0}}
+  }
+  child { node[node] {}
+    child { node[leaf] {$b$ ($p=\frac{1}{4}$)}
+      edge from parent node[edge label] {\texttt{0}}
+    }
+    child { node[node] {}
+      child { node[leaf] {$c$ ($p=\frac{1}{8}$)}
+        edge from parent node[edge label] {\texttt{0}}
+      }
+      child { node[leaf] {$d$ ($p=\frac{1}{8}$)}
+        edge from parent node[edge label] {\texttt{1}}
+      }
+      edge from parent node[edge label] {\texttt{1}}
+    }
+    edge from parent node[edge label] {\texttt{1}}
+  };
+\end{tikzpicture}
+\caption{The prefix-free code tree from Example~\ref{ch33:huffman-example}. Left branches are \texttt{0}, right branches are \texttt{1}. The most probable outcome ($a$) gets the shortest path.}
+\label{ch33:fig-huffman}
+\end{figure}
+
+
 \begin{connectionbox}
 The Lagrange-multiplier optimization in the walking question is the same machinery you met in
 multivariable calculus: minimize $\sum_x p(x) \ell(x)$ on the constraint surface $\sum_x 2^{-\ell(x)} = 1$. The
@@ -393,7 +461,7 @@ gradient condition $\nabla(\text{objective}) = \lambda\,\nabla(\text{constraint}
 
 Real problems involve several random variables at once, and the questions become relational: how much
 total uncertainty is in the pair $(X,Y)$? Once I learn $Y$, how much uncertainty about $X$ remains? These
-are answered by joint and conditional entropy, and they obey a beautifully simple bookkeeping.
+are answered by joint and conditional entropy, and they obey simple bookkeeping.
 
 \begin{definition}[Joint and conditional entropy]
 \label{ch33:def-joint-cond}
@@ -422,24 +490,29 @@ help---more on that shortly.
 \end{theorem}
 
 \begin{whybox}
-\textbf{Why the chain rule is just $\log$ of the multiplication rule.} The whole identity falls out of
+\textbf{Why the chain rule is just $\log$ of the multiplication rule.} The identity comes from
 $p(x,y) = p(x)\,p(y \given x)$, the multiplication rule for probabilities, after taking $-\log$ and
-averaging. Watch:
+averaging:
 \[
   H(X,Y) = -\sum_{x,y} p(x,y)\log p(x,y)
          = -\sum_{x,y} p(x,y)\big[\log p(x) + \log p(y\given x)\big].
 \]
-Split the sum. The first piece is $-\sum_{x,y} p(x,y)\log p(x) = -\sum_x p(x)\log p(x) = H(X)$ (we summed
-out $y$). The second piece is exactly $-\sum_{x,y} p(x,y)\log p(y\given x) = H(Y\given X)$. So $H(X,Y) =
-H(X) + H(Y\given X)$. The symmetric version comes from factoring $p(x,y) = p(y)p(x\given y)$ instead.
+Split the sum. The first piece is
+\[
+  -\sum_{x,y} p(x,y)\log p(x) \;=\; -\sum_x p(x)\log p(x) \;=\; H(X)
+\]
+(we summed out $y$). The second piece is exactly
+\[
+  -\sum_{x,y} p(x,y)\log p(y\given x) \;=\; H(Y\given X).
+\]
+So $H(X,Y) = H(X) + H(Y\given X)$. The symmetric version comes from factoring $p(x,y) = p(y)p(x\given y)$ instead.
 \end{whybox}
 
 \begin{happeningbox}
 The chain rule says uncertainty is additive in the right currency. The total surprise of the pair equals
 the surprise of $X$ \emph{plus} whatever surprise about $Y$ is left after $X$ is known. It mirrors exactly
 how you would describe the pair to someone: first tell them $X$ (costs $H(X)$ bits), then tell them $Y$
-given that they now know $X$ (costs $H(Y\given X)$ bits). Information bookkeeping is just careful
-double-entry accounting of surprise.
+given that they now know $X$ (costs $H(Y\given X)$ bits). Information bookkeeping is double-entry accounting of surprise.
 \end{happeningbox}
 
 \begin{theorem}[Conditioning reduces entropy]
@@ -454,8 +527,7 @@ mutual information. First we need the tool that makes everything click: KL diver
 \section{Relative entropy (KL divergence): the cost of being wrong}
 \label{ch33:kl}
 
-Here is a question that turns out to organize the entire subject. Suppose the data really come from a
-distribution $p$, but you, mistakenly, believe they come from $q$. You design your code, your bets, your
+Suppose the data come from a distribution $p$, but you mistakenly believe they come from $q$. You design your code, your bets, your
 model around $q$. How much do you pay for the discrepancy? The answer is the \textbf{Kullback--Leibler
 divergence}, also called \emph{relative entropy}.
 
@@ -479,14 +551,23 @@ Notice that $p(x) \log(p(x) / 0) = +\infty$. A single impossible prediction on a
 
 \begin{intuitionbox}
 \textbf{The codebook mismatch: extra bits wasted per transmission.}
-If you know the true distribution $p$, Shannon's source coding theorem says you should build an optimal codebook where symbol $x$ has codeword length $\log_2(1/p(x))$ bits, achieving the minimal average code length $H(p) = \sum_x p(x)\log_2(1/p(x))$.
+If you know the true distribution $p$, Shannon's source coding theorem says you should build an optimal codebook where symbol $x$ has codeword length $\log_2(1/p(x))$ bits, achieving the minimal average code length
+\[
+  H(p) \;=\; \sum_x p(x)\log_2\frac{1}{p(x)}.
+\]
 
-If you mistakenly believe the world runs on distribution $q$, you will optimize your codebook for $q$, assigning symbol $x$ a codeword of length $\log_2(1/q(x))$ bits. When you transmit symbols generated by reality (which draws from $p$) using this mismatched codebook, your average message length is the cross-entropy $H(p,q) = \sum_x p(x)\log_2(1/q(x))$.
+If you mistakenly believe the world runs on distribution $q$, you will optimize your codebook for $q$, assigning symbol $x$ a codeword of length $\log_2(1/q(x))$ bits. When you transmit symbols generated by reality (which draws from $p$) using this mismatched codebook, your average message length is the cross-entropy
+\[
+  H(p,q) \;=\; \sum_x p(x)\log_2\frac{1}{q(x)}.
+\]
 
 The penalty---the extra bits you waste per transmission due to using the wrong dictionary---is precisely the Kullback--Leibler divergence:
-\[
-  H(p,q) - H(p) \;=\; \sum_x p(x)\log_2\frac{1}{q(x)} - \sum_x p(x)\log_2\frac{1}{p(x)} \;=\; \sum_x p(x)\log_2\frac{p(x)}{q(x)} \;=\; \KL(p \,\|\, q).
-\]
+\begin{align*}
+  H(p,q) - H(p)
+  &= \sum_x p(x)\log_2\frac{1}{q(x)} - \sum_x p(x)\log_2\frac{1}{p(x)} \\
+  &= \sum_x p(x)\log_2\frac{p(x)}{q(x)} \\
+  &= \KL(p \,\|\, q).
+\end{align*}
 KL divergence is the exact operational toll, in wasted bits per symbol, for communicating reality through the wrong lens.
 \end{intuitionbox}
 
@@ -518,7 +599,7 @@ $p = q$. A perfectly correct model pays nothing; any error costs strictly positi
 \begin{trapbox}
 \textbf{KL is not a distance.} It is tempting to read $\KL(p\,\|\,q)$ as ``how far apart $p$ and $q$ are,''
 but it is \emph{not symmetric}: $\KL(p\,\|\,q) \ne \KL(q\,\|\,p)$ in general, and it violates the triangle
-inequality. The asymmetry is meaningful, not a defect. $\KL(p\,\|\,q)$ weights errors by the \emph{true}
+inequality. The asymmetry is meaningful. $\KL(p\,\|\,q)$ weights errors by the \emph{true}
 $p$, so it punishes you for assigning low $q$ to outcomes that truly occur, but barely notices if you waste
 $q$-mass on outcomes that never happen. Swapping the arguments swaps which mistake is expensive. In
 variational inference, choosing to minimize $\KL(q\,\|\,p)$ versus $\KL(p\,\|\,q)$ gives qualitatively
@@ -544,8 +625,7 @@ Different number---concrete proof of asymmetry.
 \section{Cross-entropy: the loss that trains your models}
 \label{ch33:cross-entropy}
 
-KL divergence has a twin that is even more famous in practice, because it is the literal loss function
-minimized by nearly every classifier you have ever heard of. It is the \textbf{cross-entropy}.
+KL divergence has a twin that is the loss function minimized by standard classification models: the \textbf{cross-entropy}.
 
 \begin{definition}[Cross-entropy]
 \label{ch33:def-cross-entropy}
@@ -556,7 +636,7 @@ reality is $p$ but you reason with $q$:
 \]
 \end{definition}
 
-The three quantities entropy, cross-entropy, and KL are bound by one short, illuminating identity. Split
+The three quantities entropy, cross-entropy, and KL are bound by one identity. Split
 $\log(p/q) = \log(1/q) - \log(1/p)$ inside the KL sum:
 \[
   \KL(p\,\|\,q) = \underbrace{-\sum_x p(x)\log q(x)}_{H(p,q)} \;-\; \underbrace{\Big(-\sum_x p(x)\log p(x)\Big)}_{H(p)},
@@ -579,7 +659,7 @@ the floor reached only by a perfect model.
 \begin{applicationbox}
 \textbf{Why cross-entropy is \emph{the} classification loss.} In multiclass classification, each training
 example $i$ has a true label, which we write as a one-hot vector $p^{(i)}$ (all mass on the correct class
-$y_i$). The network outputs predicted class probabilities $q^{(i)}$ (the softmax layer). The cross-entropy
+$y_i$). The network outputs predicted class probabilities $q^{(i)}$. The cross-entropy
 loss on example $i$ is
 \[
   H(p^{(i)}, q^{(i)}) = -\sum_c p^{(i)}_c \log q^{(i)}_c = -\log q^{(i)}_{y_i},
@@ -641,11 +721,11 @@ distribution and the model. Therefore
 \]
 
 \begin{happeningbox}
-\textbf{What maximizing likelihood is really doing.} You are choosing the model $q_\theta$ that
+\textbf{What maximizing likelihood does.} You are choosing the model $q_\theta$ that
 is \emph{closest in KL divergence} to the empirical distribution of your data. As the sample grows,
 $\hat p \to p$ (the true distribution) by the law of large numbers, so maximum likelihood drives your
 model toward the $q_\theta$ that minimizes $\KL(p\,\|\,q_\theta)$---the best possible approximation to
-reality within your model family. This is exactly why MLE is consistent: if the truth is \emph{in} your
+reality within your model family. This explains why MLE is consistent (converges to the true parameters as data grows): if the truth is \emph{in} your
 family, the KL-closest model is the truth itself, and you find it. Likelihood, cross-entropy, and KL are
 three views of one optimization.
 \end{happeningbox}
@@ -663,9 +743,9 @@ divergence directly, making this link explicit.
 \section{Mutual information: how much $Y$ tells you about $X$}
 \label{ch33:mutual-info}
 
-Now for the quantity that ties the chapter together. Correlation measures linear co-movement and misses everything nonlinear.
+Correlation measures linear co-movement and misses everything nonlinear.
 \emph{Mutual information} measures \emph{all} statistical dependence---it is zero exactly when two variables
-are independent, no matter how twisted their relationship.
+are independent.
 
 \begin{definition}[Mutual information]
 \label{ch33:def-mi}
@@ -677,7 +757,7 @@ product of their marginals:
 \]
 \end{definition}
 
-The definition rewards a second look. Independence \emph{means} $p(x,y) = p(x)p(y)$. So mutual
+Notice that independence \emph{means} $p(x,y) = p(x)p(y)$. So mutual
 information literally measures how far the joint distribution is from the ``independent'' distribution
 it would be if $X$ and $Y$ ignored each other. By Gibbs' inequality, $I(X;Y) \ge 0$, with equality iff
 $p(x,y) = p(x)p(y)$, i.e.\ iff $X \indep Y$. \emph{Mutual information is zero exactly when the variables
@@ -691,12 +771,12 @@ are independent}---a clean ``yes/no'' test for dependence of any kind.
 \end{theorem}
 
 \begin{whybox}
-\textbf{Why these forms agree.} Start from the definition and split the log using $p(x,y) = p(x\given
+\textbf{Why these forms agree.} By definition and splitting the log using $p(x,y) = p(x\given
 y)p(y)$:
-\[
-  I(X;Y) = \sum_{x,y} p(x,y)\log\frac{p(x\given y)}{p(x)}
-         = \sum_{x,y}p(x,y)\log p(x\given y) - \sum_{x,y}p(x,y)\log p(x).
-\]
+\begin{align*}
+  I(X;Y) &= \sum_{x,y} p(x,y)\log\frac{p(x\given y)}{p(x)} \\
+         &= \sum_{x,y}p(x,y)\log p(x\given y) - \sum_{x,y}p(x,y)\log p(x).
+\end{align*}
 The first sum is $-H(X\given Y)$; the second is $-H(X)$ (sum out $y$). Hence $I(X;Y) = H(X) -
 H(X\given Y)$. By symmetry of the definition in $x$ and $y$, also $I(X;Y) = H(Y) - H(Y\given X)$. Finally,
 substitute the chain rule $H(X\given Y) = H(X,Y) - H(Y)$ into the first form to get $I(X;Y) = H(X) + H(Y)
@@ -805,7 +885,7 @@ nonlinear dependence, mutual information is a go-to tool for \emph{feature selec
 features by how much information they carry about the target, keeping high-$I$ features even when their
 \emph{correlation} with the target is zero (think of $Y = X^2$ with symmetric $X$: correlation $0$, mutual
 information large). Decision trees split on the feature with the highest \emph{information gain}, which is
-exactly a conditional mutual information. And in modern representation learning, objectives like InfoNCE
+exactly a conditional mutual information. And in modern representation learning, objectives like InfoNCE (a loss function for learning representations)
 \emph{maximize} a lower bound on the mutual information between an input and its learned embedding, forcing
 the representation to retain what matters.
 \end{applicationbox}

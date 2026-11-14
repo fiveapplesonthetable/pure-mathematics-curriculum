@@ -1,17 +1,17 @@
 \chapter{Data and Distributions}
 \label{ch:data-distributions}
 
-Here are twenty response times, in milliseconds, from one API endpoint over one minute:
+Here are twenty response times, in milliseconds, from one Application Programming Interface (API) endpoint over one minute:
 \[
 \begin{array}{cccccccccc}
 12 & 14 & 15 & 15 & 17 & 18 & 18 & 19 & 21 & 22\\
 23 & 23 & 24 & 26 & 28 & 31 & 35 & 42 & 58 & 140
 \end{array}
 \]
-Is this endpoint fast? Is $140$ a problem or just bad luck? Would tomorrow look the same?
+Is this endpoint fast? Is 140 a problem or bad luck? Would tomorrow look the same?
 Staring at the list does not answer any of these. Twenty numbers are already too many to hold
-in your head, and production systems log millions per hour. This chapter is about the first
-move every statistician makes: turn a pile of numbers into a \emph{picture of how the values are
+in your head, and production systems log millions per hour. The first
+move is to turn a pile of numbers into a \emph{picture of how the values are
 spread out}. That picture is called a \emph{distribution}, and nearly everything in the rest of
 the book is a question about one.
 
@@ -52,8 +52,8 @@ about a single future value.}
 \end{figure}
 
 This chapter and the next three are about describing. Description sounds like the easy part,
-but many mistakes in practice happen here: the wrong chart, the wrong summary, a
-misleading bin width, an outlier nobody looked at.
+but many mistakes happen here: the wrong chart, the wrong summary, a
+misleading bin width, or an outlier (an extreme value far from the rest) nobody looked at.
 
 \section{Units, variables, and types}
 \label{sec:data-variables}
@@ -64,23 +64,33 @@ A data set is a table. Each row is one \textbf{observational unit}: the thing yo
 column is a \textbf{variable}: one property you recorded about every unit. Here is a slice of a
 request log.
 
-\begin{table}[H]
+\begin{figure}[H]
 \centering
-\small
-\begin{tabular}{cllrcl}
-\toprule
-\texttt{request\_id} & \texttt{endpoint} & \texttt{status} & \texttt{latency\_ms} & \texttt{retries} & \texttt{priority}\\
-\midrule
-1 & \texttt{/search}  & 200 & 21.4  & 0 & high\\
-2 & \texttt{/search}  & 200 & 18.9  & 0 & medium\\
-3 & \texttt{/cart}    & 404 & 12.1  & 0 & low\\
-4 & \texttt{/checkout}& 200 & 57.6  & 1 & high\\
-5 & \texttt{/search}  & 503 & 140.2 & 3 & medium\\
-\bottomrule
-\end{tabular}
+\begin{tikzpicture}
+\node[inner sep=0pt] (tbl) {
+  \small
+  \begin{tabular}{cllrcl}
+  \toprule
+  \texttt{request\_id} & \texttt{endpoint} & \texttt{status} & \texttt{latency\_ms} & \texttt{retries} & \texttt{priority}\\
+  \midrule
+  1 & \texttt{/search}  & 200 & 21.4  & 0 & high\\
+  2 & \texttt{/search}  & 200 & 18.9  & 0 & medium\\
+  3 & \texttt{/cart}    & 404 & 12.1  & 0 & low\\
+  4 & \texttt{/checkout}& 200 & 57.6  & 1 & high\\
+  5 & \texttt{/search}  & 503 & 140.2 & 3 & medium\\
+  \bottomrule
+  \end{tabular}
+};
+\draw[decorate, decoration={brace, amplitude=4pt}, thick, densityred] 
+  ([xshift=-0.3cm, yshift=0.3cm]tbl.south west) -- ([xshift=-0.3cm, yshift=-0.7cm]tbl.north west) 
+  node[midway, left=6pt, font=\footnotesize, text=densityred, align=right] {rows:\\observational\\units};
+\draw[decorate, decoration={brace, amplitude=4pt}, thick, sourceblue] 
+  ([xshift=1.5cm, yshift=0.3cm]tbl.north west) -- ([xshift=-1.5cm, yshift=0.3cm]tbl.north east) 
+  node[midway, above=6pt, font=\footnotesize, text=sourceblue, align=center] {columns:\\variables};
+\end{tikzpicture}
 \caption{Five rows of a request log. Each row is one request (the unit). Each column is a variable.}
-\label{tab:data-log}
-\end{table}
+\label{fig:data-log}
+\end{figure}
 
 Picking the unit is a real decision. If each row were a \emph{user} instead of a request, the
 latency column would have to become something like ``average latency of that user's
@@ -100,7 +110,7 @@ arithmetic means something (\texttt{latency\_ms}, \texttt{retries}).
 
 The test is simple: does averaging make sense? The average latency of requests 1 and 2 is
 $20.15$ ms, a meaningful number. The ``average status code'' of a 200 and a 404 is 302, which is
-a real HTTP code (a redirect) that neither request returned. Status codes are labels written
+a real HTTP (Hypertext Transfer Protocol) status code (a redirect) that neither request returned. Status codes are labels written
 with digits. They are categorical.
 
 Each family splits again.
@@ -144,7 +154,7 @@ second asks ``is there an order?'' (categorical) or ``can I list the possible va
 
 \begin{trapbox}
 Numbers in a column do not make a variable numerical. Zip codes, user IDs, status codes, and
-product SKUs are categorical. A plotting library will happily draw a histogram of zip codes;
+product SKUs (Stock Keeping Units) are categorical. A plotting library will happily draw a histogram of zip codes;
 the library did what it was told, and the mistake is yours. Going the other way, a 1--5 star rating is ordinal: treating
 it as numerical (averaging stars) is common and often useful, but it assumes the step from 1 to
 2 stars equals the step from 4 to 5, which nobody checked.
@@ -158,7 +168,7 @@ byte; (d) T-shirt size S/M/L/XL. \emph{Answers:} discrete, nominal, continuous, 
 \subsection{Populations and samples}
 
 The twenty latencies above are not all the requests this endpoint will ever serve. They are
-a \textbf{sample}: the units we actually observed. The \textbf{population} is the full set of
+a \textbf{sample}: the units we observed. The \textbf{population} is the full set of
 units we care about, such as every request this endpoint served today. A number that describes
 the population (the true fraction of today's requests under 30 ms) is a \textbf{parameter}. The
 same number computed from the sample is a \textbf{statistic}. Parameters are usually unknown;
@@ -533,8 +543,11 @@ possible value. The pile centers near 5 and falls off roughly symmetrically on b
 \label{fig:data-coins}
 \end{figure}
 
-Exactly 5 heads happened in $24$ of the $100$ batches. Probability theory predicts
-$\binom{10}{5}/2^{10} = 252/1024 \approx 0.246$ (see \emph{Probability From the Ground Up},
+Exactly 5 heads happened in 24 of the 100 batches. Probability theory predicts
+\[
+  \frac{\binom{10}{5}}{2^{10}} = \frac{252}{1024} \approx 0.246
+\]
+(where $\binom{10}{5}$ is the number of ways to choose 5 heads out of 10 flips; see \emph{Probability From the Ground Up},
 Ch.~7 on the binomial). The observed 0.24 is close but not equal. That gap between a
 relative frequency and the probability behind it is the gap that inference is about.
 
@@ -621,8 +634,8 @@ but holds few points, so its height is noisy. A wide bin holds many points, so i
 stable, but it blurs everything inside it into one flat bar. With more data, each bin can be
 narrower before noise takes over. That is why rules of thumb for the number of bins grow with
 $n$: Sturges' rule uses $1+\log_2 n$ bins, which for $n=200$ gives about $8.6$, and the
-Freedman--Diaconis rule sets the width to $2\cdot\IQR\cdot n^{-1/3}$ (the $\IQR$, a measure of
-spread, is defined in Chapter 2). For the 200 latencies, which run from 13 to 110 ms, Sturges
+Freedman--Diaconis rule sets the width to $2\cdot\IQR\cdot n^{-1/3}$ (the interquartile range ($\IQR$, a measure of
+spread defined in Chapter 2)). For the 200 latencies, which run from 13 to 110 ms, Sturges
 suggests a width of about $97/8.6\approx 11$ ms and Freedman--Diaconis about 7 ms. Treat them
 as starting points and always try a few widths.
 \end{whybox}
@@ -638,7 +651,7 @@ Figure~\ref{fig:data-binshift} shows how little it takes.
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  name=sL, width=6.4cm, height=5cm,
+  name=sL, width=6.0cm, height=5cm,
   ymin=0, ymax=72, xmin=0, xmax=125, xtick={0,20,...,120},
   xlabel={latency (ms)}, ylabel={count},
   title={bins start at 0: 10--20, 20--30, \dots}, title style={font=\small},
@@ -650,8 +663,8 @@ Figure~\ref{fig:data-binshift} shows how little it takes.
 \node[font=\footnotesize, anchor=west, align=left] at (axis cs:58,48) {37, 24, 13, \dots:\\one smooth tail};
 \end{axis}
 \begin{axis}[
-  at={(sL.east)}, anchor=west, xshift=1.3cm,
-  width=6.4cm, height=5cm,
+  at={(sL.east)}, anchor=west, xshift=1.1cm,
+  width=6.0cm, height=5cm,
   ymin=0, ymax=72, xmin=0, xmax=125, xtick={0,20,...,120},
   xlabel={latency (ms)}, ylabel={count},
   title={bins start at 3: 13--23, 23--33, \dots}, title style={font=\small},
@@ -689,7 +702,7 @@ as bar heights and you get the left panel of Figure~\ref{fig:data-unequal}.
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  name=uL, width=6.4cm, height=5.2cm,
+  name=uL, width=6.0cm, height=5.2cm,
   ymin=0, ymax=70, xmin=0, xmax=120, xtick={0,20,...,120},
   xlabel={latency (ms)}, ylabel={count},
   title={Height = count (misleading)}, title style={font=\small},
@@ -702,8 +715,8 @@ as bar heights and you get the left panel of Figure~\ref{fig:data-unequal}.
 \node[font=\footnotesize, anchor=south] at (axis cs:100,3) {only 3};
 \end{axis}
 \begin{axis}[
-  at={(uL.east)}, anchor=west, xshift=1.5cm,
-  width=6.4cm, height=5.2cm,
+  at={(uL.east)}, anchor=west, xshift=1.2cm,
+  width=6.0cm, height=5.2cm,
   ymin=0, ymax=0.035, xmin=0, xmax=120, xtick={0,20,...,120},
   xlabel={latency (ms)}, ylabel={density (per ms)},
   title={Height = density (honest)}, title style={font=\small},
@@ -740,11 +753,13 @@ For $[50,60)$: $24/(200\cdot 10) = 0.012$. Same count, half the density, as it s
 
 \begin{whybox}
 The area of a bar is height times width:
-\[
-  \frac{k}{n\,w}\cdot w = \frac{k}{n},
-\]
+\begin{align*}
+  \text{area} &= \text{height} \cdot \text{width} \\
+  &= \frac{k}{n\,w} \cdot w \\
+  &= \frac{k}{n},
+\end{align*}
 which is exactly the fraction of the data in that bin. Since every value lands in exactly one
-bin, the bar areas add up to $\sum k/n = n/n = 1$. Check it on our bins:
+bin, the bar areas add up to $\sum \frac{k}{n} = \frac{n}{n} = 1$. Check it on our bins:
 \[
   0.05 + 0.19 + 0.32 + 0.185 + 0.12 + 0.12 + 0.015 = 1.
 \]
@@ -782,7 +797,7 @@ Area-equals-proportion is the idea that turns a histogram into a probability den
 data grows and the bins shrink, the tops of the bars trace out a smooth curve $f(x)$, and
 ``fraction of data between $a$ and $b$'' becomes $\int_a^b f(x)\,\dd x$. That is precisely the
 definition of a probability density function (\emph{Probability From the Ground Up}, Ch.~10).
-When an ML paper writes $x \sim p$, read it as ``$x$ is drawn from $p$'': the $p$ is this curve.
+When a machine learning (ML) paper writes $x \sim p$, read it as ``the value $x$ is drawn from the distribution $p$'': the $p$ is this curve.
 \end{connectionbox}
 
 \begin{lstlisting}[language=Python]
@@ -798,7 +813,7 @@ print((dens * np.diff(edges)).sum())        # 1.0: areas sum to one
 \begin{recoverybox}
 A density histogram has a bar over $[40,50)$ of height $0.0185$ per ms, with $n = 200$. How
 many values are in that bin? \emph{Answer:} area $= 0.0185\times 10 = 0.185$, and
-$0.185 \times 200 = 37$.
+$0.185 \cdot 200 = 37$.
 \end{recoverybox}
 
 \section{Shapes of distributions}
@@ -810,7 +825,7 @@ A handful of shapes cover most of what you will meet.
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
-\pgfplotsset{shp/.style={width=4.6cm, height=3.5cm, xmin=0, xmax=10, ymin=0, ymax=1.15,
+\pgfplotsset{shp/.style={width=4.2cm, height=3.5cm, xmin=0, xmax=10, ymin=0, ymax=1.15,
   axis lines*=left, xtick=\empty, ytick=\empty, title style={font=\small, text height=1.6ex, text depth=0.5ex}, domain=0:10, samples=120}}
 \begin{axis}[shp, name=s1, title={symmetric}]
 \addplot[fill=histfill!50, draw=distblue, thick] {exp(-(x-5)^2/2)} \closedcycle;
@@ -825,7 +840,7 @@ A handful of shapes cover most of what you will meet.
 \node[font=\footnotesize, anchor=south east] at (axis cs:5.4,0.5) {long tail};
 \draw[-Stealth, thick, quotientorange!80!black] (axis cs:5.2,0.45) -- (axis cs:0.4,0.16);
 \end{axis}
-\begin{axis}[shp, name=s4, at={(s1.south)}, anchor=north, yshift=-1.25cm, xshift=3.8cm, title={uniform}, samples=200]
+\begin{axis}[shp, name=s4, at={(s1.south west)}, anchor=north west, yshift=-1.25cm, xshift=2.35cm, title={uniform}, samples=200]
 \addplot[fill=histfill!50, draw=distblue, thick] {(x>1)*(x<9)*0.8} \closedcycle;
 \end{axis}
 \begin{axis}[shp, at={(s4.east)}, anchor=west, xshift=0.5cm, title={bimodal}]
@@ -928,7 +943,10 @@ requests.}
 Of the 150 requests, only 2 took between 30 and 55 ms, and none between 35 and 45. Yet the
 average of all 150 is about 37 ms. The arithmetic shows why: 105 hits (70\%) average about
 20 ms and 45 misses (30\%) average about 78 ms, so the overall mean is roughly
-$0.7\cdot 20 + 0.3\cdot 78 \approx 37$, a weighted point between the two peaks. A single
+\[
+  0.7 \cdot 20 + 0.3 \cdot 78 \approx 37,
+\]
+a weighted point between the two peaks. A single
 summary number cannot describe two groups. The right move is to split the
 data (by a cache-hit flag, if the log has one) and describe each group separately. A
 histogram is how you notice that you need to.
@@ -947,8 +965,8 @@ What matters more is what you \emph{do} with an outlier. It can be any of these:
   \item \textbf{A recording error.} A latency of $-3$ ms, a height of 17 m, a score of 850 on a
   100-point test. Fix it if you can, drop it if you cannot, and write down that you did.
   \item \textbf{A different process.} The 140 ms request returned 503 and retried three times
-  (Table~\ref{tab:data-log}). It is a real request, but it is a failure, not a slow success.
-  \item \textbf{The thing you care about.} For a latency service-level objective (a promise
+  (Figure~\ref{fig:data-log}). It is a real request, but it is a failure, not a slow success.
+  \item \textbf{The thing you care about.} For a latency service-level objective (SLO, a promise
   such as ``99\% of requests finish within 100 ms''), the slow
   requests \emph{are} the story. Deleting them would make the dashboard look better and the
   product worse.
@@ -988,7 +1006,7 @@ is a pile-up at a hard cap, and the true times of those requests are unknown (th
 \end{figure}
 
 \begin{trapbox}
-Never delete outliers just because they are inconvenient. Investigate first. Whatever you
+Never delete outliers because they are inconvenient. Investigate first. Whatever you
 decide, report results both with and without them if the conclusion changes.
 \end{trapbox}
 
@@ -1013,7 +1031,7 @@ drawn on top.
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
-\pgfplotsset{grw/.style={width=4.3cm, height=4.2cm, xmin=0, xmax=150, ymin=0, ymax=0.03,
+\pgfplotsset{grw/.style={width=4.0cm, height=4.2cm, xmin=0, xmax=150, ymin=0, ymax=0.03,
   xtick={0,50,100}, ytick=\empty, axis lines*=left, title style={font=\small},
   xlabel={latency (ms)}, xlabel style={font=\footnotesize}, ticklabel style={font=\footnotesize}}}
 \begin{axis}[grw, name=g1, title={$n=50$}, ytick={0,0.01,0.02,0.03},
@@ -1025,12 +1043,12 @@ drawn on top.
 \node[font=\footnotesize, densityred, anchor=west, align=left] at (axis cs:64,0.022) {population\\density};
 \draw[-Stealth, densityred] (axis cs:72,0.0175) -- (axis cs:61,0.0105);
 \end{axis}
-\begin{axis}[grw, name=g2, at={(g1.east)}, anchor=west, xshift=0.5cm, title={$n=500$}]
+\begin{axis}[grw, name=g2, at={(g1.east)}, anchor=west, xshift=0.4cm, title={$n=500$}]
 \addplot[ybar interval, fill=histfill!60, draw=distblue]
   coordinates {(0,0) (10,0.0048) (20,0.0202) (30,0.0234) (40,0.0178) (50,0.0152) (60,0.0068) (70,0.0046) (80,0.0036) (90,0.0010) (100,0.0010) (110,0.0006) (120,0) (130,0) (140,0.0006) (150,0)};
 \addplot[densityred, thick, domain=2:150, samples=120] {0.88654/x*exp(-(ln(x)-3.688879)^2/0.405)};
 \end{axis}
-\begin{axis}[grw, at={(g2.east)}, anchor=west, xshift=0.5cm, title={$n=5000$}]
+\begin{axis}[grw, at={(g2.east)}, anchor=west, xshift=0.4cm, title={$n=5000$}]
 \addplot[ybar interval, fill=histfill!60, draw=distblue]
   coordinates {(0,0.0002) (10,0.0058) (20,0.0190) (30,0.0251) (40,0.0188) (50,0.0127) (60,0.0073) (70,0.0047) (80,0.0024) (90,0.0015) (100,0.0008) (110,0.0008) (120,0.0003) (130,0.0001) (140,0.0002) (150,0)};
 \addplot[densityred, thick, domain=2:150, samples=120] {0.88654/x*exp(-(ln(x)-3.688879)^2/0.405)};
@@ -1166,7 +1184,7 @@ median for center, and the standard deviation for spread, including why it divid
   \item Stems 3 to 6: \texttt{3 | 6 8}, \texttt{4 | 1 4 7 7 9}, \texttt{5 | 1 2 5 8},
   \texttt{6 | 3}. Roughly symmetric, centered in the high 40s, no outliers.
   \item Under 30: $(8+7)/20 = 0.75$. Under 40: $(8+7+2)/20 = 0.85$.
-  \item Area $= 0.15 \times 3 = 0.45$, so $0.45 \times 400 = 180$ values.
+  \item Area $= 0.15 \cdot 3 = 0.45$, so $0.45 \cdot 400 = 180$ values.
   \item $30/(140\cdot 10) \approx 0.0214$, $50/(140\cdot 10) \approx 0.0357$,
   $60/(140\cdot 30) \approx 0.0143$. Tallest density bar: $[10,20)$. Tallest count bar:
   $[20,50)$, which misleads because that bin is three times as wide.

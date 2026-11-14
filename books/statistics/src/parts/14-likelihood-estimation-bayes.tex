@@ -5,19 +5,36 @@ Chapters 12 and 13 fitted lines and logistic curves by minimising a loss: square
 error for regression, cross-entropy for classification. Those losses were handed to
 you. This chapter explains where they come from. The answer is one idea,
 \emph{likelihood}, and it also tells us how precise a fitted parameter is and how to
-fold prior knowledge into a fit. By the end, ridge and lasso regression will turn out to
-be the same idea again, with a prior attached.
+fold prior knowledge into a fit. Later, ridge and lasso regression will appear as the same idea, with a prior attached.
 
 \section{Estimators and how they miss}
 \label{sec:lik-estimators}
 
 \subsection{An estimator is a recipe}
 
-Five API calls to a new service took these times in milliseconds:
+Five requests to a web server took these response times in milliseconds:
 \[
   4,\quad 7,\quad 5,\quad 9,\quad 5 .
 \]
 We want the true mean latency $\mu$ and the true variance $\sigma^2$ of this service.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\draw[->] (2.5,0) -- (10.5,0) node[right, font=\small] {response time (ms)};
+\foreach \x in {3,4,5,6,7,8,9,10} \draw (\x,0.1) -- (\x,-0.1) node[below, font=\small] {\x};
+\fill[distblue] (4,0.25) circle (0.11);
+\fill[distblue] (5,0.25) circle (0.11);
+\fill[distblue] (5,0.55) circle (0.11);
+\fill[distblue] (7,0.25) circle (0.11);
+\fill[distblue] (9,0.25) circle (0.11);
+\draw[densityred, thick, dashed] (6,-0.2) -- (6,1.0);
+\node[densityred, font=\small, anchor=south] at (6,1.0) {sample mean $\xbar = 6$};
+\end{tikzpicture}
+\caption{The five observed response times. The sample mean sits at $6$\,ms, balancing the points on either side.}
+\label{fig:lik-five-points}
+\end{figure}
+
 Two natural guesses are the sample mean and the sample variance:
 \[
   \xbar = \frac{4+7+5+9+5}{5} = 6, \qquad
@@ -30,7 +47,7 @@ Both are reasonable recipes. Which is better? To answer that we need to say what
 \begin{definition}
 An \textbf{estimator} $\hat\theta$ is a function of the data that is used to guess a
 parameter $\theta$. Picture a machine: data go in, one number comes out. The number it
-produces on the data you actually have is the \textbf{estimate}.
+produces on the observed data is the \textbf{estimate}.
 \end{definition}
 
 Because the data are random, the estimator is a random variable. If we reran the
@@ -126,7 +143,10 @@ wrong, and no amount of repetition reveals that from the darts alone.}
 The mean squared error charges for both failures, and it splits cleanly into the two.
 
 \begin{theorem}[Bias--variance decomposition]
-For any estimator, $\MSE(\hat\theta) = \Bias(\hat\theta)^2 + \Var(\hat\theta)$.
+For any estimator,
+\[
+  \MSE(\hat\theta) = \Bias(\hat\theta)^2 + \Var(\hat\theta) .
+\]
 \end{theorem}
 
 \begin{whybox}
@@ -136,13 +156,12 @@ Write $m = \E[\hat\theta]$ for the centre of the darts. Add and subtract it:
   + \underbrace{(m - \theta)}_{\text{bias}} .
 \]
 Square and take expectations:
-\[
-  \E[(\hat\theta-\theta)^2] = \E[(\hat\theta-m)^2] + 2(m-\theta)\,\E[\hat\theta-m]
-  + (m-\theta)^2 .
-\]
+\begin{align*}
+  \E\big[(\hat\theta-\theta)^2\big] &= \E\big[(\hat\theta-m)^2\big] + 2(m-\theta)\,\E[\hat\theta-m] + (m-\theta)^2 \\
+  &= \Var(\hat\theta) + 0 + \Bias(\hat\theta)^2 .
+\end{align*}
 The middle term vanishes because $\E[\hat\theta - m] = m - m = 0$: scatter around the
-centre averages to zero. The first term is $\Var(\hat\theta)$ and the last is
-$\Bias^2$. It is Pythagoras: the error vector has a ``random'' leg and a ``systematic''
+centre averages to zero. It is Pythagoras: the error vector has a ``random'' leg and a ``systematic''
 leg at right angles.
 \end{whybox}
 
@@ -154,9 +173,11 @@ $\theta=5$, useless otherwise. Low variance alone is not a virtue.)
 
 \subsection{Unbiased is not the same as best}
 
-Return to the variance of the latencies. For Normal data with $n$ points, the sum of
-squared deviations $SS=\sum(x_i-\xbar)^2$ satisfies $\E[SS]=(n-1)\sigma^2$ and
-$\Var(SS) = 2(n-1)\sigma^4$ (see Probability From the Ground Up, Ch.~30). So dividing
+Return to the variance of the latencies. For Normal data with $n$ points, the sum of squared deviations
+\[
+  SS = \sum_{i=1}^n (x_i-\xbar)^2
+\]
+satisfies $\E[SS]=(n-1)\sigma^2$ and $\Var(SS) = 2(n-1)\sigma^4$ (see Probability From the Ground Up, Ch.~30). So dividing
 $SS$ by some number $d$ gives
 \[
   \Bias = \frac{n-1}{d}\sigma^2 - \sigma^2, \qquad
@@ -205,8 +226,7 @@ total falls: the unbiased choice $d=n-1$ has the largest MSE of the three.}
 \end{figure}
 
 Unbiasedness is a property of the centre of the darts. It says nothing about how close
-any single dart lands. Machine learning leans on exactly this trade: regularisation
-(Section~\ref{sec:lik-map}) deliberately adds bias to cut variance.
+any single dart lands. Machine learning leans on exactly this trade: penalising complex models (a technique called regularisation, Section~\ref{sec:lik-map}) deliberately adds bias to cut variance.
 
 \subsection{Consistency}
 
@@ -326,11 +346,15 @@ most probable:
 
 \subsection{Logs make it easy}
 
-For independent observations the likelihood is a product,
-$L(\theta)=\prod_i p(x_i\given\theta)$. Products of many small numbers underflow on a
-computer and are awkward to differentiate. Take logs: the \textbf{log-likelihood}
-$\ell(\theta) = \log L(\theta) = \sum_i \log p(x_i\given\theta)$ turns the product into a
-sum. The logarithm is increasing, so it peaks at the same $\theta$.
+For independent observations the likelihood is a product:
+\[
+  L(\theta) = \prod_{i=1}^n p(x_i\given\theta) .
+\]
+Products of many small numbers underflow on a computer and are awkward to differentiate. Take logs: the \textbf{log-likelihood} turns the product into a sum:
+\[
+  \ell(\theta) = \log L(\theta) = \sum_{i=1}^n \log p(x_i\given\theta) .
+\]
+The logarithm is increasing, so it peaks at the same $\theta$.
 
 \begin{figure}[H]
 \centering
@@ -358,29 +382,31 @@ tangent (red line) is flat.}
 
 With $k$ successes in $n$ trials, $\ell(p) = k\log p + (n-k)\log(1-p)$. Set the
 derivative to zero:
-\[
-  \ell'(p) = \frac{k}{p} - \frac{n-k}{1-p} = 0
-  \;\Longrightarrow\; k(1-p) = (n-k)p
-  \;\Longrightarrow\; \hat p = \frac{k}{n}.
-\]
+\begin{align*}
+  \ell'(p) &= \frac{k}{p} - \frac{n-k}{1-p} = 0 \\
+  \implies k(1-p) &= (n-k)p \\
+  \implies \hat p &= \frac{k}{n} .
+\end{align*}
 The MLE is the observed proportion, $7/10$. Here the method only confirms common sense;
 the next two examples show it producing answers that are less obvious.
 
 \subsection{MLE for a Normal: why it divides by $n$}
 
 Take $x_1,\dots,x_n \iid \Normal(\mu,\sigma^2)$. Each point contributes
-$\log p(x_i) = -\tfrac12\log(2\pi\sigma^2) - (x_i-\mu)^2/(2\sigma^2)$, so
+\[
+  \log p(x_i) = -\frac12\log(2\pi\sigma^2) - \frac{(x_i-\mu)^2}{2\sigma^2},
+\]
+so
 \[
   \ell(\mu,\sigma^2) = -\frac n2\log(2\pi\sigma^2)
   - \frac{1}{2\sigma^2}\sum_{i=1}^n (x_i-\mu)^2 .
 \]
 Maximising over $\mu$ only involves the sum of squares, which is smallest at
 $\hat\mu = \xbar$. Plug that in and differentiate in $v=\sigma^2$:
-\[
-  \frac{\partial\ell}{\partial v} = -\frac{n}{2v} + \frac{SS}{2v^2} = 0
-  \;\Longrightarrow\;
-  \hat\sigma^2_{\text{MLE}} = \frac{1}{n}\sum_{i=1}^n (x_i-\xbar)^2 .
-\]
+\begin{align*}
+  \frac{\partial\ell}{\partial v} &= -\frac{n}{2v} + \frac{SS}{2v^2} = 0 \\
+  \implies \hat\sigma^2_{\text{MLE}} &= \frac{1}{n}\sum_{i=1}^n (x_i-\xbar)^2 .
+\end{align*}
 For the latencies, $\hat\mu = 6$ and $\hat\sigma^2 = 16/5 = 3.2$, not $s^2 = 4$.
 
 \begin{whybox}
@@ -397,11 +423,14 @@ MLE has lower MSE than $s^2$. For large $n$ the two agree.
 A service logged these error counts in six consecutive hours: $2, 0, 3, 1, 4, 2$. A
 Poisson model with rate $\lambda$ (the standard model for counts of rare, independent
 events) gives $p(k\given\lambda) = e^{-\lambda}\lambda^k/k!$. Then
+\begin{align*}
+  \ell(\lambda) &= \sum_i\big(k_i\log\lambda - \lambda - \log k_i!\big) \\
+  &= 12\log\lambda - 6\lambda - \text{const},
+\end{align*}
+and
 \[
-  \ell(\lambda) = \sum_i\big(k_i\log\lambda - \lambda - \log k_i!\big)
-  = 12\log\lambda - 6\lambda - \text{const},
+  \ell'(\lambda) = \frac{12}{\lambda} - 6 = 0 \implies \hat\lambda = 2 = \xbar .
 \]
-and $\ell'(\lambda) = 12/\lambda - 6 = 0$ gives $\hat\lambda = 2 = \xbar$.
 
 \begin{figure}[H]
 \centering
@@ -490,14 +519,17 @@ $\hat\sigma^2 = \text{SSE}/n$ falls out as a bonus.
 \subsection{Cross-entropy is Bernoulli MLE}
 
 A classifier outputs $\hat p_i = \P(y_i=1\given x_i)$. Each label is a coin flip with
-that probability, so $p(y_i) = \hat p_i^{\,y_i}(1-\hat p_i)^{1-y_i}$ and
+that probability, so
+\[
+  p(y_i) = \hat p_i^{\,y_i}(1-\hat p_i)^{1-y_i}
+\]
+and
 \[
   -\log p(y_i) = -\big[y_i\log\hat p_i + (1-y_i)\log(1-\hat p_i)\big].
 \]
 That is the binary cross-entropy loss from Chapter 13. A confident correct prediction
 ($\hat p=0.9$, $y=1$) costs $-\log 0.9 = 0.105$. A confident wrong one ($\hat p = 0.2$,
-$y=1$) costs $-\log 0.2 = 1.609$. For $K$ classes the same reasoning with a categorical
-distribution gives $-\log \hat p_{\text{true class}}$: softmax cross-entropy.
+$y=1$) costs $-\log 0.2 = 1.609$. For $K$ classes, a model outputs probabilities for each class (often using the softmax function so they sum to 1). The same reasoning gives a loss of $-\log \hat p_{\text{true class}}$, which is multi-class cross-entropy.
 
 \begin{figure}[H]
 \centering
@@ -525,10 +557,11 @@ limit. That is why a confidently wrong classifier is punished so hard.}
 
 \subsection{Absolute error is Laplace MLE}
 
-The \textbf{Laplace distribution} has density $\frac{1}{2b}e^{-\abs{x-\mu}/b}$: a
-two-sided exponential, a sharp peak with heavier tails than the Normal. Its negative log
-density is $\abs{x-\mu}/b + \log 2b$, so maximum likelihood minimises the sum of absolute
-errors.
+The \textbf{Laplace distribution} has density
+\[
+  p(x) = \frac{1}{2b}e^{-\abs{x-\mu}/b} :
+\]
+a two-sided exponential, a sharp peak with heavier tails than the Normal. Its negative log density is $\abs{x-\mu}/b + \log 2b$, so maximum likelihood minimises the sum of absolute errors.
 
 \begin{figure}[H]
 \centering
@@ -597,13 +630,13 @@ squared error & Gaussian & mean & linear regression \\
 absolute error & Laplace & median & robust regression \\
 pinball loss at level $\tau$ & asymmetric Laplace & $\tau$-quantile & p99 forecasting \\
 binary cross-entropy & Bernoulli & proportion & logistic regression \\
-categorical cross-entropy & categorical & class frequencies & softmax classifiers \\
+multi-class cross-entropy & categorical distribution & class frequencies & multi-class classifiers \\
 $\lambda - y\log\lambda$ & Poisson & mean count & count regression \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-The \textbf{pinball loss} (Chapter 3) is a lopsided absolute error. For a residual
+The \textbf{pinball loss} (Chapter 2) is a lopsided absolute error. For a residual
 $r = y - c$ it charges $\tau r$ when $r \ge 0$ (you predicted too low) and $(1-\tau)\abs{r}$
 when $r<0$ (too high). At $\tau = 0.99$, predicting too low costs $99$ times more per
 millisecond than predicting too high, so the best constant $c$ is pushed up until only
@@ -810,11 +843,10 @@ $0.5$''. Bayes' rule can, if we are willing to state what we believed before the
 The \textbf{prior} $\pi(\theta)$ is a probability distribution over the parameter that
 encodes belief before seeing the data. The \textbf{posterior} $\pi(\theta\given\text{data})$
 is the belief afterwards. Bayes' rule links them:
-\[
-  \pi(\theta\given\text{data}) =
-  \frac{L(\theta)\,\pi(\theta)}{\int L(t)\,\pi(t)\,\dd t}
-  \;\propto\; \text{likelihood}\times\text{prior}.
-\]
+\begin{align*}
+  \pi(\theta\given\text{data}) &= \frac{L(\theta)\,\pi(\theta)}{\int L(t)\,\pi(t)\,\dd t} \\
+  &\propto \text{likelihood} \times \text{prior} .
+\end{align*}
 The denominator, the \textbf{evidence}, is only a normalising constant that makes the
 posterior integrate to $1$.
 \end{definition}
@@ -851,7 +883,7 @@ Multiply the prior by the likelihood $p^k(1-p)^{n-k}$:
 \[
   p^{a-1}(1-p)^{b-1}\cdot p^k(1-p)^{n-k} = p^{a+k-1}(1-p)^{b+n-k-1} .
 \]
-That is another Beta. The update is just counting:
+That is another Beta. The update is counting:
 \[
   \Bet(a,b) \;\xrightarrow{\;k \text{ heads},\ n-k \text{ tails}\;}\; \Bet(a+k,\ b+n-k).
 \]
@@ -1037,11 +1069,11 @@ that the coin favours heads.
 Often we want one number rather than a whole posterior. The \textbf{maximum a
 posteriori} (MAP) estimate is the posterior's peak. Take logs of Bayes' rule; the
 evidence is a constant and drops out:
-\[
-  \hat\theta_{\text{MAP}} = \argmax_\theta\big[\,\ell(\theta) + \log\pi(\theta)\,\big]
-  = \argmin_\theta\big[\,\underbrace{-\ell(\theta)}_{\text{loss}}
+\begin{align*}
+  \hat\theta_{\text{MAP}} &= \argmax_\theta\big[\,\ell(\theta) + \log\pi(\theta)\,\big] \\
+  &= \argmin_\theta\big[\,\underbrace{-\ell(\theta)}_{\text{loss}}
   \;+\; \underbrace{(-\log\pi(\theta))}_{\text{penalty}}\,\big].
-\]
+\end{align*}
 MAP is the MLE plus a penalty, and the penalty is the negative log prior. A flat prior
 adds nothing, so MAP equals MLE. For the coin with $\Bet(2,2)$, the MAP is $0.667$, the
 posterior mode found above.
@@ -1161,7 +1193,7 @@ in variance.
 MAP is a point estimate, not a full Bayesian answer. It throws away the posterior's
 width, and it depends on how you parametrise: the mode of a density changes if you
 switch from $p$ to $\log p$, while posterior probabilities of events do not. If you need
-uncertainty, report a credible interval, not just the MAP.
+uncertainty, report a credible interval, not the MAP alone.
 \end{trapbox}
 
 \section{When frequentist versus Bayesian matters in practice}
@@ -1176,7 +1208,7 @@ the edges.
 \toprule
 situation & frequentist habit & Bayesian habit \\
 \midrule
-large $n$, simple model & MLE $\pm 1.96\,\SE$ & essentially identical \\
+large $n$, simple model & MLE $\pm 1.96\,\SE$ & identical \\
 small $n$ or zero events (0 of 20 failures) & MLE $=0$, Wald SE $=0$: nonsense & prior keeps estimate above $0$ \\
 many related groups (per-store rates) & estimate each separately & shrink toward shared mean (hierarchical prior) \\
 A/B test readout & $p$-value, fixed sample size & $\P(\text{B beats A}\given\text{data})$ \\

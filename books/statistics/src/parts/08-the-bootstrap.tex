@@ -117,8 +117,8 @@ in its place, and run the same simulation.
 \begin{definition}[Empirical distribution]
 The \textbf{empirical distribution} $\hat F_n$ of data $x_1,\dots,x_n$ puts
 probability $1/n$ on each data point. Picture: a bag containing your $n$
-values written on slips of paper. Its cumulative distribution function, the
-\textbf{ECDF}, is
+values written on slips of paper. Its cumulative distribution function is the
+ECDF of Chapter~3,
 \[
   \hat F_n(t) = \frac{\#\{i : x_i \le t\}}{n},
 \]
@@ -159,9 +159,10 @@ bootstrap uses the staircase as if it were the population.}
 
 Figure~\ref{fig:bootstrap-ecdf} shows why this is reasonable. The law of large
 numbers (Probability From the Ground Up, Ch.~20) says each staircase height
-$\hat F_n(t)$ converges to $F(t)$, and a stronger result (the
-Glivenko--Cantelli theorem) says the whole staircase converges uniformly. With
-40 points the staircase is already close.
+$\hat F_n(t)$ converges to $F(t)$. In fact, the whole staircase
+converges uniformly, meaning the largest vertical gap between the staircase
+and the true curve shrinks to zero as $n$ grows. With 40 points the staircase
+is already close.
 
 \begin{intuitionbox}
 The plug-in principle is something you already do. You estimate the
@@ -172,7 +173,9 @@ variability} of a statistic under $F$ by its sampling variability under
 $\hat F_n$.
 \end{intuitionbox}
 
-Figure~\ref{fig:bootstrap-worlds} lays out the parallel.
+Figure~\ref{fig:bootstrap-worlds} lays out the parallel. Here $s$ is the
+function that computes the statistic from a sample $x$, giving the estimate
+$\hat\theta$.
 
 \begin{figure}[H]
 \centering
@@ -209,8 +212,8 @@ the role of samples.}
 \section{Resampling with replacement, by hand}
 \label{sec:boot-resample}
 
-Drawing from $\hat F_n$ means: pick one of the $n$ data points uniformly at
-random, write it down, put it back, and repeat $n$ times. The result is a
+Drawing from $\hat F_n$ means: pick one of the $n$ data points at random
+(each with equal chance), write it down, put it back, and repeat $n$ times. The result is a
 \textbf{bootstrap resample}: a list of $n$ values, each one copied from the
 data, where some originals appear twice or more and some not at all.
 
@@ -420,13 +423,17 @@ of the population and $n$: write it $\SE(F, n)$. The bootstrap SE is the same
 function evaluated at the empirical distribution, $\SE(\hat F_n, n)$, which is
 the plug-in principle again. As $\hat F_n \to F$, the two agree for any
 statistic that depends smoothly on $F$. The $B$ replicates are only a Monte
-Carlo approximation to $\SE(\hat F_n, n)$, and Section~\ref{sec:boot-B} shows how
+Carlo approximation (an estimate found by running a random simulation) to
+$\SE(\hat F_n, n)$, and Section~\ref{sec:boot-B} shows how
 big $B$ must be.
 \end{whybox}
 
 A quick sanity check uses the mean. One draw from $\hat F_n$ is a random data
-point, so its variance is $\hat\sigma^2 = \frac1n\sum_i (x_i - \xbar)^2$, the
-SD computed with divisor $n$ instead of $n-1$. A resample mean averages $n$
+point, so its variance is
+\[
+  \hat\sigma^2 = \frac{1}{n}\sum_i (x_i - \xbar)^2,
+\]
+the SD computed with divisor $n$ instead of $n-1$. A resample mean averages $n$
 independent such draws, so by Chapter 6 its SD is $\hat\sigma/\sqrt n$. With
 unlimited resamples the bootstrap SE of the mean is exactly this:
 $24.17/\sqrt{40} = 3.82$, against the formula's $3.87$. (Our 2000 resamples
@@ -560,6 +567,29 @@ formula, it requires a second, nested bootstrap inside each resample: $B=1000$
 outer times $200$ inner means $200{,}000$ medians. Studentizing (dividing by an
 estimated SE) removes the dependence of spread on $\theta$, which is where the
 extra accuracy comes from.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, minimum height=0.6cm, font=\small, align=center},
+  arr/.style={-{Stealth[length=2mm]}, thick}
+]
+\node[box, fill=sourceblue!10] (data) at (0, 0) {Data\\$n$ points};
+\node[box, fill=bootorange!15] (r1) at (-3, -1.5) {Resample 1};
+\node[box, fill=bootorange!15] (r2) at (0, -1.5) {Resample 2};
+\node[font=\small] (rdots) at (2, -1.5) {$\dots$};
+\node[box, fill=bootorange!15] (rB) at (4, -1.5) {Resample $B$};
+\draw[arr] (data) -- (r1); \draw[arr] (data) -- (r2); \draw[arr] (data) -- (rB);
+\node[box, fill=structurepurple!15, minimum height=0.4cm] (ir11) at (-4, -3) {inner 1};
+\node[box, fill=structurepurple!15, minimum height=0.4cm] (ir12) at (-2, -3) {inner 200};
+\node[font=\footnotesize] (irdots) at (-3, -3) {$\dots$};
+\draw[arr] (r1) -- (ir11); \draw[arr] (r1) -- (ir12);
+\node[font=\footnotesize, align=center] at (-3, -3.9) {computes $\widehat{\SE}^*_1$\\for $t^*_1$};
+\node[font=\footnotesize, align=center] at (0, -3.9) {computes $\widehat{\SE}^*_2$\\for $t^*_2$};
+\end{tikzpicture}
+\caption{The nested bootstrap for the bootstrap-t interval. When the statistic has no formula for its standard error, each outer resample needs its own inner bootstrap (often 200 inner resamples) to estimate $\widehat{\SE}^*_b$ and studentize the replicate.}
+\label{fig:bootstrap-nested}
+\end{figure}
 
 Prefer bootstrap-t when the statistic has a stable SE estimate: means, trimmed
 means, differences of means, regression slopes. Avoid it for the median and
@@ -922,10 +952,10 @@ probability $j/40$, so that count is $\Bin(40, j/40)$. The bootstrap's lower
 endpoint is where this event has probability $2.5\%$. With the normal
 approximation, that is where half the draws, 20, sits 1.96 SDs above the mean
 $j$:
-\[
-  20 \approx j + 1.96\sqrt{40 \cdot \tfrac12 \cdot \tfrac12}
-  \quad\Longrightarrow\quad j \approx 20 - 6.2 = 13.8 .
-\]
+\begin{align*}
+  20 &\approx j + 1.96\sqrt{40 \cdot \tfrac12 \cdot \tfrac12} \\
+  \Longrightarrow\quad j &\approx 20 - 6.2 = 13.8 .
+\end{align*}
 The exact method chose the largest $j$ with $\P(K \le j-1) \le 0.025$ for
 $K \sim \Bin(40, 1/2)$: again a cut-off about $1.96 \times 3.16 = 6.2$ below
 the centre 20, which the exact table turns into $j = 14$. Both methods
@@ -1041,7 +1071,7 @@ goal & resamples $B$\\
 bootstrap SE, rough & 200\\
 bootstrap SE, reported to 2 digits & 1000\\
 percentile or BCa $95\%$ interval & 2000--10{,}000\\
-$99\%$ interval or small p-value & 10{,}000+\\
+$99\%$ interval or small p-value (Chapter 9) & 10{,}000+\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -1133,7 +1163,8 @@ changes in the data. Each failure below breaks one of them.
 \subsection{Tiny samples}
 
 With $n = 8$ there are only $\binom{15}{8} = 6435$ distinct resamples (as
-multisets, ignoring order) and the median takes a few dozen values. $\hat F_n$
+multisets---collections where values can repeat but the order does not matter)
+and the median takes a few dozen values. $\hat F_n$
 is a bag of 8 slips; it cannot represent the population's spread or tail.
 Below $n \approx 15$ treat any bootstrap interval as rough, and prefer an exact
 method when one exists.
@@ -1181,8 +1212,9 @@ quantiles, $\hat F_n$ is wrong in exactly the region the statistic looks at.
 \subsection{Heavy tails}
 
 A \textbf{heavy-tailed} distribution is one where extreme values are common
-enough that the variance is huge or infinite. The Pareto family with tail
-index $\alpha$ is the standard example; smaller $\alpha$ means heavier tails,
+enough that the variance is huge or infinite. The Pareto family of Chapter~6,
+where the chance of exceeding $x$ falls like $1/x^{\alpha}$, is the standard
+example; the exponent $\alpha$ is called the \emph{tail index}, smaller $\alpha$ means heavier tails,
 and the variance is infinite for $\alpha \le 2$. Bootstrap percentile
 intervals for the \emph{mean} of $n = 50$ Pareto values (2000 simulations,
 $B = 1000$):

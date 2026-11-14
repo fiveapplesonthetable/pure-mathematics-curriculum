@@ -58,7 +58,7 @@ bulk of the data.}
 
 \section{Percentiles and quantiles}
 
-The median splits the data in half. Nothing stops us from splitting at other points.
+The median splits the data in half. We can also split it at other points.
 
 \begin{definition}[Quantile, percentile]
 For $0 < p < 1$, a \textbf{$p$-quantile} of a data set is a number $q$ such that
@@ -67,7 +67,7 @@ above it. The \textbf{$100p$-th percentile} is the same thing on a $0$--$100$ sc
 the $0.9$-quantile is the 90th percentile, written p90.
 \end{definition}
 
-Picture walking along the sorted data from left to right with a counter that tracks
+Imagine walking along the sorted data from left to right with a counter that tracks
 the fraction of points you have passed. The $p$-quantile is where the counter reads
 $p$. The median is the $0.5$-quantile. The \textbf{quartiles} are the $0.25$-, $0.5$-,
 and $0.75$-quantiles, called $Q_1$, $Q_2$, $Q_3$: they cut the data into four
@@ -76,8 +76,7 @@ equal-sized groups.
 \subsection{The trouble with ``roughly''}
 
 With twelve points, what is p90? Ten percent of twelve is $1.2$ points. No data
-value has exactly $1.2$ points above it. The word ``roughly'' in the definition is
-hiding a real choice, and different software makes it differently.
+value has exactly $1.2$ points above it. The word ``roughly'' in the definition hides a real choice, and different software makes it differently.
 
 The most common rule, used by default in numpy, R, Excel's \texttt{PERCENTILE.INC} and
 pandas, places the sorted values at evenly spaced positions and draws straight lines
@@ -89,7 +88,7 @@ the $i$-th smallest value (the \textbf{$i$-th order statistic}). Put $x_{(i)}$ a
 position $(i-1)/(n-1)$ on a $0$-to-$1$ scale, so the minimum sits at $0$ and the
 maximum at $1$. Compute
 \[
-  h = (n-1)p + 1, \qquad k = \floor{h}, \qquad f = h - k .
+  h = (n-1)p + 1, \qquad k = \floor{h} \text{ (the integer part)},, \qquad f = h - k .
 \]
 Then
 \[
@@ -169,7 +168,9 @@ the middle and disagree wildly at p90, where the data are sparse.}
 
 The \texttt{weibull} p90 is more than double the \texttt{linear} p90. Check it by hand:
 with positions $i/(n+1)$ the fractional rank is $h = (n+1)p = 13(0.9) = 11.7$, so
-$Q = x_{(11)} + 0.7\,(x_{(12)} - x_{(11)}) = 48 + 0.7(72) = 98.4$. The rule reaches
+\[
+  Q = x_{(11)} + 0.7\,(x_{(12)} - x_{(11)}) = 48 + 0.7(72) = 98.4 .
+\] The rule reaches
 further into the gap between 48 and 120 because it reserves some probability for
 values beyond the largest observation. Figure~\ref{fig:quantiles-methods-pos} draws the two
 rules side by side.
@@ -381,7 +382,7 @@ fences would be flagged: $0.35\%$ on each side, $0.7\%$ in total.}
 skewed data the rule fires constantly. Exponential data (a common model for waiting
 times) have $Q_1 = \ln(4/3)$ and $Q_3 = \ln 4$ in units of the mean, so the upper
 fence is $\ln 4 + 1.5\ln 3 \approx 3.03$ and about $4.8\%$ of all points lie beyond it.
-A service with 10{,}000 requests would show roughly 480 ``outliers'' that are simply
+A service with 10{,}000 requests would show roughly 480 ``outliers'' that are
 its normal tail.
 \end{trapbox}
 
@@ -493,7 +494,7 @@ points.
 
 The ECDF has three advantages over a histogram. It needs no bin width. Every data
 point is visible. And quantiles, medians and ``fraction below a threshold'' are all
-read directly. A service-level objective (SLO), a promise such as ``most requests
+read directly. A service-level objective (SLO, Chapter~1), such as ``most requests
 finish under 30 ms'', becomes the question ``what fraction finished under 30 ms?'', and
 the answer is $\hat F(30) = 9/12 = 0.75$, one glance.
 
@@ -588,8 +589,7 @@ distribution. If $U$ is uniform on $(0,1)$, then $Q(U)$ has CDF $F$. This is
 \textbf{inverse transform sampling}: \texttt{-20*np.log(1-np.random.rand())} draws an
 exponential latency with mean 20. The proof is one line, $\P(Q(U) \le x) =
 \P(U \le F(x)) = F(x)$; see \emph{Probability From the Ground Up} for details. The same
-idea powers quantile regression and the ``pinball loss'' used to train models that
-predict p90 instead of the mean.
+idea powers quantile regression (predicting a given percentile instead of the mean) and the pinball loss of Chapter~2 (the asymmetric error used to train it).
 \end{connectionbox}
 
 \section{Latency dashboards: p50, p90, p99}
@@ -730,11 +730,35 @@ $(10 + 11)/2 = 10.5$. The answer depends on how many requests each server handle
 how their distributions overlap, and the two medians alone do not carry that
 information.
 
-At scale the error is just as real. Suppose server A handles 9{,}000 fast requests
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=3.5cm,
+  xmin=0, xmax=16, ymin=0, ymax=2.5,
+  axis lines*=left, axis y line=none,
+  xtick={0,2,4,6,8,10,12,14}, xlabel={latency (ms)}, clip=false,
+]
+\addplot[only marks, mark=*, mark size=2pt, sourceblue] coordinates {(1,1) (2,1) (3,1)};
+\node[sourceblue, anchor=south, font=\scriptsize] at (axis cs:2,1.2) {A median 2};
+\addplot[only marks, mark=*, mark size=2pt, quotientorange] coordinates {(10,1) (11,1) (12,1) (13,1) (14,1)};
+\node[quotientorange, anchor=south, font=\scriptsize] at (axis cs:12,1.2) {B median 12};
+\draw[trapred, thick, dashed] (axis cs:7,0) -- (axis cs:7,2.2);
+\node[trapred, anchor=south, font=\scriptsize] at (axis cs:7,2.2) {average of medians 7};
+\draw[targetgreen, thick] (axis cs:10.5,0) -- (axis cs:10.5,1.7);
+\node[targetgreen, anchor=south west, font=\scriptsize] at (axis cs:10.5,1.7) {combined median 10.5};
+\end{axis}
+\end{tikzpicture}
+\caption{Why medians do not average. Server A's three requests (blue) and server B's five (orange) have medians 2 and 12, which average to 7. But the combined median of all eight requests is halfway between 10 and 11, far from 7, because server B dominates the upper half of the merged data.}
+\label{fig:quantiles-medians-avg}
+\end{figure}
+
+
+At scale the error is as real. Suppose server A handles 9{,}000 fast requests
 (p99 $= 52.0$ ms) and server B handles 1{,}000 slow ones (p99 $= 286.8$ ms). The average
 of the two p99s is $169.4$ ms. The true fleet p99, computed from all 10{,}000 requests,
 is $218.1$ ms. And $3.5\%$ of all requests exceed $169.4$ ms, so the ``averaged p99''
-is really about a p96.5.
+is roughly a p96.5.
 
 \begin{figure}[H]
 \centering
@@ -768,7 +792,7 @@ p90, about 218 ms. Averaging the two p99s gives 169 ms, a value 3.5\% of request
 
 The fix is to merge data, not summaries. Either combine the raw latencies, or have every
 server report a \emph{histogram} (counts in fixed latency buckets) or a mergeable sketch
-such as a t-digest or HDR histogram. Bucket counts add across servers and across time;
+such as a t-digest or HDR histogram (data structures that approximate percentiles accurately using little memory). Bucket counts add across servers and across time;
 the combined percentile is then read off the merged counts. The same rule applies over
 time: the p99 for an hour is not the average of sixty per-minute p99s.
 
@@ -832,8 +856,11 @@ scores on an easy test are \textbf{left-skewed}: most students near the top, a t
 low scores.
 
 \begin{definition}[Sample skewness]
-With $\xbar$ the mean, let $m_k = \frac1n\sum_i (x_i - \xbar)^k$ be the average $k$-th
-power of the deviations. The sample \textbf{skewness} is
+With $\xbar$ the mean, let
+\[
+  m_k = \frac{1}{n} \sum_{i=1}^n (x_i - \xbar)^k
+\]
+be the average $k$-th power of the deviations. The sample \textbf{skewness} is
 \[
   g_1 = \frac{m_3}{m_2^{3/2}} .
 \]
@@ -850,6 +877,31 @@ For the twelve latencies, $g_1 \approx 2.52$: strongly right-skewed. The single 
 larger than the whole sum of cubes ($\approx 718{,}000$). The nine fast requests
 contribute negative cubes totalling about $-20{,}900$, more than cancelling the
 $+6{,}000$ from 31 and 48.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=4.5cm,
+  xmin=0, xmax=13, ymin=-30000, ymax=760000,
+  axis lines=left, xlabel={request rank $i$}, ylabel={cubed deviation $(x_{(i)} - \bar{x})^3$},
+  scaled y ticks=false,
+  ybar, bar width=10pt, clip=false
+]
+\addplot[fill=histfill!50, draw=sourceblue, thick] coordinates {
+  (1,-5668) (2,-3967) (3,-3261) (4,-2645) (5,-2111) (6,-1655)
+  (7,-949) (8,-480) (9,-112) (10,1.6) (11,5999) (12,733130)
+};
+\node[sourceblue, anchor=south east, font=\scriptsize, align=right] at (axis cs:11.8,733130) {120 ms\\$+733{,}130$};
+\node[sourceblue, anchor=north, font=\scriptsize] at (axis cs:11,5999) {48 ms};
+\draw[gray, -{Stealth}] (axis cs:6,-15000) -- (axis cs:2,-6000);
+\node[gray, anchor=north, font=\scriptsize] at (axis cs:6,-10000) {small negative cubes from fast requests};
+\end{axis}
+\end{tikzpicture}
+\caption{The cubed deviations for the twelve latencies (mean 29.8 ms). Points below the mean have small negative cubes (ranks 1--9); the two moderately slow points (ranks 10 and 11) add small positive cubes. The single extreme point at 120 ms (rank 12) has a cube so massive that it pulls the sum of the cubes, and thus the skewness, strongly positive.}
+\label{fig:quantiles-cubes}
+\end{figure}
+
 
 \begin{intuitionbox}
 Skewness is a measure of tail imbalance, and it is fragile. One extreme value can
@@ -910,7 +962,7 @@ kurtosis measures.}
 \label{fig:quantiles-kurtosis}
 \end{figure}
 
-Reference values: uniform $-1.2$, Normal $0$, Laplace $3$, and $6$ for Student's $t$
+Reference values: uniform $-1.2$, Normal $0$, Laplace (a peaked distribution with heavy tails) $3$, and $6$ for Student's $t$
 with 5 degrees of freedom (a heavy-tailed cousin of the Normal that Chapter 7 uses). Our twelve latencies have excess kurtosis $5.1$, again almost entirely from
 the value 120 (it supplies over $99\%$ of $\sum (x_i - \xbar)^4$).
 
@@ -1204,7 +1256,9 @@ $x=7.5$); the lone point at 11 makes only a single bump's height.}
 
 At $x = 7$ in Figure~\ref{fig:quantiles-kde-build}, the three bumps at $7$, $7.5$ and $8$
 contribute most; the estimate there is
-$\hat f(7) = \frac17\sum_i \varphi(7 - x_i) \approx 0.143$.
+\[
+  \hat f(7) = \frac{1}{7} \sum_{i=1}^7 \varphi(7 - x_i) \approx 0.143 .
+\]
 
 \subsection{Bandwidth is the whole game}
 
@@ -1242,7 +1296,7 @@ reaction times drawn from two groups (a fast majority near 30 ms and a slower gr
 \end{axis}
 \end{tikzpicture}
 \caption{Three KDEs of the same 38 reaction times (dot plot below). $h=1$ invents
-bumps that are just sampling noise. $h=12$ smooths away the slower group. $h=4$, a little
+bumps that are sampling noise. $h=12$ smooths away the slower group. $h=4$, a little
 below Silverman's rule of thumb ($5.1$), shows the two groups.}
 \label{fig:quantiles-kde-bw}
 \end{figure}
@@ -1316,7 +1370,7 @@ His problem was practical: with pencil and paper, how do you summarise a batch o
 numbers in a way that a few wild values cannot distort? His answer, in the 1977 book
 \emph{Exploratory Data Analysis}, used medians and quartiles (which ignore how extreme
 the extremes are) instead of means and SDs, and drew them as the box-and-whisker plot,
-with the $1.5\,\IQR$ fences to flag points worth a second look. It unlocked fast visual
+with the $1.5\,\IQR$ fences to flag points worth a second look. It allowed fast visual
 comparison of many groups at once, and it is still the default summary plot in every
 statistics package. Violin plots (Hintze and Nelson, 1998) and the ECDF-based tools in
 this chapter are refinements of the same idea: look at the whole distribution before

@@ -1,119 +1,129 @@
 \chapter{Numerical Linear Algebra}
 
-In Chapter~32, we met unitary transforms like the Fourier matrix, where exact algebra
-yielded fast algorithms. But every formula in this book has shared a quiet
-assumption: that arithmetic is exact.
+In Chapter~32 we met unitary transforms like the Fourier matrix, where exact algebra
+led to fast algorithms. Every formula in this book so far has assumed one thing:
+that arithmetic is exact.
 
-We wrote $\inv{\mat{A}}$, we wrote $\sqrt{2}$, we wrote $1/3$, and we trusted those symbols to mean precisely what they
-say. A real computer does not get that luxury. It stores numbers in a fixed number of
-bits, so $1/3$ becomes $0.3333333\ldots$ chopped off somewhere, $\sqrt{2}$ becomes a
-nearby fraction, and every arithmetic step introduces a tiny rounding error. Most
-of the time those errors stay harmless. Sometimes, however, they accumulate and
-amplify until the computed answer has no accurate digits left.
+We wrote $\inv{\mat{A}}$, $\sqrt{2}$ and $1/3$, and trusted those symbols to mean
+precisely what they say. A real computer cannot do that. It stores each number in a
+fixed number of bits, so $1/3$ becomes $0.3333333\ldots$ cut off somewhere, $\sqrt{2}$
+becomes a nearby fraction, and every arithmetic step introduces a tiny rounding error.
+Most of the time those errors stay harmless. Sometimes they accumulate and grow until
+the computed answer has no correct digits left.
 
 Numerical linear algebra is the study of how to do linear algebra on a machine
-\emph{and trust the result}. It splits into two questions that we will keep carefully
-apart:
+\emph{and trust the result}. It splits into two questions that we will keep apart:
 
 \begin{itemize}
   \item \textbf{Conditioning} is a property of the \emph{problem}. Some problems are
-    inherently delicate: tiny changes to the input force large changes in the true
-    answer. No algorithm, however clever, can rescue an ill-conditioned problem,
-    because the input itself is already uncertain.
-  \item \textbf{Stability} is a property of the \emph{algorithm}. A stable algorithm
-    does not add much trouble of its own; an unstable one can wreck even a
-    well-conditioned problem through its own internal rounding.
+    delicate by nature: tiny changes to the input force large changes in the true
+    answer. Such a problem is called \textbf{ill-conditioned}. No algorithm can rescue
+    it, because the input itself is already uncertain (it was measured, or rounded
+    when it was stored).
+  \item \textbf{Stability} is a property of the \emph{algorithm} (the step-by-step
+    method the computer follows). A \textbf{stable} algorithm adds little error of its
+    own; an unstable one can wreck even a well-conditioned problem through its own
+    rounding.
 \end{itemize}
 
-Hold those two words apart and most of the confusion in this field evaporates. The
-condition number measures the problem. Stability measures the method. You want both:
-a well-conditioned problem solved by a stable algorithm.
+The condition number, defined below, measures the problem. Stability describes the
+method. You want both: a well-conditioned problem solved by a stable algorithm.
 
-We will build the floating-point picture, define the condition number geometrically,
-see why Gaussian elimination needs pivoting and why QR provides numerical stability, then
-turn to iterative methods -- Jacobi, Gauss--Seidel, and the conjugate gradient idea --
-that solve enormous sparse systems without ever forming an inverse. We close with the
-power method, the simplest eigenvalue algorithm, and a page of practical warnings you
-will be glad to have.
+
 
 \section{Floating point: numbers with a budget}
 
 A computer stores a real number the way scientific notation does, but in binary and
-with a fixed budget of digits. A double-precision (``float64'') number looks like
+with a fixed budget of digits. Such numbers are called \textbf{floating-point numbers}
+(the binary point ``floats'' to wherever the exponent puts it), or \emph{floats} for
+short. The standard format today is \textbf{double precision}, called
+\texttt{float64} in most programming languages because it uses $64$ bits. A
+double-precision number looks like
 \[
-  \pm\, 1.\underbrace{b_1 b_2 \cdots b_{52}}_{\text{52 bits}} \times 2^{e},
+  \pm\, 1.\underbrace{b_1 b_2 \cdots b_{52}}_{\text{52 bits}} \times 2^{e}.
 \]
-a sign, a $52$-bit fraction (the \emph{mantissa}, which records the significant bits
-of the number after the normalized leading one), and an exponent $e$. Because the
-mantissa has only $52$ bits, the gap between one representable number and the next is
-relative, not absolute: near $1$ the spacing is about $2^{-52}\approx 2.2\times
-10^{-16}$, and near $1000$ it is a thousand times larger. The single most important
-constant in the subject is this spacing at $1$, called \textbf{machine epsilon}:
+It has three parts: a sign, a $52$-bit fraction $b_1b_2\cdots b_{52}$ (each $b_i$ is a
+binary digit, $0$ or $1$), and an exponent $e$, a whole number. The fraction is called
+the \textbf{mantissa}. Every nonzero number is first scaled by a power of $2$ so that it
+starts with a $1$ before the binary point (just as $0.0042$ is written $4.2\times 10^{-3}$
+in scientific notation); that leading $1$ is not stored, and the mantissa holds the
+$52$ binary digits after it. Because the mantissa has only $52$ bits, the gap between one
+representable number and the next is relative, not absolute: near $1$ the spacing is
+$2^{-52}\approx 2.2\times 10^{-16}$, and near $1000$ it is about a thousand times larger
+(Figure~\ref{ch33:ruler}). The most important constant in the subject is this spacing
+at $1$, called \textbf{machine epsilon}:
 \[
   \eps_{\text{mach}} \;=\; 2^{-52} \;\approx\; 2.22\times 10^{-16}.
 \]
-Machine epsilon is the gap between $1.0$ and the very next number the computer can
-represent. Anything smaller than half of $\eps_{\text{mach}}$ added to $1.0$
-rounds right back to $1.0$.
+Machine epsilon is the gap between $1.0$ and the next number the computer can
+represent. Adding to $1.0$ any number smaller than half of $\eps_{\text{mach}}$
+gives a result that rounds back to $1.0$.
 
 \begin{intuitionbox}
 Think of the real line as a ruler whose tick marks get \emph{farther apart} as you
 move away from zero, but always stay the same distance apart \emph{relative} to where
-you are -- about $16$ significant decimal digits everywhere. When you store a number,
-you snap it to the nearest tick. The snap costs at most half a tick, so the relative
-error of storing any number $x$ is bounded:
+you are: about $16$ significant decimal digits everywhere. (The \emph{significant
+digits} of a number are its digits starting from the first nonzero one; $0.004217$ has
+four.) When you store a number, you snap it to the nearest tick. The snap costs at most
+half a tick, so the relative error of storing any number $x$ is bounded:
 \[
   \frac{\abs{\text{fl}(x) - x}}{\abs{x}} \;\le\; \tfrac12\,\eps_{\text{mach}}.
 \]
 Here $\text{fl}(x)$ means ``$x$ rounded to the nearest float.'' Sixteen digits sounds
-like plenty. The danger is never one rounding -- it is what happens when millions of
+like plenty. The danger is never one rounding; it is what happens when millions of
 them interact.
 \end{intuitionbox}
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\begin{tikzpicture}[scale=1.0,>=Stealth]
-  \draw[thick] (0,0)--(11,0);
-  % evenly spaced ticks near 1 (dense), widening as we move right
-  \foreach \x in {0.0,0.4,0.8,1.2,1.6,2.0,2.4} {
-    \draw[vecblue] (\x,0.0)--(\x,0.18);
+\begin{tikzpicture}[x=1.3cm,>=Stealth]
+  % Toy float format with 3 fraction bits: 8 numbers in [1,2), [2,4), [4,8)
+  \draw[thick,->] (0.6,0)--(8.4,0);
+  \foreach \k in {0,...,7} {
+    \draw[vecblue,thick] ({1+\k/8},0)--({1+\k/8},0.22);
+    \draw[vecblue,thick] ({2+\k/4},0)--({2+\k/4},0.22);
+    \draw[vecblue,thick] ({4+\k/2},0)--({4+\k/2},0.22);
   }
-  \foreach \x in {3.2,4.0,4.8,5.6,6.4} {
-    \draw[vecblue] (\x,0.0)--(\x,0.18);
+  \draw[vecblue,thick] (8,0)--(8,0.22);
+  \foreach \x in {1,2,4,8} {
+    \draw (\x,0)--(\x,-0.1) node[below]{\small $\x$};
   }
-  \foreach \x in {7.6,9.2,10.8} {
-    \draw[vecblue] (\x,0.0)--(\x,0.18);
-  }
-  \node[below] at (1.2,-0.1){\small near $1$: ticks tight};
-  \node[below] at (5.0,-0.1){\small near $10$};
-  \node[below] at (9.2,-0.1){\small near $100$: ticks wide};
-  \draw[<->,trapred,thick] (0.0,0.45)--(0.4,0.45);
-  \node[trapred,above] at (0.2,0.5){\scriptsize $\eps_{\text{mach}}$};
-  \draw[<->,trapred,thick] (7.6,0.45)--(9.2,0.45);
-  \node[trapred,above] at (8.4,0.5){\scriptsize $\sim 100\,\eps_{\text{mach}}$};
+  \draw[<->,trapred,thick] (1,0.5)--(1.125,0.5);
+  \node[trapred,above,font=\small] at (1.06,0.55){gap $g$};
+  \draw[<->,trapred,thick] (2,0.5)--(2.25,0.5);
+  \node[trapred,above,font=\small] at (2.6,0.55){gap $2g$};
+  \draw[<->,trapred,thick] (4,0.5)--(4.5,0.5);
+  \node[trapred,above,font=\small] at (4.6,0.55){gap $4g$};
+  \node[font=\small,text=spacegray!90!black] at (1.5,-0.85){8 numbers};
+  \node[font=\small,text=spacegray!90!black] at (3,-0.85){8 numbers};
+  \node[font=\small,text=spacegray!90!black] at (6,-0.85){8 numbers};
 \end{tikzpicture}
-\caption{Floating-point numbers are a ruler whose tick marks spread apart as you move
-from zero, but stay a constant \emph{relative} distance apart -- about $16$ significant
-digits everywhere. Storing a real number snaps it to the nearest tick, costing at most
-half a gap. The absolute gap near $100$ is about $100$ times the gap near $1$.}
+\caption{Where the floating-point numbers sit, in a toy format with only $3$ mantissa
+bits so the ticks are visible. Each interval from one power of $2$ to the next holds the
+same number of ticks, so the gap doubles every time the numbers double; relative to the
+size of the numbers, the gap stays the same. Double precision has $2^{52}$ ticks in each
+such interval, and its gap just above $1$ is $\eps_{\text{mach}}$.}
 \label{ch33:ruler}
 \end{figure}
 
-The IEEE~754 standard guarantees that the four basic operations are \emph{correctly
-rounded}: the computed $x \oplus y$ equals the true $x+y$ rounded to the nearest
-float. Symbolically, every operation introduces a tiny relative slip,
+The IEEE~754 standard (the international rulebook for floating-point arithmetic, which
+almost every computer follows; IEEE is the Institute of Electrical and Electronics
+Engineers) guarantees that the four basic operations are \emph{correctly rounded}: the
+computed sum, written $x \oplus y$, equals the true $x+y$ rounded to the nearest float.
+In symbols, every operation introduces a tiny relative slip:
 \[
   \text{fl}(x \circ y) \;=\; (x \circ y)(1+\delta), \qquad \abs{\delta}\le \tfrac12\eps_{\text{mach}},
 \]
-for each of $\circ \in \{+,-,\times,\div\}$. That little $(1+\delta)$ is the atom of
-all rounding analysis. Stack billions of them and you want them to stay small and
-\emph{not} reinforce.
+where $\circ$ stands for any one of $+,-,\times,\div$ and $\delta$ is the (unknown,
+tiny) relative error of that one operation. That factor $(1+\delta)$ is the basic unit
+of all rounding analysis. A long computation stacks billions of them, and you want them
+to stay small and \emph{not} reinforce one another.
 
-\subsection{The cardinal sin: catastrophic cancellation}
+\subsection{Catastrophic cancellation}
 
-Multiplication and division are gentle: they perturb the relative error by one
-$\delta$ and move on. Addition is gentle too, \emph{unless you subtract two nearly
-equal numbers}. That is where significant digits are lost.
+Multiplication and division are gentle: each adds one more factor $(1+\delta)$ to the
+relative error and nothing worse. Addition is gentle too, \emph{unless you subtract two
+nearly equal numbers}. That is where significant digits are lost.
 
 \begin{example}[Subtracting close numbers]
 \label{ch33:cancel}
@@ -133,38 +143,79 @@ The machine confidently displays six digits. But what is the true difference?
 \[
   a - b = 1.234567 - 1.234561 = 0.000006 = 6.00000 \times 10^{-6}.
 \]
-The computed result is off by nearly $70\%$. Notice where the disaster happened. The
-subtraction itself was performed with zero arithmetic error: $1.23457 - 1.23456$
-really is $0.00001$. The problem is that the five leading digits $1.2345$ were
-identical and subtracted to zero. That cancellation wiped out the real signal and
-promoted the microscopic rounding noise in the sixth digit into the single leading
-digit of the final answer.
+The computed result is off by nearly $70\%$. The subtraction itself was performed with
+zero arithmetic error: $1.23457 - 1.23456$ is exactly $0.00001$. The problem is that the
+five leading digits $1.2345$ were identical and subtracted to zero. That cancellation
+wiped out the real information and promoted the rounding error in the sixth digit into
+the single leading digit of the final answer (Figure~\ref{ch33:cancelfig}).
 \end{example}
 
-This is \textbf{catastrophic cancellation} -- the phenomenon where subtracting two
-nearly equal numbers wipes out their shared leading digits and leaves only the
-amplified rounding noise behind. It is the mechanism behind most severe losses of precision.
-The subtraction itself is computed correctly; the problem is that it strips away the
-mask that hid the prior rounding errors in $a$ and $b$. The lesson, which applies
-equally to elimination and least squares: \emph{avoid subtracting quantities that are
-nearly equal whenever an algebraically equivalent route avoids it.}
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[>=Stealth,font=\small]
+  \def\w{0.62}
+  % column helper: draw digit boxes
+  \newcommand{\digitrow}[4]{% y, label, digits list, color of last
+    \node[anchor=east] at (-0.2,#1) {#2};
+    \foreach \d [count=\i] in {#3} {
+      \ifnum\i<7
+        \node[draw=spacegray!60,fill=sourceblue!12,minimum width=0.55cm,minimum height=0.55cm] at ({\i*\w},#1) {\d};
+      \else
+        \node[draw=spacegray!60,fill=#4,minimum width=0.55cm,minimum height=0.55cm] at ({\i*\w},#1) {\d};
+      \fi
+    }
+  }
+  \digitrow{1.4}{stored $a$:}{1.,2,3,4,5,7}{trapred!25}
+  \digitrow{0.7}{stored $b$:}{1.,2,3,4,5,6}{trapred!25}
+  \draw[thick] (0.2,0.3)--(4.1,0.3);
+  \node[anchor=east] at (-0.2,-0.1) {difference:};
+  \foreach \d [count=\i] in {0.,0,0,0,0} {
+    \node[draw=spacegray!40,text=spacegray!70,minimum width=0.55cm,minimum height=0.55cm] at ({\i*\w},-0.1) {\d};
+  }
+  \node[draw=spacegray!60,fill=trapred!25,minimum width=0.55cm,minimum height=0.55cm] at ({6*\w},-0.1) {1};
+  \draw[decorate,decoration={brace,mirror,amplitude=5pt}] (0.35,-0.5)--(3.4,-0.5)
+    node[midway,below=6pt,align=center]{equal leading digits\\cancel to zero};
+  \draw[->,trapred,thick] (4.6,1.05)--(5.4,1.05);
+  \node[anchor=west,align=left,text=trapred!90!black] at (5.5,1.05)
+    {last digits carry the\\rounding error};
+  \draw[->,trapred,thick] (4.6,-0.1)--(5.4,-0.1);
+  \node[anchor=west,align=left,text=trapred!90!black] at (5.5,-0.1)
+    {only that rounding error\\is left in the answer};
+\end{tikzpicture}
+\caption{Catastrophic cancellation in Example~\ref{ch33:cancel}. The six stored digits of
+$a$ and $b$ agree in the first five places (blue), which cancel. The only digit left in
+the difference comes from the sixth place (red), and that is exactly the digit that
+rounding had already spoiled.}
+\label{ch33:cancelfig}
+\end{figure}
+
+This is \textbf{catastrophic cancellation}: subtracting two nearly equal numbers wipes
+out their shared leading digits and leaves only the rounding error behind. It causes
+most severe losses of precision. The subtraction itself is computed correctly; it
+exposes the rounding errors that were already sitting in $a$ and $b$. The lesson, which
+applies equally to elimination and least squares: \emph{avoid subtracting quantities
+that are nearly equal whenever an algebraically equivalent route avoids it.}
 
 \begin{labbox}
-The quadratic formula $x = \dfrac{-b \pm \sqrt{b^2-4ac}}{2a}$ hides this trap. Take
-$a=1$, $b=-200$, $c=1$. Then $\sqrt{b^2-4ac}=\sqrt{40000-4}=\sqrt{39996}\approx
-199.98999\ldots$. The ``$+$'' root, $\tfrac{200+199.98999}{2}\approx 199.995$, is fine.
-But the ``$-$'' root computes $\tfrac{200-199.98999}{2}$ -- a subtraction of two nearly
-equal numbers -- and loses most of its digits. The cure is to compute the safe root
-first, then get the other from $x_1 x_2 = c/a$, here $x_2 = 1/x_1$. Try both ways on a
-calculator that shows few digits and watch the difference.
+The quadratic formula
+\[
+  x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}
+\]
+hides this trap. Take $a=1$, $b=-200$, $c=1$. Then
+$\sqrt{b^2-4ac}=\sqrt{40000-4}=\sqrt{39996}\approx 199.98999\ldots$. The ``$+$'' root,
+$\tfrac{200+199.98999}{2}\approx 199.995$, is fine. But the ``$-$'' root computes
+$\tfrac{200-199.98999}{2}$, a subtraction of two nearly equal numbers, and loses most of
+its digits. The cure is to compute the safe root $x_1$ first, then get the other from
+the product of the roots, $x_1 x_2 = c/a$; here $x_2 = 1/x_1$. Try both ways on a
+calculator that shows few digits and compare.
 \end{labbox}
 
 \begin{trapbox}
 ``Double precision has $16$ digits, so I have $16$ good digits.'' No. You \emph{start}
 with $16$ digits. Each catastrophic cancellation can erase a clump of them at once. A
 computation that subtracts two numbers agreeing in their first $12$ digits keeps about
-$4$. The bits are not lost in the subtraction -- they were never there to begin with;
-the subtraction just exposes the lost precision.
+$4$. The subtraction does not destroy those digits; it reveals that the trailing digits
+were already wrong.
 \end{trapbox}
 
 \begin{recoverybox}
@@ -173,27 +224,29 @@ $x = 10^8$. In $16$-digit floating point, $\sqrt{10^8+1} \approx 10000.00005$ an
 $\sqrt{10^8} = 10000$. Subtracting them directly throws away half your significant
 digits. How can high-school algebra save the computation?
 \emph{Hint:} Multiply and divide by the conjugate $\sqrt{x+1}+\sqrt{x}$ to rewrite
-$f(x) = \frac{1}{\sqrt{x+1} + \sqrt{x}}$. Adding large numbers is completely benign;
-subtraction was the culprit.
+\[
+  f(x) = \frac{1}{\sqrt{x+1} + \sqrt{x}}.
+\]
+Adding two positive numbers loses nothing; the subtraction was the culprit.
 \end{recoverybox}
 
 \section{Conditioning: how delicate is the problem?}
 
 Forget computers for a moment. Suppose someone hands you a linear system
-$\mat{A}\vec{x}=\vec{b}$ and warns you that $\vec{b}$ is only known to within a little
-wiggle $\Delta\vec{b}$ -- a measurement error, say. How much can the solution
-$\vec{x}$ wiggle in response? If a small $\Delta\vec{b}$ can force a large
-$\Delta\vec{x}$, the problem is \textbf{ill-conditioned}, and \emph{no} algorithm can
-save you: the answer genuinely is uncertain.
+$\mat{A}\vec{x}=\vec{b}$ and warns you that $\vec{b}$ is only known to within a small
+error $\Delta\vec{b}$ (a measurement error, say; $\Delta$ is read ``change in''). How
+much can the solution $\vec{x}$ change in response? If a small $\Delta\vec{b}$ can force
+a large change $\Delta\vec{x}$, the problem is ill-conditioned, and \emph{no} algorithm
+can save you: the answer is uncertain.
 
 Geometrically, solving $\mat{A}\vec{x}=\vec{b}$ in $\R^2$ means intersecting two
-lines (the two equations). If the lines cross briskly at a wide angle, nudging one
+lines (the two equations). If the lines cross at a wide angle, nudging one
 line barely moves the crossing point. But if the two lines are \emph{nearly parallel},
-the intersection point is a long, skinny wedge: a hair's nudge to either line slides
-the crossing point a huge distance (Figure~\ref{ch33:nearparallel}). That near-parallel
-picture is exactly what ill-conditioning looks like.
+a tiny nudge to either line slides the crossing point a long way
+(Figure~\ref{ch33:nearparallel}). That near-parallel picture is what ill-conditioning
+looks like.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[scale=0.95,>=Stealth]
   % Left: well-conditioned, wide angle
@@ -202,125 +255,148 @@ picture is exactly what ill-conditioning looks like.
     \draw[->,gray!50] (0,-0.3)--(0,3.2);
     \draw[very thick,vecblue] (-0.2,2.6)--(3.0,0.2);
     \draw[very thick,vecred]  (0.1,-0.2)--(2.6,3.0);
-    \fill[black] (1.45,1.4) circle (1.6pt);
-    \node at (1.5,3.4){\small wide angle: stable};
-    \node at (1.5,-0.7){\small (well-conditioned)};
+    \draw[thick,vecred,dashed] (0.1,-0.45)--(2.6,2.75);
+    \fill[black] (1.37,1.42) circle (1.6pt);
+    \node[font=\small,anchor=west] at (1.7,1.25) {barely moves};
+    \node[font=\small] at (1.5,3.4){wide angle};
+    \node[font=\small] at (1.5,-0.8){(well-conditioned)};
   \end{scope}
   % Right: ill-conditioned, near parallel
-  \begin{scope}[xshift=5.3cm]
+  \begin{scope}[xshift=6.0cm]
     \draw[->,gray!50] (-0.3,0)--(3.2,0);
     \draw[->,gray!50] (0,-0.3)--(0,3.2);
-    \draw[very thick,vecblue] (-0.2,1.0)--(3.0,2.5);
-    \draw[very thick,vecred]  (-0.2,1.25)--(3.0,2.65);
+    \draw[very thick,vecblue] (-0.2,1.03)--(3.0,2.47);
+    \draw[very thick,vecred]  (-0.2,0.87)--(3.0,2.63);
+    \draw[thick,vecred,dashed] (-0.2,0.75)--(3.0,2.51);
     \fill[black] (1.4,1.75) circle (1.6pt);
-    \draw[->,trapred,thick] (1.4,1.75)--(2.55,2.3);
-    \node[trapred,below right] at (2.45,2.15){\small slides far};
-    \node at (1.5,3.4){\small near-parallel: fragile};
-    \node at (1.5,-0.7){\small (ill-conditioned)};
+    \fill[trapred] (2.6,2.29) circle (1.6pt);
+    \draw[->,trapred,thick] (1.4,1.75)--(2.5,2.245);
+    \node[trapred,below,font=\small] at (2.3,1.95){slides far};
+    \node[font=\small] at (1.5,3.4){nearly parallel};
+    \node[font=\small] at (1.5,-0.8){(ill-conditioned)};
   \end{scope}
 \end{tikzpicture}
-\caption{Two equations are two lines. When they cross at a wide angle (left), the
-solution is robust to perturbing either line. When they are nearly parallel (right),
-a tiny change to a line slides the intersection a long way -- the hallmark of an
-ill-conditioned system.}
+\caption{Two equations are two lines, and the solution is where they cross (black dot).
+In both panels the red line is shifted down by the same small amount (dashed). When the
+lines cross at a wide angle (left), the crossing point barely moves. When they are
+nearly parallel (right), the crossing point slides a long way: the system is
+ill-conditioned.}
 \label{ch33:nearparallel}
 \end{figure}
 
 \subsection{The condition number, made precise}
 
-Let us put a number on that delicacy. Start from $\mat{A}\vec{x}=\vec{b}$ and perturb
+To put a number on that delicacy, start from $\mat{A}\vec{x}=\vec{b}$ and change
 the right side to $\vec{b}+\Delta\vec{b}$, giving a new solution
-$\vec{x}+\Delta\vec{x}$. Subtracting the two systems, $\mat{A}\,\Delta\vec{x} =
-\Delta\vec{b}$, so $\Delta\vec{x} = \inv{\mat{A}}\,\Delta\vec{b}$. Taking norms and
-using the operator-norm inequality $\norm{\mat{M}\vec{v}}\le\norm{\mat{M}}\norm{\vec{v}}$
-(which says a matrix can never stretch any vector by more than the matrix's own
-maximum magnification factor):
+$\vec{x}+\Delta\vec{x}$. Subtracting the two systems gives $\mat{A}\,\Delta\vec{x} =
+\Delta\vec{b}$, so $\Delta\vec{x} = \inv{\mat{A}}\,\Delta\vec{b}$.
+
+We need one tool: the \textbf{norm} of a matrix. For a vector, $\norm{\vec{v}}$ is its
+length. For a matrix $\mat{M}$, the norm $\norm{\mat{M}}$ is the largest factor by which
+$\mat{M}$ stretches any vector:
 \[
-  \norm{\Delta\vec{x}} \le \norm{\inv{\mat{A}}}\,\norm{\Delta\vec{b}},
-  \qquad\text{and from } \norm{\vec{b}} \le \norm{\mat{A}}\,\norm{\vec{x}},\quad
-  \frac{1}{\norm{\vec{x}}} \le \frac{\norm{\mat{A}}}{\norm{\vec{b}}}
-  \quad(\vec{b}\ne\vec{0}).
+  \norm{\mat{M}} = \max_{\vec{v}\ne\vec{0}} \frac{\norm{\mat{M}\vec{v}}}{\norm{\vec{v}}},
+  \qquad\text{so}\qquad
+  \norm{\mat{M}\vec{v}}\le\norm{\mat{M}}\,\norm{\vec{v}} \ \text{ for every } \vec{v}.
 \]
-Multiplying these two inequalities between nonnegative numbers gives the relative error bound:
+(This is the spectral norm $\norm{\mat{M}}_2$ from the exercises of Chapter~29.)
+Applying the inequality twice:
+\begin{align*}
+  \norm{\Delta\vec{x}} &= \norm{\inv{\mat{A}}\,\Delta\vec{b}}
+     \le \norm{\inv{\mat{A}}}\,\norm{\Delta\vec{b}},\\
+  \norm{\vec{b}} &= \norm{\mat{A}\vec{x}} \le \norm{\mat{A}}\,\norm{\vec{x}},
+  \quad\text{so}\quad
+  \frac{1}{\norm{\vec{x}}} \le \frac{\norm{\mat{A}}}{\norm{\vec{b}}}
+  \qquad(\vec{b}\ne\vec{0}).
+\end{align*}
+Multiplying these two inequalities between nonnegative numbers gives a bound on the
+relative error (the size of the error divided by the size of the quantity):
 \[
   \boxed{\;\frac{\norm{\Delta\vec{x}}}{\norm{\vec{x}}}
    \;\le\; \underbrace{\norm{\mat{A}}\,\norm{\inv{\mat{A}}}}_{\displaystyle \kappa(\mat{A})}
    \;\cdot\; \frac{\norm{\Delta\vec{b}}}{\norm{\vec{b}}}\;.}
 \]
-The amplification factor in the middle is the \textbf{condition number}
-$\kappa(\mat{A}) = \norm{\mat{A}}\,\norm{\inv{\mat{A}}}$. It measures how much a
-relative wobble in the input data can be multiplied into a relative error in the output.
+The factor in the middle is the \textbf{condition number}
+$\kappa(\mat{A}) = \norm{\mat{A}}\,\norm{\inv{\mat{A}}}$ ($\kappa$ is the Greek letter
+kappa). It is the largest factor by which a relative error in the input $\vec{b}$ can be
+multiplied into a relative error in the output $\vec{x}$.
 
 \begin{formalbox}
 For the $2$-norm (the standard Euclidean length), the matrix norm $\norm{\mat{A}}$ equals
-the largest singular value $\sigma_{\max}$, and $\norm{\inv{\mat{A}}} = 1/\sigma_{\min}$.
-Recall that singular values represent the lengths of the principal semi-axes when $\mat{A}$
-transforms the unit sphere into an ellipsoid. Thus:
+the largest singular value $\sigma_{\max}$, and $\norm{\inv{\mat{A}}} = 1/\sigma_{\min}$,
+where $\sigma_{\min}$ is the smallest singular value. So
 \[
   \kappa_2(\mat{A}) \;=\; \frac{\sigma_{\max}}{\sigma_{\min}},
 \]
-the ratio of the largest to the smallest singular value of $\mat{A}$. A condition
-number near $1$ is ideal (orthogonal matrices have $\kappa_2 = 1$ exactly, preserving all
-lengths). A condition number of $10^{k}$ means you can expect to lose about $k$ decimal
-digits of accuracy: if $\kappa_2(\mat{A})\approx 10^{8}$ and your machine begins with
-$16$ digits, you can trust only about $16 - 8 = 8$ digits of the computed solution.
+the ratio of the largest to the smallest singular value of $\mat{A}$ (the subscript $2$
+records which norm is used). A condition number near $1$ is ideal; orthogonal matrices
+have $\kappa_2 = 1$ exactly, because they preserve all lengths. A condition number of
+$10^{k}$ means you can expect to lose about $k$ decimal digits of accuracy: if
+$\kappa_2(\mat{A})\approx 10^{8}$ and your machine begins with $16$ digits, you can trust
+only about $16 - 8 = 8$ digits of the computed solution.
 \end{formalbox}
 
 \begin{connectionbox}
-The condition number is the geometric aspect ratio revealed by the SVD. Recall from Chapter~29
-that $\mat{A}$ maps the unit sphere into an ellipsoid whose semi-axes are the singular
-values $\sigma_1\ge\cdots\ge\sigma_n$. The condition number $\kappa_2(\mat{A}) = \sigma_{\max}/\sigma_{\min}$
-is simply the \emph{aspect ratio} of that ellipsoid (Figure~\ref{ch33:condellipse}). A round
-sphere (aspect ratio near $1$) means $\mat{A}$ stretches every direction about equally, and
-reversing it is benign. But when $\sigma_{\max} \gg \sigma_{\min}$, $\mat{A}$ squashes the unit sphere into an elongated needle. When you solve $\mat{A}\vec{x}=\vec{b}$, the inverse $\inv{\mat{A}}$ must stretch that needle back into a round sphere -- which means any microscopic disturbance or floating-point wobble along the needle's skinny waist is magnified by the enormous factor $1/\sigma_{\min}$. Conditioning, geometry, and the SVD are one unified idea.
+Recall from Chapter~29 that $\mat{A}$ maps the unit sphere onto an ellipsoid whose
+semi-axes (half-axis lengths) are the singular values $\sigma_1\ge\cdots\ge\sigma_n$.
+The condition number $\kappa_2(\mat{A}) = \sigma_{\max}/\sigma_{\min}$ is the
+\emph{aspect ratio} of that ellipsoid, its longest axis divided by its shortest
+(Figure~\ref{ch33:condellipse}). A nearly round ellipsoid means $\mat{A}$ stretches
+every direction about equally, and undoing it is safe. When
+$\sigma_{\max} \gg \sigma_{\min}$ ($\gg$ means ``much larger than''), $\mat{A}$
+flattens the unit sphere into a long thin needle. To solve $\mat{A}\vec{x}=\vec{b}$, the
+inverse $\inv{\mat{A}}$ must stretch that needle back into a sphere, so any small
+error in the needle's thin direction is magnified by the large factor
+$1/\sigma_{\min}$. Conditioning is the shape of the SVD ellipsoid.
 \end{connectionbox}
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[scale=0.88,>=Stealth]
   % Panel 1: Round input / well-conditioned
   \begin{scope}[shift={(0,0)}]
-    \node[anchor=south,font=\footnotesize\scshape,text=spacegray!90!black,align=center] at (0,2.1) {1. Well-Conditioned\\($\kappa \approx 1.5$)};
+    \node[anchor=south,font=\small,align=center] at (0,2.1) {1. Well-conditioned\\($\kappa_2 \approx 1.5$)};
     \draw[fill=codebg,draw=spacegray!30,rounded corners=4pt] (-2.2,-2.1) rectangle (2.2,2.0);
-    \draw[gray!40,dashed] (0,0) circle (1.0);
+    \draw[gray!50,dashed] (0,0) circle (1.0);
     \draw[fill=sourceblue!15,draw=sourceblue!80,line width=1.3pt] (0,0) ellipse (1.3 and 0.85);
-    \draw[->,vecblue,thick] (0,0) -- (1.3,0) node[below=1pt,font=\scriptsize]{$\sigma_{\max}$};
-    \draw[->,vecred,thick] (0,0) -- (0,0.85) node[pos=0.5,left=1pt,font=\scriptsize]{$\sigma_{\min}$};
-    \node[font=\scriptsize,align=center,text=spacegray!90!black] at (0,-1.35) {Round image: $\mat{A}$ preserves\\relative proportions};
+    \draw[->,vecblue,thick] (0,0) -- (1.3,0) node[pos=0.55,below,font=\footnotesize]{$\sigma_{\max}$};
+    \draw[->,vecred,thick] (0,0) -- (0,0.85) node[pos=0.5,left=1pt,font=\footnotesize]{$\sigma_{\min}$};
+    \node[font=\footnotesize,align=center] at (0,-1.45) {nearly round image};
   \end{scope}
 
-  % Panel 2: The Needle (severe squashing)
+  % Panel 2: The needle (severe squashing)
   \begin{scope}[shift={(5.2,0)}]
-    \node[anchor=south,font=\footnotesize\scshape,text=spacegray!90!black,align=center] at (0,2.1) {2. Ill-Conditioned Needle\\($\kappa \gg 1$)};
+    \node[anchor=south,font=\small,align=center] at (0,2.1) {2. Ill-conditioned\\($\kappa_2 \gg 1$)};
     \draw[fill=codebg,draw=spacegray!30,rounded corners=4pt] (-2.2,-2.1) rectangle (2.2,2.0);
-    \draw[gray!40,dashed] (0,0) circle (1.0);
+    \draw[gray!50,dashed] (0,0) circle (1.0);
     \draw[fill=quotientorange!15,draw=quotientorange!90,line width=1.3pt] (0,0) ellipse (1.8 and 0.16);
-    \draw[->,vecblue,thick] (0,0) -- (1.8,0) node[below right=-2pt,font=\scriptsize]{$\sigma_{\max}$};
-    \draw[->,vecred,thick] (0,0) -- (0,0.16) node[above=2pt,font=\scriptsize]{$\sigma_{\min} \approx 0$};
-    \node[font=\scriptsize,align=center,text=spacegray!90!black] at (0,-1.35) {Flattened needle: information\\along $\sigma_{\min}$ is almost lost};
+    \draw[->,vecblue,thick] (0,0) -- (1.8,0) node[pos=0.6,below=3pt,font=\footnotesize]{$\sigma_{\max}$};
+    \draw[->,vecred,thick] (0,0) -- (0,0.16) node[above=2pt,font=\footnotesize]{$\sigma_{\min}$ tiny};
+    \node[font=\footnotesize,align=center] at (0,-1.35) {flattened needle: the\\thin direction is\\almost lost};
   \end{scope}
 
-  % Panel 3: Inversion and Error Magnification
+  % Panel 3: Inversion and error magnification
   \begin{scope}[shift={(10.4,0)}]
-    \node[anchor=south,font=\footnotesize\scshape,text=spacegray!90!black,align=center] at (0,2.1) {3. Inversion Error\\Blow-Up};
+    \node[anchor=south,font=\small,align=center] at (0,2.1) {3. Undoing it with $\inv{\mat{A}}$\\magnifies errors};
     \draw[fill=codebg,draw=spacegray!30,rounded corners=4pt] (-2.2,-2.1) rectangle (2.2,2.0);
-    
-    % tiny input disturbance circle Delta b
-    \draw[fill=gray!20,draw=gray!60] (-1.3,0.7) circle (0.2);
-    \node[font=\tiny,above] at (-1.3,0.95) {$\Delta\vec{b}$};
-    \node[font=\tiny,below,text=spacegray!80!black] at (-1.3,0.45) {tiny noise};
-
-    % Arrow showing inversion stretch
-    \draw[->,thick,vecred] (-0.8,0.7) to[bend left=15] node[midway,above=1pt,font=\scriptsize]{$\mat{A}\inv$} (-0.1,0.7);
-
-    % huge stretched error ellipse Delta x
-    \draw[fill=vecred!15,draw=vecred!80,line width=1.2pt] (0.4,-0.1) ellipse (0.22 and 1.35);
-    \draw[<->,vecred!90!black,thick] (0.75,-1.35) -- (0.75,1.25)
-      node[midway,right,font=\scriptsize]{$\norm{\Delta\vec{x}} \propto \frac{\norm{\Delta\vec{b}}}{\sigma_{\min}}$};
-    \node[font=\scriptsize,align=center,text=spacegray!90!black] at (0,-1.7) {Tiny input error $\Delta\vec{b}$ expands\\into massive solution error $\Delta\vec{x}$};
+    % small input disturbance Delta b
+    \draw[fill=gray!25,draw=gray!70] (-1.4,0.3) circle (0.2);
+    \node[font=\footnotesize,above] at (-1.4,0.55) {$\Delta\vec{b}$};
+    % arrow
+    \draw[->,thick,vecred] (-1.1,0.3) -- (-0.1,0.3) node[midway,above,font=\footnotesize]{$\inv{\mat{A}}$};
+    % large stretched error ellipse Delta x
+    \draw[fill=vecred!15,draw=vecred!80,line width=1.2pt] (0.6,0.3) ellipse (0.22 and 1.4);
+    \node[font=\footnotesize,anchor=west] at (0.9,0.3) {$\Delta\vec{x}$};
+    \node[font=\footnotesize,align=center] at (0,-1.55) {stretched by $1/\sigma_{\min}$};
   \end{scope}
 \end{tikzpicture}
-\caption{The condition number as geometric distortion and error magnification. Left: When $\kappa_2(\mat{A}) = \sigma_{\max}/\sigma_{\min}$ is small, $\mat{A}$ deforms the unit sphere into a nearly round ellipse, making inversion stable. Middle: When $\kappa_2(\mat{A})$ is large, $\mat{A}$ squashes the unit sphere into an elongated needle. Right: Inverting the system $\mat{A}\vec{x}=\vec{b}$ requires $\inv{\mat{A}}$ to expand the needle back out, magnifying any tiny perturbation $\Delta\vec{b}$ perpendicular to the needle's axis by $1/\sigma_{\min} = \kappa_2(\mat{A})/\sigma_{\max}$.}
+\caption{The condition number as distortion. Each panel's dashed circle is the unit
+circle. Left: when $\kappa_2(\mat{A}) = \sigma_{\max}/\sigma_{\min}$ is small, $\mat{A}$
+turns the unit circle into a nearly round ellipse. Middle: when $\kappa_2(\mat{A})$ is
+large, $\mat{A}$ flattens it into a needle. Right: solving $\mat{A}\vec{x}=\vec{b}$ means
+applying $\inv{\mat{A}}$, which stretches the needle's thin direction back out, so a
+small error $\Delta\vec{b}$ in that direction becomes an error $\Delta\vec{x}$ that is
+$1/\sigma_{\min}$ times larger.}
 \label{ch33:condellipse}
 \end{figure}
 
@@ -336,25 +412,29 @@ is $1\cdot 1.001 - 1\cdot 1 = 0.001$, tiny, so the inverse is large:
   \inv{\mat{A}} = \frac{1}{0.001}\begin{bmatrix} 1.001 & -1 \\ -1 & 1 \end{bmatrix}
    = \begin{bmatrix} 1001 & -1000 \\ -1000 & 1000 \end{bmatrix}.
 \]
-Now watch the amplification directly. With $\vec{b}=\colvec{2\\2.001}$ the exact
-solution is $\vec{x}=\colvec{1\\1}$. Perturb the second entry of $\vec{b}$ by just
+Here is the amplification in numbers. With $\vec{b}=\colvec{2\\2.001}$ the exact
+solution is $\vec{x}=\colvec{1\\1}$. Change the second entry of $\vec{b}$ by
 $0.001$ to $\vec{b}'=\colvec{2\\2.002}$:
-\[
-  \vec{x}' = \inv{\mat{A}}\vec{b}' = \colvec{1001\cdot 2 - 1000\cdot 2.002 \\ -1000\cdot 2 + 1000\cdot 2.002}
-   = \colvec{0\\2}.
-\]
-A $0.05\%$ change in $\vec{b}$ flipped the answer from $(1,1)$ to $(0,2)$ -- a $100\%$
-change in $\vec{x}$. The condition number here is roughly $\kappa_2(\mat{A})\approx
-4000$, and indeed the relative error was amplified by a few thousand -- right up against
-that worst-case bound.
+\begin{align*}
+  \vec{x}' &= \inv{\mat{A}}\vec{b}' \\
+           &= \colvec{1001\cdot 2 - 1000\cdot 2.002 \\ -1000\cdot 2 + 1000\cdot 2.002} \\
+           &= \colvec{0\\2}.
+\end{align*}
+Measured by length, $\vec{b}$ changed by about $0.035\%$
+($\norm{\Delta\vec{b}}/\norm{\vec{b}} = 0.001/2.83$), yet the answer moved from $(1,1)$ to
+$(0,2)$, a $100\%$ change ($\norm{\Delta\vec{x}}/\norm{\vec{x}} = \sqrt2/\sqrt2$). The
+relative error was multiplied by about $2800$. The condition number here is
+$\kappa_2(\mat{A})\approx 4000$, so this perturbation came close to the worst case the
+bound allows.
 \end{example}
 
 \begin{recoverybox}
-\textbf{Pause and think:} Suppose a physical system models heat diffusion, and its
-discretized matrix $\mat{A}$ has singular values $\sigma_{\max} = 100$ and
+\textbf{Pause and think:} Suppose you model how heat spreads through a metal bar by
+tracking the temperature at many evenly spaced points, which turns the physics into a
+linear system $\mat{A}\vec{x}=\vec{b}$, and that $\mat{A}$ has singular values $\sigma_{\max} = 100$ and
 $\sigma_{\min} = 10^{-4}$. What is $\kappa_2(\mat{A})$? If you solve $\mat{A}\vec{x}=\vec{b}$
 using standard double-precision arithmetic ($16$ decimal digits), how many significant
-digits can you confidently trust in the solution vector $\vec{x}$?
+digits can you trust in the solution vector $\vec{x}$?
 \emph{Answer:} $\kappa_2(\mat{A}) = 100 / 10^{-4} = 10^6$. Since $\kappa_2 \approx 10^6$,
 input uncertainties or internal roundings can be amplified by up to a factor of one
 million, wiping out $6$ decimal digits of precision. Out of your initial $16$ digits,
@@ -363,7 +443,7 @@ you should expect to retain about $16 - 6 = 10$ trustworthy digits.
 
 \begin{trapbox}
 A small determinant does \emph{not} mean ill-conditioned, and a large one does not
-mean well-conditioned -- the determinant has the wrong units. Scale $\mat{A}$ by
+mean well-conditioned: the determinant measures volume, not shape. Scale $\mat{A}$ by
 $\tfrac{1}{10}$ and its determinant drops by $10^{n}$, yet $\kappa(\mat{A})$ does not
 change at all, because both $\norm{\mat{A}}$ and $\norm{\inv{\mat{A}}}$ rescale and the
 factors cancel. Conditioning is about the \emph{ratio} of stretches
@@ -372,14 +452,45 @@ $\kappa$, never by $\det$.
 \end{trapbox}
 
 \begin{walkbox}
-The Hilbert matrix has entries $H_{ij}=1/(i+j-1)$ -- innocent-looking fractions like
-$1, \tfrac12, \tfrac13,\ldots$ on the diagonals. Its condition number explodes: about
-$500$ for $3\times 3$, roughly half a million for $5\times 5$, about $1.6\times 10^{13}$
-by $10\times 10$, and past $10^{16}$ -- beyond all double-precision hope -- a few sizes
-later. On a walk, ask yourself why ``smooth, slowly varying'' matrices like this -- rows
-that look nearly proportional -- should be the dangerous ones, while a matrix of random
-$\pm 1$ entries is usually tame. (Hint: think about how parallel the rows are.)
+The Hilbert matrix has entries $H_{ij}=1/(i+j-1)$ in row $i$, column $j$: harmless-looking
+fractions $1, \tfrac12, \tfrac13,\ldots$, each constant along a line running from lower
+left to upper right. Its condition number grows explosively: about $500$ for
+$3\times 3$, roughly half a million for $5\times 5$, about $1.6\times 10^{13}$ by
+$10\times 10$, and past $10^{16}$ (where double precision has no correct digits left)
+at $12\times 12$ (Figure~\ref{ch33:hilbert}). On a walk, ask yourself why smooth, slowly
+varying matrices like this, whose rows look nearly proportional, should be the dangerous
+ones, while a matrix of random $\pm 1$ entries is usually well-conditioned. (Hint: think
+about how parallel the rows are.)
 \end{walkbox}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6cm,
+  ybar, bar width=0.45cm,
+  xmin=0.4, xmax=12.6, ymin=0, ymax=17.5,
+  xtick={1,...,12},
+  ytick={0,4,8,12,16},
+  yticklabels={$10^{0}$,$10^{4}$,$10^{8}$,$10^{12}$,$10^{16}$},
+  xlabel={size $n$ of the $n\times n$ Hilbert matrix},
+  ylabel={condition number $\kappa_2$},
+  tick label style={font=\small}, label style={font=\small},
+  axis lines=left,
+]
+\addplot[fill=sourceblue!45,draw=sourceblue] coordinates {
+  (1,0) (2,1.285) (3,2.719) (4,4.191) (5,5.678) (6,7.175)
+  (7,8.677) (8,10.18) (9,11.69) (10,13.20) (11,14.72) (12,16.23)};
+\draw[trapred,thick,dashed] (axis cs:0.4,16) -- (axis cs:12.6,16);
+\node[trapred,anchor=south west,font=\small] at (axis cs:0.6,16) {$1/\eps_{\text{mach}}\approx 10^{16}$: no correct digits left};
+\end{axis}
+\end{tikzpicture}
+\caption{Condition number of the $n\times n$ Hilbert matrix, on a logarithmic scale (each
+grid step is a factor of $10^4$). It grows by a factor of about $30$ with each extra row,
+so you lose about $1.5$ more decimal digits each time $n$ goes up by one. By $n=12$ all
+$16$ digits of double precision are gone.}
+\label{ch33:hilbert}
+\end{figure}
 
 \section{Stability: elimination versus QR}
 
@@ -388,56 +499,54 @@ a perfectly well-conditioned system can be wrecked by a careless method. The cla
 example is Gaussian elimination without pivoting.
 
 \begin{historybox}
-In 1947, as the electronic computing era dawned with the room-sized ENIAC (a machine
-packed with eighteen thousand glowing vacuum tubes that could add numbers in fractions
-of a millisecond), John von Neumann and Herman Goldstine published a landmark paper:
-\emph{Numerical Inverting of Matrices of High Order}. Before digital mainframes, solving
-linear systems was done by rooms of human ``computers'' using mechanical desk
-calculators; factoring even a $10 \times 10$ matrix took weeks of grueling, error-prone
-hand labor. Digital computers promised to solve $100 \times 100$ systems in minutes.
+In 1947, when the first electronic computers such as the room-sized ENIAC were new, John
+von Neumann and Herman Goldstine published the paper \emph{Numerical Inverting of
+Matrices of High Order}. Before electronic computers, linear systems were solved by teams
+of people (then called ``computers'') working mechanical desk calculators; even a
+$10 \times 10$ system took weeks of error-prone hand work. Electronic computers promised
+to solve $100 \times 100$ systems in minutes.
 
-Yet many mathematicians doubted whether large systems could be solved accurately at all. Leading pioneers, most
-notably Norbert Wiener, predicted that digital computers would prove useless for large
-linear systems. The fear was that the tiny rounding error introduced at each elimination
-step would double and cascade from row to row, growing exponentially ($2^n$) and
-erasing significant digits after just twenty or thirty equations. Von Neumann
-and Goldstine introduced the matrix condition number $\kappa(\mat{A}) = \norm{\mat{A}}
-\norm{\inv{\mat{A}}}$ to bound error growth, but their early theoretical estimates were
-pessimistic. Alan Turing, working on the experimental Pilot ACE computer in
-Britain, pushed back, suspecting that managing the size of pivots would keep the errors
-contained.
+Many mathematicians doubted that large systems could be solved accurately at all.
+Norbert Wiener, among others, predicted that computers would be useless for large linear
+systems. The fear was that the rounding error made at each elimination step would double
+from row to row, growing like $2^n$ and erasing all significant digits after twenty or
+thirty equations. Von Neumann and Goldstine introduced the condition number
+$\kappa(\mat{A}) = \norm{\mat{A}}\,\norm{\inv{\mat{A}}}$ to bound the error growth, but
+their estimates were pessimistic. Alan Turing, working on the Pilot ACE, an early British
+computer, suspected that keeping the pivots large would keep the errors under control.
 
-The breakthrough came in the 1960s from James H. Wilkinson, Turing's former collaborator
-at the National Physical Laboratory. Wilkinson invented \textbf{backward error
-analysis}---the idea of asking not how far the machine's computed solution $\hat{\vec{x}}$
-is from the true solution $\vec{x}$, but rather: \emph{what slightly perturbed problem did
-the machine solve exactly?} Wilkinson proved that Gaussian elimination with partial
-pivoting (swapping rows to place the largest available entry on the diagonal) solves
-$(\mat{A} + \mat{E})\hat{\vec{x}} = \vec{b}$, where the error matrix $\mat{E}$ is
-microscopic, on the order of machine precision $\eps_{\text{mach}}$. Elimination does not
-invent wild errors; it merely reveals the delicate sensitivity already inherent in the
-matrix. Wilkinson's insight transformed scientific computing from an anxious art into a
-rigorous science, giving birth to the foundational LINPACK and LAPACK libraries that
-underpin scientific computing today.
+The breakthrough came around 1960 from James H. Wilkinson, Turing's former colleague at
+the National Physical Laboratory. Wilkinson invented \textbf{backward error analysis}:
+instead of asking how far the computed solution $\hat{\vec{x}}$ (the hat marks a computed
+value) is from the true solution $\vec{x}$, he asked \emph{which slightly changed problem
+the machine had solved exactly}. He proved that Gaussian elimination with partial
+pivoting (swapping rows to put the largest available entry in the pivot position) gives
+the exact solution of $(\mat{A} + \mat{E})\hat{\vec{x}} = \vec{b}$, where the error matrix
+$\mat{E}$ is about $\eps_{\text{mach}}$ times the size of $\mat{A}$, multiplied by the
+\emph{growth factor} (how much larger the entries become during elimination than they
+were in $\mat{A}$). As long as that growth factor stays moderate, elimination does not
+create large errors of its own; it only exposes the sensitivity already present in the
+matrix. This analysis turned matrix computation into a reliable science and shaped
+LINPACK and LAPACK, the libraries of linear-algebra routines that most scientific
+software still calls today.
 
-Yet a mystery remains open. In theory, Gaussian elimination with partial
-pivoting has a pathological worst-case error growth factor of $2^{n-1}$ (demonstrated by
-artificially constructed matrices with cascading signs). In theory, solving a
-$100 \times 100$ system could still destroy all accuracy. But in over seventy years of
-practical computation across millions of real-world scientific problems, this worst-case
-exponential blow-up has virtually never occurred in nature; the growth factor in
-practice almost never exceeds $n^{2/3}$. Explaining why partial pivoting is so
-reliably stable on typical matrices---a question explored today through
-\textbf{smoothed analysis} (measuring algorithmic behavior under small random wiggles of
-the inputs) and random matrix theory---remains a lively, active frontier in mathematics.
+A puzzle remains open. With partial pivoting, the growth factor can in theory reach
+$2^{n-1}$ (for specially built matrices with a pattern of $\pm1$ entries), which for a
+$100 \times 100$ system would destroy all accuracy. Yet in over seventy years of real
+computation this has almost never happened; in practice the growth factor typically
+grows only like about $n^{2/3}$. Researchers still study why partial pivoting is so
+reliable on typical matrices, using \textbf{smoothed analysis} (studying how an algorithm
+behaves when its input is changed by small random amounts) and random matrix theory (the
+study of matrices whose entries are chosen at random).
 \end{historybox}
 
 \subsection{Why elimination needs pivoting}
 
 Recall elimination subtracts a multiple of one row from another to create zeros. The
-multiplier is $m = (\text{entry to kill})/(\text{pivot})$. If the pivot is tiny, $m$ is
-enormous, and multiplying a row by an enormous number, then subtracting, drowns the
-original information in roundoff.
+multiplier is $m = (\text{entry to eliminate})/(\text{pivot})$. If the pivot is tiny,
+$m$ is enormous, and multiplying a row by an enormous number before subtracting it
+swamps the original entries, which then disappear in the rounding (often called
+\emph{roundoff}).
 
 \begin{example}[A tiny pivot ruins a benign system]
 \label{ch33:pivot}
@@ -454,13 +563,15 @@ digits.
 \textbf{Without pivoting}, the pivot is $0.0001$ and the multiplier is
 $m = 1/0.0001 = 10000$. Eliminating the second row:
 \[
-  \text{row}_2 \leftarrow \text{row}_2 - 10000\cdot\text{row}_1:
-  \quad (1 - 10000\cdot 0.0001)\,x_1 + (1 - 10000\cdot 1)\,x_2 = 2 - 10000\cdot 1.
+  \begin{gathered}
+  \text{row}_2 \leftarrow \text{row}_2 - 10000\cdot\text{row}_1:\\
+  (1 - 10000\cdot 0.0001)\,x_1 + (1 - 10000\cdot 1)\,x_2 = 2 - 10000\cdot 1.
+  \end{gathered}
 \]
 The new $x_2$ coefficient is $1 - 10000 = -9999$, and the right side is $2-10000=-9998$.
 On a machine with only $3$ significant digits, $-9999$ rounds to $-1.00 \times 10^4 =
 -10000$, and $-9998$ rounds to $-1.00 \times 10^4 = -10000$. The original ``$1$'' and
-``$2$'' are completely lost in the roundoff. The machine then computes:
+``$2$'' are lost in the rounding. The machine then computes:
 \[
   x_2 = \frac{-10000}{-10000} = 1.00,
 \]
@@ -468,8 +579,8 @@ and back-substitution gives
 \[
   x_1 = \frac{1 - 1\cdot 1.00}{0.0001} = \frac{0}{0.0001} = 0.
 \]
-The computed answer is $(0, 1.00)$ -- the first coordinate is completely wrong, off by
-$100\%$, on a problem that was never delicate.
+The computed answer is $(0, 1.00)$: the first coordinate is off by $100\%$, on a
+problem that was never delicate.
 
 \textbf{With partial pivoting}, you first \emph{swap rows} so that the largest-magnitude
 entry in the first column, the $1$, sits in the pivot position:
@@ -478,50 +589,98 @@ entry in the first column, the $1$, sits in the pivot position:
   \begin{bmatrix} x_1 \\ x_2 \end{bmatrix} =
   \begin{bmatrix} 2 \\ 1 \end{bmatrix}.
 \]
-Now the multiplier is $m = 0.0001/1 = 0.0001$, small and benign. Eliminating:
+Now the multiplier is $m = 0.0001/1 = 0.0001$, which is small. Eliminating:
 the $x_2$ coefficient becomes $1 - 0.0001 = 0.9999$, which rounds to $1.00$ in $3$
 digits, and the right side becomes $1 - 0.0001\cdot 2 = 0.9998$, which also rounds to
 $1.00$. Thus $x_2 = 1.00/1.00 = 1.00$, and back-substitution yields
 $x_1 = 2 - 1.00 = 1.00$. The computed solution $(1.00, 1.00)$ is correct to every digit
-of available precision. Same problem, same $3$-digit machine -- simply reordering the
+of available precision. Same problem, same $3$-digit machine: reordering the
 equations saved the answer.
 \end{example}
 
 \begin{focusbox}
 \textbf{Partial pivoting:} before eliminating in a column, swap rows so the
 largest-magnitude available entry becomes the pivot. This keeps every multiplier
-$\abs{m}\le 1$, so no row is blown up before being subtracted. It is cheap (a row swap),
-and it is why \texttt{A\textbackslash b} in MATLAB and \texttt{numpy.linalg.solve} are
-reliable in practice. Plain LU \emph{without} pivoting is numerically reckless; LU
-\emph{with} partial pivoting, $\mat{P}\mat{A}=\mat{L}\mat{U}$, is the standard.
+$\abs{m}\le 1$, so no row is multiplied by a large number before being subtracted. It
+is cheap (a row swap), and it is why \texttt{A\textbackslash b} in MATLAB and
+\texttt{numpy.linalg.solve} are reliable in practice. Plain LU \emph{without} pivoting
+is unsafe in floating point; LU \emph{with} partial pivoting,
+$\mat{P}\mat{A}=\mat{L}\mat{U}$ with $\mat{P}$ the permutation matrix that records the
+row swaps (Chapter~9), is the standard.
 \end{focusbox}
 
 \subsection{Backward stability, in one sentence}
 
-Pivoted Gaussian elimination is \textbf{backward stable}: the answer it returns is the
-\emph{exact} solution of a slightly perturbed system $(\mat{A}+\mat{E})\hat{\vec{x}} =
-\vec{b}$, where $\mat{E}$ is tiny relative to $\mat{A}$. That is the gold standard for a
-numerical algorithm. You did not solve your problem exactly; you solved a problem
-exactly that sits within rounding distance of yours. Whether the \emph{answer} is then
-accurate depends on the conditioning -- a stable algorithm on an ill-conditioned
-problem still gives a large error, but it is the problem's fault, not the method's. The
-two ideas combine into the rule of thumb every numerical analyst carries:
+Pivoted Gaussian elimination is \textbf{backward stable}: the computed answer
+$\hat{\vec{x}}$ it returns is the \emph{exact} solution of a slightly changed system
+$(\mat{A}+\mat{E})\hat{\vec{x}} = \vec{b}$, where $\mat{E}$ is tiny relative to $\mat{A}$.
+That is the best one can ask of an algorithm in floating point. You did not solve your
+problem exactly; you solved, exactly, a problem within rounding distance of yours.
+Whether the \emph{answer} is then accurate depends on the conditioning: a stable
+algorithm on an ill-conditioned problem still gives a large error, but that error comes
+from the problem, not the method.
+
+Two names make this precise (Figure~\ref{ch33:backward}). The \textbf{forward error} is
+how wrong the answer is, $\norm{\hat{\vec{x}}-\vec{x}}/\norm{\vec{x}}$. The
+\textbf{backward error} is how much the problem had to be changed for $\hat{\vec{x}}$ to
+be exactly right, roughly $\norm{\mat{E}}/\norm{\mat{A}}$. They are linked by the rule
+of thumb every numerical analyst carries:
 \[
-  \text{forward error} \;\lesssim\; \kappa(\mat{A}) \times \text{backward error}.
+  \text{forward error} \;\lesssim\; \kappa(\mat{A}) \times \text{backward error},
 \]
+where $\lesssim$ means ``is at most about''. A backward-stable algorithm makes the
+backward error about $\eps_{\text{mach}}$, so the forward error is about
+$\kappa(\mat{A})\,\eps_{\text{mach}}$.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[>=Stealth,font=\small]
+  % input space
+  \draw[fill=codebg,draw=spacegray!50,rounded corners=6pt] (0,0) rectangle (4,3);
+  \node[anchor=north] at (2,2.95) {problems (input)};
+  % output space
+  \draw[fill=codebg,draw=spacegray!50,rounded corners=6pt] (7,0) rectangle (11,3);
+  \node[anchor=north] at (9,2.95) {answers (output)};
+  % points
+  \fill[black] (1.2,1.1) circle (2pt) node[below left]{$\mat{A}$};
+  \fill[trapred] (2.4,1.6) circle (2pt) node[above right]{$\mat{A}+\mat{E}$};
+  \fill[black] (8.0,1.0) circle (2pt) node[below left]{$\vec{x}$};
+  \fill[trapred] (10.0,1.8) circle (2pt) node[above]{$\hat{\vec{x}}$};
+  % backward error
+  \draw[<->,trapred,thick] (1.25,1.15)--(2.35,1.57);
+  \node[trapred,anchor=north,align=center] at (2.2,0.95) {backward\\error};
+  % forward error
+  \draw[<->,trapred,thick] (8.05,1.03)--(9.95,1.77);
+  \node[trapred,anchor=north,align=center] at (9.4,1.15) {forward\\error};
+  % maps
+  \draw[->,thick] (1.2,1.1) to[bend right=25] node[midway,below]{exact solve} (8.0,1.0);
+  \draw[->,thick,vecblue] (1.3,1.2) to[bend left=22] node[midway,above]{computer's solve} (10.0,1.8);
+  \draw[->,thick,dashed,trapred] (2.4,1.6) to[bend left=8] node[pos=0.55,below,align=center]{exact solve\\of nearby problem} (9.9,1.8);
+\end{tikzpicture}
+\caption{Backward error analysis. The computer's answer $\hat{\vec{x}}$ (blue path) is
+not the exact answer $\vec{x}$, but it is the exact answer to a nearby problem
+$\mat{A}+\mat{E}$ (dashed path). The backward error is the distance between the problems
+on the left; the forward error is the distance between the answers on the right. The
+condition number is the largest factor by which the left distance can be magnified into
+the right one.}
+\label{ch33:backward}
+\end{figure}
 
 \subsection{Why QR provides numerical stability}
 
 There is a class of matrices with condition number exactly $1$: orthogonal matrices
 $\mat{Q}$, with $\mat{Q}\T\mat{Q}=\mat{I}$. They are rotations and reflections; they
 preserve length, $\norm{\mat{Q}\vec{x}}=\norm{\vec{x}}$, so they cannot amplify any
-error. This is the deep reason orthogonal transformations are the safest tools in the
-numerical toolbox: \emph{they never make a vector's relative error worse.}
+error. That is why orthogonal transformations are the safest tools in numerical
+computing: \emph{they never make a vector's relative error worse.}
 
-The QR factorization $\mat{A}=\mat{Q}\mat{R}$ (Gram--Schmidt's stable cousins, the
-Householder and Givens methods, build it) exploits this. To solve
+The QR factorization $\mat{A}=\mat{Q}\mat{R}$ uses this. In practice it is computed not
+by Gram--Schmidt but by more stable methods built entirely from orthogonal steps:
+Householder reflections (Chapter~20) or Givens rotations, each of which rotates in just
+two coordinates at a time to zero out one entry. To solve
 $\mat{A}\vec{x}=\vec{b}$ you write $\mat{Q}\mat{R}\vec{x}=\vec{b}$, multiply by
-$\mat{Q}\T$ -- free, because it is orthogonal and harmless -- to get
+$\mat{Q}\T$ (safe, because $\mat{Q}\T\mat{Q}=\mat{I}$ and $\mat{Q}\T$ stretches
+nothing) to get
 $\mat{R}\vec{x}=\mat{Q}\T\vec{b}$, then back-substitute through the triangular $\mat{R}$.
 The orthogonal step transports the data without inflating any error
 (Figure~\ref{ch33:orthogonal}).
@@ -556,10 +715,11 @@ The orthogonal step transports the data without inflating any error
     \node[font=\scriptsize,text=spacegray!90!black] at (1.1,-0.6) {Identical radius: $\kappa_2(\mat{Q}) = 1$};
   \end{scope}
 \end{tikzpicture}
-\caption{An orthogonal transformation rotates or reflects the space without stretching or squashing.
-A ball of uncertainty of radius $\eps$ is mapped to a congruent ball of the exact same radius $\eps$.
-Because $\norm{\mat{Q}\vec{x}}=\norm{\vec{x}}$, applying $\mat{Q}\T$ leaves relative errors
-completely untouched -- the reason QR-based algorithms are so robust.}
+\caption{An orthogonal transformation rotates or reflects space without stretching or
+squashing it. A ball of uncertainty of radius $\eps$ around $\vec{x}$ is mapped to a
+ball of the same radius $\eps$ around $\mat{Q}\T\vec{x}$. Because
+$\norm{\mat{Q}\vec{x}}=\norm{\vec{x}}$, applying $\mat{Q}\T$ leaves relative errors
+unchanged, which is why QR-based algorithms are stable.}
 \label{ch33:orthogonal}
 \end{figure}
 
@@ -571,42 +731,48 @@ implicit: for solving square systems, pivoted LU is fast and stable enough; but 
 \emph{least squares} $\min\norm{\mat{A}\vec{x}-\vec{b}}$, never form the normal
 equations $\mat{A}\T\mat{A}\vec{x}=\mat{A}\T\vec{b}$ on a computer, because
 $\kappa(\mat{A}\T\mat{A}) = \kappa(\mat{A})^2$ -- you square the condition number and
-can lose twice as many digits. Solve via QR (or the SVD) instead. That single warning
-is the practical heart of this chapter.
+can lose twice as many digits. Solve via QR (or the SVD) instead.
 \end{strangbox}
 
 \begin{applicationbox}
 \textbf{Why your machine-learning library uses QR/SVD.} A linear
 regression with $p$ features fits $\min_{\vec\beta}\norm{\mat{X}\vec\beta - \vec{y}}$.
 The textbook ``closed form'' $\vec\beta = (\mat{X}\T\mat{X})\inv\mat{X}\T\vec{y}$ is
-mathematically correct and numerically treacherous: when features are correlated (which
-real features always are), $\mat{X}$ is ill-conditioned and $\mat{X}\T\mat{X}$ doubles
-the damage. That is why \texttt{scikit-learn}'s \texttt{LinearRegression} calls
-LAPACK's SVD-based least-squares routine, not the normal-equation formula, and why
-\emph{ridge regression} -- adding $\lambda\mat{I}$ to $\mat{X}\T\mat{X}$ -- works so
-well: it lifts the smallest singular values away from zero, slashing the condition
-number and stabilizing the fit. Regularization is, in part, a conditioning fix.
+mathematically correct and numerically risky: when features are correlated (as real
+features almost always are), $\mat{X}$ is ill-conditioned, and $\mat{X}\T\mat{X}$ squares
+its condition number. That is why \texttt{LinearRegression} in \texttt{scikit-learn} (a
+widely used Python machine-learning library) calls LAPACK's SVD-based least-squares
+routine, not the normal-equation formula. It is also why \emph{ridge regression}
+(Chapter~27), which adds $\lambda\mat{I}$ to $\mat{X}\T\mat{X}$ for a small positive
+number $\lambda$, helps: it raises every eigenvalue of $\mat{X}\T\mat{X}$ by $\lambda$,
+lifting the smallest ones away from zero, which cuts the condition number and steadies
+the fit. Regularization is, in part, a conditioning fix.
 \end{applicationbox}
 
 \section{Iterative methods: solving without inverting}
 
 Everything so far has been \emph{direct}: a finite recipe (elimination, QR) that
 produces the answer after a fixed number of steps, roughly $\tfrac23 n^3$ for an
-$n\times n$ system. For $n=10^6$ -- a million unknowns, routine in scientific computing
-and graphics -- that is $10^{18}$ operations and a dense $10^{12}$-entry matrix that
-would not fit in memory. Direct methods die there.
+$n\times n$ system. For $n=10^6$ (a million unknowns, routine in scientific computing
+and graphics) that is about $10^{18}$ operations, and storing every entry of the matrix
+means $10^{12}$ numbers, more than fits in a computer's memory. Direct methods cannot
+cope at that size.
 
 But the giant matrices of practice are almost always \textbf{sparse}: mostly zeros, a
-handful of nonzeros per row, because each unknown couples only to its few neighbors (a
-pixel to adjacent pixels, a node to adjacent nodes). For these we use
-\textbf{iterative methods}, which never modify $\mat{A}$ and never form $\inv{\mat{A}}$.
-They only ever multiply $\mat{A}$ by a vector -- cheap when $\mat{A}$ is sparse --
-generating a sequence $\vec{x}^{(0)},
-\vec{x}^{(1)},\vec{x}^{(2)},\ldots$ that converges step by step to $\vec{x}$.
+handful of nonzeros per row, because each unknown is linked only to its few neighbors (a
+pixel to adjacent pixels, a node of a network to adjacent nodes). For these we use
+\textbf{iterative methods}, which start from a guess and improve it over and over. They
+never modify $\mat{A}$ and never form $\inv{\mat{A}}$; they only multiply $\mat{A}$ by
+vectors, which is cheap when $\mat{A}$ is sparse (only the nonzero entries cost work).
+They generate a sequence of guesses $\vec{x}^{(0)},
+\vec{x}^{(1)},\vec{x}^{(2)},\ldots$ that gets closer to $\vec{x}$ at every step. The
+superscript $(k)$ is a step counter, not a power: $\vec{x}^{(k)}$ is the guess after $k$
+steps.
 
 \subsection{Jacobi: everyone updates from last round}
 
-Split $\mat{A}$ into its diagonal $\mat{D}$ and the rest $\mat{R}=\mat{A}-\mat{D}$.
+Split $\mat{A}$ into its diagonal part $\mat{D}$ (the diagonal entries of $\mat{A}$,
+zeros elsewhere) and the rest $\mat{R}=\mat{A}-\mat{D}$.
 The system $\mat{A}\vec{x}=\vec{b}$ becomes $\mat{D}\vec{x} = \vec{b}-\mat{R}\vec{x}$,
 and if we already had $\vec{x}$ on the right we could read off $\vec{x}$ on the left.
 We do not, so we iterate: plug in the current guess on the right to get the next guess
@@ -614,20 +780,22 @@ on the left,
 \[
   \vec{x}^{(k+1)} = \inv{\mat{D}}\bigl(\vec{b} - \mat{R}\,\vec{x}^{(k)}\bigr).
 \]
-Component by component, the recipe is plain: solve the $i$-th equation for
-$x_i$, treating every \emph{other} unknown as known from the previous round,
+Component by component the recipe is: solve the $i$-th equation for $x_i$, treating
+every \emph{other} unknown as known from the previous round. With $a_{ij}$ the entries
+of $\mat{A}$ and $b_i$ those of $\vec{b}$,
 \[
   x_i^{(k+1)} = \frac{1}{a_{ii}}\Bigl(b_i - \sum_{j\ne i} a_{ij}\,x_j^{(k)}\Bigr).
 \]
 
-\begin{example}[Two Jacobi sweeps by hand]
+\begin{example}[Three Jacobi sweeps by hand]
 \label{ch33:jacobi}
 Solve
 \[
   \begin{bmatrix} 4 & 1 \\ 2 & 5 \end{bmatrix}\vec{x} = \colvec{1\\7},
   \qquad\text{true answer } \vec{x}\approx\colvec{-0.1111 \\ 1.4444}.
 \]
-The Jacobi updates are $x_1 \leftarrow (1 - x_2)/4$ and $x_2 \leftarrow (7-2x_1)/5$.
+The Jacobi updates are $x_1 \leftarrow (1 - x_2)/4$ and $x_2 \leftarrow (7-2x_1)/5$,
+where $\leftarrow$ means ``replace by''. One \emph{sweep} applies both updates once.
 Start at $\vec{x}^{(0)}=(0,0)$:
 \[
   \begin{aligned}
@@ -636,16 +804,16 @@ Start at $\vec{x}^{(0)}=(0,0)$:
   x_1^{(3)} &= (1-1.3)/4 = -0.075, & x_2^{(3)} &= (7-2\cdot(-0.1))/5 = 1.44.
   \end{aligned}
 \]
-Already after three sweeps we are at $(-0.075,\,1.44)$, marching toward
-$(-0.11,\,1.44)$. Each sweep used only the previous sweep's numbers -- so all updates
-could run in parallel.
+After three sweeps we are at $(-0.075,\,1.44)$, approaching $(-0.11,\,1.44)$. Each
+sweep used only the previous sweep's numbers, so all the updates in a sweep can be
+computed at the same time, on separate processors.
 \end{example}
 
 \subsection{Gauss-Seidel: use the news as soon as you hear it}
 
-Jacobi wastes information: while computing the new $x_2$ it still uses the \emph{stale}
-$x_1$, even though a fresh $x_1$ was just computed this very sweep. Gauss--Seidel fixes
-that -- use each new component the instant it is available:
+Jacobi wastes information: while computing the new $x_2$ it still uses the old
+$x_1$, even though a new $x_1$ was computed earlier in the same sweep. Gauss--Seidel
+uses each new component as soon as it is available:
 \[
   x_i^{(k+1)} = \frac{1}{a_{ii}}\Bigl(b_i - \sum_{j<i} a_{ij}\,x_j^{(k+1)}
      - \sum_{j>i} a_{ij}\,x_j^{(k)}\Bigr).
@@ -655,51 +823,52 @@ already-updated values $\vec{x}^{(k+1)}$. Redo the example: $x_1^{(1)}=(1-0)/4=0
 before, but now $x_2^{(1)}=(7-2\cdot 0.25)/5 = 1.3$ immediately uses the fresh $0.25$.
 Next sweep $x_1^{(2)}=(1-1.3)/4=-0.075$, then $x_2^{(2)}=(7-2\cdot(-0.075))/5=1.43$.
 After two sweeps Gauss--Seidel sits at $(-0.075,1.43)$, where Jacobi needed three. It
-typically converges about twice as fast, at the cost of being inherently sequential
-(each component waits for the one before it).
+typically converges about twice as fast, but the updates must be done one after
+another (each component waits for the one before it).
+Figure~\ref{ch33:iterative-staircase} draws both methods on a small system.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[scale=0.95,>=Stealth]
   % Left panel: Jacobi (simultaneous updates)
   \begin{scope}[shift={(0,0)}]
-    \draw[->,gray!50] (-0.3,0)--(3.2,0) node[right,font=\scriptsize]{$x_1$};
-    \draw[->,gray!50] (0,-0.3)--(0,2.9) node[left,font=\scriptsize]{$x_2$};
+    \draw[->,gray!50] (-0.3,0)--(3.2,0) node[right,font=\footnotesize]{$x_1$};
+    \draw[->,gray!50] (0,-0.3)--(0,2.9) node[left,font=\footnotesize]{$x_2$};
     
     % Equation lines: L1: 2x_1 + x_2 = 3; L2: x_1 + 2x_2 = 3
-    \draw[line width=1.1pt,vecblue] (-0.1,3.2)--(1.7,-0.4) node[pos=0.15,right,font=\tiny]{$L_1: 2x_1+x_2=3$};
-    \draw[line width=1.1pt,vecred]  (-0.4,1.7)--(3.2,-0.1) node[pos=0.85,above,font=\tiny]{$L_2: x_1+2x_2=3$};
+    \draw[line width=1.1pt,vecblue] (-0.1,3.2)--(1.7,-0.4) node[pos=0.06,right,font=\footnotesize]{$L_1$};
+    \draw[line width=1.1pt,vecred]  (-0.4,1.7)--(3.2,-0.1) node[pos=0.9,above,font=\footnotesize]{$L_2$};
     
     % Intersection / solution
-    \fill[black] (1,1) circle (1.8pt) node[right=4pt,font=\scriptsize,fill=white,inner sep=1pt] {$\vec{x}^*=(1,1)$};
+    \fill[black] (1,1) circle (1.8pt) node[right=4pt,font=\footnotesize,fill=white,inner sep=1pt] {$\vec{x}^*=(1,1)$};
     
     % Jacobi iterates: from (0,0) -> (1.5, 1.5) -> (0.75, 0.75) -> (1.125, 1.125)
     \coordinate (j0) at (0,0);
     \coordinate (j1) at (1.5,1.5);
     \coordinate (j2) at (0.75,0.75);
     \coordinate (j3) at (1.125,1.125);
-    \fill[structurepurple] (j0) circle (1.5pt) node[below left=-1pt,font=\tiny]{$\vec{x}^{(0)}$};
-    \fill[structurepurple] (j1) circle (1.5pt) node[above right=-1pt,font=\tiny]{$\vec{x}^{(1)}$};
-    \fill[structurepurple] (j2) circle (1.5pt) node[below left=-1pt,font=\tiny]{$\vec{x}^{(2)}$};
+    \fill[structurepurple] (j0) circle (1.5pt) node[below left=-1pt,font=\footnotesize]{$\vec{x}^{(0)}$};
+    \fill[structurepurple] (j1) circle (1.5pt) node[above right=-1pt,font=\footnotesize]{$\vec{x}^{(1)}$};
+    \fill[structurepurple] (j2) circle (1.5pt) node[below left=-1pt,font=\footnotesize]{$\vec{x}^{(2)}$};
     \draw[->,structurepurple,thick,dashed] (j0) -- (j1);
     \draw[->,structurepurple,thick,dashed] (j1) -- (j2);
     \draw[->,structurepurple,thick,dashed] (j2) -- (j3);
     
-    \node[font=\footnotesize\bfseries,text=spacegray!90!black] at (1.5,3.4) {Jacobi (Simultaneous)};
-    \node[font=\scriptsize,text=spacegray!90!black,align=center] at (1.5,-0.7) {Jumps diagonally; each round\\uses only previous data};
+    \node[font=\footnotesize\bfseries,text=spacegray!90!black] at (1.5,3.4) {Jacobi};
+    \node[font=\footnotesize,text=spacegray!90!black,align=center] at (1.5,-0.7) {each guess uses only\\the previous guess};
   \end{scope}
 
   % Right panel: Gauss-Seidel (sequential staircase)
   \begin{scope}[shift={(6.2,0)}]
-    \draw[->,gray!50] (-0.3,0)--(3.2,0) node[right,font=\scriptsize]{$x_1$};
-    \draw[->,gray!50] (0,-0.3)--(0,2.9) node[left,font=\scriptsize]{$x_2$};
+    \draw[->,gray!50] (-0.3,0)--(3.2,0) node[right,font=\footnotesize]{$x_1$};
+    \draw[->,gray!50] (0,-0.3)--(0,2.9) node[left,font=\footnotesize]{$x_2$};
     
     % Equation lines
-    \draw[line width=1.1pt,vecblue] (-0.1,3.2)--(1.7,-0.4) node[pos=0.15,right,font=\tiny]{$L_1$};
-    \draw[line width=1.1pt,vecred]  (-0.4,1.7)--(3.2,-0.1) node[pos=0.85,above,font=\tiny]{$L_2$};
+    \draw[line width=1.1pt,vecblue] (-0.1,3.2)--(1.7,-0.4) node[pos=0.06,right,font=\footnotesize]{$L_1$};
+    \draw[line width=1.1pt,vecred]  (-0.4,1.7)--(3.2,-0.1) node[pos=0.9,above,font=\footnotesize]{$L_2$};
     
     % Intersection / solution
-    \fill[black] (1,1) circle (1.8pt) node[above right=2pt,font=\scriptsize]{$\vec{x}^*=(1,1)$};
+    \fill[black] (1,1) circle (1.8pt) node[above right=2pt,font=\footnotesize]{$\vec{x}^*=(1,1)$};
     
     % Gauss-Seidel staircase: (0,0) -> (1.5,0) -> (1.5,0.75) -> (1.125,0.75) -> (1.125,0.938)
     \coordinate (g0) at (0,0);
@@ -707,44 +876,48 @@ typically converges about twice as fast, at the cost of being inherently sequent
     \coordinate (g1b) at (1.5,0.75);
     \coordinate (g2a) at (1.125,0.75);
     \coordinate (g2b) at (1.125,0.938);
-    \fill[targetgreen!80!black] (g0) circle (1.5pt) node[below left=-1pt,font=\tiny]{$\vec{x}^{(0)}$};
-    \draw[->,targetgreen!80!black,thick] (g0) -- (g1a) node[midway,below,font=\tiny]{$x_1$};
-    \draw[->,targetgreen!80!black,thick] (g1a) -- (g1b) node[midway,right,font=\tiny]{$x_2$};
+    \fill[targetgreen!80!black] (g0) circle (1.5pt) node[below left=-1pt,font=\footnotesize]{$\vec{x}^{(0)}$};
+    \draw[->,targetgreen!80!black,thick] (g0) -- (g1a) node[midway,below,font=\footnotesize]{$x_1$};
+    \draw[->,targetgreen!80!black,thick] (g1a) -- (g1b) node[midway,right,font=\footnotesize]{$x_2$};
     \draw[->,targetgreen!80!black,thick] (g1b) -- (g2a);
     \draw[->,targetgreen!80!black,thick] (g2a) -- (g2b);
     \draw[->,targetgreen!80!black,thick] (g2b) -- (1.03,0.938);
     \draw[->,targetgreen!80!black,thick] (1.03,0.938) -- (1.03,0.985);
     
-    \node[font=\footnotesize\bfseries,text=spacegray!90!black] at (1.5,3.4) {Gauss--Seidel (Sequential)};
-    \node[font=\scriptsize,text=spacegray!90!black,align=center] at (1.5,-0.7) {Orthogonal staircase alternates\\horizontal and vertical steps};
+    \node[font=\footnotesize\bfseries,text=spacegray!90!black] at (1.5,3.4) {Gauss--Seidel};
+    \node[font=\footnotesize,text=spacegray!90!black,align=center] at (1.5,-0.7) {alternating horizontal\\and vertical steps};
   \end{scope}
 \end{tikzpicture}
-\caption{The geometry of iterative relaxation in $\R^2$. Each equation defines a line;
-the true solution $\vec{x}^*$ is their intersection. In Gauss--Seidel (right), updating
-$x_1$ means moving horizontally to Line 1; updating $x_2$ with that fresh value means
-moving vertically to Line 2. This creates an orthogonal staircase spiraling into
-$\vec{x}^*$. Diagonal dominance means Line 1 is steeper than Line 2, guaranteeing that
-each bounce contracts toward the center. Jacobi (left) computes both projections from
-the prior guess simultaneously, leaping diagonally.}
+\caption{Jacobi and Gauss--Seidel on the system $2x_1+x_2=3$ (line $L_1$, blue) and
+$x_1+2x_2=3$ (line $L_2$, red), whose solution $\vec{x}^*=(1,1)$ is where the lines
+cross. Solving equation $1$ for $x_1$ means moving horizontally onto $L_1$; solving
+equation $2$ for $x_2$ means moving vertically onto $L_2$. Gauss--Seidel (right) does
+these one after the other, using the new $x_1$ at once, so it walks a staircase into
+$\vec{x}^*$. Jacobi (left) computes both moves from the same old guess, so each step
+jumps diagonally and overshoots. Because this system is diagonally dominant, $L_1$ is
+steeper than $L_2$, and every step is shorter than the one before.}
 \label{ch33:iterative-staircase}
 \end{figure}
 
 \begin{intuitionbox}
-Both methods are ``relax toward agreement.'' Picture each equation as a constraint, and
-each sweep as nudging every unknown to satisfy its own equation given everyone else's
-current value. Like a roomful of people each adjusting to their neighbors, the whole
-configuration settles toward the consensus that satisfies all equations at once.
-Gauss--Seidel just lets each person hear the latest gossip before adjusting, so the
-room settles faster.
+Both methods are called \emph{relaxation} methods: each sweep nudges every unknown so
+that its own equation is satisfied, given everyone else's current value. Like a roomful
+of people each adjusting to their neighbors, the whole configuration settles toward the
+state that satisfies all equations at once. Gauss--Seidel lets each person hear the
+latest news before adjusting, so the room settles faster.
 \end{intuitionbox}
 
 \begin{formalbox}
-These iterations converge for \emph{any} starting guess precisely when the
-\textbf{spectral radius} of the iteration matrix is below $1$. For Jacobi the iteration
-matrix is $\mat{M}=-\inv{\mat{D}}\mat{R}$, and $\vec{x}^{(k+1)}-\vec{x} =
-\mat{M}(\vec{x}^{(k)}-\vec{x})$, so the error is multiplied by $\mat{M}$ each step and
-dies iff every eigenvalue of $\mat{M}$ has $\abs{\lambda}<1$. A clean sufficient
-condition you can check by eye: \textbf{strict diagonal dominance},
+These iterations converge for \emph{any} starting guess exactly when the
+\textbf{spectral radius} of the iteration matrix (its largest eigenvalue in absolute
+value, Chapter~28) is below $1$. For Jacobi the iteration matrix is
+$\mat{M}=-\inv{\mat{D}}\mat{R}$, and
+\[
+  \vec{x}^{(k+1)}-\vec{x} = \mat{M}\bigl(\vec{x}^{(k)}-\vec{x}\bigr),
+\]
+so the error is multiplied by $\mat{M}$ each step and shrinks to zero exactly when every
+eigenvalue $\lambda$ of $\mat{M}$ has $\abs{\lambda}<1$. A simple sufficient condition
+you can check by eye is \textbf{strict diagonal dominance},
 $\abs{a_{ii}} > \sum_{j\ne i}\abs{a_{ij}}$ for every row -- each diagonal entry bigger
 than the rest of its row combined -- guarantees both Jacobi and Gauss--Seidel converge.
 Our $\left[\begin{smallmatrix}4&1\\2&5\end{smallmatrix}\right]$ qualifies: $4>1$ and
@@ -755,142 +928,179 @@ $5>2$.
 Iterative methods are not guaranteed to converge. If $\mat{A}$ is not diagonally
 dominant (or, more generally, if the iteration matrix has spectral radius $\ge 1$),
 Jacobi and Gauss--Seidel can stall or \emph{diverge to infinity}. Always check
-diagonal dominance, or a related structural property like positive-definiteness, before
-trusting them -- and watch the residual $\norm{\mat{A}\vec{x}^{(k)}-\vec{b}}$ actually
-shrinking.
+diagonal dominance, or a related property such as positive definiteness, before
+trusting them, and watch the residual $\norm{\mat{A}\vec{x}^{(k)}-\vec{b}}$ to see that
+it shrinks.
 \end{trapbox}
 
 \begin{recoverybox}
-\textbf{Pause and think:} Look at the symmetric matrix $\mat{A} = \begin{bmatrix} 3 & 2 \\ 2 & 1 \end{bmatrix}$. Can you guarantee that Jacobi or Gauss--Seidel iteration will converge for $\mat{A}\vec{x}=\vec{b}$?
-\emph{Answer:} Check strict diagonal dominance row by row. Row 1 has $|a_{11}| = 3 > 2 = |a_{12}|$, which passes. But Row 2 has $|a_{22}| = 1 < 2 = |a_{21}|$, which fails. In fact, the Jacobi iteration matrix $\mat{M} = -\inv{\mat{D}}\mat{R} = -\begin{bmatrix} 1/3 & 0 \\ 0 & 1 \end{bmatrix}\begin{bmatrix} 0 & 2 \\ 2 & 0 \end{bmatrix} = \begin{bmatrix} 0 & -2/3 \\ -2 & 0 \end{bmatrix}$ has eigenvalues $\lambda = \pm\sqrt{4/3} \approx \pm 1.155$. Because its spectral radius exceeds $1$, errors multiply and blow up to infinity -- the iteration diverges.
+\textbf{Pause and think:} Look at the symmetric matrix
+$\mat{A} = \left[\begin{smallmatrix} 3 & 2 \\ 2 & 1 \end{smallmatrix}\right]$. Can you
+guarantee that Jacobi or Gauss--Seidel iteration will converge for
+$\mat{A}\vec{x}=\vec{b}$?
+\emph{Answer:} Check strict diagonal dominance row by row. Row 1 has
+$\abs{a_{11}} = 3 > 2 = \abs{a_{12}}$, which passes. But row 2 has
+$\abs{a_{22}} = 1 < 2 = \abs{a_{21}}$, which fails. In fact, the Jacobi iteration matrix
+\begin{align*}
+  \mat{M} &= -\inv{\mat{D}}\mat{R} \\
+          &= -\begin{bmatrix} 1/3 & 0 \\ 0 & 1 \end{bmatrix}\begin{bmatrix} 0 & 2 \\ 2 & 0 \end{bmatrix} \\
+          &= \begin{bmatrix} 0 & -2/3 \\ -2 & 0 \end{bmatrix}
+\end{align*}
+has eigenvalues $\lambda = \pm\sqrt{4/3} \approx \pm 1.155$. Because its spectral radius
+exceeds $1$, the error grows each step and the iteration diverges.
 \end{recoverybox}
 
-\subsection{Conjugate gradient: the heavyweight}
+\subsection{Conjugate gradient}
 
-For the most important case -- $\mat{A}$ symmetric positive definite -- there is a
-method that leaves Jacobi and Gauss--Seidel far behind: the \textbf{conjugate gradient}
-(CG) method. The geometry behind it is what makes it work.
+For the most important case, $\mat{A}$ symmetric positive definite, there is a method
+far faster than Jacobi and Gauss--Seidel: the \textbf{conjugate gradient} (CG) method.
+It is easiest to understand through geometry.
 
 When $\mat{A}$ is symmetric positive definite, solving $\mat{A}\vec{x}=\vec{b}$ is
 \emph{exactly} the same as minimizing the bowl-shaped quadratic
 \[
   \phi(\vec{x}) = \tfrac12\,\vec{x}\T\mat{A}\vec{x} - \vec{b}\T\vec{x}.
 \]
-Its gradient is $\nabla\phi = \mat{A}\vec{x}-\vec{b}$, which is zero exactly at the
-solution. So solving the linear system \emph{is} rolling to the bottom of a
-paraboloid bowl. Because $\mat{A}$ is positive definite, the bowl really is a bowl
-(curving up in every direction), and its level sets are nested ellipsoids -- stretched
-into a long valley when $\mat{A}$ is ill-conditioned.
+Here $\phi$ (the Greek letter phi) takes a vector and returns a number. Its gradient
+(the vector of partial derivatives, Chapter~27) is $\nabla\phi = \mat{A}\vec{x}-\vec{b}$,
+which is zero exactly at the solution. So solving the linear system \emph{is} finding the
+bottom of a bowl. Because $\mat{A}$ is positive definite, the bowl curves up in every
+direction. Its \emph{level sets} (the sets of points where $\phi$ has one fixed value,
+like contour lines on a map) are nested ellipsoids, stretched into a long valley when
+$\mat{A}$ is ill-conditioned.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\begin{tikzpicture}[scale=1.0,>=Stealth]
+\begin{tikzpicture}[scale=1.25,>=Stealth]
   % elongated ellipse contours (a stretched valley)
-  \foreach \r in {0.5,1.0,1.5,2.0} {
+  \foreach \r in {0.5,1.0,1.5,2.0,2.43} {
     \draw[gray!55] (0,0) ellipse ({1.7*\r} and {0.6*\r});
   }
-  \fill[black] (0,0) circle (1.6pt);
-  \node[above right,font=\small] at (0.05,0.05) {minimum $\vec{x}$};
-  % steepest descent: zig-zag
-  \coordinate (s0) at (-3.0,1.0);
-  \coordinate (s1) at (-1.4,-0.5);
-  \coordinate (s2) at (-0.9,0.45);
-  \coordinate (s3) at (-0.35,-0.18);
-  \draw[->,trapred,thick] (s0)--(s1);
-  \draw[->,trapred,thick] (s1)--(s2);
-  \draw[->,trapred,thick] (s2)--(s3);
-  \node[trapred] at (-2.6,1.35){\small steepest descent};
-  % CG: two clean steps
-  \coordinate (c0) at (2.9,1.0);
-  \coordinate (c1) at (1.4,-1.0);
-  \draw[->,vecblue,very thick] (c0)--(c1);
-  \draw[->,vecblue,very thick] (c1)--(0,0);
-  \node[vecblue] at (2.6,1.35){\small conjugate gradient};
+  \fill[black] (0,0) circle (1.4pt);
+  \node[below,font=\small] at (0,-0.08) {minimum};
+  % steepest descent: exact line-search zig-zag
+  \draw[->,trapred,thick] (-3.000,1.000)--(-2.581,-0.120);
+  \draw[->,trapred,thick] (-2.581,-0.120)--(-1.194,0.398);
+  \draw[->,trapred,thick] (-1.194,0.398)--(-1.028,-0.048);
+  \draw[->,trapred,thick] (-1.028,-0.048)--(-0.476,0.159);
+  \draw[->,trapred,thick] (-0.476,0.159)--(-0.409,-0.019);
+  \draw[->,trapred,thick] (-0.409,-0.019)--(-0.189,0.063);
+  \fill[trapred] (-3,1) circle (1.4pt);
+  \node[trapred,font=\small] at (-2.6,1.75){steepest descent};
+  % CG: two steps
+  \draw[->,vecblue,very thick] (2.9,1.0)--(2.498,-0.112);
+  \draw[->,vecblue,very thick] (2.498,-0.112)--(0.04,0);
+  \fill[vecblue] (2.9,1) circle (1.4pt);
+  \node[vecblue,font=\small] at (2.6,1.75){conjugate gradient};
 \end{tikzpicture}
-\caption{Solving $\mat{A}\vec{x}=\vec{b}$ for symmetric positive definite $\mat{A}$
-means finding the bottom of an ellipsoidal bowl. Naive steepest descent (red)
-zig-zags across the stretched valley, taking tiny corrective steps forever. Conjugate
-gradient (blue) chooses $\mat{A}$-orthogonal directions and never undoes its own
-progress, reaching the bottom of an $n$-dimensional bowl in at most $n$ steps.}
+\caption{Contour lines of the bowl $\phi$ for an ill-conditioned $2\times 2$ matrix
+$\mat{A}$; solving $\mat{A}\vec{x}=\vec{b}$ means reaching the centre. Steepest descent
+(red, left) goes downhill as far as it can along the steepest direction each time, and
+zig-zags across the narrow valley, still not there after six steps. Conjugate gradient
+(blue, right) starts the same way but chooses its second direction $\mat{A}$-orthogonal
+to the first, and lands exactly on the minimum in two steps. In $n$ dimensions it needs
+at most $n$ steps.}
 \label{ch33:cg}
 \end{figure}
 
 The obvious way down is \emph{steepest descent}: always step in the direction of
 steepest decrease (the negative gradient). On a round bowl that goes straight to the
-bottom, but on a long ellipsoidal valley it zig-zags maddeningly, each step ruining the
-progress of the last (Figure~\ref{ch33:cg}, red). Conjugate gradient's insight is to
-pick directions that are ``$\mat{A}$-orthogonal'' (conjugate): $\vec{p}_i\T\mat{A}\,
-\vec{p}_j=0$ for $i\ne j$. Geometrically, stretch coordinates by $\vec{y}=\mat{A}^{1/2}\vec{x}$:
-the elongated bowl becomes perfectly round, and
-$\vec{p}_i\T\mat{A}\vec{p}_j=(\mat{A}^{1/2}\vec{p}_i)\cdot(\mat{A}^{1/2}\vec{p}_j)=0$
-says the search directions are ordinary perpendicular axes of that round bowl. With such directions, a step that fixes one direction never
-spoils another, so there is no zig-zag and no backtracking. In exact arithmetic CG
-reaches the exact solution of an $n\times n$ system in at most $n$ steps -- and usually
-far fewer, because it converges fast once it has explored the directions that matter.
+bottom, but in a long ellipsoidal valley it zig-zags, each step partly undoing the
+progress of the last (Figure~\ref{ch33:cg}, red). Conjugate gradient instead picks
+search directions $\vec{p}_1,\vec{p}_2,\ldots$ that are \textbf{$\mat{A}$-orthogonal}
+(also called \emph{conjugate}, which gives the method its name):
+\[
+  \vec{p}_i\T\mat{A}\,\vec{p}_j=0 \qquad\text{for } i\ne j.
+\]
+Geometrically, change coordinates to $\vec{y}=\mat{A}^{1/2}\vec{x}$, where
+$\mat{A}^{1/2}$ is the positive definite square root of $\mat{A}$ from Chapter~27. In
+these coordinates the stretched bowl becomes perfectly round, and
+\[
+  \vec{p}_i\T\mat{A}\vec{p}_j=(\mat{A}^{1/2}\vec{p}_i)\cdot(\mat{A}^{1/2}\vec{p}_j)=0
+\]
+says the search directions are ordinary perpendicular directions in the round bowl.
+With such directions, a step that finishes the job along one direction never spoils
+another, so there is no zig-zag and no backtracking. In exact arithmetic CG reaches the
+exact solution of an $n\times n$ system in at most $n$ steps, and usually gets close in
+far fewer.
 
 \begin{intuitionbox}
 Steepest descent is like walking downhill in a narrow canyon by always facing the
-steepest local slope: you bounce wall to wall, creeping forward. Conjugate gradient is
-like realizing the canyon has a few principal directions and dispatching each one
-\emph{once and for all}, so you stride to the bottom in a handful of decisive moves.
-The number of steps you really need is governed by $\sqrt{\kappa(\mat{A})}$ -- which is
-why \emph{preconditioning} (multiplying by an approximate inverse to shrink $\kappa$)
-is what makes CG practical on real problems.
+steepest local slope: you bounce from wall to wall and creep forward. Conjugate gradient
+is like realizing the canyon has a few main directions and dealing with each one
+\emph{once and for all}, so you reach the bottom in a handful of moves. The number of
+steps needed for a given accuracy grows like $\sqrt{\kappa(\mat{A})}$. That is why
+\emph{preconditioning} (multiplying the system by a cheap approximate inverse of
+$\mat{A}$ to shrink $\kappa$) is what makes CG practical on real problems.
 \end{intuitionbox}
 
 \begin{applicationbox}
-Conjugate gradient and its relatives are the quiet engine of large-scale computation.
-When a graphics engine simulates cloth or smoke, when an aircraft is stress-tested by
-finite-element analysis, or when a modern recommendation system solves a sparse linear
-system in millions of unknowns, a Krylov-subspace iterative solver (CG for symmetric
-problems, GMRES for general ones) is almost always inside the loop. They win because
-they touch $\mat{A}$ only through matrix-vector products, which respect sparsity and
-parallelize across thousands of cores -- something a dense $\inv{\mat{A}}$ could never
-do.
+Conjugate gradient and its relatives do much of the work in large-scale computation.
+When a graphics engine simulates cloth or smoke, when engineers test an aircraft part by
+finite-element analysis (cutting the part into many small pieces and writing one
+equation per piece), or when a recommendation system solves a sparse linear system in
+millions of unknowns, there is almost always one of these solvers inside the loop. They
+are called \emph{Krylov-subspace methods} because each step searches within the span of
+$\vec{b}, \mat{A}\vec{b}, \mat{A}^2\vec{b}, \ldots$ (that span is a Krylov subspace). CG
+is used for symmetric positive definite problems and GMRES (generalized minimal residual)
+for general ones. They win because they use $\mat{A}$ only through matrix-vector
+products, which skip the zero entries and can be split across thousands of processors;
+a dense $\inv{\mat{A}}$ allows neither.
 \end{applicationbox}
 
 \section{The power method: finding the top eigenvalue}
 
-Iterative ideas also conquer eigenvalues. The simplest eigenvalue algorithm, the
-\textbf{power method}, computes the largest-magnitude eigenvalue and its eigenvector
-using only repeated matrix-vector multiplication.
+Iteration also works for eigenvalues. The simplest eigenvalue algorithm, the
+\textbf{power method}, computes the eigenvalue of largest absolute value (the
+\emph{dominant} eigenvalue) and its eigenvector, using only repeated matrix-vector
+multiplication.
 
-The idea: start with almost any vector $\vec{v}^{(0)}$ and hit it with $\mat{A}$ over
-and over. Write $\vec{v}^{(0)}$ in an eigenbasis,
-$\vec{v}^{(0)} = c_1\vec{x}_1 + c_2\vec{x}_2 + \cdots + c_n\vec{x}_n$, where
-$\abs{\lambda_1} > \abs{\lambda_2}\ge\cdots$. Then
+The idea: start with almost any vector $\vec{v}^{(0)}$ and multiply it by $\mat{A}$ over
+and over. Suppose $\mat{A}$ has an eigenbasis $\vec{x}_1,\ldots,\vec{x}_n$ with
+eigenvalues $\lambda_1,\ldots,\lambda_n$, numbered so that
+$\abs{\lambda_1} > \abs{\lambda_2}\ge\cdots\ge\abs{\lambda_n}$. Write
+$\vec{v}^{(0)} = c_1\vec{x}_1 + c_2\vec{x}_2 + \cdots + c_n\vec{x}_n$ (with $c_1\ne 0$;
+that is what ``almost any'' means). Then
 \[
-  \mat{A}^k\vec{v}^{(0)} = c_1\lambda_1^k\vec{x}_1 + c_2\lambda_2^k\vec{x}_2 + \cdots
-   = \lambda_1^k\Bigl(c_1\vec{x}_1 + c_2(\tfrac{\lambda_2}{\lambda_1})^k\vec{x}_2 + \cdots\Bigr).
+  \begin{aligned}
+  \mat{A}^k\vec{v}^{(0)} &= c_1\lambda_1^k\vec{x}_1 + c_2\lambda_2^k\vec{x}_2 + \cdots
+     + c_n\lambda_n^k\vec{x}_n\\
+   &= \lambda_1^k\Bigl(c_1\vec{x}_1 + c_2\Bigl(\frac{\lambda_2}{\lambda_1}\Bigr)^{k}\vec{x}_2
+     + \cdots + c_n\Bigl(\frac{\lambda_n}{\lambda_1}\Bigr)^{k}\vec{x}_n\Bigr).
+  \end{aligned}
 \]
-Every ratio $\lambda_j/\lambda_1$ has magnitude below $1$, so its $k$-th power decays to
-zero. The dominant eigendirection $\vec{x}_1$ survives; everything else fades. After
-enough multiplications the vector points (almost) exactly along $\vec{x}_1$. To keep the
-numbers from overflowing or underflowing, normalize after each step:
+Every ratio $\lambda_j/\lambda_1$ with $j\ge 2$ has absolute value below $1$, so its
+$k$-th power decays to zero. The dominant direction $\vec{x}_1$ survives and everything
+else fades. After enough multiplications the vector points almost exactly along
+$\vec{x}_1$. The entries of $\mat{A}^k\vec{v}^{(0)}$ grow or shrink like $\lambda_1^k$
+and would soon \emph{overflow} (exceed the largest number a float can hold) or
+\emph{underflow} (become too small to represent, and be stored as $0$). So rescale the
+vector to length $1$ after each step:
 \[
   \vec{w} = \mat{A}\,\vec{v}^{(k)}, \qquad
   \vec{v}^{(k+1)} = \frac{\vec{w}}{\norm{\vec{w}}}.
 \]
-The eigenvalue itself falls out as the Rayleigh quotient
-$\lambda_1 \approx \vec{v}^{(k)\mathsf T}\mat{A}\,\vec{v}^{(k)}$, or simply as the
-factor by which the vector grew before normalizing.
+The eigenvalue itself comes from the \emph{Rayleigh quotient}
+$\vec{v}\T\mat{A}\vec{v}/\vec{v}\T\vec{v}$ (Chapter~30); for the unit vector
+$\vec{v}^{(k)}$ this is $\lambda_1 \approx (\vec{v}^{(k)})\T\mat{A}\,\vec{v}^{(k)}$. Or
+read it off as the factor by which the vector grew before rescaling.
 
-\begin{example}[Power method in three steps]
+\begin{example}[Power method by hand]
 \label{ch33:power}
 Take
 \[
   \mat{A} = \begin{bmatrix} 2 & 1 \\ 1 & 2 \end{bmatrix},
 \]
 whose true eigenvalues are $3$ (eigenvector $(1,1)$) and $1$ (eigenvector $(1,-1)$).
-Start with the deliberately lopsided $\vec{v}^{(0)}=\colvec{1\\0}$ and just track the
-raw vector $\mat{A}^k\vec{v}^{(0)}$:
+Start with the lopsided $\vec{v}^{(0)}=\colvec{1\\0}$ and track the vector
+$\mat{A}^k\vec{v}^{(0)}$ without rescaling:
 \[
   \mat{A}\colvec{1\\0}=\colvec{2\\1},\quad
   \mat{A}\colvec{2\\1}=\colvec{5\\4},\quad
   \mat{A}\colvec{5\\4}=\colvec{14\\13},\quad
   \mat{A}\colvec{14\\13}=\colvec{41\\40}.
 \]
-Watch the ratio of the two components head for $1$ (the direction of $(1,1)$):
+The ratio of the two components heads for $1$ (the direction of $(1,1)$):
 $2/1$, then $5/4$, then $14/13$, then $41/40$. And the growth factor per step heads
 for $3$: from $\colvec{14\\13}$ to $\colvec{41\\40}$ the first component went
 $14\to 41$, a factor $2.93$, closing on the true dominant eigenvalue $\lambda_1=3$.
@@ -903,51 +1113,82 @@ Four multiplications and we already have two good digits
 \begin{tikzpicture}[scale=1.1,>=Stealth]
   \draw[gray!50] (-0.3,0)--(3.0,0);
   \draw[gray!50] (0,-0.3)--(0,3.0);
-  \draw[dashed,structurepurple] (0,0)--(2.6,2.6) node[right]{\small $\vec{x}_1$ dir $(1,1)$};
+  \draw[dashed,structurepurple] (0,0)--(2.6,2.6) node[right]{\small direction of $\vec{x}_1=(1,1)$};
   \draw[->,vecblue,thick] (0,0)--(2.0,0.0) node[below]{\small $\vec{v}^{(0)}$};
-  \draw[->,vecblue,thick] (0,0)--(1.79,0.89);
+  \draw[->,vecblue,thick] (0,0)--(1.79,0.89) node[right]{\small $\vec{v}^{(1)}$};
   \draw[->,vecblue,thick] (0,0)--(1.56,1.25);
-  \draw[->,vecblue,thick] (0,0)--(1.41,1.34);
-  \draw[->,vecblue] (2.1,1.1) to[bend right=20] (1.65,1.25);
-  \node[vecblue,right] at (2.05,1.05){\small swings toward $\vec{x}_1$};
+  \draw[->,vecblue,thick] (0,0)--(1.47,1.36);
+  \node[vecblue,above left,font=\small] at (1.47,1.36) {$\vec{v}^{(3)}$};
+  \draw[->,vecblue!70] (2.25,0.15) to[bend right=40] (1.75,1.5);
+  \node[vecblue,right,font=\small] at (2.45,0.8){swings toward $\vec{x}_1$};
 \end{tikzpicture}
-\caption{The power method in action on $\left[\begin{smallmatrix}2&1\\1&2\end{smallmatrix}\right]$.
-Each multiplication by $\mat{A}$ swings the iterate closer to the dominant eigendirection
-$(1,1)$; the subdominant component shrinks by the factor $\lambda_2/\lambda_1 = 1/3$
-each step.}
+\caption{The power method on $\left[\begin{smallmatrix}2&1\\1&2\end{smallmatrix}\right]$,
+starting from $\vec{v}^{(0)}=(1,0)$, with each vector rescaled to the same length. Each
+multiplication by $\mat{A}$ swings the vector closer to the dominant eigenvector
+direction $(1,1)$; the component along the other eigenvector $(1,-1)$ shrinks by the
+factor $\lambda_2/\lambda_1 = 1/3$ each step, relative to the dominant one.}
 \label{ch33:powerfig}
 \end{figure}
 
 \begin{applicationbox}
 \textbf{PageRank is the power method.} Google's original ranking treated the web as a
-giant matrix $\mat{A}$ where $A_{ij}$ is the probability a random surfer hops from page
-$j$ to page $i$ (Chapter~35 uses the transpose convention, with row vectors). The importance of every page is the dominant eigenvector of that
-billion-by-billion matrix -- and you find it by exactly the iteration above: start with
-a uniform vector, multiply by $\mat{A}$, normalize, repeat. Because $\mat{A}$ is
-enormously sparse (each page links to only a handful of others), each multiplication is
-cheap, and the dominant eigenvalue is conveniently $1$ with a clear gap to the next, so
-the power method converges in a few dozen sweeps over the entire web. The whole of
-linear algebra's spectral theory, run iteratively, ranked the internet.
+giant matrix $\mat{A}$ where $A_{ij}$ is the probability that a ``random surfer'' (an
+imaginary reader who keeps clicking links at random) moves from page $j$ to page $i$.
+(Chapter~35 uses the transposed convention, with row vectors.) The importance scores of
+all pages form the dominant eigenvector of that billion-by-billion matrix, and you find
+it by the iteration above: start with a vector whose entries are all equal, multiply by
+$\mat{A}$, rescale, repeat. Because $\mat{A}$ is extremely sparse (each page links to
+only a handful of others), each multiplication is cheap. The dominant eigenvalue is $1$,
+and the next eigenvalue is well below it in size, so the power method converges in a few
+dozen passes over the entire web.
 \end{applicationbox}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[scale=1.5,>=Stealth]
+  \node[circle,draw=vecblue,fill=vecblue!10,thick,minimum size=0.8cm] (1) at (0,1.5) {1};
+  \node[circle,draw=vecblue,fill=vecblue!10,thick,minimum size=1.0cm] (2) at (2,1.5) {2};
+  \node[circle,draw=vecblue,fill=vecblue!10,thick,minimum size=0.6cm] (3) at (0,0) {3};
+  \node[circle,draw=vecblue,fill=vecblue!10,thick,minimum size=1.2cm] (4) at (2,0) {4};
+
+  \draw[->,thick] (1) to[bend left=15] (2);
+  \draw[->,thick] (1) to[bend left=15] (3);
+  \draw[->,thick] (1) to (4);
+
+  \draw[->,thick] (2) to[bend left=15] (1);
+  \draw[->,thick] (2) to[bend left=15] (4);
+
+  \draw[->,thick] (3) to[bend left=15] (1);
+
+  \draw[->,thick] (4) to[bend left=15] (2);
+  \draw[->,thick] (4) to[bend right=15] (3);
+\end{tikzpicture}
+\caption{A tiny web of four pages. Pages with more incoming links from other important pages (like page 4) end up with a larger dominant eigenvector component (shown by size). The power method finds these scores by passing importance along the arrows over and over.}
+\label{ch33:pagerank}
+\end{figure}
 
 \begin{remark}
 The power method only finds the \emph{top} eigenvalue, and it stalls if the top two are
-equal in magnitude (no gap, nothing to win the race). To get other eigenvalues you
-shift and invert (apply the power method to $(\mat{A}-\mu\mat{I})\inv$ to find the
-eigenvalue nearest $\mu$), or deflate, or -- for all eigenvalues at once -- use the
-\textbf{QR algorithm}, the standard general solver: repeatedly factor $\mat{A}_k=\mat{Q}_k\mat{R}_k$
-and reassemble $\mat{A}_{k+1}=\mat{R}_k\mat{Q}_k$. This similarity
-iteration drives the matrix toward upper-triangular form, reading the eigenvalues off
-the diagonal. It is the power method's grown-up sibling and what \texttt{eig} actually
-calls.
+equal in absolute value (then neither direction wins). To get other eigenvalues you can
+\emph{shift and invert}: apply the power method to $(\mat{A}-\mu\mat{I})\inv$, whose
+dominant eigenvalue comes from the eigenvalue of $\mat{A}$ nearest a chosen number
+$\mu$. Or you can \emph{deflate}: remove the eigenvalue already found from the matrix
+and run the power method again. For all eigenvalues at once, the standard method is the
+\textbf{QR algorithm}: repeatedly factor $\mat{A}_k=\mat{Q}_k\mat{R}_k$ and multiply the
+factors in the other order, $\mat{A}_{k+1}=\mat{R}_k\mat{Q}_k$. Since
+$\mat{A}_{k+1}=\mat{Q}_k\T\mat{A}_k\mat{Q}_k$, every $\mat{A}_k$ is similar to $\mat{A}$
+and has the same eigenvalues (Chapter~28). The iteration drives the matrix toward
+upper-triangular form, and the eigenvalues can then be read off the diagonal. It is a
+refined relative of the power method, and it is what the \texttt{eig} function in
+MATLAB and NumPy runs.
 \end{remark}
 
 \section{Practical warnings to carry with you}
 
-Let us collect the field's hard-won wisdom into a checklist you can actually use.
+Here are the main practical rules of the chapter, collected as a checklist.
 
 \begin{focusbox}
-\textbf{Numerical commandments.}
+\textbf{Rules for computing with matrices.}
 \begin{enumerate}
   \item \textbf{Never invert a matrix to solve a system.} To solve $\mat{A}\vec{x}=
     \vec{b}$, factor and back-substitute (\texttt{solve}, \texttt{A\textbackslash b}) --
@@ -960,74 +1201,113 @@ Let us collect the field's hard-won wisdom into a checklist you can actually use
   \item \textbf{Avoid subtracting nearly equal numbers.} Reformulate to dodge
     catastrophic cancellation when you can.
   \item \textbf{Never test floating-point numbers for exact equality.} Write
-    $\abs{a-b} < \text{tol}$, not $a == b$; rounding makes exact equality a lie.
-  \item \textbf{Exploit structure.} Sparse, symmetric, positive definite, banded,
-    and triangular matrices each admit faster, more stable specialized solvers. Tell your
-    library what you know.
+    $\abs{a-b} < \text{tol}$ for a small chosen tolerance $\text{tol}$, not
+    $a == b$; after rounding, two quantities that should be equal rarely are.
+  \item \textbf{Use structure.} Sparse, symmetric, positive definite, banded (nonzeros
+    only in a narrow band around the diagonal), and triangular matrices each have
+    faster, more stable specialized solvers. Tell your library what you know.
   \item \textbf{Watch the residual, and remember conditioning.} A small residual
     $\norm{\mat{A}\hat{\vec{x}}-\vec{b}}$ does not by itself guarantee a small error
-    $\norm{\hat{\vec{x}}-\vec{x}}$ -- the gap between them is the condition number.
+    $\norm{\hat{\vec{x}}-\vec{x}}$: the relative error can be up to $\kappa(\mat{A})$
+    times the relative residual.
 \end{enumerate}
 \end{focusbox}
 
 \begin{aestheticbox}
-Pure linear algebra hands us perfect objects --
-$\inv{\mat{A}}$, exact eigenvalues, clean subspaces. Numerical linear algebra asks the
-humbler, harder question: \emph{which of these can survive contact with a finite
-machine?} The answers have a pleasing shape. Orthogonal matrices survive because they preserve
-length. Sparse problems survive because we never form the dense inverse. Ill-conditioned
-problems are flagged by a large $\kappa$, while backward-stable algorithms introduce
-minimal error of their own. Together they show how far finite-precision arithmetic
-can be trusted and where its limits lie.
+Pure linear algebra gives us exact objects: $\inv{\mat{A}}$, exact eigenvalues,
+subspaces. Numerical linear algebra asks \emph{which of these can be computed reliably
+on a machine that rounds every number}. Orthogonal matrices are safe because they
+preserve length. Sparse problems stay manageable because we never form the dense
+inverse. Ill-conditioned problems are flagged by a large $\kappa$, and backward-stable
+algorithms add almost no error of their own. Together these ideas tell you how far a
+computed answer can be trusted.
 \end{aestheticbox}
 
 \begin{recoverybox}
-Before the exercises, consider the two key concepts. \emph{Conditioning} is about the problem:
+Before the exercises, review the two key concepts. \emph{Conditioning} is about the problem:
 $\kappa(\mat{A})=\sigma_{\max}/\sigma_{\min}$ measures how much a relative error in the
 data can be amplified into the answer; nothing can fix an ill-conditioned problem.
 \emph{Stability} is about the algorithm: a backward-stable method (pivoted LU, QR)
 solves a nearby problem exactly and adds little of its own. The master inequality
-$\text{forward error}\lesssim\kappa\times\text{backward error}$ binds them. If those two
-sentences feel solid, you have the chapter.
+$\text{forward error}\lesssim\kappa\times\text{backward error}$ links them.
 \end{recoverybox}
 
 \section{The computational horizon: where numerical precision meets learning}
 
 Direct factorizations like pivoted LU, QR, and the SVD are reliable at moderate
-sizes, but at large scale numerical solvers face four computational limits:
+sizes, but at large scale numerical solvers face four limits:
 
 \begin{itemize}
   \item \textbf{The cubic scaling wall:} Direct factorizations like LU, QR, and the SVD
     scale cubically ($\mathcal{O}(n^3)$ operations) and require quadratic memory
-    ($\mathcal{O}(n^2)$ entries). If a problem has $n = 10^7$ variables---routine in modern
-    graph analytics, large language models, and web search---a dense direct factorization
-    would need about $800$ terabytes just to store the matrix ($10^{14}$ entries of $8$
+    ($\mathcal{O}(n^2)$ entries). If a problem has $n = 10^7$ variables (routine when
+    analysing large networks, training machine-learning models, or ranking web pages), a
+    direct factorization of the full matrix
+    would need about $800$ terabytes to store the matrix ($10^{14}$ entries of $8$
     bytes) and around $10^{21}$ operations to factor it.
   \item \textbf{Sparse fill-in:} Even when a matrix begins with $99.9\%$ zeros, Gaussian
-    elimination systematically turns zeros into nonzeros as rows are subtracted. This
-    ``fill-in'' can rapidly exhaust computer cache and memory unless specialized
-    graph reordering algorithms are used.
+    elimination turns zeros into nonzeros as rows are subtracted. This
+    \emph{fill-in} can quickly use up the computer's memory unless the rows and columns
+    are first reordered by specialized algorithms that keep the new nonzeros few.
   \item \textbf{The wall of severe ill-conditioning:} Backward stability guarantees that the
     computed solution is exact for a nearby system $(\mat{A}+\mat{E})\hat{\vec{x}}=\vec{b}$.
     It cannot rescue a problem where $\kappa(\mat{A}) > 1/\eps_{\text{mach}} \approx 10^{16}$.
-    In that regime, all sixteen decimal digits of double precision are wiped out by the
-    problem's own geometry, and the machine returns pure numerical static.
-  \item \textbf{The spectral bottleneck:} Iterative methods depend on spectral gaps. When the
-    subdominant eigenvalue crawls close to the dominant one ($|\lambda_2/\lambda_1| \approx 1$),
-    the power method and basic relaxation schemes stall, requiring thousands of sweeps to
-    gain a single digit of precision.
+    Then all sixteen decimal digits of double precision are lost to the problem's own
+    sensitivity, and the computed answer is meaningless.
+  \item \textbf{Small eigenvalue gaps:} Iterative methods depend on a \emph{spectral
+    gap}, a clear difference in size between the largest eigenvalue and the next. When
+    the second eigenvalue is close to the dominant one ($\abs{\lambda_2/\lambda_1}
+    \approx 1$), the power method and the relaxation methods stall, needing thousands of
+    sweeps to gain a single digit of precision.
 \end{itemize}
 
-These constraints force a shift in practical goals. For more than half a
-century, the dominant goal of numerical linear algebra was to compute the exact solution
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[scale=0.6,>=Stealth]
+  % Before elimination
+  \begin{scope}[shift={(0,0)}]
+    \draw[thick] (0,0) rectangle (5,5);
+    \foreach \x/\y in {0/4, 1/4, 2/4, 3/4, 4/4, 0/3, 1/3, 0/2, 2/2, 0/1, 3/1, 0/0, 4/0} {
+      \fill[vecblue] (\x+0.5,\y+0.5) circle (0.2);
+    }
+    \node[font=\small] at (2.5,-0.6) {Before elimination};
+    \node[font=\footnotesize,text=vecblue] at (2.5,-1.2) {13 nonzeros};
+  \end{scope}
+
+  \draw[->,thick] (5.5,2.5) -- (7.5,2.5) node[midway,above,font=\small]{eliminate} node[midway,below,font=\small]{column 1};
+
+  % After elimination
+  \begin{scope}[shift={(8,0)}]
+    \draw[thick] (0,0) rectangle (5,5);
+    % Original nonzeros that remain
+    \foreach \x/\y in {0/4, 1/4, 2/4, 3/4, 4/4, 1/3, 2/2, 3/1, 4/0} {
+      \fill[vecblue] (\x+0.5,\y+0.5) circle (0.2);
+    }
+    % Fill-in
+    \foreach \x/\y in {2/3, 3/3, 4/3, 1/2, 3/2, 4/2, 1/1, 2/1, 4/1, 1/0, 2/0, 3/0} {
+      \fill[trapred] (\x+0.5,\y+0.5) circle (0.2);
+    }
+    % Zeros where elimination happened
+    \foreach \x/\y in {0/3, 0/2, 0/1, 0/0} {
+      \draw[gray!30] (\x+0.5,\y+0.5) circle (0.15);
+    }
+    \node[font=\small] at (2.5,-0.6) {After step 1};
+    \node[font=\footnotesize,text=trapred] at (2.5,-1.2) {12 new fill-in entries};
+  \end{scope}
+\end{tikzpicture}
+\caption{Sparse fill-in. Left: a sparse matrix with nonzeros (blue) only on the diagonal and the first row and column. Right: eliminating the first column subtracts multiples of the dense first row from all other rows. The zeros become nonzeros (red fill-in), destroying the sparsity.}
+\label{ch33:fillin}
+\end{figure}
+
+These limits change the practical goals. For more than half a
+century, the main goal of numerical linear algebra was to compute the exact solution
 of a fixed linear system to sixteen decimal digits of precision. But what happens when the
 data is noisy, the parameters number in the billions, and computing sixteen digits is
 neither possible nor useful?
 
-In Chapter~34, we step into machine learning, where exact solves give way to
-low-rank approximations and gradient descent steps. The geometric tools built
+In Chapter~34, we step into machine learning. We will use the geometric tools built
 here---projections, singular vectors, condition numbers, and downhill steps on
-quadratic bowls---become the language through which models learn patterns from data.
+quadratic bowls---as the language to learn patterns from data, rather than demanding exact answers.
 
 \section{Exercises}
 
@@ -1041,7 +1321,7 @@ smallest difference is about $1000\,\eps_{\text{mach}}$.
 
 \begin{exercise}[Catastrophic cancellation]
 Working to $4$ significant decimal digits throughout, compute $f(x)=\dfrac{1-\cos x}
-{x^2}$ at $x=0.001$ directly. The true value is very close to $1/2$. (a) What do you
+{x^2}$ at $x=0.001$ directly. The true value is close to $1/2$. (a) What do you
 get, and why is it badly wrong? (b) Using $1-\cos x = 2\sin^2(x/2)$, recompute and
 compare. (c) State which step in the direct route caused the loss.
 \end{exercise}
@@ -1088,7 +1368,7 @@ implies.
 \begin{exercise}[Power method by hand]
 Let $\mat{A}=\left[\begin{smallmatrix}3 & 1\\ 0 & 2\end{smallmatrix}\right]$, whose
 eigenvalues are $3$ and $2$. Starting from $\vec{v}^{(0)}=\colvec{1\\1}$, perform three
-power-method steps (you may skip normalization and just track the vector and the ratio
+power-method steps (you may skip normalization and track the vector and the ratio
 of components). (a) Toward which eigenvector does the iterate swing? (b) Estimate the
 dominant eigenvalue from the growth factor. (c) The subdominant component dies by what
 factor each step, and what does that predict about the speed of convergence?

@@ -44,13 +44,29 @@ function topLevelPictures(code) {
   return n;
 }
 
+// Multi-line \pgfplotsset{...} / \tikzset{...} blocks outside any picture (shared styles).
+function balancedSets(code) {
+  const out = [];
+  const re = /\\(pgfplotsset|tikzset)\s*\{/g;
+  let m;
+  while ((m = re.exec(code))) {
+    let depth = 0, j = m.index + m[0].length - 1;
+    for (; j < code.length; j++) { if (code[j] === '{') depth++; else if (code[j] === '}' && --depth === 0) break; }
+    const before = code.slice(0, m.index);
+    const opened = (before.match(/\\begin\{tikzpicture\}/g) || []).length - (before.match(/\\end\{tikzpicture\}/g) || []).length;
+    if (opened === 0) out.push(code.slice(m.index, j + 1));
+    re.lastIndex = j + 1;
+  }
+  return out.join('\n');
+}
+
 // Top-level tikzpicture environments, with any \def/\pgfmathsetmacro before them.
 function extractPictures(code) {
   const out = [];
   let depth = 0, start = -1;
   const re = /\\(begin|end)\{tikzpicture\}/g;
   let m;
-  const defs = (code.match(/\\(def|pgfmathsetmacro|newcommand|colorlet)[^\n]*/g) || []).join('\n');
+  const defs = (code.match(/\\(def|pgfmathsetmacro|newcommand|colorlet)[^\n]*/g) || []).join('\n') + '\n' + balancedSets(code);
   while ((m = re.exec(code))) {
     if (m[1] === 'begin') { if (depth === 0) start = m.index; depth++; }
     else { depth--; if (depth === 0) out.push(defs + '\n' + code.slice(start, m.index + m[0].length)); }

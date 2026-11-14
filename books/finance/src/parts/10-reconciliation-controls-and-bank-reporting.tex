@@ -4,7 +4,7 @@
 
 It is 08:00 AM on Tuesday morning at Savanna Pay's office in Nairobi. Coffee is still hot on Sam's desk. Yesterday was Savanna Pay's busiest Monday yet: $4{,}000$ transfers ran across its US Collection PSP, its US and UK bank accounts, its OTC stablecoin desk, and its HoneyCoin M-Pesa payout wallet. Every server health chart stayed green all night.
 
-Nia pulls up a chair beside Sam and asks the single question that keeps every payment business alive. ``Our database says we hold $142{,}850\text{ USD}$ in the US bank and $38{,}700{,}000\text{ KES}$ in HoneyCoin. How do we know -- down to the exact cent and shilling -- that no retry bug, dropped webhook, hidden wire fee, or stolen card leaked money overnight?''
+Nia asks Sam a core question. ``Our database says we hold $142{,}850\text{ USD}$ in the US bank and $38{,}700{,}000\text{ KES}$ in HoneyCoin. How do we know -- down to the exact cent and shilling -- that no retry bug, dropped webhook, hidden wire fee, or stolen card leaked money overnight?''
 
 Writing the happy-path API code to send a payment takes a few weeks. Building the daily reconciliation and reporting engine that keeps Savanna Pay solvent, audited, and banked for decades is the other half of financial engineering.
 
@@ -16,6 +16,8 @@ Beginners often check their numbers by comparing their own database against a pa
 Why can an API log lie when nobody is being dishonest? Because APIs record \emph{messages}, whereas bank and mobile-money statements record \emph{settled cash}. A webhook can drop in transit, an intermediary bank can shave $15\text{ USD}$ off a wire without sending an API event, or a card processor can hold funds across a midnight cutoff. You only know the truth when messages, ledgers, and real custodian cash all agree.
 \end{intuitionbox}
 
+
+
 Every morning at 08:00, Savanna Pay runs \textbf{three-way reconciliation} (an automated daily check proving that external bank and partner statements, internal general-ledger cash accounts, and individual customer wallet sub-ledgers all match):
 \begin{align*}
   \text{External Statements (Bank + PSP + HoneyCoin)}
@@ -25,11 +27,11 @@ Every morning at 08:00, Savanna Pay runs \textbf{three-way reconciliation} (an a
 
 \subsection{Walking Five Toy Transfers Before Touching Any Formula}
 
-Before looking at $4{,}000$ rows, trace a tiny \textbf{five-customer Monday ledger} that you can verify in your head. Suppose Savanna Pay starts Monday morning with $100{,}000\text{ KES}$ inside its HoneyCoin M-Pesa pool and $1{,}000.00\text{ USD}$ inside its US bank account. Five events happen on Monday:
+Before looking at $4{,}000$ rows, trace a tiny \textbf{five-customer Monday ledger} that you can trace. Suppose Savanna Pay starts Monday morning with $100{,}000\text{ KES}$ inside its HoneyCoin M-Pesa pool and $1{,}000.00\text{ USD}$ inside its US bank account. Five events happen on Monday:
 
 \begin{enumerate}
   \item \textbf{Customer 1 (Grace -- Clean Match).} Grace withdraws $10{,}000\text{ KES}$ to M-Pesa. Savanna Pay's ledger deducts $10{,}000\text{ KES}$, Grace's wallet sub-ledger drops by $10{,}000\text{ KES}$, and Tuesday morning's HoneyCoin statement shows $-10{,}000\text{ KES}$ paid under receipt \texttt{SHK101}. Variance is $0\text{ KES}$.
-  \item \textbf{Customer 2 (Marcus -- Normal \texttt{T+2} Timing Difference).} At 21:30 Monday, Marcus pays $100.00\text{ USD}$ by debit card ($99.00\text{ USD}$ net after a $1.00\text{ USD}$ PSP fee). On Tuesday morning, Savanna Pay's US bank statement still shows $0.00\text{ USD}$ from Marcus. Did $99.00\text{ USD}$ vanish? No. Card captures take \texttt{T+2} business days to reach the bank. Savanna Pay booked that $99.00\text{ USD}$ into \textbf{PSP Clearing Receivable} (an Asset tracking captured money not yet wired to the bank) rather than \texttt{US Bank Cash}. It matches the PSP's Tuesday capture CSV today and clears into \texttt{US Bank Cash} on Wednesday.
+  \item \textbf{Customer 2 (Marcus -- Normal \texttt{T+2} Timing Difference).} At 21:30 Monday, Marcus pays $100.00\text{ USD}$ by debit card ($99.00\text{ USD}$ net after a $1.00\text{ USD}$ PSP fee). On Tuesday morning, Savanna Pay's US bank statement still shows $0.00\text{ USD}$ from Marcus. The $99.00\text{ USD}$ did not vanish. Card captures take \texttt{T+2} business days to reach the bank. Savanna Pay booked that $99.00\text{ USD}$ into \textbf{PSP Clearing Receivable} (an Asset tracking captured money not yet wired to the bank) rather than \texttt{US Bank Cash}. It matches the PSP's Tuesday capture CSV today and clears into \texttt{US Bank Cash} on Wednesday.
   \item \textbf{Customer 3 (Amina -- Webhook Timeout Held in Suspense).} At 23:50 Monday, Amina requests a $10{,}000\text{ KES}$ M-Pesa payout, and HoneyCoin's HTTP response times out (\texttt{504}). Following Chapter~\ref{ch:mobile-money-ledgers}, Savanna Pay does not auto-refund Amina. Instead, it parks her $10{,}000\text{ KES}$ inside a \textbf{Suspense Account} (a temporary holding liability where uncertain transfers wait for external proof). At 08:02 Tuesday, Sam's script queries HoneyCoin by idempotency key and sees \texttt{PAID} under receipt \texttt{SHK992}. It then posts the final settlement entry (\texttt{Dr Suspense 10,000 KES}, \texttt{Cr HoneyCoin KES Float 10,000 KES}).
   \item \textbf{Customer 4 (David -- Unrecorded Wire Fee).} Savanna Pay expected an incoming $500.00\text{ USD}$ bank wire on Monday and debited \texttt{US Bank Cash} for $500.00\text{ USD}$. Tuesday morning's bank statement shows only $+485.00\text{ USD}$ ($-15.00\text{ USD}$ gap) because an intermediary bank shaved off a $15.00\text{ USD}$ wire lifting fee. To bring the internal ledger in line with bank reality, Sam debits \texttt{Bank Wire Fee Expense} ($+15.00\text{ USD}$ cost) and credits \texttt{US Bank Cash} ($-15.00\text{ USD}$ asset).
   \item \textbf{Customer 5 (Kofi -- Duplicate Payout Bug).} Savanna Pay's internal ledger shows \emph{one} $10{,}000\text{ KES}$ payout to Kofi, while HoneyCoin's Tuesday statement shows \emph{two} $10{,}000\text{ KES}$ payouts ($-10{,}000\text{ KES}$ missing cash). Investigation shows a buggy retry script generated a new idempotency key and paid Kofi twice. Sam immediately credits \texttt{HoneyCoin KES Float} ($-10{,}000\text{ KES}$ so the cash ledger stops overstating float) and debits \texttt{Operational Loss / Recovery Receivable} ($+10{,}000\text{ KES}$), while paging Tunde to fix the retry key.
@@ -64,6 +66,7 @@ Now we can write the general equation that Sam's automated matcher checks across
 \[
   B_{\text{external}}(a, t) = B_{\text{ledger}}(a, t) + \text{InTransitOut}(a, t) - \text{InTransitIn}(a, t) + \Delta_{\text{unexplained}}(a, t).
 \]
+where $\text{InTransitOut}(a, t)$ is money sent but not yet cleared by the bank, $\text{InTransitIn}(a, t)$ is money received but not yet cleared, and $\Delta_{\text{unexplained}}(a, t)$ is the difference that must equal zero.
 
 Verify both signs from everyday common sense so you never flip them in SQL:
 \begin{itemize}
@@ -127,11 +130,11 @@ Once legitimate timing items are tagged, Savanna Pay enforces one rule before no
 
 \section{Immutable Reversing Entries: Never \texttt{UPDATE} or \texttt{DELETE}}
 
-Suppose Sam makes a fat-finger mistake while recording David's $15.00\text{ USD}$ bank wire fee from Row~4. Instead of typing $15.00\text{ USD}$, Sam accidentally posts $150.00\text{ USD}$ (\texttt{Batch \#401}).
+Suppose Sam makes a typing mistake while recording David's $15.00\text{ USD}$ bank wire fee from Row~4. Instead of typing $15.00\text{ USD}$, Sam accidentally posts $150.00\text{ USD}$ (\texttt{Batch \#401}).
 
 As an engineer, your first instinct might be to open SQL and run \texttt{UPDATE ledger\_postings SET signed\_minor = 1500 WHERE batch\_id = 401}.
 
-In accounting and regulated banking, \textbf{\texttt{UPDATE} and \texttt{DELETE} on posted ledger rows are strictly forbidden}. Savanna Pay's Postgres database literally revokes \texttt{UPDATE} and \texttt{DELETE} privileges on \texttt{journal\_batches} and \texttt{ledger\_postings} from every user and microservice. Why? Because if past rows can be edited in place, yesterday's signed bank reconciliation stops reproducing, and a dishonest insider could alter historical balances to hide missing cash.
+In accounting and regulated banking, \textbf{\texttt{UPDATE} and \texttt{DELETE} on posted ledger rows are strictly forbidden}. Savanna Pay's Postgres database revokes \texttt{UPDATE} and \texttt{DELETE} privileges on \texttt{journal\_batches} and \texttt{ledger\_postings} from every user and microservice. Why? Because if past rows can be edited in place, yesterday's signed bank reconciliation stops reproducing, and a dishonest insider could alter historical balances to hide missing cash.
 
 Instead, accountants fix mistakes in two append-only steps:
 \begin{enumerate}
@@ -210,7 +213,7 @@ Now step out of Savanna Pay's office and sit in the chair of the Chief Complianc
 \begin{historybox}
 Why do sponsor banks obsess over fintech ledgers? Look at the April 2024 collapse of \textbf{Synapse}, a US banking-middleware company that sat between dozens of popular consumer fintech apps and regulated partner banks. End users deposited paychecks thinking their cash sat safely in bank accounts. Underneath, customer funds sat in pooled bank accounts while Synapse maintained the software sub-ledgers tracking who owned what.
 
-When partner banks tried to reconcile Synapse's internal customer sub-ledgers against the actual cash sitting inside the bank accounts, they uncovered an unexplained shortfall estimated between $65\text{ million}$ and $96\text{ million USD}$. Because nobody could agree on which dollar belonged to which customer, banks froze the accounts, locking more than a hundred thousand everyday families out of their life savings for months. Since Synapse, sponsor banks shut down (\textbf{de-risk}) any payment company that cannot prove clean daily reconciliation and source-of-funds trails.
+When partner banks tried to reconcile Synapse's internal customer sub-ledgers against the actual cash sitting inside the bank accounts, they uncovered an unexplained shortfall estimated between $65\text{ million}$ and $96\text{ million USD}$. Because nobody could agree on which dollar belonged to which customer, banks froze the accounts, locking more than a hundred thousand customers out of their life savings for months. Since Synapse, sponsor banks shut down (\textbf{de-risk}) any payment company that cannot prove clean daily reconciliation and source-of-funds trails.
 \end{historybox}
 
 Think about what Savanna Pay's raw US checking account looks like if Nia sends zero context to her bank. Every month, $15{,}000{,}000\text{ USD}$ pours in from a card processor and leaves in $50{,}000\text{ USD}$ wires to a stablecoin OTC desk, while Savanna Pay's corporate tax return shows $217{,}500\text{ USD}$ of monthly revenue. Without clean documentation, a bank compliance reviewer sees high-velocity crypto wires and closes your account to avoid regulatory fines.
@@ -222,7 +225,7 @@ Nia keeps Savanna Pay's bank relationships rock solid by delivering a structured
   \[
     \text{Segregated Trust Cash } (F_{\text{trust}}) \ge \text{Total Customer Liability } (L_{\text{cust}}).
   \]
-  \item \textbf{KYC Tier Limits and AML Monitoring Rules.} Regulators require strict \textbf{KYC} (\textbf{Know Your Customer}: verifying IDs, selfies, and addresses) and \textbf{AML} (\textbf{Anti-Money Laundering}: automated rules stopping illegal cash flows). Savanna Pay sets progressive monthly limits by KYC tier, such as $1{,}000\text{ USD}$ for Tier~1 basic ID and $10{,}000\text{ USD}$ for Tier~2 verified income. Criminals often try \textbf{structuring} (splitting a $10{,}000\text{ USD}$ transfer into four $2{,}450\text{ USD}$ sends to dodge a $3{,}000\text{ USD}$ review cap). To catch structuring, Savanna Pay sums rolling 7-day volume across linked sender IDs, devices, cards, and recipient phones. When suspicious patterns appear, compliance files a \textbf{SAR} (\textbf{Suspicious Activity Report}: a confidential alert sent to the national financial crime unit).
+  \item \textbf{KYC Tier Limits and AML Monitoring Rules.} Regulators require strict KYC identity checks (Chapter~\ref{ch:mobile-money-ledgers}: verifying IDs, selfies, and addresses) and \textbf{AML} (\textbf{Anti-Money Laundering}: automated rules stopping illegal cash flows). Savanna Pay sets progressive monthly limits by KYC tier, such as $1{,}000\text{ USD}$ for Tier~1 basic ID and $10{,}000\text{ USD}$ for Tier~2 verified income. Criminals often try \textbf{structuring} (splitting a $10{,}000\text{ USD}$ transfer into four $2{,}450\text{ USD}$ sends to dodge a $3{,}000\text{ USD}$ review cap). To catch structuring, Savanna Pay sums rolling 7-day volume across linked sender IDs, devices, cards, and recipient phones. When suspicious patterns appear, compliance files a \textbf{SAR} (\textbf{Suspicious Activity Report}: a confidential alert sent to the national financial crime unit).
   \item \textbf{Monthly GTV-to-Revenue Bridge.} A simple four-line schedule showing bank reviewers why $15{,}000{,}000\text{ USD}$ of customer flow equals $217{,}500\text{ USD}$ of Savanna Pay revenue:
   \begin{center}
   \small
@@ -247,8 +250,34 @@ Nia keeps Savanna Pay's bank relationships rock solid by delivering a structured
 Why do experienced founders keep $102\%$ to $105\%$ inside their safeguarding trust account rather than cutting it right to $100.0\%$? Suppose a user loads $100\text{ USD}$ by debit card, receiving $100.00\text{ USD}$ of instant wallet balance while the PSP settles $99.00\text{ USD}$ net of its $1.00\text{ USD}$ fee. Without a small \textbf{Corporate Safeguarding Buffer} of house cash parked inside the trust account (tracked in its own house buffer row), that $1.00\text{ USD}$ fee gap would dip customer coverage to $99.0\%$ intraday. Keeping a $2\%$ to $5\%$ corporate cushion guarantees $F_{\text{trust}} \ge L_{\text{cust}}$ every second of the day.
 \end{intuitionbox}
 
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[>=Latex, font=\footnotesize]
+  \tikzset{
+    box/.style={draw=black, thick, align=center, inner sep=0pt}
+  }
+  
+  \node[box, fill=trapred!15, minimum width=2.5cm, minimum height=4cm] (liab) at (0,2) {};
+  \node[font=\bfseries, align=center] at (liab) {Customer\\Liability\\(\$100.00)};
+  
+  \node[box, fill=targetgreen!15, minimum width=2.5cm, minimum height=3.96cm] (asset_cust) at (4,1.98) {};
+  \node[font=\bfseries, align=center] at (asset_cust) {Settled Cash\\(\$99.00)};
+  
+  \node[box, fill=sourceblue!15, minimum width=2.5cm, minimum height=0.6cm] (asset_buf) at (4,4.26) {};
+  \node[font=\bfseries, align=center] at (asset_buf) {House Buffer\\(\$5.00)};
+
+  \node[font=\bfseries, yshift=0.3cm] at (0,4) {Ledger Liability};
+  \node[font=\bfseries, yshift=0.3cm] at (4,4.56) {Bank Trust Account};
+  
+  \draw[->, thick] (liab.east) -- node[above] {Must be $\le$} (asset_cust.west |- liab.east);
+\end{tikzpicture}
+\caption{A corporate safeguarding buffer prevents intraday fee deductions from pushing trust assets below customer liabilities.}
+\label{fig:safeguarding-buffer}
+\end{figure}
+
+
 \begin{trapbox}
-\textbf{Never ``Tip Off'' a Flagged User in Your App or Support Chat.} Across the US, UK, Kenya, and almost every country, telling a customer that their delayed transfer or frozen account is linked to an \textbf{anti-money-laundering (AML)} review or a \textbf{Suspicious Activity Report (SAR)} is a serious crime called \emph{tipping off}. Never return error codes like \texttt{"HELD\_FOR\_SAR\_FILING"} in mobile API JSON or show SAR flags to general customer-support agents. Show a neutral status such as \texttt{"Verification Required"} externally and lock SAR tables exclusively to licensed compliance officers.
+\textbf{Never tip off a flagged user.} In most jurisdictions, telling a customer that their delayed transfer or frozen account is linked to an \textbf{anti-money-laundering (AML)} review or a \textbf{Suspicious Activity Report (SAR)} is a serious crime called \emph{tipping off}. Never return error codes like \texttt{"HELD\_FOR\_SAR\_FILING"} in mobile API JSON or show SAR flags to general customer-support agents. Show a neutral status such as \texttt{"Verification Required"} externally and lock SAR tables exclusively to licensed compliance officers.
 \end{trapbox}
 
 \begin{figure}[htbp]
@@ -304,7 +333,7 @@ Why do experienced founders keep $102\%$ to $105\%$ inside their safeguarding tr
 \end{figure}
 
 \begin{walkbox}
-\textbf{Final Part~IV check:} Look back across Savanna Pay's journey from Joseph's corner kiosk in Chapter~\ref{ch:mobile-money-ledgers} to Tuesday morning's bank audit pack here. Notice that every single piece of machinery rests on the conservation law from Chapter~1. Customer wallets are Liabilities backed 1-for-1 by Trust Assets. Cross-border FX splits into two local pre-funded pools bridged by FX Position accounts. Stablecoins and HoneyCoin turn a four-day wholesale refill loop into thirty minutes. And daily three-way reconciliation proves every morning at 08:00 that zero shillings or cents slipped through the cracks.
+\textbf{Final Part~IV check:} Look back across Savanna Pay's growth from Joseph's corner kiosk in Chapter~\ref{ch:mobile-money-ledgers} to Tuesday morning's bank audit pack here. Every single piece of machinery rests on the conservation law from Chapter~\ref{ch:double-entry}. Customer wallets are Liabilities backed 1-for-1 by Trust Assets. Cross-border FX splits into two local pre-funded pools bridged by FX Position accounts. Stablecoins and HoneyCoin turn a four-day wholesale refill loop into thirty minutes. Daily three-way reconciliation proves every morning at 08:00 that zero shillings or cents slipped through the cracks.
 \end{walkbox}
 
 \section*{Exercises}

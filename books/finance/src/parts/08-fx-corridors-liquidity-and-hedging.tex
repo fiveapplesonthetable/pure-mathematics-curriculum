@@ -130,6 +130,20 @@ Writing $\texttt{AAA/BBB} = S$ means \textbf{$1$ unit of \texttt{AAA} equals $S$
 \]
 \end{definition}
 
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[>=Latex, font=\footnotesize, node distance=4cm]
+  \node[draw=sourceblue, thick, rounded corners=5pt, fill=sourceblue!5, text=sourceblue!90!black, inner sep=10pt, align=center] (base) {\textbf{Base Currency (\texttt{AAA})}\\[3pt]\scriptsize e.g., \texttt{USD} in \texttt{USD/KES}};
+  \node[draw=targetgreen!85!black, thick, rounded corners=5pt, fill=targetgreen!5, text=targetgreen!80!black, inner sep=10pt, right=of base, align=center] (quote) {\textbf{Quote Currency (\texttt{BBB})}\\[3pt]\scriptsize e.g., \texttt{KES} in \texttt{USD/KES}};
+
+  \draw[->, very thick, sourceblue!90!black] (base.north) .. controls +(0,1) and +(0,1) .. node[above, font=\footnotesize\bfseries] {Multiply ($\times S$)} (quote.north);
+  \draw[->, very thick, targetgreen!85!black] (quote.south) .. controls +(0,-1) and +(0,-1) .. node[below, font=\footnotesize\bfseries] {Divide ($\div S$)} (base.south);
+\end{tikzpicture}
+\caption{The dimensional rule of FX quotes. Since the rate $S$ is priced in units of BBB per AAA, converting from base to quote multiplies, and converting from quote to base divides.}
+\label{fig:fx-dimension-rule}
+\end{figure}
+
+
 Test this rule on two real pairs side by side so it becomes automatic:
 \begin{enumerate}
   \item Suppose $\texttt{USD/KES} = 132.00$. Here \texttt{USD} is the base currency: $1\text{ USD} = 132.00\text{ KES}$. Converting $100\text{ USD}$ into shillings \emph{multiplies}: $100 \times 132.00 = 13{,}200\text{ KES}$. Converting $13{,}200\text{ KES}$ back into dollars \emph{divides}: $13{,}200 / 132.00 = 100\text{ USD}$.
@@ -167,10 +181,11 @@ Savanna Pay advertises ``\pounds 0 Upfront Fee'' on London-to-Nairobi sends and 
   \item The difference of $300\text{ KES}$ (worth $300 / 165.00 = \pounds 1.82$) is Savanna Pay's \textbf{customer FX spread}: the revenue markup built into the exchange rate.
 \end{itemize}
 Dividing that $3.00\text{ KES/GBP}$ rate gap by the $165.00$ mid-market benchmark and multiplying by $10{,}000$ expresses Savanna Pay's spread in basis points:
-\[
-  s_{\text{fx}} = 10{,}000 \times \frac{S_{\text{mid}} - S_{\text{cust}}}{S_{\text{mid}}}
-  = 10{,}000 \times \frac{165.00 - 162.00}{165.00} \approx 181.8\text{ bps } (1.82\%).
-\]
+\begin{align*}
+  s_{\text{fx}} &= 10{,}000 \times \frac{S_{\text{mid}} - S_{\text{cust}}}{S_{\text{mid}}} \\
+  &= 10{,}000 \times \frac{165.00 - 162.00}{165.00} \\
+  &\approx 181.8\text{ bps } (1.82\%).
+\end{align*}
 
 Charging ``\pounds 0 fee'' while quoting $162.00$ instead of $165.00$ earns Savanna Pay \pounds 1.82 on David's \pounds 100 send -- economically identical to giving David the $165.00$ mid-market rate and charging an explicit \pounds 1.82 fee upfront.
 
@@ -247,7 +262,7 @@ Customer FX Spread Revenue & GBP & & $1.82$ & $-\pounds 1.82$ \\
 \end{tabular}
 \end{center}
 
-Look at the beauty of those six rows. The \texttt{GBP} rows sum to zero, the \texttt{KES} rows sum to zero, and the \texttt{GBP} equivalents reveal Savanna Pay's exact state: London holds $+\pounds 100.00$, Nairobi spent shillings worth $\pounds 98.18$ at mid-market, and Savanna Pay earned $\pounds 1.82$ of gross spread revenue.
+In these six rows, the \texttt{GBP} amounts sum to zero, the \texttt{KES} rows sum to zero, and the \texttt{GBP} equivalents reveal Savanna Pay's exact state: London holds $+\pounds 100.00$, Nairobi spent shillings worth $\pounds 98.18$ at mid-market, and Savanna Pay earned $\pounds 1.82$ of gross spread revenue.
 
 \section{One-Way Corridor Drain and Sizing the Nairobi Tub}
 
@@ -261,25 +276,70 @@ If Nia does nothing, the Nairobi tub hits $0\text{ KES}$ by Friday evening, and 
 
 How much pre-funded cash must Savanna Pay keep inside the Nairobi tub on Friday afternoon so it does not run dry before Tuesday's wire lands?
 
-Suppose average net outflow in Kenya equals $D = 50{,}000\text{ USD}$ per day, and daily demand fluctuates randomly around $D$ with a standard deviation of $\sigma_D = 15{,}000\text{ USD}$ per day. Over a refill window of $\Delta t$ days:
+Suppose average net outflow in Kenya equals $D = 50{,}000\text{ USD}$ per day, and daily demand fluctuates randomly around $D$ with a standard deviation (a measure of how far a typical day's demand swings from the average) of $\sigma_D = 15{,}000\text{ USD}$ per day. Over a refill window of $\Delta t$ days:
 \begin{enumerate}
   \item \textbf{Expected cumulative drain grows linearly with time:} $D \cdot \Delta t$. Four days of traffic drains four times one day's average ($4 \times 50{,}000 = 200{,}000\text{ USD}$).
-  \item \textbf{Random demand swings grow with the square root of time:} $\sigma_D \sqrt{\Delta t}$. When daily surges are roughly independent, their variances add ($\sigma_{\text{total}}^2 = \sigma_D^2 \,\Delta t$), so the standard deviation of cumulative outflow scales with $\sqrt{\Delta t}$.
+  \item \textbf{Random demand swings grow with the square root of time:} $\sigma_D \sqrt{\Delta t}$. When daily surges are roughly independent, their variances (the square of the standard deviation) add ($\sigma_{\text{total}}^2 = \sigma_D^2 \,\Delta t$), so the standard deviation of cumulative outflow scales with $\sqrt{\Delta t}$.
 \end{enumerate}
 
-Choosing a safety factor $z$ (for example, $z = 2.33$ to cover $99\%$ of normal surges, plus an explicit payday multiplier on month-end weekends) gives the corridor buffer formula:
+Choosing a safety factor $z$ (for example, $z = 2.33$ to cover $99\%$ of normal surges, plus an explicit payday multiplier on month-end weekends) gives the corridor buffer formula for the required working capital $W_{\text{buffer}}(\Delta t)$ over a $\Delta t$ day window:
 \[
   W_{\text{buffer}}(\Delta t) = D \cdot \Delta t + z \cdot \sigma_D \sqrt{\Delta t}.
 \]
 
 \begin{intuitionbox}
-Why does the safety cushion grow like $\sqrt{\Delta t}$ instead of $\Delta t$? Because random busy hours and quiet hours partly cancel each other out across multiple days. Getting four straight $3\sigma$ surge days in a row is far rarer than getting one busy afternoon. Even so, both terms shrink dramatically when you cut $\Delta t$. Plug in $D = 50{,}000\text{ USD}$, $\sigma_D = 15{,}000\text{ USD}$, and $z = 2.33$:
+Why does the safety cushion grow like $\sqrt{\Delta t}$ instead of $\Delta t$? Because random busy hours and quiet hours partly cancel each other out across multiple days. Getting four straight $3\sigma$ surge days (extreme days three standard deviations above average) in a row is far rarer than getting one busy afternoon. Even so, both terms shrink dramatically when you cut $\Delta t$. Plug in $D = 50{,}000\text{ USD}$, $\sigma_D = 15{,}000\text{ USD}$, and $z = 2.33$:
 \begin{itemize}
   \item \textbf{Slow 4-day bank wire ($\Delta t = 4\text{ days}$, $\sqrt{4} = 2$):} $W = 50{,}000(4) + 2.33(15{,}000)(2) = 200{,}000 + 69{,}900 = 269{,}900\text{ USD}$ locked up in Kenya.
   \item \textbf{Fast 4-hour refill ($\Delta t = 1/6\text{ day} \approx 0.167$, $\sqrt{1/6} \approx 0.408$):} $W = 50{,}000(0.167) + 2.33(15{,}000)(0.408) \approx 8{,}333 + 14{,}260 = 22{,}593\text{ USD}$.
 \end{itemize}
 Cutting refill time from four days to four hours frees up over $90\%$ of Savanna Pay's trapped working capital.
 \end{intuitionbox}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[>=Latex, font=\footnotesize]
+  \begin{axis}[
+      width=12cm,
+      height=7cm,
+      axis lines=left,
+      xlabel={Refill Time $\Delta t$ (Days)},
+      ylabel={Required Buffer (Thousands USD)},
+      xmin=0, xmax=4.5,
+      ymin=0, ymax=300,
+      xtick={0, 1, 2, 3, 4},
+      ytick={0, 100, 200, 300},
+      legend pos=north west,
+      legend style={draw=none, fill=none},
+      grid=major,
+      grid style={dashed, gray!30},
+      thick
+    ]
+    \addplot[domain=0:4.2, samples=100, targetgreen!80!black, very thick] {50*x};
+    \addlegendentry{Expected Drain ($50\Delta t$)}
+
+    \addplot[domain=0:4.2, samples=100, quotientorange!90!black, very thick] {35*sqrt(x)};
+    \addlegendentry{Surge Buffer ($35\sqrt{\Delta t}$)}
+
+    \addplot[domain=0:4.2, samples=100, sourceblue, ultra thick] {50*x + 35*sqrt(x)};
+    \addlegendentry{Total Required Buffer}
+
+    % 4 days marker
+    \addplot[mark=*, sourceblue] coordinates {(4, 270)};
+    \node[anchor=south east, font=\footnotesize, text=sourceblue] at (axis cs: 4, 270) {$270\text{k}$ at $4\text{ days}$};
+
+    % 4 hours (0.167 days) marker
+    \addplot[mark=*, sourceblue] coordinates {(0.167, 22.6)};
+    \node[anchor=west, font=\footnotesize, text=sourceblue] at (axis cs: 0.167, 22.6) {$22.6\text{k}$ at $4\text{ hours}$};
+    
+    \draw[dashed, gray] (axis cs:4,0) -- (axis cs:4,270);
+    \draw[dashed, gray] (axis cs:0.167,0) -- (axis cs:0.167,22.6);
+  \end{axis}
+\end{tikzpicture}
+\caption{Corridor buffer size versus refill time. The surge cushion grows with $\sqrt{\Delta t}$, while expected drain grows linearly. Cutting the refill loop from four days to four hours drastically shrinks trapped capital.}
+\label{fig:buffer-curve}
+\end{figure}
+
 
 \section{FX Inventory Risk: When a 4\% Swing Wipes Out a 1.8\% Fee}
 
@@ -365,7 +425,7 @@ Figure~\ref{ch08:fig-corridor-netting} shows this internal netting on a day when
 \textbf{Check your understanding:} On Friday afternoon, Savanna Pay has collected \pounds 80,000 from UK senders and collected the Kenyan-shilling equivalent of \pounds 20,000 from Nairobi businesses paying UK suppliers. How many pounds must Nia actually sell or hedge in the wholesale FX market? By natural netting, \pounds 20,000 cancels internally in both tubs, so Nia only needs to convert and hedge the net \pounds 60,000 gap.
 \end{walkbox}
 
-Even with forward contracts, waiting three to four banking days across weekends traps hundreds of thousands of dollars in local pools and requires slow bank credit lines. What if Savanna Pay could settle its wholesale treasury leg from New York or London into Nairobi in \textbf{thirty minutes}, even at midnight on Saturday? In Chapter~\ref{ch:btc-usdt-settlement}, we open the hood on how modern cross-border payment companies combine local fiat collection partners, stablecoin treasury bridges, and payout orchestrators like HoneyCoin to settle their books in minutes.
+Even with forward contracts, waiting three to four banking days across weekends traps hundreds of thousands of dollars in local pools and requires slow bank credit lines. What if Savanna Pay could settle its wholesale treasury leg from New York or London into Nairobi in \textbf{thirty minutes}, even at midnight on Saturday? In Chapter~\ref{ch:btc-usdt-settlement}, we examine how modern cross-border payment companies combine local fiat (government-issued currency) collection partners, stablecoin treasury bridges, and payout orchestrators like HoneyCoin to settle their books in minutes.
 
 \section*{Exercises}
 \addcontentsline{toc}{section}{Exercises}

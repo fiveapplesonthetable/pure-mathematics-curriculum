@@ -6,14 +6,11 @@ arrives at a bakery at $10\!:\!04\!:\!17$, not at ``step $7$''; a packet hits a 
 machine breaks down at an unpredictable continuous instant.
 
 This chapter rebuilds the Markov idea in \emph{continuous time}. Instead of step-by-step jump
-probabilities, a single table of instantaneous flow rates called the \textbf{generator matrix}
-captures all the dynamics. From it, we derive the steady-state behavior of \textbf{queues} ---
-waiting lines that govern computer networks, hospitals, and server pools. We will meet the
-fundamental single-server M/M/1 queue, watch waiting customers settle into a geometric equilibrium,
-and prove \textbf{Little's law} ($L = \lambda W$).
+probabilities, instantaneous flow rates capture the dynamics. We will derive the long-run behavior of
+waiting lines to relate how many customers wait to how long they spend in the system.
 
-The recipe is simple: take an ordinary Markov chain and glue exponential, memoryless waiting
-times onto each state. This chapter builds that gluing from scratch.
+Take an ordinary Markov chain and give each state an exponential, memoryless waiting
+time. This chapter builds that idea from scratch.
 
 \chapterline
 
@@ -35,12 +32,12 @@ from. Suppose a working machine breaks, in each tiny interval of length $h$, wit
 approximately $\lambda h$ (proportional to the length of the interval --- twice the time, twice the
 chance, for small $h$). Cut the first $t$ units of time into $n = t/h$ slices. The probability of
 \emph{surviving} all of them, if breakdowns in disjoint slices are independent, is
-\[
+\begin{align*}
   \P(\text{still working at time } t)
-  \;\approx\; (1 - \lambda h)^{n}
-  \;=\; \left(1 - \frac{\lambda t}{n}\right)^{n}
-  \;\xrightarrow[n \to \infty]{}\; e^{-\lambda t}.
-\]
+  &\approx (1 - \lambda h)^{n} \\
+  &= \left(1 - \frac{\lambda t}{n}\right)^{n} \\
+  &\xrightarrow[n \to \infty]{} e^{-\lambda t}.
+\end{align*}
 That is the survival function of an $\Expo(\lambda)$ random variable. The lifetime of the machine
 before its first breakdown is exponential, and the parameter $\lambda$ is the exact \emph{rate} we
 started with --- the engine of the entire chapter.
@@ -71,8 +68,7 @@ history gives you zero information about its remaining life.
 
 \subsection{The two-part recipe}
 
-Here is the cleanest way to picture a continuous-time Markov chain (CTMC), and we will return to it
-constantly. The process sits in some state $i$. Two things happen:
+A continuous-time Markov chain (CTMC) sits in some state $i$. Two things happen:
 
 \begin{enumerate}
   \item \textbf{It waits.} The time it spends in state $i$ (the \emph{holding time} or
@@ -87,6 +83,20 @@ ignoring how long it stayed --- is just an ordinary discrete-time Markov chain, 
 \emph{jump chain} or \emph{embedded chain}. The continuous-time part lives entirely in the
 exponential waiting times glued onto each visit.
 
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[->,>=Stealth,node distance=4cm,on grid,auto]
+  \node[draw,circle,minimum size=1.1cm,fill=gray!12] (i) {state $i$};
+  \node[draw,circle,minimum size=1.1cm,fill=gray!12,above right=1.5cm and 3cm of i] (j) {state $j$};
+  \node[draw,circle,minimum size=1.1cm,fill=gray!12,below right=1.5cm and 3cm of i] (k) {state $k$};
+  \draw[thick] (i) to node[above left,font=\small] {jump $P_{ij}$} (j);
+  \draw[thick] (i) to node[below left,font=\small] {jump $P_{ik}$} (k);
+  \node[left=0.2cm of i, text width=2.5cm, align=right, font=\small, color=gray!80!black] {wait time \\ $\sim \Expo(q_i)$};
+\end{tikzpicture}
+\caption{The two-part recipe for a continuous-time Markov chain. In state $i$, the process waits for an exponential random time with rate $q_i$. When the wait is over, it jumps to a new state chosen by the discrete transition probabilities $P_{ij}$.}
+\label{ch27:fig-recipe}
+\end{figure}
+
 \begin{happeningbox}
 A CTMC combines a discrete jump chain with exponential holding times. Without the random sojourn times,
 you have a familiar jump chain on the same states. Adding them back yields a process that
@@ -97,10 +107,8 @@ layers (where it jumps and how long it stays) consistent with one another.
 \section{Rates and the Generator Matrix}
 \label{ch27:generator}
 
-The two-part recipe (a rate $q_i$ to leave each state, plus jump probabilities $P_{ij}$) is intuitive
-but clumsy to compute with. A single object packages both and makes the algebra manageable:
-the \emph{generator matrix} $Q$, also called the \emph{rate matrix} or \emph{infinitesimal
-generator}.
+A single object packages both the holding rates and jump probabilities:
+the \emph{generator matrix} $Q$, also called the \emph{rate matrix}.
 
 \begin{intuitionbox}
 The transition matrix of a discrete chain answers ``where will I be \emph{next step}?'' But in
@@ -144,6 +152,19 @@ minutes. When it leaves, it goes to state $2$ with probability $3/4$ and to stat
 probability $1/4$. The faster a particular exit ``ticks,'' the more likely it is to be the one that
 fires --- a race between exponential alarm clocks, won most often by the fastest.
 \end{walkbox}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[->,>=Stealth,node distance=3.6cm,on grid,auto]
+  \node[draw,circle,minimum size=1.1cm,fill=gray!12] (s1) {state $1$};
+  \node[draw,circle,minimum size=1.1cm,fill=gray!12,above right=1.5cm and 3cm of s1] (s2) {state $2$};
+  \node[draw,circle,minimum size=1.1cm,fill=gray!12,below right=1.5cm and 3cm of s1] (s3) {state $3$};
+  \draw[thick,sourceblue] (s1) to node[above left,font=\small] {rate $q_{12}=3$} (s2);
+  \draw[thick,densityred] (s1) to node[below left,font=\small] {rate $q_{13}=1$} (s3);
+\end{tikzpicture}
+\caption{A state with multiple exit rates. The total exit rate is $q_1 = 3 + 1 = 4$. The jump probabilities are proportional to the rates: $P_{12} = 3/4$ and $P_{13} = 1/4$.}
+\label{ch27:fig-walkbox-rates}
+\end{figure}
 
 \begin{connectionbox}
 The race-of-exponentials picture is worth keeping. Imagine that from state $i$, every possible
@@ -248,7 +269,7 @@ departure). These are \emph{birth-death processes}, and they are foundational mo
 \label{ch27:def-bd}
 A birth-death process on $\{0,1,2,\dots\}$ has \emph{birth rates} $\lambda_n \ge 0$ (rate of going
 $n \to n+1$) and \emph{death rates} $\mu_n \ge 0$ (rate of going $n \to n-1$, with $\mu_0 = 0$ since
-the population cannot go negative). All other rates are zero. The generator is tridiagonal:
+the population cannot go negative). All other rates are zero. The generator is tridiagonal (meaning only the main diagonal and the ones immediately above and below it are non-zero):
 \[
   q_{n,n+1} = \lambda_n, \qquad q_{n,n-1} = \mu_n,
   \qquad q_{n,n} = -(\lambda_n + \mu_n).
@@ -285,8 +306,7 @@ the population cannot go negative). All other rates are zero. The generator is t
 
 \subsection{Detailed balance and the product formula}
 
-What is the long-run distribution $\pi_n$ over states? Here the neighbor-only structure pays off
-spectacularly. In equilibrium, consider the ``cut'' between states $\{0, \dots, n\}$ and
+What is the long-run distribution $\pi_n$ over states? In equilibrium, consider the ``cut'' between states $\{0, \dots, n\}$ and
 $\{n+1, n+2, \dots\}$. The only way to cross it upward is the birth $n \to n+1$; the only way to
 cross it downward is the death $n+1 \to n$. In steady state the flow across any such cut must
 balance --- whatever goes up must come back down, or probability would pile up on one side forever.
@@ -335,9 +355,9 @@ and the product collapses into a geometric distribution.
 \section{The M/M/1 Queue}
 \label{ch27:mm1}
 
-Now the centerpiece. A single server --- one barista, one CPU, one checkout lane --- handles
-customers one at a time. We make the cleanest possible assumptions, encoded in the cryptic name
-\textbf{M/M/1}:
+A single server --- one barista, one CPU, one checkout lane --- handles
+customers one at a time. We model it with three assumptions, encoded in the name
+\textbf{M/M/1} (a standard notation introduced by David G. Kendall in 1953):
 
 \begin{itemize}
   \item \textbf{First M} (\emph{Markovian arrivals}): customers arrive according to a Poisson process
@@ -462,11 +482,12 @@ the geometric law of Figure~\ref{ch27:fig-mm1}.}
 
 From the geometric distribution we read off how the system performs. The mean number in the system
 is the mean of a geometric:
-\[
-  L \;=\; \E[X] \;=\; \sum_{n=0}^{\infty} n(1-\rho)\rho^n \;=\; \frac{\rho}{1-\rho}.
-\]
-This is the formula that should keep every system designer awake at night. Watch what happens as the
-server gets busy:
+\begin{align*}
+  L &= \E[X] \\
+    &= \sum_{n=0}^{\infty} n(1-\rho)\rho^n \\
+    &= \frac{\rho}{1-\rho}.
+\end{align*}
+Watch what happens as the server gets busy:
 \[
   \rho = 0.5 \Rightarrow L = 1, \qquad
   \rho = 0.9 \Rightarrow L = 9, \qquad
@@ -498,15 +519,14 @@ queueing theory.}
 \end{figure}
 
 \begin{trapbox}
-The deadly intuition is that a server running at $99\%$ utilization is ``almost the same'' as one at
-$90\%$ --- after all, it is only $9$ percentage points busier, and you are squeezing nearly all the
-work out of your expensive hardware. The mathematics says otherwise: the queue is ten times longer.
-The reason is \emph{variability}. Even though work arrives at rate $\lambda$ and is served at rate
-$\mu > \lambda$ \emph{on average}, the randomness in arrivals and service means temporary pile-ups
+A server running at $99\%$ utilization might seem ``almost the same'' as one at
+$90\%$. The mathematics says otherwise: the queue is ten times longer.
+The reason is variability. Even though work arrives at rate $\lambda$ and is served at rate
+$\mu > \lambda$ on average, the randomness in arrivals and service means temporary pile-ups
 happen, and the fuller the system, the longer it takes to drain them. Near $\rho = 1$ there is almost
-no idle capacity to absorb a burst, so backlogs linger. \textbf{Provision for the variance, not just
-the mean.} A system sized so that average load equals average capacity ($\rho = 1$) is not balanced
---- it is unstable, with an infinitely long expected queue.
+no idle capacity to absorb a burst, so backlogs linger. Provision for the variance, not just
+the mean. A system sized so that average load equals average capacity ($\rho = 1$) is unstable,
+with an infinitely long expected queue.
 \end{trapbox}
 
 \begin{paradoxbox}
@@ -536,27 +556,29 @@ average of $1/\mu$ time units to finish, regardless of how long they have alread
 takes an independent mean time $1/\mu$; and the new arrival's own service takes $1/\mu$. Either
 way that is $n + 1$ service completions, each of average duration $1/\mu$, so the expected stay
 is $(n+1)/\mu$. Averaging over $N$ gives $\E[(N+1)/\mu] = (L+1)/\mu$. Therefore:
-\[
-  W \;=\; \frac{L + 1}{\mu}
-     \;=\; \frac{\frac{\rho}{1-\rho} + 1}{\mu}
-     \;=\; \frac{\frac{1}{1-\rho}}{\mu}
-     \;=\; \frac{1}{\mu(1 - \lambda/\mu)}
-     \;=\; \frac{1}{\mu - \lambda}.
-\]
+\begin{align*}
+  W &= \frac{L + 1}{\mu} \\
+    &= \frac{\frac{\rho}{1-\rho} + 1}{\mu} \\
+    &= \frac{\frac{1}{1-\rho}}{\mu} \\
+    &= \frac{1}{\mu(1 - \lambda/\mu)} \\
+    &= \frac{1}{\mu - \lambda}.
+\end{align*}
 Subtracting the customer's own mean service time $1/\mu$ yields the average time spent purely waiting
 in line,
-\[
-  W_q \;=\; W - \frac{1}{\mu}
-      \;=\; \frac{1}{\mu - \lambda} - \frac{1}{\mu}
-      \;=\; \frac{\mu - (\mu - \lambda)}{\mu(\mu - \lambda)}
-      \;=\; \frac{\lambda}{\mu(\mu - \lambda)}
-      \;=\; \frac{\rho}{\mu - \lambda}.
-\]
+\begin{align*}
+  W_q &= W - \frac{1}{\mu} \\
+      &= \frac{1}{\mu - \lambda} - \frac{1}{\mu} \\
+      &= \frac{\mu - (\mu - \lambda)}{\mu(\mu - \lambda)} \\
+      &= \frac{\lambda}{\mu(\mu - \lambda)} \\
+      &= \frac{\rho}{\mu - \lambda}.
+\end{align*}
 And the average number of customers waiting in the line itself (excluding the one being served) is
 the total backlog minus the fraction of time the server is occupied:
-\[
-  L_q \;=\; L - \rho \;=\; \frac{\rho}{1-\rho} - \rho \;=\; \frac{\rho^2}{1-\rho}.
-\]
+\begin{align*}
+  L_q &= L - \rho \\
+      &= \frac{\rho}{1-\rho} - \rho \\
+      &= \frac{\rho^2}{1-\rho}.
+\end{align*}
 
 \begin{example}[Sizing a help desk]
 \label{ch27:ex-helpdesk}
@@ -588,9 +610,7 @@ utilization --- customers experience the system when it is full, not when it is 
 \section{Little's Law}
 \label{ch27:little}
 
-We keep relating $L$ (how many are in the system) to $W$ (how long each one stays). The bridge
-between them is one of the most general results in applied probability, and it requires almost no
-assumptions.
+We can relate $L$ (how many are in the system) to $W$ (how long each one stays) using a general result that requires almost no assumptions.
 
 \begin{theorem}[Little's law]
 \label{ch27:thm-little}
@@ -622,11 +642,11 @@ over time, it is $\int_0^T X_t\,\dd t$, which over a long horizon averages to $L
 over customers, it is $\sum_{i=1}^{A(T)} W_i$ (each customer contributes a horizontal sliver of
 width $W_i$), which equals $A(T) \cdot \overline{W}$ where $\overline{W}$ is the average sojourn.
 Equate and divide by $T$:
-\[
-  L \;=\; \frac{1}{T}\int_0^T X_t\,\dd t
-       \;=\; \frac{A(T)}{T}\cdot \overline{W}
-       \;\xrightarrow[T \to \infty]{}\; \lambda \cdot W,
-\]
+\begin{align*}
+  L &= \frac{1}{T}\int_0^T X_t\,\dd t \\
+    &= \frac{A(T)}{T}\cdot \overline{W} \\
+    &\xrightarrow[T \to \infty]{} \lambda \cdot W,
+\end{align*}
 since $A(T)/T \to \lambda$. The only thing we needed was that the system is stable (everybody
 eventually leaves, so the area is finite per unit time) and that the long-run averages exist. That is
 why Little's law holds for the M/M/1 queue, the M/M/$c$ queue, a grocery store, a hospital ward, or
@@ -697,11 +717,12 @@ stops being mysterious.
 \begin{example}[Little's law as a sanity check on M/M/1]
 \label{ch27:ex-little-check}
 We claimed $L = \rho/(1-\rho)$ and $W = 1/(\mu-\lambda)$. Do they obey $L = \lambda W$? Compute
-\[
-  \lambda W = \frac{\lambda}{\mu - \lambda}
-            = \frac{\lambda/\mu}{1 - \lambda/\mu}
-            = \frac{\rho}{1-\rho} = L. \checkmark
-\]
+\begin{align*}
+  \lambda W &= \frac{\lambda}{\mu - \lambda} \\
+            &= \frac{\lambda/\mu}{1 - \lambda/\mu} \\
+            &= \frac{\rho}{1-\rho} \\
+            &= L. \checkmark
+\end{align*}
 Indeed Little's law is \emph{how} one usually derives $W$: find $L$ from the steady-state
 distribution (easy, it is a geometric mean), then divide by $\lambda$. The same trick applied to the
 queue-only quantities gives $L_q = \lambda W_q$.
@@ -760,13 +781,51 @@ offer low latency at high utilization that no small data center can match. The m
 the product formula is what turns this intuition into a staffing number.
 \end{aestheticbox}
 
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[>=Stealth]
+  % Multiple queues
+  \node[font=\bfseries\small] at (0,3) {Separate Queues};
+  \foreach \i in {0,1,2} {
+    \draw[thick] (-2, -0.3+\i) -- (0, -0.3+\i) -- (0, 0.3+\i);
+    \draw[thick] (-2, 0.3+\i) -- (0, 0.3+\i);
+    \fill[densityred!80] (-0.4, \i) circle (0.18);
+    \fill[densityred!80] (-0.9, \i) circle (0.18);
+    \ifnum\i=1
+      \fill[densityred!80] (-1.4, \i) circle (0.18);
+      \fill[densityred!80] (-1.9, \i) circle (0.18);
+    \fi
+    \node[draw, thick, fill=gray!20, minimum height=0.6cm, minimum width=0.6cm] at (0.6, \i) {$\mu$};
+  }
+
+  % Single queue (Pooled)
+  \begin{scope}[xshift=6cm]
+    \node[font=\bfseries\small] at (0.5,3) {Single Queue (Pooled)};
+    \draw[thick] (-2, 0.6) -- (0, 0.6) -- (0, 1.4);
+    \draw[thick] (-2, 1.4) -- (0, 1.4);
+    \fill[sourceblue!80] (-0.4, 1) circle (0.18);
+    \fill[sourceblue!80] (-0.9, 1) circle (0.18);
+    \fill[sourceblue!80] (-1.4, 1) circle (0.18);
+    \fill[sourceblue!80] (-1.9, 1) circle (0.18);
+    \fill[sourceblue!80] (-2.4, 1) circle (0.18);
+
+    \foreach \i in {0,1,2} {
+      \draw[->, thick, shorten >= 2pt, color=gray!80] (0.2, 1) -- (0.6, \i);
+      \node[draw, thick, fill=gray!20, minimum height=0.6cm, minimum width=0.6cm] at (1.0, \i) {$\mu$};
+    }
+  \end{scope}
+\end{tikzpicture}
+\caption{The economy of scale in queueing. Left: separate queues can leave one server idle while another is overwhelmed. Right: pooling customers into a single M/M/$c$ queue ensures no server is idle as long as someone is waiting, yielding lower average delays even with the same total processing capacity.}
+\label{ch27:fig-pooling}
+\end{figure}
+
 \subsection{Jackson networks}
 
 Real systems are not one queue but a web of them: a packet visits a router, then a link, then another
 router; a manufactured part visits station after station. A \emph{Jackson network} is a collection of
 M/M/1-style queues where, on finishing service at one node, a customer is routed to another node
-(or leaves) by fixed probabilities. The astonishing \emph{product-form} theorem of Jackson (1957)
-says that in steady state the nodes behave \emph{as if independent}: the joint distribution of all
+(or leaves) by fixed probabilities. The \emph{product-form} theorem of Jackson (1957)
+says that in steady state the nodes behave as if independent: the joint distribution of all
 the queue lengths factors,
 \[
   \P(N_1 = n_1, \dots, N_k = n_k) = \prod_{i=1}^{k}\,(1-\rho_i)\rho_i^{\,n_i},
@@ -775,6 +834,39 @@ each node a geometric in its own effective utilization $\rho_i$, even though the
 interact through the routing. That factorization is what makes large networks analytically tractable
 at all, and it underlies performance models of the Internet, of computer architectures, and of
 factory floors.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[->,>=Stealth,thick]
+  % Node 1
+  \node[draw,circle,minimum size=0.8cm,fill=gray!12] (n1) at (0,0) {$1$};
+  \draw[thin,-] (-1.2, -0.25) -- (-0.4, -0.25) -- (-0.4, 0.25) -- (-1.2, 0.25);
+  \fill[gray!60] (-0.6, 0) circle (0.12);
+  \fill[gray!60] (-0.9, 0) circle (0.12);
+  \draw (-2.2,0) to node[above,font=\small] {arrive} (-1.2,0);
+
+  % Node 2
+  \node[draw,circle,minimum size=0.8cm,fill=gray!12] (n2) at (3,1.5) {$2$};
+  \draw[thin,-] (1.8, 1.25) -- (2.6, 1.25) -- (2.6, 1.75) -- (1.8, 1.75);
+  \fill[gray!60] (2.0, 1.5) circle (0.12);
+  \fill[gray!60] (2.3, 1.5) circle (0.12);
+
+  % Node 3
+  \node[draw,circle,minimum size=0.8cm,fill=gray!12] (n3) at (3,-1.5) {$3$};
+  \draw[thin,-] (1.8, -1.75) -- (2.6, -1.75) -- (2.6, -1.25) -- (1.8, -1.25);
+  \fill[gray!60] (2.0, -1.5) circle (0.12);
+
+  \draw (n1) to[bend left=10] node[above left,font=\small] {$P_{12}$} (1.8,1.5);
+  \draw (n1) to[bend right=10] node[below left,font=\small] {$P_{13}$} (1.8,-1.5);
+  \draw (n2) to[bend left=10] node[right,font=\small] {$P_{23}$} (1.8,-1.5);
+  \draw (n3) to[bend left=10] node[left,font=\small] {$P_{32}$} (1.8,1.5);
+  
+  \draw (n2) to (4.5, 1.5) node[right,font=\small] {leave};
+  \draw (n3) to (4.5, -1.5) node[right,font=\small] {leave};
+\end{tikzpicture}
+\caption{A Jackson network. Each node acts as a queue with its own utilization $\rho_i$. Jobs arrive from outside, route between nodes with probability $P_{ij}$, and eventually leave. In steady state, the joint probability factors as if the queues were independent.}
+\label{ch27:fig-jackson}
+\end{figure}
 
 \begin{applicationbox}[Where these chains run today]
 \begin{itemize}

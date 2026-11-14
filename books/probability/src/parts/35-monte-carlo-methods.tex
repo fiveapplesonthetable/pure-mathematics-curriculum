@@ -1,38 +1,21 @@
 \chapter{Monte Carlo Methods}
 
-In the preceding chapter on machine learning, we saw that modern probabilistic
-models often lead to integrals that cannot be evaluated with pencil and paper.
+Modern probabilistic models often require integrals that cannot be evaluated as formulas.
+When an integral lacks a formula, it can often be \emph{simulated}.
+By generating random samples, the law of large numbers guarantees convergence to the true value.
+The result is an estimate, accompanied by an error bar that shrinks as the sample size increases.
 
-There is an old joke that the fastest way to compute a hard integral is to ask
-a casino. Behind the joke is a practical principle: when an integral cannot be evaluated
-in closed form, one can often \emph{simulate} it. By generating random samples,
-the law of large numbers guarantees convergence to the true value. The result arrives not as
-a formula but as an estimate -- a number accompanied by an error bar that shrinks as the sample
-size increases.
-
-These are the \emph{Monte Carlo methods}, named after the casino in
-Monaco. The name was originally a wartime code word: the
-entire subject is built on the idea that controlled randomness can be used as a computational tool. We will learn how to estimate quantities by simulation, how to
-integrate functions that lack closed-form antiderivatives, how accurate those estimates are
-via the central limit theorem, and how to improve efficiency
-through variance reduction. The chapter concludes with Markov Chain Monte Carlo (MCMC),
-a foundational method in modern Bayesian statistics and statistical physics.
-
-Everything in this chapter rests on machinery you have already built. Monte
-Carlo integration applies the law of large numbers directly to numerical calculation.
-Its error bars are supplied by the central limit theorem. Its most advanced form, MCMC,
-translates the theory of Markov chains into a computational algorithm.
+These are the \emph{Monte Carlo methods}, named after the casino in Monaco.
+Controlled randomness can be used as a computational tool to estimate quantities,
+evaluate integrals, and sample from complex distributions.
 
 \section{The Core Idea: Estimating by Simulation}
 \label{ch35:core-idea}
 
-Start with the simplest question there is. Suppose I want to know the
-probability that a particular event happens.
-Maybe it is a complicated event in a complicated system -- the probability that
-a randomly shuffled deck has no card in its ``correct'' position, or that a
-random network stays connected, or that a stock portfolio loses more than ten
-percent in a year. The exact calculation might be a nightmare. But if I can
-\emph{simulate} the system, I can just run it many times and count.
+Suppose we want to know the probability that an event happens in a complex system,
+such as the probability that a stock portfolio loses more than ten percent in a year.
+The exact calculation might be difficult. But if we can simulate the system,
+we can run the simulation many times and count the outcomes.
 
 \begin{intuitionbox}
 To estimate a probability, run the experiment $n$ times and report the fraction
@@ -93,8 +76,6 @@ He shared the insight with John von Neumann, who realized that new electronic di
 \label{ch35:integration}
 The dart game is an example of numerical integration: the area under the arc is
 $\int_0^1 \sqrt{1-x^2}\,\dd x = \pi/4$, which the random points estimated.
-We now state the general principle, as high-dimensional integration is the
-primary domain where Monte Carlo methods are essential.
 Suppose we want to compute
 \[
   I = \int_{\mathcal X} g(x)\, f(x)\, \dd x = \E[g(X)],
@@ -110,18 +91,18 @@ density $f$. Estimate
   \hat I_n = \frac1n \sum_{i=1}^n g(X_i).
 \]
 By the law of large numbers, $\hat I_n \asto I$ as $n\to\infty$, provided
-$\E\abs{g(X)} < \infty$.
+$\E[\abs{g(X)}] < \infty$.
 \end{formalbox}
-If you want a plain integral $\int_a^b h(x)\,\dd x$ with no probability in sight,
-just rewrite it. Let $X\sim\Unif(a,b)$, whose density is $1/(b-a)$ on $[a,b]$.
+To evaluate an integral $\int_a^b h(x)\,\dd x$ that does not involve probability,
+rewrite it as an expectation. Let $X\sim\Unif(a,b)$, whose density is $1/(b-a)$ on $[a,b]$.
 Then
-\[
-  \int_a^b h(x)\,\dd x = (b-a)\int_a^b h(x)\,\frac{1}{b-a}\,\dd x
-  = (b-a)\,\E[h(X)],
-\]
-so the estimator is $\hat I_n = \frac{b-a}{n}\sum_{i=1}^n h(X_i)$ with the
+\begin{align*}
+  \int_a^b h(x)\,\dd x &= (b-a)\int_a^b h(x)\,\frac{1}{b-a}\,\dd x \\
+  &= (b-a)\,\E[h(X)].
+\end{align*}
+The estimator is $\hat I_n = \frac{b-a}{n}\sum_{i=1}^n h(X_i)$ with the
 $X_i$ uniform on $[a,b]$. You sample points, evaluate the function, average, and
-scale by the width. Done.
+scale by the width.
 \begin{connectionbox}
 Monte Carlo integration is a direct application of the law of large numbers.
 Recall from Chapter~20 that for i.i.d.\ $Y_1,\dots,Y_n$ with mean $\mu$, the
@@ -155,16 +136,15 @@ know $\sigma$, so we estimate it from the same sample,
   \hat\sigma^2 = \frac{1}{n-1}\sum_{i=1}^n \bigl(g(X_i) - \hat I_n\bigr)^2,
 \]
 and report $\hat I_n \pm 1.96\,\hat\sigma/\sqrt n$. \emph{The simulation estimates
-its own error bar.} Deterministic quadrature methods rarely provide an error estimate
+its own error bar.} Deterministic integration methods, such as grids, rarely provide an error estimate
 so directly from function evaluations alone.
 \begin{aestheticbox}
-Notice what does \emph{not} appear in $\SD = \sigma/\sqrt n$: the
-dimension $d$. A deterministic grid in $d$ dimensions with $m$ points per axis costs
-$m^d$ evaluations -- the ``curse of dimensionality.'' For a trapezoid-type rule on a smooth integrand its error shrinks like
+Notice that the dimension $d$ does not appear in $\SD = \sigma/\sqrt n$.
+A deterministic grid in $d$ dimensions with $m$ points per axis costs
+$m^d$ evaluations -- the ``curse of dimensionality.'' For a trapezoid rule on a smooth integrand, its error shrinks like
 $m^{-2} = (m^d)^{-2/d}$, which becomes hopeless as $d$ grows. Monte Carlo's error
-shrinks like $n^{-1/2}$ \emph{regardless of $d$}. In high dimensions this is not a
-small advantage; it is the difference between possible and impossible. This is
-why Monte Carlo, not quadrature, integrates the thousand-dimensional integrals of
+shrinks like $n^{-1/2}$ regardless of $d$.
+This is why Monte Carlo, not grids, evaluates the thousand-dimensional integrals of
 Bayesian statistics and statistical physics.
 \end{aestheticbox}
 
@@ -225,18 +205,17 @@ all in a fraction of a second. The dimension never entered the error.
 \end{example}
 \section{Variance Reduction: Working Smarter}
 \label{ch35:variance-reduction}
-The error is $\sigma/\sqrt n$. We can shrink it two ways: increase $n$ (by drawing
-more samples) or decrease $\sigma$ (by structuring the estimator more effectively). The goal of
-\emph{variance reduction} is to find an estimator with the same mean $I$ but a
-smaller variance. A method that halves $\sigma$ achieves the same precision as quadrupling $n$ -- without
-increasing the sample size. We study two classic techniques: importance sampling
-and antithetic variates.
+The standard error is $\sigma/\sqrt n$. We can shrink it either by drawing
+more samples to increase $n$, or by decreasing the variance $\sigma^2$ of the estimator.
+The goal of variance reduction is to find an estimator with the same mean $I$ but a
+smaller variance. A method that halves $\sigma$ achieves the same precision as quadrupling $n$.
+We study two techniques: importance sampling and antithetic variates.
 \subsection{Importance Sampling}
 \label{ch35:importance}
-When sampling uniformly to estimate the expectation of $g$, one often evaluates
-regions where $g$ is negligible and contributes little to the integral.
-Efficiency improves by concentrating samples in regions where $g$ is large and
-adjusting for the non-uniform sampling afterward. This adjustment is importance sampling.
+When sampling uniformly, one often draws points where the function $g$ is near zero.
+These points contribute little to the integral. Efficiency improves by concentrating
+samples where $g$ is large and adjusting for the non-uniform sampling afterward.
+This adjustment is importance sampling.
 \begin{intuitionbox}
 Suppose you want to estimate the average wealth of a population. A simple uniform
 sample rarely includes high-net-worth individuals, whose values significantly influence
@@ -246,13 +225,13 @@ proportionally. Concentrating samples where the variation is greatest lowers ove
 That is the rationale behind importance sampling.
 \end{intuitionbox}
 Mathematically, suppose we want $I = \E_f[g(X)] = \int g(x) f(x)\,\dd x$ but we
-sample from a different density $q$, called the \emph{proposal} or \emph{importance
-distribution}. As long as $q(x) > 0$ wherever $g(x)f(x) \ne 0$, we can write
-\[
-  I = \int g(x)\,f(x)\,\dd x
-    = \int \underbrace{\frac{g(x)\,f(x)}{q(x)}}_{\text{weighted integrand}} q(x)\,\dd x
-    = \E_q\!\left[\frac{g(X)\,f(X)}{q(X)}\right].
-\]
+sample from a different density $q(x)$, called the proposal or importance
+distribution. As long as $q(x) > 0$ wherever $g(x)f(x) \ne 0$, we can write
+\begin{align*}
+  I &= \int g(x)\,f(x)\,\dd x \\
+    &= \int \underbrace{\frac{g(x)\,f(x)}{q(x)}}_{\text{weighted integrand}} q(x)\,\dd x \\
+    &= \E_q\!\left[\frac{g(X)\,f(X)}{q(X)}\right].
+\end{align*}
 So the estimator becomes
 \[
   \hat I_n^{\,\mathrm{IS}} = \frac1n \sum_{i=1}^n g(X_i)\,w(X_i),
@@ -262,15 +241,15 @@ So the estimator becomes
 The weights $w(X_i)$ undo the fact that we drew from $q$ instead of $f$. The
 estimator is still unbiased: $\E_q[g(X)w(X)] = I$. What changes is the variance.
 \begin{whybox}
-Why can importance sampling help? The variance of the new estimator is governed
-by $\E_q[(gw)^2] = \int \frac{g(x)^2 f(x)^2}{q(x)}\,\dd x$. We get to choose $q$.
-If we pick $q$ proportional to $\abs{g(x)}f(x)$ -- placing samples where
-the integrand is largest -- this quantity decreases substantially. In the idealized
-limit $q(x) \propto g(x) f(x)$ (assuming $g \ge 0$), the weighted integrand
-$g(x)f(x)/q(x)$ becomes constant, yielding zero variance. A single
-sample would give the exact answer. While this optimum cannot be achieved in practice
-(since normalizing $q$ requires knowing $I$), it establishes the design principle:
-\textbf{match the proposal density to the shape of the integrand.}
+The variance of the new estimator is governed by
+\[
+  \E_q[(g(X)w(X))^2] = \int \frac{g(x)^2 f(x)^2}{q(x)}\,\dd x.
+\]
+We can choose $q$. If we pick $q(x)$ proportional to $\abs{g(x)}f(x)$ -- placing samples where
+the integrand is largest -- the variance decreases. If $g \ge 0$ and we set $q(x) \propto g(x) f(x)$,
+the weighted integrand $g(x)f(x)/q(x)$ becomes a constant, yielding zero variance.
+This optimum cannot be achieved in practice, because normalizing $q$ requires already knowing the integral $I$.
+However, it establishes the design principle: \textbf{match the proposal density to the shape of the integrand.}
 \end{whybox}
 \begin{trapbox}
 Importance sampling requires care. If $q$ is chosen poorly -- for example, with tails
@@ -291,7 +270,7 @@ $q = \Normal(5,1)$, which concentrates probability mass near $5$
 (Figure~\ref{ch35:fig-importance}), so roughly half the
 samples exceed $5$. Each sample carries weight $w(x) = \phi(x)/\phi(x-5)$, where
 $\phi$ is the standard normal density. The estimator
-$\frac1n\sum \ind\{X_i > 5\}\,w(X_i)$ converges with small relative error
+$\frac1n\sum \ind\{X_i > 5\}\,w(X_i)$ (where the indicator $\ind\{X_i > 5\}$ is 1 if $X_i > 5$ and 0 otherwise) converges with small relative error
 using thousands of samples rather than billions. The sampler focuses on the
 region of interest, while the weights maintain unbiasedness.
 \end{example}
@@ -325,16 +304,15 @@ weights $w=f/q$ correct for the shift and keep the estimator unbiased.}
 \end{figure}
 \subsection{Antithetic Variates}
 \label{ch35:antithetic}
-The second trick exploits \emph{negative correlation}. Recall that for two random
-variables,
+Another variance reduction technique exploits negative correlation. For two random
+variables $Y_1$ and $Y_2$, the variance of their average is
 \[
-  \Var\!\left(\frac{Y_1 + Y_2}{2}\right)
-  = \frac14\bigl(\Var Y_1 + \Var Y_2 + 2\Cov(Y_1,Y_2)\bigr).
+  \Var\left(\frac{Y_1 + Y_2}{2}\right)
+  = \frac{1}{4}\bigl(\Var(Y_1) + \Var(Y_2) + 2\Cov(Y_1,Y_2)\bigr).
 \]
-If $Y_1$ and $Y_2$ are independent, the covariance is zero and we get the usual
-variance reduction by averaging. But if we can arrange $\Cov(Y_1,Y_2) < 0$ -- so
-that when one estimate is above the mean, the other tends to be below it -- the deviations
-partially cancel, and the average has lower variance than under independence.
+If $Y_1$ and $Y_2$ are independent, the covariance is zero. But if $\Cov(Y_1,Y_2) < 0$,
+the deviations partially cancel. When one estimate is above the mean, the other tends to be below it.
+The average then has lower variance than independent samples would.
 \begin{intuitionbox}
 Consider combining two measurements whose errors are negatively correlated: whenever
 one overestimates the quantity, the other tends to underestimate it. Averaging the two
@@ -347,15 +325,45 @@ $(U, 1-U)$ to generate two evaluations $g(U)$ and $g(1-U)$, average them, and
 average those averages over many pairs. If $g$ is monotone increasing (or
 decreasing), then $g(U)$ and $g(1-U)$ move in opposite directions, the covariance
 is negative, and the variance drops significantly without requiring additional independent samples.
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=10cm, height=6.5cm,
+  xlabel={$x$}, ylabel={$y$},
+  xmin=0, xmax=1, ymin=0, ymax=3,
+  legend pos=north west]
+\addplot[densityred, very thick, domain=0:1, samples=60] {exp(x)};
+\addlegendentry{$e^x$}
+\draw[dashed, sourceblue] (axis cs:0.2,0) -- (axis cs:0.2,{exp(0.2)}) node[midway, left] {$e^U$};
+\draw[dashed, sourceblue] (axis cs:0.8,0) -- (axis cs:0.8,{exp(0.8)}) node[midway, right] {$e^{1-U}$};
+\addplot[only marks, mark=*, sourceblue] coordinates {(0.2,{exp(0.2)}) (0.8,{exp(0.8)})};
+\draw[thick, structurepurple] (axis cs:0.2,{exp(0.2)}) -- (axis cs:0.8,{exp(0.8)});
+\addplot[only marks, mark=*, structurepurple] coordinates {(0.5,{(exp(0.2)+exp(0.8))/2})};
+\draw[dashed, structurepurple] (axis cs:0.5,0) -- (axis cs:0.5,{(exp(0.2)+exp(0.8))/2}) node[pos=0.8, right] {average};
+\addplot[name path=f, draw=none, domain=0:1] {exp(x)};
+\addplot[name path=axis, draw=none, domain=0:1] {0};
+\addplot[trapred, opacity=0.1] fill between[of=f and axis];
+\end{axis}
+\end{tikzpicture}
+\caption{Antithetic variates for $e^x$. If $U=0.2$ is drawn, $e^U$ underestimates the average height (red area). Its paired draw $1-U=0.8$ produces $e^{1-U}$, which overestimates it. Their average (purple point) stays close to the true integral.}
+\label{ch35:fig-antithetic}
+\end{figure}
 \begin{example}[Antithetic pairs in action]
 \label{ch35:ex-antithetic}
 Estimate $I = \int_0^1 e^x\,\dd x = e - 1 \approx 1.71828$. Plain Monte Carlo with
-$U\sim\Unif(0,1)$ averages $e^U$; the variance of $e^U$ is
-$\Var(e^U) = \E[e^{2U}] - (\E e^U)^2 = \frac{e^2-1}{2} - (e-1)^2 \approx 0.2420$.
-Now use antithetic pairs: average $\frac12(e^U + e^{1-U})$. Because $e^x$ is
+$U\sim\Unif(0,1)$ averages $e^U$. The variance of $e^U$ is
+\begin{align*}
+  \Var(e^U) &= \E[e^{2U}] - (\E[e^U])^2 \\
+  &= \frac{e^2-1}{2} - (e-1)^2 \\
+  &\approx 0.2420.
+\end{align*}
+Now use antithetic pairs: average $\frac{1}{2}(e^U + e^{1-U})$. Because $e^x$ is
 increasing, $e^U$ and $e^{1-U}$ are negatively correlated. A computation gives
-$\Var\bigl(\tfrac12(e^U+e^{1-U})\bigr) \approx 0.0039$ -- about \emph{sixty times}
-smaller than the plain estimator's per-sample variance. But because each antithetic
+\[
+  \Var\left(\frac{e^U+e^{1-U}}{2}\right) \approx 0.0039,
+\]
+which is about sixty times smaller than the plain estimator's per-sample variance. But because each antithetic
 pair requires two function evaluations, the variance reduction for the same number
 of function evaluations is about \emph{thirty times} (comparing $0.0039$ to $0.2420/2 \approx 0.1210$).
 Thirty times less variance is the same accuracy as thirty times more brute-force samples,
@@ -371,11 +379,10 @@ efficiency by structuring the estimator rather than simply increasing the sample
 \end{happeningbox}
 \section{Generating Samples: Rejection Sampling}
 \label{ch35:rejection}
-The methods above assumed that draws from the reference distribution are readily
-available. Standard algorithms exist for uniform and normal distributions. But many
-distributions -- such as Bayesian posteriors defined only up to an unknown normalizing
-constant -- cannot be sampled directly by standard generators. Rejection sampling
-provides a general method for such settings, based on a direct geometric principle.
+Standard algorithms exist to sample from uniform and normal distributions. But many
+distributions, such as Bayesian posteriors defined only up to an unknown normalizing
+constant, cannot be sampled directly. Rejection sampling
+provides a general method for such settings, based on a geometric principle.
 \begin{intuitionbox}
 To sample a point uniformly from \emph{under the curve} of a density, throw darts
 uniformly at a box that contains the curve, and keep only the darts that land
@@ -383,7 +390,7 @@ under the curve. The $x$-coordinates of the kept darts are distributed exactly
 according to the density. Sampling from a density is equivalent to sampling
 uniformly from the area beneath it.
 \end{intuitionbox}
-This rests on a clean fact worth stating on its own.
+This relies on the following geometric connection.
 \begin{theorem}[Fundamental theorem of simulation]
 \label{ch35:thm-fts}
 Let $f$ be a density on $\R$. If $(X, Y)$ is uniformly distributed on the region
@@ -398,8 +405,7 @@ by integrating out $y$:
   f_X(x) = \int_0^{f(x)} 1 \, \dd y = f(x). \qedhere
 \]
 \end{proof}
-So if we can sample uniformly under the curve, we are done. Rejection sampling
-does this when the curve is awkward by enclosing it in something easy.
+Rejection sampling accomplishes this by enclosing an awkward target density inside an easy proposal density.
 \begin{formalbox}
 \textbf{Rejection sampling.} Suppose we can evaluate a target density $f$ and we
 have a \emph{proposal} density $q$ that we \emph{can} sample, together with a
@@ -460,26 +466,21 @@ This limitation motivated the development of Markov chain Monte Carlo.
 \end{trapbox}
 \section{Markov Chain Monte Carlo}
 \label{ch35:mcmc}
-Consider now the problem of sampling from a complex, high-dimensional
-distribution, such as a Bayesian posterior over many parameters or the
-Boltzmann distribution of a physical lattice. Rejection sampling is thwarted
-by the curse of dimensionality, and direct independent sampling is generally impossible.
+High-dimensional distributions, such as Bayesian posteriors over many parameters,
+cannot be sampled efficiently by rejection sampling due to the curse of dimensionality.
 
-Markov chain Monte Carlo (MCMC) addresses this by replacing independent sampling
-with a dependent sequence. One constructs an ergodic Markov chain whose unique
-stationary distribution is the desired target distribution $\pi$. As the chain runs,
+Markov chain Monte Carlo (MCMC) replaces independent sampling with a dependent sequence.
+It constructs an ergodic Markov chain whose unique stationary distribution is the desired target distribution $\pi$. As the chain runs,
 the sequence of states it visits converges in distribution to $\pi$, and time averages
 along the trajectory converge to expectations under $\pi$.
 \begin{connectionbox}
-This is the payoff of everything you learned about Markov chains
-(Chapters~23--24). There you started with a transition matrix $P$ and found
+In Chapters~23--24, you started with a transition matrix $P$ and found
 the stationary distribution $\pi$ satisfying $\pi P = \pi$.
 
-MCMC runs that logic \emph{backwards}: you are \emph{given} an
-intractable distribution $\pi$ (such as a high-dimensional continuous posterior),
-and you must \emph{design} a transition rule $P$ whose unique
-stationary distribution is that $\pi$. The ergodic theorem for Markov chains then guarantees
-that time averages along a single long trajectory converge to expectations under $\pi$:
+MCMC runs that logic backwards. Given an intractable target distribution $\pi$,
+you design a transition rule $P$ whose unique stationary distribution is $\pi$.
+The ergodic theorem for Markov chains guarantees
+that time averages along a single trajectory converge to expectations under $\pi$:
 \[
   \frac1n \sum_{t=1}^n g(X_t) \asto \E_\pi[g(X)].
 \]
@@ -490,19 +491,19 @@ $P(x\to y)$ has $\pi$ as its stationary distribution if
 \[
   \pi(x)\,P(x \to y) = \pi(y)\,P(y \to x) \qquad \text{for all } x,y.
 \]
-Read it as a flow-conservation law: in equilibrium, the probability current from
-$x$ to $y$ exactly balances the current from $y$ to $x$. If detailed balance
-holds, no net probability moves anywhere, so $\pi$ stays put -- it is stationary. (Summing
+This equation acts as a flow-conservation law: in equilibrium, the probability flow from
+$x$ to $y$ exactly balances the flow from $y$ to $x$. If detailed balance
+holds, no net probability moves anywhere, so $\pi$ is stationary. (Summing
 the detailed-balance equation over $x$ gives $\sum_x \pi(x)P(x\to y) = \pi(y)\sum_x P(y\to x) = \pi(y)$.)
 Every MCMC algorithm provides a systematic way to construct a transition rule that satisfies
 detailed balance with respect to your chosen $\pi$.
 \subsection{The Metropolis--Hastings Algorithm}
 \label{ch35:metropolis}
-The Metropolis--Hastings algorithm requires $\pi$ only \emph{up to a normalizing constant} --
-which is exactly the situation in Bayesian inference, where the posterior is proportional to
-(likelihood)$\times$(prior), but the normalizing integral is intractable. The algorithm
-circumvents this integral entirely because it only ever evaluates the \emph{ratio}
-$\pi(y)/\pi(x)$, in which the unknown normalizing constant cancels.
+The Metropolis--Hastings algorithm requires $\pi$ only up to a normalizing constant.
+This handles Bayesian inference, where the posterior is proportional to
+the likelihood times the prior, but the normalizing integral cannot be evaluated. The algorithm
+circumvents this integral because it only evaluates the ratio
+$\pi(y)/\pi(x)$, where any unknown normalizing constant cancels out.
 \begin{formalbox}
 \textbf{Metropolis--Hastings.} Choose a proposal density $q(y \given x)$ from
 which you can sample. Start at $x_0$. For $t = 0, 1, 2, \dots$:
@@ -519,33 +520,31 @@ which you can sample. Start at $x_0$. For $t = 0, 1, 2, \dots$:
 The resulting chain has stationary distribution $\pi$.
 \end{formalbox}
 \begin{intuitionbox}
-Picture exploring an unknown surface whose height represents $\pi$, seeking high-density
-regions while visiting states in proportion to their probability mass. From the
-current state, the sampler proposes a candidate move $y$. If the candidate has higher
+Think of exploring an unknown surface whose height represents the density $\pi$. From the
+current state $x$, the sampler proposes a candidate move $y$. If the candidate has higher
 probability density ($\pi(y) > \pi(x)$), the step is always accepted. If the candidate
-has lower density, it is still accepted with probability $\pi(y)/\pi(x)$. This balance
-between accepting upward moves and occasionally accepting downward moves ensures the chain
-traverses the full distribution rather than remaining trapped at a local mode
+has lower density, it is still accepted with probability $\pi(y)/\pi(x)$. This allows the chain
+to traverse the full distribution rather than remaining trapped at a local peak
 (Figure~\ref{ch35:fig-mcmc-path}).
 \end{intuitionbox}
 \begin{whybox}
-Why does this leave $\pi$ stationary? We check detailed balance. For $x \ne y$
-the transition density is $P(x\to y) = q(y\given x)\,\alpha(x,y)$. Suppose, say,
-that $\pi(y)q(x\given y) \le \pi(x)q(y\given x)$, so that
-$\alpha(x,y) = \frac{\pi(y)q(x\given y)}{\pi(x)q(y\given x)}$ and, in the reverse
-direction, $\alpha(y,x) = 1$. Then
+To verify that $\pi$ is stationary, we check detailed balance. For $x \ne y$,
+the transition density is $P(x\to y) = q(y\given x)\,\alpha(x,y)$. Suppose
+$\pi(y)q(x\given y) \le \pi(x)q(y\given x)$, so that
 \[
-  \pi(x)\,P(x\to y) = \pi(x)\,q(y\given x)\,
-     \frac{\pi(y)q(x\given y)}{\pi(x)q(y\given x)}
-   = \pi(y)\,q(x\given y),
+  \alpha(x,y) = \frac{\pi(y)q(x\given y)}{\pi(x)q(y\given x)},
 \]
-while
+and in the reverse direction, $\alpha(y,x) = 1$. Then
+\begin{align*}
+  \pi(x)\,P(x\to y) &= \pi(x)\,q(y\given x)\, \frac{\pi(y)q(x\given y)}{\pi(x)q(y\given x)} \\
+   &= \pi(y)\,q(x\given y).
+\end{align*}
+In the other direction,
 \[
   \pi(y)\,P(y\to x) = \pi(y)\,q(x\given y)\cdot 1 = \pi(y)\,q(x\given y).
 \]
-The two sides are equal, so detailed balance holds, and $\pi$ is stationary. The
-$\min$ and the ratio are engineered precisely to make this equality hold. And
-because only the ratio $\pi(y)/\pi(x)$ appears, any normalizing constant in $\pi$
+The two sides are equal, so detailed balance holds, and $\pi$ is stationary.
+Because only the ratio $\pi(y)/\pi(x)$ appears, any normalizing constant in $\pi$
 cancels, allowing MCMC to handle unnormalized posteriors directly.
 \end{whybox}
 \begin{figure}[H]
@@ -659,7 +658,7 @@ along this single path estimate expectations under the normal.}
 \subsection{Gibbs Sampling}
 \label{ch35:gibbs}
 
-When the target lives in many dimensions, proposing good joint moves is hard.
+When the target distribution lives in many dimensions, proposing good joint moves is difficult.
 Gibbs sampling is a clever special case of Metropolis--Hastings that sidesteps
 the problem: instead of moving all coordinates at once, update them \emph{one at
 a time}, each from its \emph{conditional} distribution given all the others.
@@ -685,14 +684,18 @@ Repeat for $j = 1, 2, \dots, d$ and loop. The stationary distribution of the
 resulting chain is exactly $\pi$.
 \end{formalbox}
 
-Gibbs sampling is Metropolis--Hastings with a proposal that is the exact
-conditional distribution. Updating coordinate $j$ with proposal $q(x_j' \given x_{-j}) = \pi(x_j' \given x_{-j})$
-and writing $\pi(x_j, x_{-j}) = \pi(x_{-j})\,\pi(x_j \given x_{-j})$, the Metropolis--Hastings ratio is
-$\frac{\pi(x_{-j})\pi(x_j' \given x_{-j})\,\pi(x_j \given x_{-j})}{\pi(x_{-j})\pi(x_j \given x_{-j})\,\pi(x_j' \given x_{-j})} = 1$,
-so its acceptance probability is always
-$1$. Nothing is ever rejected -- every proposed move is taken. This makes Gibbs
-attractive whenever the full conditionals have nice closed forms, which happens
-constantly in hierarchical Bayesian models built from conjugate pieces.
+Gibbs sampling is Metropolis--Hastings where the proposal is the exact
+conditional distribution. Let $x_{-j}$ denote all coordinates other than $j$.
+Update coordinate $j$ with proposal
+\[
+  q(x_j' \given x_{-j}) = \pi(x_j' \given x_{-j}).
+\]
+Writing the joint distribution as $\pi(x_j, x_{-j}) = \pi(x_{-j})\,\pi(x_j \given x_{-j})$, the Metropolis--Hastings ratio is
+\[
+  \frac{\pi(x_{-j})\pi(x_j' \given x_{-j})\,\pi(x_j \given x_{-j})}{\pi(x_{-j})\pi(x_j \given x_{-j})\,\pi(x_j' \given x_{-j})} = 1.
+\]
+The acceptance probability is always $1$. Every proposed move is taken.
+This makes Gibbs sampling attractive when the conditional distributions can be sampled directly as formulas.
 
 \begin{example}[Gibbs for a bivariate normal]
 \label{ch35:ex-gibbs}
@@ -759,7 +762,7 @@ Run multiple chains from different starts and check that they agree.
 \end{trapbox}
 
 \begin{paradoxbox}
-\textbf{The convergence you cannot see.} Here is the difficulty with MCMC.
+\textbf{The convergence you cannot see.}
 The theory guarantees that time averages converge to the expectation under $\pi$
 as $n \to \infty$, but the rate depends on the mixing time of the chain.
 A chain trapped in one mode of a multimodal distribution can appear stationary:

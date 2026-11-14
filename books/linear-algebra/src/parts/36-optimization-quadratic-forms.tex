@@ -1,38 +1,34 @@
 \chapter{Optimization and Quadratic Forms}
 
-In Chapter~35, we saw electrical networks find currents that minimize dissipated power,
-and random walks settle into equilibrium. Both illustrate a universal theme:
-many mathematical problems reduce to a search for an optimal configuration.
-Examples include finding the best-fit line through a data set, the most efficient
-distribution of current through a circuit, the configuration of neural network
-weights that minimizes loss, or the shape a soap film adopts to minimize surface area.
-In each case, an objective function assigns a real number to every choice -- a cost,
-an error, or an energy -- and the goal is to minimize or maximize this value. That is
-the core problem of \emph{optimization}.
+In Chapter~35 the currents in an electrical network settled into the pattern that
+wastes the least power. Many problems have this form: among all possible choices, find
+the best one. Examples are the line that best fits a data set, the weights of a neural
+network that make its prediction errors smallest, and the shape a soap film takes to
+make its surface area smallest. In each case an \emph{objective function} assigns a
+real number to every choice (a cost, an error, or an energy), and the goal is to make
+that number as small, or as large, as possible. This problem is called
+\emph{optimization}.
 
-This chapter rests on one observation. Most of the smooth cost surfaces that actually
-matter, at least near their lowest points, look like the same simple shape: a \emph{bowl}.
-In Chapter 27 we met the algebraic engine of that bowl: the symmetric matrix $\mat{A}$
-acting in the quadratic form $\vec{x}\T\mat{A}\vec{x}$. There we saw that positive
-eigenvalues make $\vec{x}\T\mat{A}\vec{x}$ strictly positive. Here we turn that insight
-into an algorithm. The geometry of a quadratic form -- bowl, dome, saddle, or trough --
-is governed entirely by the eigenvalues and eigenvectors of $\mat{A}$. So the linear
-algebra you already know turns out to be the exact language of multivariable curvature,
-equilibrium, and constrained optimization.
+This chapter rests on one observation. Near its lowest point, almost every smooth cost
+surface (one with no corners or jumps) has the same shape: a \emph{bowl}. In
+Chapter~27 we met the algebra behind that bowl: a symmetric matrix $\mat{A}$ inside the
+quadratic form $\vec{x}\T\mat{A}\vec{x}$, which is positive for every nonzero
+$\vec{x}$ when all eigenvalues of $\mat{A}$ are positive. Here we put that fact to
+work. Whether a quadratic form describes a bowl, a dome, a saddle, or a trough is
+decided by the eigenvalues and eigenvectors of $\mat{A}$, so the linear algebra you
+already know is enough to describe curvature in many dimensions and to find the best
+point.
 
-We will build the picture first, learning to read off from a matrix whether a surface
-curves up into a bowl (a minimum), down into a dome (a maximum), or twists into a
-saddle (neither). Along the way we will see that ``positive definite'', ``convex'', and
-``has a unique global minimum'' are three phrasings of one geometric idea, and that least
-squares simply sets the gradient of an error bowl to zero. We will also see how constrained
-optimization -- whether subject to smooth equality constraints or boundary inequalities --
-connects directly to eigenvalues via Lagrange multipliers and the Karush--Kuhn--Tucker
-conditions.
+We start with pictures: how to tell from a matrix whether a surface curves up into a
+bowl (a minimum), down into a dome (a maximum), or twists into a saddle (neither). Then
+we find the lowest point of a general function, see least squares as a special case,
+and end with problems in which the allowed choices are restricted by equations or
+inequalities.
 
 \section{Curved surfaces and their bottoms}
 \label{ch36:landscape}
 
-Fix the mental picture once and for all. Imagine a function $f$ that takes a
+Imagine a function $f$ that takes a
 point $\vec{x}$ in the plane and returns a single height $f(\vec{x})$. Plot that
 height as a surface sitting above the plane. Optimization is the question: \emph{over
 all points $\vec{x}$, where is the surface lowest?}
@@ -49,8 +45,8 @@ and down another (saddles)?
 
 The first question is about the \emph{gradient} -- the slope. The second is about
 \emph{curvature} -- how the surface bends -- and curvature is where the quadratic
-forms live. Here are the three archetypal shapes, because every smooth
-surface, zoomed in close enough to a flat spot, looks like one of them.
+forms live. Figure~\ref{ch36:fig-three-shapes} shows the three basic shapes. Zoom in
+close enough to a typical flat spot of a smooth surface and it looks like one of them.
 
 \begin{figure}[H]
 \centering
@@ -83,13 +79,13 @@ surface, zoomed in close enough to a flat spot, looks like one of them.
 \caption{The three basic shapes of a quadratic surface. The \emph{bowl} curves up
 in every direction (a minimum at the center). The \emph{dome} curves down in every
 direction (a maximum). The \emph{saddle} curves up along one axis and down along
-another (neither). Reading which one you have from the eigenvalues of its matrix is the
-first key step in multivariable optimization.}
+another (neither). Section~\ref{ch36:definiteness} shows how to tell which one you
+have from the eigenvalues of a matrix.}
 \label{ch36:fig-three-shapes}
 \end{figure}
 
 The three formulas under those pictures -- $x^2+y^2$, $-(x^2+y^2)$, $x^2-y^2$ -- are
-our first quadratic forms. Notice they are built only from \emph{squares and
+our first quadratic forms. They are built only from \emph{squares and
 products} of the coordinates: $x^2$, $y^2$, $xy$. No lonely $x$ or $y$ term, no
 constant. That is the defining feature, and it is exactly the kind of expression a
 symmetric matrix produces.
@@ -97,10 +93,8 @@ symmetric matrix produces.
 \section{Quadratic forms: \texorpdfstring{$\vec{x}\T\mat{A}\vec{x}$}{x'Ax}}
 \label{ch36:quadforms}
 
-In Chapter 27, we introduced the quadratic form as an energy test for positive
-definite matrices. Let us briefly revisit how the matrix builds the polynomial,
-keeping our eyes focused now on the geometry of slopes, level curves, and algorithms.
-Take a symmetric $2\times 2$ matrix and sandwich it between a column vector on the
+Chapter~27 used the quadratic form to test whether a matrix is positive definite.
+Here, once more, is how the matrix produces the polynomial. Take a symmetric $2\times 2$ matrix and sandwich it between a column vector on the
 right and its transpose (a row vector) on the left:
 \[
   \vec{x}\T\mat{A}\vec{x}
@@ -119,8 +113,8 @@ Then the row vector times that:
   = x(ax+by) + y(bx+cy)
   = a x^2 + 2b\,xy + c y^2.
 \]
-There it is. The sandwich $\vec{x}\T\mat{A}\vec{x}$ collapses to a tidy polynomial in
-which every term has total degree exactly two. The diagonal entries $a,c$ become the
+The sandwich $\vec{x}\T\mat{A}\vec{x}$ is a polynomial in which every term has total
+degree exactly two (the exponents in each term add up to $2$). The diagonal entries $a,c$ become the
 pure-square coefficients; the off-diagonal entry $b$ becomes the coefficient of the
 cross term $xy$, doubled because it appears in both off-diagonal slots.
 
@@ -130,8 +124,10 @@ Let $\mat{A}$ be an $n\times n$ symmetric matrix. The function
 \[
   Q(\vec{x}) \;=\; \vec{x}\T\mat{A}\vec{x} \;=\; \sum_{i=1}^{n}\sum_{j=1}^{n} A_{ij}\,x_i x_j
 \]
-is the \emph{quadratic form} associated with $\mat{A}$. It maps a vector $\vec{x}\in
-\R^n$ to a single real number, and every term is degree two in the coordinates.
+is the \emph{quadratic form} associated with $\mat{A}$. Here $A_{ij}$ is the entry of
+$\mat{A}$ in row $i$, column $j$, and $x_1,\dots,x_n$ are the coordinates of $\vec{x}$.
+The form maps a vector $\vec{x}\in\R^n$ to a single real number, and every term is
+degree two in the coordinates.
 \end{definition}
 
 \begin{focusbox}
@@ -143,18 +139,18 @@ directions open up, which open down, and how sharply in each.
 
 \subsection{Why symmetric, and why the factor of two}
 
-You might worry: what if the matrix is not symmetric? Suppose $\mat{M}$ has
+What if the matrix is not symmetric? Suppose $\mat{M}$ has
 off-diagonal entries $p$ (top right) and $q$ (bottom left) that differ. Working out
 $\vec{x}\T\mat{M}\vec{x}$ gives $a x^2 + (p+q)xy + c y^2$. Only the \emph{sum} $p+q$
 survives -- the form cannot tell $p=1,q=3$ from $p=q=2$. So for any matrix we could
 replace it by its ``symmetric part'' $\tfrac12(\mat{M}+\mat{M}\T)$ without changing
 the form at all. Since the quadratic form only ever sees the symmetric part, we lose
-nothing by \emph{always} taking $\mat{A}$ symmetric, and we gain a great deal: the
-spectral theory of symmetric matrices (real eigenvalues, orthogonal
-eigenvectors) becomes available to read the geometry.
+nothing by \emph{always} taking $\mat{A}$ symmetric. In return we can use the spectral
+theorem for symmetric matrices (Chapter~26: real eigenvalues and perpendicular
+eigenvectors) to read off the geometry.
 
 \begin{trapbox}
-The factor of $2$ trips everyone up once. If you want the cross-term $6xy$ in your
+The factor of $2$ is easy to get wrong. If you want the cross-term $6xy$ in your
 form, the matrix entry $b$ is \emph{half} of that, $b=3$, because $b$ appears twice
 (top-right and bottom-left) and the two copies add. So
 \[
@@ -170,21 +166,29 @@ Build the symmetric matrix for each form, then read it back to check.
 (a) $2x^2 + 4xy + 7y^2$. (b) $x^2 - 6xy + y^2$. (c) $5x^2 + 5y^2$ (no cross term).
 (d) In three variables, $x^2 + y^2 + z^2 + 2xy + 2yz$ -- careful, there is no $xz$
 term, so the $(1,3)$ entry is $0$. Answers:
-(a) $\begin{bmatrix}2&2\\2&7\end{bmatrix}$;
-(b) $\begin{bmatrix}1&-3\\-3&1\end{bmatrix}$;
-(c) $\begin{bmatrix}5&0\\0&5\end{bmatrix}$;
-(d) $\begin{bmatrix}1&1&0\\1&1&1\\0&1&1\end{bmatrix}$.
+\begin{align*}
+  \text{(a)}~\begin{bmatrix}2&2\\2&7\end{bmatrix}; \quad
+  \text{(b)}~\begin{bmatrix}1&-3\\-3&1\end{bmatrix}; \quad
+  \text{(c)}~\begin{bmatrix}5&0\\0&5\end{bmatrix}; \quad
+  \text{(d)}~\begin{bmatrix}1&1&0\\1&1&1\\0&1&1\end{bmatrix}.
+\end{align*}
 \end{labbox}
 
 \subsection{A first worked form and its level curves}
 
-Take $\mat{A}=\begin{bmatrix}3&0\\0&1\end{bmatrix}$, a diagonal matrix, so its form
-is $Q(x,y)=3x^2+y^2$ with no cross term. Where is $Q$ equal to a constant, say
-$Q=3$? That is the equation $3x^2+y^2=3$, i.e. $x^2 + y^2/3 = 1$ -- an ellipse,
+Take
+\[
+  \mat{A}=\begin{bmatrix}3&0\\0&1\end{bmatrix},
+\]
+a diagonal matrix, so its form
+is $Q(x,y)=3x^2+y^2$ with no cross term. The set of points where $Q$ equals a fixed
+constant is called a \emph{level curve} of $Q$ (like a contour line on a hiking map).
+Where is $Q=3$? That is the equation $3x^2+y^2=3$, that is, $x^2 + y^2/3 = 1$: an ellipse,
 short in the $x$-direction (radius $1$) and tall in the $y$-direction (radius
 $\sqrt 3$). Set $Q=12$ and you get a bigger ellipse of the same shape. The level
 curves are a nested family of ellipses, all centered at the origin, and the surface
-$z=Q(x,y)$ is a bowl whose cross-sections are exactly these ellipses.
+$z=Q(x,y)$ is a bowl whose horizontal cross-sections are these ellipses
+(Figure~\ref{ch36:fig-levelcurves}).
 
 \begin{figure}[H]
 \centering
@@ -199,7 +203,7 @@ $z=Q(x,y)$ is a bowl whose cross-sections are exactly these ellipses.
   \draw[->,vecblue,thin] (1.6,1.15) -- (0.95,0.8);
   % principal axes
   \draw[->,vecred,very thick] (0,0)--(1,0);
-  \node[vecred, font=\scriptsize, align=center] at (0.45,-0.38) {steep\\axis};
+  \node[vecred, font=\small, align=center] at (0.5,-0.45) {steep\\axis};
   \draw[->,targetgreen,very thick] (0,0)--(0,1.732);
   \node[targetgreen, left=2pt, font=\small] at (0,0.9) {gentle axis};
 \end{tikzpicture}
@@ -210,16 +214,16 @@ steep wall, so the ellipse is squeezed in that direction.}
 \label{ch36:fig-levelcurves}
 \end{figure}
 
-Notice the eigenvalues of this diagonal matrix are $3$ and $1$, sitting right on the
+The eigenvalues of this diagonal matrix are $3$ and $1$, sitting on the
 diagonal, with eigenvectors along the axes. The big eigenvalue $3$ goes with the
 \emph{steep} direction (the wall of the bowl rises fast, so the ellipse is short
-there); the small eigenvalue $1$ goes with the \emph{gentle} direction. This is the
-whole secret of quadratic-form geometry, and it survives even when the matrix is not
-diagonal -- we just have to rotate to the eigenvector axes first.
+there); the small eigenvalue $1$ goes with the \emph{gentle} direction. This link
+between eigenvalue size and steepness holds even when the matrix is not diagonal; we
+only have to rotate to the eigenvector axes first.
 
 \begin{recoverybox}
 \textbf{Mental check: reading the shape.} If $Q(x,y) = 5x^2 + 2y^2$, what are the
-semi-axes of the ellipse $Q(x,y) = 10$? In the $x$-direction, $5x^2 = 10 \Rightarrow
+semi-axes (the half-lengths of the two axes) of the ellipse $Q(x,y) = 10$? In the $x$-direction, $5x^2 = 10 \Rightarrow
 x = \pm\sqrt{2}$. In the $y$-direction, $2y^2 = 10 \Rightarrow y = \pm\sqrt{5}$. The
 ellipse is wider in $y$ ($\sqrt{5} \approx 2.24$) and narrower in $x$ ($\sqrt{2}
 \approx 1.41$). Why is it narrower along $x$? Because the coefficient $5$ is larger:
@@ -237,28 +241,30 @@ What if there is a cross term? Take
 \]
 The level curves $Q=\text{const}$ are still ellipses, but now they are \emph{tilted}
 -- their axes do not line up with the coordinate axes, precisely because of the $xy$
-term. The cross term is the algebraic fingerprint of a tilt. To visualize the bowl's principal geometry
-we want to rotate our coordinates until the tilt vanishes. And we already know how:
-diagonalize the symmetric matrix.
+term. The cross term is what produces the tilt. To remove it, we rotate the coordinate
+axes until they line up with the axes of the ellipses, and diagonalizing the symmetric
+matrix does exactly that.
 
 Recall from the spectral theorem that a symmetric matrix factors as
 $\mat{A}=\mat{Q}\mat{\Lambda}\mat{Q}\T$, where $\mat{Q}$ is orthogonal (its columns
 are orthonormal eigenvectors) and $\mat{\Lambda}=\diag(\lambda_1,\dots,\lambda_n)$
-holds the eigenvalues. For our $\mat{A}$ the eigenvalues are $3$ and $1$ with
+holds the eigenvalues. (The bold matrix $\mat{Q}$ is unrelated to the form $Q(\vec{x})$;
+the letter is standard for both.) For our $\mat{A}$ the eigenvalues are $3$ and $1$ with
 eigenvectors $\tfrac{1}{\sqrt2}\colvec{1\\1}$ and $\tfrac{1}{\sqrt2}\colvec{1\\-1}$
 (you verified these back in the eigenvalue chapter). Now substitute the factorization
-into the form and introduce \emph{new coordinates} $\vec{y}=\mat{Q}\T\vec{x}$ -- the
-coordinates of $\vec{x}$ in the eigenvector frame:
-\[
-  Q(\vec{x}) = \vec{x}\T\mat{A}\vec{x}
-  = \vec{x}\T \mat{Q}\mat{\Lambda}\mat{Q}\T \vec{x}
-  = (\mat{Q}\T\vec{x})\T \mat{\Lambda} (\mat{Q}\T\vec{x})
-  = \vec{y}\T \mat{\Lambda}\vec{y}
-  = \lambda_1 y_1^2 + \lambda_2 y_2^2.
-\]
-The cross term is gone. In the rotated coordinates the form is purely a sum of
+into the form and introduce \emph{new coordinates} $\vec{y}=\mat{Q}\T\vec{x}$, with
+components $y_1,y_2$. These are the coordinates of $\vec{x}$ in the eigenvector frame:
+\begin{align*}
+  Q(\vec{x}) &= \vec{x}\T\mat{A}\vec{x}
+   = \vec{x}\T \mat{Q}\mat{\Lambda}\mat{Q}\T \vec{x}\\
+  &= (\mat{Q}\T\vec{x})\T \mat{\Lambda} (\mat{Q}\T\vec{x})
+   && \text{(since } \vec{x}\T\mat{Q} = (\mat{Q}\T\vec{x})\T\text{)}\\
+  &= \vec{y}\T \mat{\Lambda}\vec{y}
+   = \lambda_1 y_1^2 + \lambda_2 y_2^2.
+\end{align*}
+The cross term is gone. In the rotated coordinates the form is a sum of
 weighted squares, and the weights are the eigenvalues. This is the \emph{principal
-axes theorem}, and most of the rest of the chapter leans on it.
+axes theorem} (Figure~\ref{ch36:fig-tilted}), and most of the rest of the chapter leans on it.
 
 \begin{formalbox}
 \label{ch36:thm-principal-axes}
@@ -269,8 +275,9 @@ rotated coordinates $\vec{y}=\mat{Q}\T\vec{x}$,
   \vec{x}\T\mat{A}\vec{x} \;=\; \lambda_1 y_1^2 + \lambda_2 y_2^2 + \cdots + \lambda_n y_n^2.
 \]
 Every quadratic form is, in the right rotated frame, a weighted sum of pure squares.
-The eigenvectors point along the principal axes of the level-set ellipsoids; the
-eigenvalues control how far those axes stretch.
+When $\mat{A}$ is positive definite, the level sets are ellipsoids (the
+$n$-dimensional version of ellipses); the eigenvectors point along their principal
+axes, and the eigenvalues control how far those axes stretch.
 \end{formalbox}
 
 \begin{figure}[H]
@@ -297,26 +304,24 @@ direction and gentlest along the eigenvalue-$1$ direction.}
 \end{figure}
 
 \begin{aestheticbox}
-Pause on how much this collapses. A general symmetric $n\times n$ form has up to
-$n(n+1)/2$ independent coefficients -- a messy soup of squares and cross terms. The
-principal axes theorem says: \emph{in the right orthonormal frame, all of that is
-just $n$ numbers, the eigenvalues, stretching $n$ perpendicular axes.} Curvature in
-many dimensions, which sounds impossibly complicated, is simply a handful of
-independent one-dimensional parabolas glued together at right angles. This expresses
-the core message of diagonalization in geometric terms: rotating to the eigenbasis
-decouples the coordinate directions.
+A general symmetric $n\times n$ form has up to $n(n+1)/2$ independent coefficients
+(the entries on and above the diagonal), a mix of squares and cross terms. The
+principal axes theorem says that \emph{in the right orthonormal frame, all of that
+reduces to $n$ numbers, the eigenvalues, one for each of $n$ perpendicular axes.}
+Curvature in many dimensions is then $n$ separate one-dimensional parabolas set at
+right angles to each other. This is diagonalization in geometric terms: rotating to
+the eigenbasis separates (decouples) the coordinate directions.
 \end{aestheticbox}
 
 \section{Reading the shape: definiteness}
 \label{ch36:definiteness}
 
-Now we can answer the question the whole chapter is built around. Look at the
-diagonal form $\lambda_1 y_1^2 + \cdots + \lambda_n y_n^2$. Its sign at any nonzero
-$\vec{y}$ is controlled entirely by the signs of the eigenvalues.
+Look at the diagonal form $\lambda_1 y_1^2 + \cdots + \lambda_n y_n^2$. Its sign at
+any nonzero $\vec{y}$ is decided by the signs of the eigenvalues.
 
 \begin{itemize}
 \item If \emph{every} $\lambda_i>0$, then every term is positive (for $\vec{y}\ne
-\vec{0}$), so $Q>0$ always. The surface is a genuine \textbf{bowl}: a minimum at the
+\vec{0}$), so $Q>0$ always. The surface is a \textbf{bowl}: a minimum at the
 origin. We call $\mat{A}$ \emph{positive definite}.
 \item If every $\lambda_i<0$, then $Q<0$ always: a \textbf{dome}, a maximum.
 \emph{Negative definite}.
@@ -324,9 +329,28 @@ origin. We call $\mat{A}$ \emph{positive definite}.
 then $Q$ goes up along some axes and down along others: a \textbf{saddle}.
 \emph{Indefinite}.
 \item If some eigenvalue is $0$ (and the rest share a sign), the form flattens out
-along that axis -- a trough or ridge rather than a strict bowl. \emph{Positive (or
-negative) semidefinite}.
+along that axis: a trough or ridge rather than a strict bowl
+(Figure~\ref{ch36:fig-trough}). \emph{Positive (or negative) semidefinite}.
 \end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  hide axis, width=6.0cm, height=5.0cm, view={35}{30},
+  domain=-1.4:1.4, y domain=-1.4:1.4, samples=20,
+  title style={font=\small}, title={trough: $x^2 + 0\,y^2$}]
+  \addplot3[surf,shader=interp,fill opacity=0.85,colormap/cool] {x^2};
+  \addplot3[vecred,very thick,samples y=0,domain=-1.4:1.4] (0,x,0);
+\end{axis}
+\end{tikzpicture}
+\caption{The borderline case. The form $x^2$ in two variables has matrix
+$\left[\begin{smallmatrix}1&0\\0&0\end{smallmatrix}\right]$ with eigenvalues $1$ and $0$. It
+curves up along $x$ but is flat along $y$: the whole red line along the $y$-axis is at
+height $0$, so the minimum is not a single point. This matrix is positive semidefinite
+but not positive definite.}
+\label{ch36:fig-trough}
+\end{figure}
 
 \begin{formalbox}
 \label{ch36:thm-definiteness}
@@ -342,20 +366,20 @@ negative) semidefinite}.
 \end{formalbox}
 
 \begin{strangbox}
-Strang devotes a whole chapter to positive definite matrices, and he loves to give
+Strang devotes a whole chapter to positive definite matrices, and he gives
 the energy test $\vec{x}\T\mat{A}\vec{x}>0$ as the \emph{definition}, with the
 eigenvalue test and the pivot test as equivalent ``tests.'' Reading this chapter
 before Strang, hold onto the geometry: positive definite \emph{means} the surface is
-a bowl, so optimization works. Reading it after Strang, you now see why he cared so
-much -- the bowl is exactly the surface on which Newton's method, conjugate
-gradients, and every clean convex algorithm converge.
+a bowl, so optimization works. Reading it after Strang, you can see why he stresses
+it: on a bowl, Newton's method, conjugate gradients and the other descent methods are
+guaranteed to reach the bottom.
 \end{strangbox}
 
 \subsection{Checking definiteness without computing eigenvalues}
 
-Computing eigenvalues is work. For $2\times 2$ matrices there is a lightning-fast
-test using the trace and determinant. The eigenvalues satisfy $\lambda_1\lambda_2=
-\det\mat{A}$ and $\lambda_1+\lambda_2=\tr\mat{A}$. So:
+Computing eigenvalues takes work. For $2\times 2$ matrices there is a faster
+test using the trace (the sum of the diagonal entries) and the determinant. The
+eigenvalues satisfy $\lambda_1\lambda_2=\det\mat{A}$ and $\lambda_1+\lambda_2=\tr\mat{A}$. So:
 
 \begin{itemize}
 \item $\det\mat{A}>0$ means the eigenvalues share a sign (their product is
@@ -368,43 +392,57 @@ $\Rightarrow$ negative definite.
 
 \begin{example}[The trace--determinant test in action]
 \label{ch36:ex-tracedet}
-For $\mat{A}=\begin{bmatrix}2&1\\1&2\end{bmatrix}$: $\det=4-1=3>0$ and $\tr=4>0$, so
+For
+\[
+  \mat{A}=\begin{bmatrix}2&1\\1&2\end{bmatrix}:
+\]
+$\det=4-1=3>0$ and $\tr=4>0$, so
 positive definite -- a bowl. Indeed its eigenvalues were $3,1$. For
-$\mat{B}=\begin{bmatrix}1&2\\2&1\end{bmatrix}$: $\det=1-4=-3<0$, so indefinite -- a
-saddle (eigenvalues $3$ and $-1$). Two innocent-looking matrices, just an entry
-swapped, with completely different geometry: one a bowl, the other a saddle.
+\[
+  \mat{B}=\begin{bmatrix}1&2\\2&1\end{bmatrix}:
+\]
+$\det=1-4=-3<0$, so indefinite -- a
+saddle (eigenvalues $3$ and $-1$). The two matrices differ only by swapping the
+diagonal and off-diagonal entries, yet one is a bowl and the other a saddle.
 \end{example}
 
-For larger matrices the clean generalization is \emph{Sylvester's criterion}: a
+For larger matrices the generalization is \emph{Sylvester's criterion}: a
 symmetric matrix is positive definite exactly when all its \emph{leading principal
 minors} -- the determinants of the top-left $1\times1$, $2\times2$, \dots, $n\times
-n$ blocks -- are positive. This criterion directly reflects the pivot test: each positive
-minor guarantees one positive pivot in elimination, and positive pivots correspond to
-positive eigenvalues.
+n$ blocks -- are positive. The reason is the pivot test of Chapter~27: in elimination
+the $k$-th pivot equals the $k$-th leading minor divided by the one before it, so all
+the minors are positive exactly when all the pivots are, and for a symmetric matrix
+all pivots positive is equivalent to all eigenvalues positive.
 
 \begin{example}[A $3\times 3$ check by minors]
 \label{ch36:ex-minors}
-Test $\mat{A}=\begin{bmatrix} 2&-1&0\\ -1&2&-1\\ 0&-1&2\end{bmatrix}$ (it will reappear
-as a famous matrix below). Leading minors: $|2|=2>0$;
-$\det\begin{bmatrix}2&-1\\-1&2\end{bmatrix}=3>0$; and the full determinant is
-$2(4-1)-(-1)(-2-0)=6-2=4>0$. All positive, so $\mat{A}$ is positive definite. Its
-form $2x^2+2y^2+2z^2-2xy-2yz$ is a $3$-D bowl.
+Test
+\[
+  \mat{A}=\begin{bmatrix} 2&-1&0\\ -1&2&-1\\ 0&-1&2\end{bmatrix}
+\]
+(it reappears below as the discrete second-derivative matrix). The leading minors are
+\begin{align*}
+  \det\begin{bmatrix}2\end{bmatrix}&=2>0,\\
+  \det\begin{bmatrix}2&-1\\-1&2\end{bmatrix}&=3>0,\\
+  \det\mat{A} &= 2(4-1)-(-1)(-2-0)=4>0,
+\end{align*}
+where the last one is expanded along the first row. All positive, so $\mat{A}$ is
+positive definite. Its form $2x^2+2y^2+2z^2-2xy-2yz$ is a $3$-D bowl.
 \end{example}
 
 \begin{trapbox}
 Positive \emph{diagonal entries do not} make a matrix positive definite. The diagonal
-entries are just $\vec{e}_i\T\mat{A}\vec{e}_i$, the values of the form along the
+entries are $\vec{e}_i\T\mat{A}\vec{e}_i$, the values of the form along the
 coordinate axes -- they say nothing about diagonal directions. The matrix
-$\begin{bmatrix}1&2\\2&1\end{bmatrix}$ has positive diagonal yet is indefinite. You
-must check the off-diagonal pull, which is what the determinant minors do.
+The matrix $\left[\begin{smallmatrix}1&2\\2&1\end{smallmatrix}\right]$ has positive diagonal yet is indefinite. You
+must account for the off-diagonal entries, and the determinant minors do that.
 \end{trapbox}
 
 \section{Gradients, Hessians, and where the marble stops}
 \label{ch36:gradient-hessian}
 
-Time to connect the static picture of forms to the dynamic act of \emph{finding} a
-minimum of a general (not necessarily quadratic) function $f(\vec{x})$. Two objects
-do all the work.
+Now we turn from quadratic forms to \emph{finding} a minimum of a general (not
+necessarily quadratic) function $f(\vec{x})$. Two objects do the work.
 
 The \textbf{gradient} $\nabla f$ collects the partial derivatives into a vector:
 \[
@@ -412,13 +450,15 @@ The \textbf{gradient} $\nabla f$ collects the partial derivatives into a vector:
 \]
 Geometrically it points in the direction of \emph{steepest ascent}, and its length is
 the steepness. At a flat spot -- a candidate minimum or maximum -- the ground has no
-slope, so $\nabla f=\vec{0}$. That is the first-order condition.
+slope, so $\nabla f=\vec{0}$. That is the \emph{first-order condition}, so called
+because it uses only first derivatives.
 
 \begin{focusbox}
-\emph{First-order condition (stationarity).} At any minimum or maximum in the
-interior, $\nabla f(\vec{x}^\star)=\vec{0}$. Setting the gradient to zero is how we
+\emph{First-order condition (stationarity).} At any minimum or maximum that is not on
+the edge of the allowed region, $\nabla f(\vec{x}^\star)=\vec{0}$. (The star marks the
+optimal point.) Setting the gradient to zero is how we
 \emph{find} candidate optima. But a zero gradient alone cannot tell bowl from dome
-from saddle -- for that we need curvature.
+from saddle; for that we need curvature.
 \end{focusbox}
 
 The \textbf{Hessian} $\mat{H}$ is the matrix of second partial derivatives:
@@ -429,19 +469,23 @@ The \textbf{Hessian} $\mat{H}$ is the matrix of second partial derivatives:
    \dfrac{\partial^2 f}{\partial x_n\partial x_1} & \cdots & \dfrac{\partial^2 f}{\partial x_n^2}
   \end{bmatrix}.
 \]
-Because mixed partials are equal (for nice functions), $\mat{H}$ is automatically \emph{symmetric}.
-The Hessian is the symmetric matrix whose quadratic form
-\emph{is} the local curvature of $f$. Here is the bridge, written precisely.
+For functions whose second derivatives are continuous, the order of differentiation
+does not matter ($\partial^2 f/\partial x_i\partial x_j = \partial^2 f/\partial
+x_j\partial x_i$), so $\mat{H}$ is automatically \emph{symmetric}.
+Its quadratic form describes the local curvature of $f$, as the Taylor expansion
+below makes precise.
 
 \begin{formalbox}
 \label{ch36:thm-taylor}
-\textbf{Second-order Taylor expansion.} Near a stationary point $\vec{x}^\star$ (where $\nabla f=\vec{0}$), with
+\textbf{Second-order Taylor expansion.} Near a stationary point $\vec{x}^\star$ (another
+name for a critical point: a point where $\nabla f=\vec{0}$), with
 $\vec{h}=\vec{x}-\vec{x}^\star$,
 \[
   f(\vec{x}^\star+\vec{h}) \;\approx\; f(\vec{x}^\star) \;+\; \underbrace{\nabla f(\vec{x}^\star)\T\vec{h}}_{=\,0}
   \;+\; \tfrac12\,\vec{h}\T\mat{H}(\vec{x}^\star)\,\vec{h}.
 \]
-So up to a constant, the surface near a flat spot \emph{is} the quadratic form of its
+Here $\approx$ means the error shrinks faster than $\norm{\vec{h}}^2$ as $\vec{h}\to\vec{0}$.
+So up to a constant, the surface near a flat spot \emph{is} half the quadratic form of its
 Hessian. The bowl/dome/saddle classification of the form transfers directly to the
 function.
 \end{formalbox}
@@ -453,21 +497,10 @@ $f''>0$ means a minimum'' -- promoted to many dimensions, with the scalar $f''>0
 replaced by the matrix statement ``$\mat{H}$ is positive definite.''
 \end{intuitionbox}
 
-\begin{historybox}
-In 1847, Augustin-Louis Cauchy introduced gradient descent while calculating the astronomical orbits of celestial bodies and comets. Cauchy realized that stepping in the direction of the negative gradient $-\nabla f$ guarantees an immediate decrease in function height. But he was quickly halted by a severe geometric trap: in long, narrow ravines where one direction is steep and the perpendicular direction is shallow, steepest descent bounces back and forth between the ravine walls instead of marching down the valley floor.
-
-For a century, Newton's method offered the textbook fix by using the second-derivative Hessian matrix $\mat{H}$ to divide out curvature and leap straight to the bottom: $\Delta\vec{x} = -\mat{H}\inv \nabla f$. But storing and inverting an $n \times n$ Hessian costs $\mathcal{O}(n^3)$ operations and consumes $n^2$ memory words, an impossible barrier for early computers when $n$ reached thousands of variables. Worse, near a saddle point where the Hessian has negative eigenvalues, Newton's step can launch the search uphill toward a maximum.
-
-In 1952, Magnus Hestenes and Eduard Stiefel resolved this computational bottleneck by inventing the \textbf{Conjugate Gradient (CG)} method for symmetric positive-definite systems. Armed with the spectral geometry of quadratic forms, they constructed search directions that are mutually orthogonal with respect to the energy matrix: $\vec{d}_i\T\mat{A}\vec{d}_j = 0$. Each step completely eliminates error along an entire principal axis of the elliptical bowl without disturbing progress made in earlier steps. CG reaches high precision in only $\mathcal{O}(\sqrt{\kappa} \log(1/\epsilon))$ matrix-vector multiplications without ever storing an inverse matrix, enabling the simulation of large-scale physical structures and fluid flows.
-
-Meanwhile, a second optimization revolution was unfolding around inequality constraints. In 1939, a young graduate student at the University of Chicago named William Karush derived the foundational conditions for inequality-constrained optimization in his master's thesis. But World War II dispersed mathematicians into war research, and Karush's thesis sat unpublished and forgotten in the university library. Twelve years later, in 1951, Harold Kuhn and Albert W. Tucker independently rediscovered and published the identical conditions at Princeton, showing how Lagrange multipliers apply to solid boundary walls. When Kuhn later discovered Karush's 1939 thesis, he and Tucker ensured historical justice by championing Karush's priority, permanently renaming the result the \textbf{Karush--Kuhn--Tucker (KKT)} conditions. The KKT conditions provided the foundation for modern mathematical programming, economic game theory, and machine learning algorithms such as support vector machines.
-
-Today, an active frontier is high-dimensional non-convex optimization. In machine
-learning models with billions of parameters, cost surfaces contain saddle points where
-gradients vanish but Hessians have mixed eigenvalues. Explaining when gradient methods
-avoid saddles, and finding efficient algorithms for non-convex quadratic programming
-(which is NP-hard), remain open questions.
-\end{historybox}
+Some vocabulary for the statement below. A \emph{local} minimum is a point at least as
+low as every point near it; a \emph{global} minimum is at least as low as every point
+anywhere; \emph{strict} means no other nearby point ties it. An \emph{extremum} is a
+minimum or a maximum.
 
 \begin{formalbox}
 \label{ch36:thm-second-order}
@@ -477,7 +510,7 @@ avoid saddles, and finding efficient algorithms for non-convex quadratic program
 \mat{H} \text{ positive definite} & \Rightarrow\ \text{strict local minimum (bowl),}\\
 \mat{H} \text{ negative definite} & \Rightarrow\ \text{strict local maximum (dome),}\\
 \mat{H} \text{ indefinite} & \Rightarrow\ \text{saddle point (no extremum),}\\
-\mat{H} \text{ semidefinite (a zero eigenvalue)} & \Rightarrow\ \text{inconclusive; look higher.}
+\mat{H} \text{ semidefinite (a zero eigenvalue)} & \Rightarrow\ \text{inconclusive; higher derivatives decide.}
 \end{array}
 \]
 \end{formalbox}
@@ -495,7 +528,7 @@ constant matrix
   \mat{H} = \begin{bmatrix} 2 & 1 \\ 1 & 2 \end{bmatrix},
 \]
 whose $\det=3>0$ and $\tr=4>0$: positive definite. So $(-1,2)$ is a strict minimum.
-We did not even need the eigenvalues -- the trace--determinant test settled it. (And
+The eigenvalues were not needed; the trace--determinant test settled it. (And
 because $\mat{H}$ is constant, this minimum is the \emph{global} one, as the next
 section explains.)
 \end{example}
@@ -503,7 +536,11 @@ section explains.)
 \begin{example}[A saddle]
 \label{ch36:ex-saddle}
 Let $g(x,y)=x^2 - y^2 + 2x$. Then $\nabla g=\colvec{2x+2\\-2y}=\vec0$ at $(-1,0)$,
-and $\mat{H}=\begin{bmatrix}2&0\\0&-2\end{bmatrix}$, indefinite ($\det=-4<0$). The
+and 
+\[
+  \mat{H}=\begin{bmatrix}2&0\\0&-2\end{bmatrix},
+\]
+which is indefinite ($\det=-4<0$). The
 point $(-1,0)$ is a saddle: walk along $x$ and you climb, walk along $y$ and you
 descend. A marble placed exactly there is balanced but unstable.
 \end{example}
@@ -521,10 +558,9 @@ positive and negative eigenvector directions point on a real mountain pass?
 \label{ch36:convexity}
 
 For a \emph{quadratic} function the Hessian is the same matrix everywhere -- the
-curvature never changes. That is what makes quadratic bowls so well behaved: if the
-Hessian is positive definite, the function is a single perfect bowl with exactly one
-minimum, no other critical points, no surprises. Let us make ``single perfect bowl''
-precise with the word \emph{convex}.
+curvature never changes. So if the Hessian is positive definite, the function is a
+single bowl with exactly one minimum and no other critical points. The precise word
+for this ``single bowl'' shape is \emph{convex}.
 
 \begin{definition}[Convex function]
 \label{ch36:def-convex}
@@ -533,9 +569,13 @@ $t\in[0,1]$,
 \[
   f\big(t\vec{x} + (1-t)\vec{z}\big) \;\le\; t f(\vec{x}) + (1-t) f(\vec{z}).
 \]
-Geometrically: the chord joining any two points on the graph lies \emph{on or above}
-the graph. The surface never bulges above its own secant lines -- it always cups
-upward.
+The point $t\vec{x}+(1-t)\vec{z}$ lies on the segment from $\vec{z}$ (at $t=0$) to
+$\vec{x}$ (at $t=1$). The left side is the height of the graph there; the right side
+is the height, at the same point, of the straight \emph{chord} joining the two points
+$(\vec{x},f(\vec{x}))$ and $(\vec{z},f(\vec{z}))$ on the graph. So geometrically: every
+chord lies \emph{on or above} the graph (Figure~\ref{ch36:fig-convex}). The graph never
+bulges above its chords; it cups upward. If the inequality is strict whenever
+$\vec{x}\ne\vec{z}$ and $0<t<1$, $f$ is \emph{strictly convex}.
 \end{definition}
 
 \begin{figure}[H]
@@ -550,18 +590,29 @@ upward.
   \coordinate (Pz) at (1.9,{0.6*1.9*1.9});
   \draw[trapred,thick] (P)--(Pz);
   \fill[trapred] (P) circle (1.6pt) (Pz) circle (1.6pt);
-  \node[trapred] at (1.1,2.55) {\small chord above graph};
+  \node[trapred] at (1.1,2.6) {\small chord};
   \node[vecblue] at (-1.95,2.3) {\small convex $f$};
+  % compare heights at the point t x + (1-t) z with t = 0.4
+  \draw[densely dashed,spacegray] (0.5,0.15) -- (0.5,1.914);
+  \fill[trapred] (0.5,1.914) circle (1.4pt);
+  \fill[vecblue] (0.5,0.15) circle (1.4pt);
+  \node[trapred,font=\small,anchor=south east] at (0.45,1.95) {$t f(x)+(1-t) f(z)$};
+  \node[vecblue,font=\small,anchor=west] at (0.6,0.42) {$f\big(t x+(1-t) z\big)$};
+  \draw[spacegray] (-1.6,0.06)--(-1.6,-0.06) node[below,font=\small]{$x$};
+  \draw[spacegray] (1.9,0.06)--(1.9,-0.06) node[below,font=\small]{$z$};
 \end{tikzpicture}
-\caption{Convexity: every chord (red) lies on or above the graph (blue). A
-positive-definite quadratic is convex in every direction at once, which is why it has
-exactly one lowest point and downhill always leads there.}
+\caption{Convexity: every chord (red) lies on or above the graph (blue). At each point
+between $x$ and $z$ (here $t=0.4$), the chord's height $t f(x)+(1-t)f(z)$ is at least
+the graph's height. A positive-definite quadratic is convex in every direction at once,
+which is why it has exactly one lowest point and downhill always leads there.}
 \label{ch36:fig-convex}
 \end{figure}
 
-The connection back to our matrices is exact.
+The connection back to our matrices is exact. In the theorem below, $\vec{b}$ is a
+fixed vector and $c$ a constant; the factor $\tfrac12$ is there so that the gradient
+comes out as $\mat{A}\vec{x}-\vec{b}$.
 
-\begin{theorem}[PD Hessian $\Leftrightarrow$ convex quadratic]
+\begin{theorem}[Positive definite Hessian $\Leftrightarrow$ convex quadratic]
 \label{ch36:thm-convex}
 A quadratic function $f(\vec{x})=\tfrac12\vec{x}\T\mat{A}\vec{x} - \vec{b}\T\vec{x}+c$
 with symmetric $\mat{A}$ is convex if and only if $\mat{A}$ is positive
@@ -581,13 +632,12 @@ single bottom.
 \end{proof}
 
 \begin{aestheticbox}
-This is why linear algebra sits at the center of optimization. ``Convex'' is the
-dividing line between problems we can solve reliably and problems that hide local
-traps. And convex, for the smooth quadratic-like surfaces that dominate science and
-machine learning, \emph{means positive definite Hessian} -- an eigenvalue condition.
-Three vocabularies -- the analyst's ``convex,'' the optimizer's ``unique global
-minimum,'' the algebraist's ``positive definite'' -- name a single geometric fact:
-the surface is a bowl.
+This is why linear algebra sits at the center of optimization. Convexity separates the
+problems we can solve reliably from those with false bottoms (local minima that are
+not the lowest point). For smooth functions, convex \emph{means a positive
+semidefinite Hessian everywhere}, which is an eigenvalue condition. For a quadratic,
+``strictly convex'', ``has a unique global minimum'' and ``positive definite'' all
+describe the same picture: the surface is a bowl.
 \end{aestheticbox}
 
 \subsection{Solving the bowl directly}
@@ -599,42 +649,54 @@ jump straight to the bottom. Set the gradient to zero. Differentiating,
   \nabla f(\vec{x}) = \mat{A}\vec{x} - \vec{b} \;=\; \vec{0}
   \quad\Longrightarrow\quad \boxed{\;\mat{A}\vec{x} = \vec{b}.\;}
 \]
-The minimizer of the bowl is the solution of a linear system. Read that backwards and
-it is startling: \emph{solving $\mat{A}\vec{x}=\vec{b}$ is the same as finding the
-bottom of an energy bowl.} This is the variational view of linear systems -- the one
-that underlies the finite-element method, where physical equilibria are computed by
-minimizing energy, and the conjugate-gradient algorithm, which solves $\mat{A}\vec{x}
-=\vec{b}$ by literally rolling toward the bottom of this bowl.
+The minimizer of the bowl is the solution of a linear system. Read backwards:
+\emph{for positive definite $\mat{A}$, solving $\mat{A}\vec{x}=\vec{b}$ is the same as
+finding the bottom of an energy bowl.} This is called the \emph{variational} view of
+linear systems (``variational'' means ``found by minimizing''). It underlies the
+finite-element method, the engineering technique that splits a structure into many
+small pieces and computes its resting shape by minimizing energy, and the
+conjugate-gradient method of Chapter~33, which solves $\mat{A}\vec{x}=\vec{b}$ by
+stepping downhill on this bowl.
 
 \begin{connectionbox}
-The bridge to calculus and physics goes further than it first appears. In mechanics, a system at rest sits at
-a minimum of potential energy; the condition ``$\nabla(\text{energy})=0$'' is the
-equilibrium equation, and stability is the Hessian being positive definite. In
-differential equations, the matrix $\mat{A}=\begin{bmatrix}2&-1&0\\-1&2&-1\\0&-1&2\end{bmatrix}$
-from Example~\ref{ch36:ex-minors} is the discrete second-derivative operator; its
-positive definiteness is the discrete statement that $-\,u''$ stores energy. The
-quadratic form $\tfrac12\vec{x}\T\mat{A}\vec{x}$ is a discretized
-$\int \tfrac12 (u')^2$. Optimization, linear systems, and the calculus of variations
-are one subject seen from three sides.
+In mechanics, a system at rest sits at a minimum of potential energy (stored energy
+of position, such as that of a stretched spring); the condition
+``$\nabla(\text{energy})=\vec{0}$'' is the equilibrium equation, and the rest position
+is stable when the Hessian is positive definite. The matrix $\mat{A}$ of
+Example~\ref{ch36:ex-minors} comes from differential equations. Sample a function $u$
+at three equally spaced points, $u_1,u_2,u_3$, with $u=0$ at both ends. Row $i$ of
+$\mat{A}\vec{u}$ is $-u_{i-1}+2u_i-u_{i+1}$, which approximates $-u''$ (times the
+square of the spacing), so $\mat{A}$ is a \emph{discrete second derivative}. Its form
+is a sum of squared differences,
+\[
+  \vec{u}\T\mat{A}\vec{u} = u_1^2 + (u_2-u_1)^2 + (u_3-u_2)^2 + u_3^2,
+\]
+which approximates (up to the spacing) $\int (u')^2\,dx$, twice the stretching energy
+of a taut string with shape $u$. Positive definiteness says this energy is positive unless the
+string is flat. The study of minimizing such integrals over functions is the
+\emph{calculus of variations}; linear systems and optimization are its discrete form.
 \end{connectionbox}
 
 \section{Least squares is the gradient of a bowl}
 \label{ch36:least-squares}
 
-You met least squares as projection: to ``solve'' an overdetermined system
-$\mat{A}\vec{x}=\vec{b}$ with no exact solution, find the $\vec{x}$ that makes
-$\mat{A}\vec{x}$ as close to $\vec{b}$ as possible. Optimization gives the same answer
-from a fresh angle, and it puts the machinery of this chapter to work on a
-concrete problem.
+Chapter~19 treated least squares as projection: to ``solve'' an overdetermined system
+$\mat{A}\vec{x}=\vec{b}$ (more equations than unknowns, with no exact solution), find
+the $\vec{x}$ that makes $\mat{A}\vec{x}$ as close to $\vec{b}$ as possible. Here
+$\mat{A}$ is a tall $m\times n$ matrix, not necessarily symmetric. Optimization gives
+the same answer another way.
 
 We want to minimize the squared error
 \[
   E(\vec{x}) = \norm{\mat{A}\vec{x}-\vec{b}}^2 = (\mat{A}\vec{x}-\vec{b})\T(\mat{A}\vec{x}-\vec{b}).
 \]
-Expand it -- and watch a quadratic form appear:
-\[
-  E(\vec{x}) = \vec{x}\T(\mat{A}\T\mat{A})\vec{x} \;-\; 2\,\vec{b}\T\mat{A}\vec{x} \;+\; \vec{b}\T\vec{b}.
-\]
+Multiplying out gives a quadratic form plus linear and constant terms:
+\begin{align*}
+  E(\vec{x}) &= \vec{x}\T\mat{A}\T\mat{A}\vec{x} - \vec{x}\T\mat{A}\T\vec{b}
+                - \vec{b}\T\mat{A}\vec{x} + \vec{b}\T\vec{b}\\
+             &= \vec{x}\T(\mat{A}\T\mat{A})\vec{x} \;-\; 2\,\vec{b}\T\mat{A}\vec{x} \;+\; \vec{b}\T\vec{b}
+             && \text{(the two middle terms are the same number).}
+\end{align*}
 The matrix of the quadratic part is $\mat{A}\T\mat{A}$, which is always symmetric and
 positive semidefinite -- and positive \emph{definite} as soon as $\mat{A}$ has
 independent columns. So $E$ is a convex bowl, and its unique bottom is found by
@@ -643,7 +705,7 @@ setting the gradient to zero:
   \nabla E(\vec{x}) = 2\mat{A}\T\mat{A}\vec{x} - 2\mat{A}\T\vec{b} = \vec0
   \quad\Longrightarrow\quad \boxed{\;\mat{A}\T\mat{A}\,\vec{x} = \mat{A}\T\vec{b}.\;}
 \]
-These are the \emph{normal equations} -- the very ones the projection picture
+These are the \emph{normal equations} -- exactly the ones the projection picture
 produced. The two derivations agree because they are the same fact: the closest point
 in a subspace, and the bottom of the error bowl, are one and the same.
 
@@ -655,19 +717,40 @@ Fit a line $y = c + dx$ through the three points $(0,1),(1,2),(2,2)$. The model 
   \vec{b}=\colvec{1\\2\\2},\quad
   \vec{x}=\colvec{c\\d}.
 \]
-Then $\mat{A}\T\mat{A}=\begin{bmatrix}3&3\\3&5\end{bmatrix}$ (note $\det=6>0$, so
-positive definite -- a bowl) and $\mat{A}\T\vec{b}=\colvec{5\\6}$. Solving
-$\begin{bmatrix}3&3\\3&5\end{bmatrix}\colvec{c\\d}=\colvec{5\\6}$ gives, after
-elimination, $d=\tfrac12$ and $c=\tfrac76$. The best-fit line is $y=\tfrac76+\tfrac12
+Then
+\[
+  \mat{A}\T\mat{A}=\begin{bmatrix}3&3\\3&5\end{bmatrix} \quad \text{and} \quad \mat{A}\T\vec{b}=\colvec{5\\6}.
+\]
+Note that $\det(\mat{A}\T\mat{A})=6>0$, so it is positive definite (a bowl). Solving
+\[
+  \begin{bmatrix}3&3\\3&5\end{bmatrix}\colvec{c\\d}=\colvec{5\\6}
+\]
+gives, after elimination, $d=\tfrac12$ and $c=\tfrac76$. The best-fit line is $y=\tfrac76+\tfrac12
 x$. We found it by locating the bottom of a two-dimensional bowl over the
-$(c,d)$-plane.
+$(c,d)$-plane (Figure~\ref{ch36:fig-lsq}).
 \end{example}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.2,>=Latex]
+  \draw[help lines,gray!25] (-0.5,-0.5) grid (3.5,3.5);
+  \draw[->] (-0.5,0) -- (3.5,0) node[right]{$x$};
+  \draw[->] (0,-0.5) -- (0,3.5) node[above]{$y$};
+  \fill[black] (0,1) circle (2pt) node[left]{$(0,1)$};
+  \fill[black] (1,2) circle (2pt) node[above left]{$(1,2)$};
+  \fill[black] (2,2) circle (2pt) node[right]{$(2,2)$};
+  \draw[vecblue, thick, domain=-0.2:3.2] plot (\x, {7/6 + 0.5*\x});
+  \node[vecblue, right] at (3.2, 2.76) {$y = \tfrac{7}{6} + \tfrac{1}{2}x$};
+\end{tikzpicture}
+\caption{The least-squares regression line $y = \frac{7}{6} + \frac{1}{2}x$ for the three data points $(0,1), (1,2), (2,2)$. The quadratic error bowl $E(c,d)$ has its unique minimum at $(c,d) = (\frac{7}{6}, \frac{1}{2})$, which produces exactly this line.}
+\label{ch36:fig-lsq}
+\end{figure}
 
 \begin{applicationbox}
 \textbf{Training a linear model in machine learning} is exactly this bowl, scaled up.
 A linear regressor with weight vector $\vec{w}$ and bias predicts $\hat y = \vec{w}\T
 \vec{x}+b$, and training minimizes mean squared error -- a convex quadratic in
-$(\vec{w},b)$ whose Hessian is essentially $\mat{X}\T\mat{X}/n$, the (scaled) data
+$(\vec{w},b)$ whose Hessian is roughly $\mat{X}\T\mat{X}/n$, the (scaled) data
 covariance matrix. Because that Hessian is positive semidefinite, the loss is convex
 and gradient descent cannot get stuck: there is one valley. The \emph{eigenvalues} of
 $\mat{X}\T\mat{X}$ even set the speed limit -- the ratio of largest to smallest
@@ -869,7 +952,7 @@ eigenvalues are the maximum and minimum of the form on the unit sphere.
   \node[targetgreen] at (1.25,-1.55) {\small min $=1$};
   \node[gray!50!black] at (-1.55,-0.9) {\small unit circle};
 \end{tikzpicture}
-\caption{The Rayleigh quotient of $\mat{A}=\protect\begin{bmatrix}2&1\\1&2\protect\end{bmatrix}$
+\caption{The Rayleigh quotient of $\mat{A}=\left[\begin{smallmatrix}2&1\\1&2\end{smallmatrix}\right]$
 made visible. Along each unit direction (gray circle) we plot the value
 $R(\vec{x})=\vec{x}\T\mat{A}\vec{x}$ as the radius of the blue curve. It bulges
 farthest out in the top eigenvector direction $\tfrac{1}{\sqrt2}\colvec{1\\1}$
@@ -881,7 +964,7 @@ eigenvector.}
 
 \begin{example}[Rayleigh on a $2\times2$]
 \label{ch36:ex-rayleigh}
-For $\mat{A}=\begin{bmatrix}2&1\\1&2\end{bmatrix}$ (eigenvalues $3$ and $1$), the form
+For $\mat{A}=\left[\begin{smallmatrix}2&1\\1&2\end{smallmatrix}\right]$ (eigenvalues $3$ and $1$), the form
 $2x^2+2xy+2y^2$ on the unit circle ranges between $1$ and $3$. Its maximum $3$ is hit
 at $\tfrac{1}{\sqrt2}\colvec{1\\1}$ (the form there is $\tfrac12(2+2+2)=3$), its
 minimum $1$ at $\tfrac{1}{\sqrt2}\colvec{1\\-1}$ ($\tfrac12(2-2+2)=1$). The ellipse of
@@ -889,7 +972,7 @@ Figure~\ref{ch36:fig-tilted} is squashed precisely between these extremes.
 \end{example}
 
 \begin{aestheticbox}
-Notice how the theory comes full circle. We began the book with eigenvectors as
+The theory comes full circle. We began the book with eigenvectors as
 ``directions a matrix does not turn.'' Now they return as ``directions in which a
 quadratic form is stationary on the sphere'' -- the steepest and flattest directions
 of the bowl, the principal axes of the ellipse, the answer to a constrained
@@ -915,8 +998,7 @@ curves. Instead, they provide feasible regions bounded by one-sided barriers:
 \end{itemize}
 These are \emph{inequality constraints}. They define feasible regions with an interior and
 a boundary. To handle them, we need to understand the geometry of the feasible region, the
-forces that keep an optimizer from crossing its boundary, and the Karush--Kuhn--Tucker (KKT)
-conditions that govern equilibrium.
+forces that keep an optimizer from crossing its boundary, and the conditions that govern equilibrium.
 
 \subsection{Why convexity matters geometrically}
 \label{ch36:convex-geometry}
@@ -1148,7 +1230,7 @@ where each $\mu_i$ is the multiplier for inequality wall $g_i \le 0$, and each $
 \end{enumerate}
 \end{formalbox}
 
-Notice the physical meaning embedded in each line:
+The physical meaning embedded in each line is:
 \begin{itemize}
   \item \emph{Primal feasibility} ensures the marble is inside the allowed territory.
   \item \emph{Dual feasibility} ensures solid walls push inward rather than pulling like glue. Equality multipliers $\lambda_j$ are free to be positive or negative because an equality constraint is a two-sided track that can push from either direction.
@@ -1163,7 +1245,7 @@ There is a second, complementary angle on these multipliers: the perspective of 
 
 Consider the minimax game hidden inside the Lagrangian. If we choose a vector $\vec{x}$ that violates a constraint -- say, $g_1(\vec{x}) > 0$ -- then a challenger who wants to maximize $\mathcal{L}(\vec{x}, \vec{\mu}, \vec{\lambda})$ with respect to $\vec{\mu} \ge \vec{0}$ can choose $\mu_1 \to +\infty$, driving $\mathcal{L}$ to positive infinity. If $\vec{x}$ is feasible, however, each $g_i(\vec{x}) \le 0$, so the best the challenger can do is set $\mu_i = 0$ whenever $g_i < 0$, giving an optimal value of exactly $f(\vec{x})$.
 
-Therefore, the original primal optimization problem can be phrased as:
+Therefore, the optimal value $p^\star$ of the original primal optimization problem can be phrased as:
 \[
   p^\star \;=\; \min_{\vec{x}} \; \max_{\vec{\mu} \ge \vec{0}, \, \vec{\lambda}} \; \mathcal{L}(\vec{x}, \vec{\mu}, \vec{\lambda}).
 \]
@@ -1171,12 +1253,15 @@ Now reverse the order of operations. What happens if we maximize first, and mini
 \[
   d(\vec{\mu}, \vec{\lambda}) \;=\; \inf_{\vec{x}} \; \mathcal{L}(\vec{x}, \vec{\mu}, \vec{\lambda}).
 \]
+(Here $\inf$ stands for infimum, the greatest lower bound, which is just the minimum if the function reaches a lowest point.)
 Because the dual function is the pointwise infimum of a collection of affine functions in $(\vec{\mu}, \vec{\lambda})$, it is \emph{always concave}, regardless of whether the original objective $f$ was convex.
 
 For any valid choice of multipliers $\vec{\mu} \ge \vec{0}$ and any feasible point $\tilde{\vec{x}}$,
-\[
-  d(\vec{\mu}, \vec{\lambda}) \;\le\; \mathcal{L}(\tilde{\vec{x}}, \vec{\mu}, \vec{\lambda}) \;=\; f(\tilde{\vec{x}}) + \sum_{i=1}^m \underbrace{\mu_i g_i(\tilde{\vec{x}})}_{\le\, 0} + \sum_{j=1}^p \lambda_j \underbrace{h_j(\tilde{\vec{x}})}_{=\,0} \;\le\; f(\tilde{\vec{x}}).
-\]
+\begin{align*}
+  d(\vec{\mu}, \vec{\lambda}) &\;\le\; \mathcal{L}(\tilde{\vec{x}}, \vec{\mu}, \vec{\lambda}) \\
+  &\;=\; f(\tilde{\vec{x}}) + \sum_{i=1}^m \underbrace{\mu_i g_i(\tilde{\vec{x}})}_{\le\, 0} + \sum_{j=1}^p \lambda_j \underbrace{h_j(\tilde{\vec{x}})}_{=\,0} \\
+  &\;\le\; f(\tilde{\vec{x}}).
+\end{align*}
 Because this holds for every feasible $\tilde{\vec{x}}$, taking the infimum on the right yields the inequality of \textbf{weak duality}:
 \[
   d(\vec{\mu}, \vec{\lambda}) \;\le\; p^\star \qquad \text{for all } \vec{\mu} \ge \vec{0}, \; \vec{\lambda}.
@@ -1412,7 +1497,7 @@ minimum. The bowl has exactly one bottom, and we have found it.
 \end{example}
 
 \begin{recoverybox}
-If that example felt like a lot, notice it was only four moves, each one a tool you
+If that example felt like a lot, it was only four moves, each one a tool you
 already owned: take the gradient (calculus), solve a linear system for the flat spot
 (elimination), build the Hessian (more calculus), and test definiteness (minors /
 eigenvalues). Geometry-first the whole way: find the flat spot, then check it cups
@@ -1429,7 +1514,7 @@ upward. Reread it once and the pattern, not the arithmetic, is what should stick
 the matrix version of $ax^2$: bowl, dome, or saddle.
 \item \emph{Principal axes:} rotate to the eigenvectors and the form becomes
 $\lambda_1 y_1^2+\cdots+\lambda_n y_n^2$ -- a sum of squares weighted by eigenvalues.
-\item \emph{Definiteness} is just the signs of the eigenvalues: all positive
+\item \emph{Definiteness} is the signs of the eigenvalues: all positive
 $\Rightarrow$ bowl (minimum), mixed $\Rightarrow$ saddle. Check it fast with
 trace/determinant or leading minors.
 \item To \emph{find} optima of a general $f$: gradient zero locates flat spots; the
@@ -1464,7 +1549,7 @@ for a modern neural network with a billion parameters, writing down the Hessian 
 demand exabytes of storage, forcing practitioners to optimize with matrix-free products
 or limited-memory approximations like L-BFGS.
 
-Notice, too, the boundary of this chapter: optimization took place in
+Observe the boundary of this chapter: optimization took place in
 finite-dimensional space $\R^n$. In Chapter~37, \emph{Connections: Groups,
 Tensors, and Functional Analysis}, we extend linear algebra in three major directions:
 into infinite-dimensional Hilbert spaces, matrix Lie groups, and multilinear tensors.
@@ -1492,8 +1577,12 @@ Which (if any) are positive definite by the trace--determinant test?
 \begin{exercise}[Bowl, dome, or saddle]
 \label{ch36:exr-classify}
 Classify the origin for each form using eigenvalue signs.
-(a) $\begin{bmatrix}5&0\\0&2\end{bmatrix}$. (b) $\begin{bmatrix}1&3\\3&1\end{bmatrix}$.
-(c) $\begin{bmatrix}-2&0\\0&-5\end{bmatrix}$. (d) $\begin{bmatrix}4&2\\2&1\end{bmatrix}$
+\begin{align*}
+  \text{(a)}~\begin{bmatrix}5&0\\0&2\end{bmatrix} \quad
+  \text{(b)}~\begin{bmatrix}1&3\\3&1\end{bmatrix} \quad
+  \text{(c)}~\begin{bmatrix}-2&0\\0&-5\end{bmatrix} \quad
+  \text{(d)}~\begin{bmatrix}4&2\\2&1\end{bmatrix}
+\end{align*}
 -- watch the determinant on this last one and say what shape you get.
 \end{exercise}
 
@@ -1522,8 +1611,10 @@ definite (so the bowl has a unique bottom).
 \begin{exercise}[Sylvester practice]
 \label{ch36:exr-sylvester}
 Use leading principal minors to decide whether each is positive definite.
-(a) $\begin{bmatrix}3&1&0\\1&3&1\\0&1&3\end{bmatrix}$.
-(b) $\begin{bmatrix}1&2&0\\2&1&0\\0&0&5\end{bmatrix}$.
+\begin{align*}
+  \text{(a)}~\begin{bmatrix}3&1&0\\1&3&1\\0&1&3\end{bmatrix} \quad
+  \text{(b)}~\begin{bmatrix}1&2&0\\2&1&0\\0&0&5\end{bmatrix}
+\end{align*}
 For any that fail, say what shape (an indefinite saddle) you get instead by
 estimating eigenvalue signs.
 \end{exercise}
@@ -1537,7 +1628,11 @@ circle is ``most aligned'' with the vector $\colvec{2\\3}$?).
 
 \begin{exercise}[Rayleigh quotient]
 \label{ch36:exr-rayleigh}
-For $\mat{A}=\begin{bmatrix}4&1\\1&4\end{bmatrix}$, compute the eigenvalues, then
+For
+\[
+  \mat{A}=\begin{bmatrix}4&1\\1&4\end{bmatrix},
+\]
+compute the eigenvalues, then
 state the maximum and minimum of $\vec{x}\T\mat{A}\vec{x}$ over unit vectors and the
 unit vectors where each is attained. Verify by evaluating the form at
 $\tfrac{1}{\sqrt2}\colvec{1\\1}$ and $\tfrac{1}{\sqrt2}\colvec{1\\-1}$.
@@ -1546,8 +1641,11 @@ $\tfrac{1}{\sqrt2}\colvec{1\\1}$ and $\tfrac{1}{\sqrt2}\colvec{1\\-1}$.
 \begin{exercise}[Condition number and the shape of the bowl]
 \label{ch36:exr-condition}
 The ``stretch'' of a positive-definite bowl is $\lambda_{\max}/\lambda_{\min}$. For
-$\mat{A}=\begin{bmatrix}10&0\\0&1\end{bmatrix}$ and
-$\mat{B}=\begin{bmatrix}2&0\\0&1\end{bmatrix}$, compute this ratio and sketch the
+\[
+  \mat{A}=\begin{bmatrix}10&0\\0&1\end{bmatrix} \quad \text{and} \quad
+  \mat{B}=\begin{bmatrix}2&0\\0&1\end{bmatrix},
+\]
+compute this ratio and sketch the
 level-curve ellipse of each. Which bowl would gradient descent navigate faster, and
 why? (This is the feature-scaling story from the machine-learning box.)
 \end{exercise}
